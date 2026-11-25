@@ -55,7 +55,7 @@ Les **paramètres de diagnostic** acheminent les journaux de ressources et les m
 Les **données de l'invité** passent par l'**agent Azure Monitor** (l'ancien agent Log Analytics est retiré) :
 
 1. Créez l'espace de travail.
-2. Créez une **règle de collecte de données** (DCR) : quelles données (journaux d'événements Windows et niveaux, facilités Syslog, compteurs de performances, journaux texte) et où les envoyer.
+2. Créez une **règle de collecte de données** (DCR) : quelles données (journaux d'événements Windows et niveaux, facilités Syslog, compteurs de performances, journaux texte) et où les envoyer. La DCR doit être dans la **même région que chaque espace de travail** vers lequel elle envoie des données ; pour des espaces de travail de plusieurs régions, créez plusieurs DCR.
 3. **Associez** la DCR aux machines ; le portail installe automatiquement l'extension de l'agent. Une machine peut avoir plusieurs DCR, et une DCR de nombreuses machines.
 
 Les machines hors Azure sont d'abord connectées avec **Azure Arc**.
@@ -142,6 +142,7 @@ Types de règles d'alerte :
 
 - Les seuils de métrique sont **statiques** (une valeur) ou **dynamiques** (appris de l'historique de la métrique, avec une sensibilité). Un seuil dynamique a besoin d'un historique avant de pouvoir se déclencher (au moins trois jours de données) et ne s'utilise pas dans une règle à plusieurs conditions.
 - Les alertes de métrique et de journaux peuvent être **avec état** : elles se déclenchent une fois, puis passent à *Résolue* quand la condition disparaît. Les alertes de journal d'activité sont **sans état** : elles se déclenchent à chaque événement.
+- Une alerte de recherche dans les journaux dont l'étendue est un espace de travail déclenche **une seule alerte sur l'espace de travail** pour tout le résultat de la requête. Pour obtenir **une alerte par ressource**, **fractionnez par dimensions** : jusqu'à six colonnes de type chaîne ou numérique du résultat, par exemple la colonne **Azure Resource ID** (l'alerte cible alors la ressource) ou `Computer`. Chaque combinaison est évaluée séparément et déclenche sa propre alerte ; avec *Automatically resolve alerts*, chacune est résolue quand sa propre condition disparaît.
 - Un journal d'activité ne peut pas dire que le processeur est élevé, et une alerte de métrique ne peut pas dire qui a supprimé une ressource : accordez le signal au besoin.
 
 Contenu d'un **groupe d'actions** :
@@ -167,12 +168,14 @@ Les insights sont des vues de supervision prêtes à l'emploi, par type de resso
 
 | Insight | Montre | Prérequis |
 | --- | --- | --- |
-| **VM Insights** | Les performances de l'invité (processeur, mémoire, disques, réseau) des machines et des groupes identiques, les tendances et, en option, la **carte** (Map) des processus et des connexions | Agent Azure Monitor + règle de collecte de données envoyant vers un espace de travail (l'intégration les crée) ; la carte demande l'agent Dependency |
+| **VM Insights** | Les performances de l'invité (processeur, mémoire, disques, réseau) des machines et des groupes identiques, et les tendances | Agent Azure Monitor + règle de collecte de données (l'intégration les crée) |
 | **Storage Insights** | Disponibilité, latence, transactions et capacité de tous les comptes de stockage | **Aucun** : fondé sur les métriques de plateforme |
 | **Network Insights** | Intégrité et métriques de toutes les ressources réseau, topologie, accès au Moniteur de connexion, aux journaux de flux et à Traffic Analytics | Aucun pour la vue d'ensemble |
 | Container Insights, Application Insights | Clusters Kubernetes ; performances applicatives | Activés par cluster ou par application |
 
-Avec l'expérience classique de VM Insights, les données de performances arrivent dans la table `InsightsMetrics`. Les machines hors Azure doivent d'abord être connectées par Azure Arc.
+Quand vous activez VM Insights dans le portail, les **métriques OpenTelemetry** sont le choix par défaut et le chemin recommandé pour les nouveaux déploiements : elles vont dans un espace de travail Azure Monitor et s'interrogent en PromQL. Les **métriques basées sur les journaux**, l'expérience classique, vont dans un espace de travail Log Analytics (table `InsightsMetrics`). Les machines hors Azure doivent d'abord être connectées par Azure Arc.
+
+La fonctionnalité **carte** (Map) de VM Insights (processus et connexions) et son **agent Dependency** sont **dépréciés** : aucune nouvelle machine ne peut y être intégrée depuis le portail depuis le 30 septembre 2025, et les deux sont retirés le 30 juin 2028. Ne les choisissez pas pour un nouveau déploiement.
 
 <!-- section: network-watcher | objectives: 5.1.6 -->
 ## Network Watcher et Moniteur de connexion

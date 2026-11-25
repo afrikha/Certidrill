@@ -9,7 +9,7 @@ Les commentaires sont les descriptions affichées par l'Explorateur de catalogue
 | --- | --- |
 | À la création | Option `COMMENT` de `CREATE TABLE`, et `COMMENT` après la définition d'une colonne |
 | Objet existant (catalogue, schéma, table, volume...) | `COMMENT ON <object> IS '...'`, ou option `COMMENT` de `ALTER <object>` |
-| Colonne existante | `ALTER TABLE ... ALTER COLUMN ... COMMENT '...'` |
+| Colonne existante | `ALTER TABLE ... ALTER COLUMN ... COMMENT '...'`, ou `COMMENT ON COLUMN table.column IS '...'` (Databricks SQL, Databricks Runtime 16.1 et versions ultérieures) |
 
 ```text
 CREATE TABLE sales.bronze.orders (
@@ -33,14 +33,14 @@ Privilèges pour définir un commentaire :
 
 Toute personne disposant de `BROWSE` peut lire les commentaires. Le Markdown de base s'affiche dans l'Explorateur de catalogues (pas dans la sortie de `DESCRIBE`). Enregistrer un commentaire exécute une instruction `ALTER`, consignée dans l'historique de la table.
 
-> **Piège d'examen.** `COMMENT ON` ne cible pas les colonnes. Pour une colonne d'une table existante, la réponse est `ALTER TABLE ... ALTER COLUMN ... COMMENT`.
+> **Piège d'examen.** `COMMENT ON COLUMN` n'existe que sur Databricks SQL et Databricks Runtime 16.1 et versions ultérieures. Sur un runtime plus ancien, commentez une colonne d'une table existante avec `ALTER TABLE ... ALTER COLUMN ... COMMENT`, qui fonctionne partout.
 
 Les balises complètent les commentaires pour la découverte et la gouvernance : des paires clé-valeur sur les catalogues, schémas, tables, colonnes et volumes, interrogeables dans `INFORMATION_SCHEMA.TABLE_TAGS`, `COLUMN_TAGS`, `SCHEMA_TAGS`, `CATALOG_TAGS` et `VOLUME_TAGS`.
 
 <!-- section: abac | objectives: 2.2.2 -->
 ## Contrôle d'accès en fonction des attributs avec balises et stratégies
 
-L'ABAC évalue les **balises gouvernées** des objets pour décider quelles données une **stratégie** protège. Une seule stratégie attachée haut dans la hiérarchie protège toutes les tables, actuelles et futures, qui portent la balise.
+L'ABAC évalue les **balises gouvernées** des objets pour décider quelles données une **stratégie** protège. Une seule stratégie attachée haut dans la hiérarchie protège toutes les tables, actuelles et futures, qui portent la balise. Outre les stratégies de filtre de lignes et de masque de colonne, l'ABAC propose des stratégies GRANT (privilèges accordés dynamiquement d'après les balises) et des stratégies DENY (bêta) ; les stratégies sur les vues sont en bêta.
 
 Les **balises gouvernées** sont définies au niveau du compte avec une liste de valeurs autorisées (jusqu'à 500 valeurs par balise, 1 000 balises gouvernées par compte). Seuls les principaux disposant de l'autorisation **ASSIGN** sur une balise gouvernée peuvent l'appliquer. Des balises système comme `class.*` (posées par la classification des données) et `system.certification_status` sont prédéfinies. Pour baliser un objet, il faut aussi `APPLY TAG` sur l'objet (ou en être propriétaire) plus `USE SCHEMA` et `USE CATALOG`. Limites : 50 balises par objet, 1 000 balises de colonne par table, une colonne par instruction `ALTER TABLE`.
 
@@ -84,7 +84,7 @@ USING COLUMNS (region);
 | `ON COLUMN` | La colonne trouvée à laquelle s'applique le masque |
 | `USING COLUMNS` | Arguments passés à l'UDF : alias ou littéraux |
 
-Prérequis : `MANAGE` sur l'élément sécurisable (ou en être propriétaire) et `EXECUTE` sur l'UDF ; calcul serverless, ou calcul standard ou dédié sous Databricks Runtime 16.4 ou ultérieur. Quotas : 50 stratégies par table, 100 par schéma, 100 par catalogue. Les modifications de balises mettent quelques minutes à s'appliquer.
+Prérequis : `MANAGE` sur l'élément sécurisable (ou en être propriétaire) et `EXECUTE` sur l'UDF ; calcul serverless, calcul standard sous Databricks Runtime 16.4 ou ultérieur, ou calcul dédié sous 16.4 ou ultérieur avec le filtrage du contrôle d'accès affiné activé. Les runtimes plus anciens ne peuvent pas lire les tables sécurisées par ABAC ; pour qu'une telle charge de travail continue de s'exécuter pendant une migration, placez son principal dans `EXCEPT`. Quotas : 50 stratégies par table, 100 par schéma, 100 par catalogue. Les modifications de balises mettent quelques minutes à s'appliquer.
 
 Un seul filtre de lignes distinct peut s'appliquer pour un utilisateur et une table, et un seul masque distinct par colonne. Si deux stratégies aboutissent à des UDF différentes, la requête échoue avec une erreur, même si les résultats seraient identiques.
 
@@ -118,8 +118,8 @@ Privilèges : `EXECUTE` sur la fonction, `USE SCHEMA`, `USE CATALOG` ; sur une t
 
 Limitations à connaître :
 
-- Pas sur les vues (utilisez une vue dynamique ou l'ABAC). Un seul masque par colonne.
-- Databricks Runtime antérieur à 12.2 LTS échoue de façon sécurisée et ne renvoie aucune donnée. Le mode d'accès dédié exige 15.4 LTS ou ultérieur avec le serverless activé dans l'espace de travail (le filtrage s'exécute sur le serverless).
+- Pas sur les vues (utilisez plutôt une vue dynamique ; les stratégies ABAC sur les vues sont en bêta). Un seul masque par colonne.
+- Databricks Runtime antérieur à 12.2 LTS échoue de façon sécurisée et ne renvoie aucune donnée. Le mode d'accès dédié exige 15.4 LTS ou ultérieur avec le serverless activé dans l'espace de travail (le filtrage s'exécute sur le serverless) ; seules les lectures sont prises en charge jusqu'à 16.2, les écritures exigent 16.3 ou ultérieur avec des modèles pris en charge comme `MERGE INTO`.
 - Pas de voyage dans le temps (time travel) ni de clone profond ou superficiel sur les tables dotées de filtres ou de masques au niveau de la table.
 - Les tables dotées de filtres ou de masques au niveau de la table ne peuvent pas être ajoutées à un partage (les schémas qui en contiennent sont filtrés d'un partage de schéma).
 
@@ -143,7 +143,7 @@ Les tables Delta (et Iceberg managées) conservent les anciens fichiers de donn�
 | `delta.deletedFileRetentionDuration` | `interval 7 days` | L'âge que doivent atteindre les fichiers non référencés avant que `VACUUM` les supprime, donc jusqu'où remonte le voyage dans le temps |
 | `delta.logRetentionDuration` | `interval 30 days` | La durée de conservation du journal des transactions (historique de la table) |
 
-À partir de Databricks Runtime 18.0, `logRetentionDuration` doit être supérieure ou égale à `deletedFileRetentionDuration`.
+À partir de Databricks Runtime 18.0 (à partir de 12.2 pour les tables managées Unity Catalog), `logRetentionDuration` doit être supérieure ou égale à `deletedFileRetentionDuration`, et le voyage dans le temps vers une version plus ancienne que `deletedFileRetentionDuration` est bloqué.
 
 ```text
 ALTER TABLE finance.gold.ledger SET TBLPROPERTIES (
@@ -164,7 +164,7 @@ ALTER TABLE web.bronze.clicks DELETE ROWS 30 DAYS AFTER event_ts;
 ALTER TABLE web.bronze.clicks DROP ROW DELETION;
 ```
 
-L'optimisation prédictive exécute alors `DELETE`, `PURGE` (si les vecteurs de suppression sont activés) et `VACUUM` en arrière-plan ; le moment exact n'est pas garanti. La durée de vie automatique n'est pas prise en charge sur les vues matérialisées, et les lecteurs en streaming d'une telle table doivent définir `skipChangeCommits`.
+L'optimisation prédictive exécute alors `DELETE`, `PURGE` (si les vecteurs de suppression sont activés) et `VACUUM` en arrière-plan ; le moment exact n'est pas garanti : la suppression définitive peut intervenir jusqu'à 6 jours plus `deletedFileRetentionDuration` après l'expiration ; pour supprimer les lignes sous 30 jours avec la rétention par défaut de 7 jours, indiquez donc 17 jours. La durée de vie automatique n'est pas prise en charge sur les vues matérialisées, et les lecteurs en streaming d'une telle table doivent définir `skipChangeCommits`.
 
 Pour une demande de « droit à l'oubli » sur une table avec vecteurs de suppression : `DELETE` des lignes, `REORG TABLE ... APPLY (PURGE)` pour réécrire les fichiers, puis `VACUUM` après la période de rétention.
 
@@ -188,7 +188,7 @@ Unity Catalog capture la lignée **automatiquement**, jusqu'au niveau des colonn
 
 Pour voir la lignée, il faut au moins `BROWSE` sur le catalogue parent ; les voisins auxquels vous n'avez pas accès apparaissent comme des nœuds masqués. La lignée de l'Explorateur de catalogues est conservée indéfiniment (capturée depuis le 1er septembre 2024) ; les tables système de lignée conservent 395 jours.
 
-La lignée n'est ni capturée ni conservée pour les objets renommés, les RDD, les vues temporaires globales ou les références par chemin (lignée de colonne). Les UDF ne donnent qu'une lignée au niveau de la table.
+La lignée n'est ni capturée ni conservée pour les objets renommés, les RDD, les vues temporaires globales ou les références par chemin (lignée de colonne). Les UDF ne donnent qu'une lignée au niveau de la table. Les jobs qui utilisent la requête `runs submit` de l'API Jobs ou le type de tâche `spark submit` n'apparaissent pas dans les vues de lignée : la lignée des tables et des colonnes est capturée, mais pas le lien vers l'exécution du job.
 
 > **Piège d'examen.** Renommer une table, un schéma, un catalogue ou une colonne (`ALTER TABLE ... RENAME TO`) ne reporte pas sa lignée : fixez les noms avant la production, car la lignée n'est pas conservée lors d'un renommage.
 
@@ -199,7 +199,7 @@ Deux façons d'obtenir les événements d'audit (les deux exigent le plan **Prem
 
 | Option | Contenu | Mise en place |
 | --- | --- | --- |
-| Table système `system.access.audit` (recommandée) | Tous les services, y compris les événements au niveau du compte (`workspace_id` = 0) ; conservés 395 jours ; régionale | Accorder `USE CATALOG` sur `system`, `USE SCHEMA` et `SELECT` sur `system.access` |
+| Table système `system.access.audit` (préversion publique ; recommandée) | Tous les services, y compris les événements au niveau du compte (`workspace_id` = 0) ; conservés 395 jours ; régionale | Accorder `USE CATALOG` sur `system`, `USE SCHEMA` et `SELECT` sur `system.access` |
 | Paramètres de diagnostic Azure | Services de l'espace de travail uniquement, pas d'événements au niveau du compte | Portail Azure : espace de travail, **Paramètres de diagnostic**, **Activer les diagnostics** ; destination Log Analytics, compte de stockage ou Event Hub |
 
 Configurer les paramètres de diagnostic exige Owner, Contributor ou un rôle personnalisé avec `Microsoft.Databricks/workspaces/assignWorkspaceAdmin/action`. Les journaux apparaissent en général sous 15 minutes (sans garantie). Si le portail indique que l'abonnement n'est pas inscrit pour utiliser `microsoft.insights`, inscrivez ce fournisseur de ressources.
@@ -210,6 +210,8 @@ FROM system.access.audit
 WHERE service_name = 'unityCatalog' AND event_date >= current_date() - 7
 ORDER BY event_time DESC;
 ```
+
+Pour certains événements, les clés de `request_params` qui contiennent des définitions SQL sont omises, sauf pour un administrateur de compte ou un membre du groupe `databricks_pii_access`. Quand un espace de travail est supprimé, ses événements d'audit de plus de 14 jours sont retirés de la table.
 
 Les **journaux d'audit détaillés** (verbose audit logs) ajoutent le texte de chaque commande de notebook et de chaque requête Databricks SQL (`runCommand`, `commandSubmit`, `commandFinish`). Ils sont désactivés par défaut ; un administrateur de l'espace de travail active **Verbose Audit Logs** dans l'onglet **Advanced** des paramètres d'administration de l'espace de travail.
 
@@ -222,7 +224,7 @@ Le partage Delta (Delta Sharing, documenté sur Microsoft Learn sous le nom **Op
 
 | Destinataire | Protocole | Authentification | Partageable |
 | --- | --- | --- | --- |
-| Espace de travail Databricks avec Unity Catalog, dans n'importe quel cloud ou compte | Databricks-to-Databricks | Identifiant de partage du metastore destinataire, sans jeton | Tables, vues, vues matérialisées, tables de streaming, volumes, notebooks, modèles |
+| Espace de travail Databricks avec Unity Catalog, dans n'importe quel cloud ou compte | Databricks-to-Databricks | Identifiant de partage du metastore destinataire, sans jeton | Tables, vues, vues matérialisées, tables de streaming, vues de métriques, volumes, notebooks, modèles |
 | Tout outil hors Databricks (Spark, pandas, Power BI) | Databricks-to-Open | Jeton du porteur (lien d'activation) ou fédération OIDC | Données tabulaires uniquement |
 
 Dans le même metastore, ne partagez pas : accordez des privilèges dans Unity Catalog.
@@ -243,8 +245,8 @@ REVOKE SELECT ON SHARE fabrikam_sales FROM RECIPIENT fabrikam;
 Leviers de sécurité :
 
 - **Le minimum de données** : partagez une partition (`PARTITION (...)`), une vue ou une vue dynamique filtrée par `CURRENT_RECIPIENT('country')` sur les propriétés du destinataire, plutôt que la table entière. `AS` masque le vrai nom de la table.
-- **Historique** : `WITH HISTORY` (par défaut à partir de Databricks Runtime 16.2) permet au destinataire le voyage dans le temps et les lectures en streaming ; `WITHOUT HISTORY` le limite à la version courante. Interroger le flux de données modifiées (CDF) exige que le CDF soit activé sur la table avant de la partager avec historique.
-- **Jetons** (partage ouvert) : le lien d'activation permet au destinataire de télécharger le fichier d'informations d'identification **une seule fois**. Les jetons durent au plus un an ; la durée de vie par défaut du metastore s'applique aux nouveaux jetons, et les destinataires existants ne reçoivent une nouvelle durée de vie qu'à la rotation de leur jeton (`databricks recipients rotate-token`, `0` seconde fait expirer l'ancien jeton immédiatement). Préférez la fédération OIDC (jetons de courte durée) quand le fournisseur d'identité du destinataire la prend en charge. Limitez un destinataire à jeton à des adresses IP connues avec une liste d'accès IP.
+- **Historique** : `WITH HISTORY` (par défaut à partir de Databricks Runtime 16.2) permet au destinataire le voyage dans le temps et les lectures en streaming ; `WITHOUT HISTORY` le limite à la version courante. Interroger le flux de données modifiées (CDF) exige que le CDF soit activé sur la table avant de la partager avec historique. Le partage d'un schéma entier inclut toujours l'historique, quel que soit le runtime, et n'autorise ni alias de table ni partitions.
+- **Jetons** (partage ouvert) : le lien d'activation permet au destinataire de télécharger le fichier d'informations d'identification **une seule fois**. Les jetons durent au plus un an ; la durée de vie par défaut du metastore s'applique aux nouveaux jetons, et les destinataires existants ne reçoivent une nouvelle durée de vie qu'à la rotation de leur jeton (`databricks recipients rotate-token`, `0` seconde fait expirer l'ancien jeton immédiatement). Préférez la fédération OIDC (jetons de courte durée) quand le fournisseur d'identité du destinataire la prend en charge. Limitez un destinataire à jeton à des adresses IP connues avec une liste d'accès IP : elle contrôle l'API REST de partage, l'URL d'activation et le téléchargement du fichier d'informations d'identification ; sans SecureConnect côté fournisseur, les URL de stockage restent accessibles depuis n'importe quelle adresse IP cliente.
 - **Tables gouvernées** : une table soumise à des stratégies ABAC ne peut être partagée que si le propriétaire du partage figure dans le `EXCEPT` de la stratégie ; les destinataires voient alors les données partagées sans filtre. Les tables dotées de filtres de lignes ou de masques au niveau de la table ne peuvent pas être partagées du tout.
 - **Privilèges** : `CREATE SHARE` et `CREATE RECIPIENT` sur le metastore ; propriétaire du partage avec `SELECT` sur chaque table (à conserver, sinon les destinataires perdent l'accès) ; accorder un partage à un destinataire exige d'être administrateur du metastore, ou propriétaire du partage (ou `USE SHARE` + `SET SHARE PERMISSION`) et propriétaire du destinataire (ou `USE RECIPIENT`). Faites d'un groupe le propriétaire du partage.
 
@@ -253,7 +255,7 @@ Leviers de sécurité :
 <!-- section: key-points -->
 ## Points clés
 
-- Descriptions de colonnes sur une table existante : `ALTER TABLE ... ALTER COLUMN ... COMMENT` ; les commentaires générés par IA doivent être acceptés.
+- Descriptions de colonnes sur une table existante : `ALTER TABLE ... ALTER COLUMN ... COMMENT`, ou `COMMENT ON COLUMN` sous Databricks Runtime 16.1+ ; les commentaires générés par IA doivent être acceptés.
 - ABAC = balises gouvernées + `CREATE POLICY` au niveau du catalogue ou du schéma ; exige `MANAGE` et `EXECUTE`, le serverless ou Databricks Runtime 16.4+ ; les propriétaires ne peuvent pas la contourner.
 - Filtres et masques au niveau de la table : `SET ROW FILTER ... ON (...)`, `ALTER COLUMN ... SET MASK` ; pas sur les vues, ni voyage dans le temps ni clone.
 - Rétention : 7 jours pour les fichiers, 30 jours pour le journal ; `VACUUM` met fin au voyage dans le temps ; la durée de vie automatique supprime les lignes selon leur âge.

@@ -1,0 +1,48 @@
+id: aipc01-2a-lambda-timeout-below-task
+objective: "2.1.3"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    An agent workflow in AWS Step Functions calls an inventory tool through a Lambda Task state. The Task state has TimeoutSeconds set to 30 and a Retry on States.Timeout with two attempts. The Lambda function timeout is set to 1,800 seconds. When the inventory system hangs, the Task state times out and retries, but the earlier invocations keep running for up to 30 minutes, which adds cost and sometimes updates the same reservation twice. The agent must still give up on a slow call after 30 seconds and keep its retries.
+
+    Which solution will meet these requirements?
+body:
+  options:
+    - id: a
+      text:
+        en: |-
+          Set the Lambda function timeout to a value shorter than 30 seconds so that each invocation stops before the Task state gives up and retries.
+    - id: b
+      text:
+        en: |-
+          Raise TimeoutSeconds of the Task state to 1,800 seconds so that Step Functions waits until the function completes before it retries.
+    - id: c
+      text:
+        en: |-
+          Set MaxAttempts to 0 in the Retry of the Task state so that a timed-out call is never retried.
+    - id: d
+      text:
+        en: |-
+          Configure reserved concurrency for the function so that no more than 10 invocations of the tool can run at the same time.
+answer: { optionId: a }
+explanation:
+  correct:
+    en: |-
+      Step Functions enforces TimeoutSeconds itself and does not pass it to the Lambda invocation, so a timed-out task leaves the function running until its own timeout. A function timeout shorter than the Task timeout makes each invocation end before the retry starts, which removes the long-running duplicates while keeping the 30-second limit and the retries.
+  options:
+    b:
+      en: |-
+        The agent would wait up to 30 minutes for a hung tool, which breaks the requirement to give up after 30 seconds.
+    c:
+      en: |-
+        Removing retries breaks the requirement to keep them, and the abandoned invocation would still run until the 1,800-second function timeout.
+    d:
+      en: |-
+        Reserved concurrency limits how many invocations run at once; it does not stop abandoned invocations or prevent duplicate updates.
+references:
+  - title: Discover service integration patterns in Step Functions - AWS Step Functions
+    url: https://docs.aws.amazon.com/step-functions/latest/dg/connect-to-resource.html
+  - title: Lambda quotas - AWS Lambda
+    url: https://docs.aws.amazon.com/lambda/latest/dg/gettingstarted-limits.html

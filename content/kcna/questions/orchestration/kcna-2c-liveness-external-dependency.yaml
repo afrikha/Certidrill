@@ -1,0 +1,34 @@
+id: kcna-2c-liveness-external-dependency
+objective: "2.3.3"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Every replica of the `orders` Deployment has a liveness probe on `/healthz`. That endpoint returns an error whenever the shared database does not answer. During a 10-minute database outage, all the replicas were restarted again and again, and the service took a long time to recover after the database came back.
+
+    What should you change?
+body:
+  options:
+    - id: a
+      text: { en: "Raise the liveness probe's `failureThreshold` so that the restarts happen later" }
+    - id: b
+      text: { en: "Make the liveness probe check only the process itself, not the database" }
+    - id: c
+      text: { en: "Add a startup probe that checks the database before the liveness probe runs" }
+    - id: d
+      text: { en: "Set the Pod's `restartPolicy` to `Never` so that failed probes cause no restarts" }
+answer: { optionId: b }
+explanation:
+  correct:
+    en: "A liveness probe should detect a failure that only a restart can fix, such as a deadlock. Restarting the containers does not repair the database, and the restarts cause cascading failures. Make the liveness endpoint check only the application process; if the Pods should stop receiving traffic while the database is down, put that check in a readiness probe."
+  options:
+    a:
+      en: "A higher threshold only delays the restarts. A long database outage would still restart every replica, because the probe still tests a dependency that a restart cannot fix."
+    c:
+      en: "A startup probe runs only while the container starts. Once it succeeds, the same liveness probe takes over and still fails during a database outage."
+    d:
+      en: "Failed probes are not ignored with `Never`: the kubelet still kills the container when the liveness probe fails, and the restart policy then keeps it stopped, so the replicas would stay down."
+references:
+  - title: Liveness, Readiness, and Startup Probes
+    url: https://kubernetes.io/docs/concepts/configuration/liveness-readiness-startup-probes/

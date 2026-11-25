@@ -54,6 +54,8 @@ Target resources that SC-500 scenarios use:
 | Step-up for a PIM activation or a sensitive SharePoint site | An **authentication context**, published to apps |
 | Control where users register MFA methods | User action **Register security information** |
 
+Windows Azure Service Management API also covers the Microsoft Entra admin center (through the Azure portal), but no longer covers Azure DevOps. Since July 6, 2026, policies that target **Register security information** also apply when users register Windows Hello for Business and macOS Platform SSO credentials.
+
 Policy states are **Report-only**, **On** and **Off**. Report-only evaluates without enforcing; the sign-in logs show *Report-only: Success*, *Failure*, *User action required* or *Not applied*, and the Conditional Access insights and reporting workbook needs a Log Analytics workspace that receives sign-in logs. When several policies apply, all of them must be satisfied, and a block wins.
 
 Since October 2024 (portals) and October 1, 2025 (Azure CLI, Azure PowerShell, IaC tools, REST API; read operations excluded), Azure enforces **mandatory MFA** for user accounts. Workload identities aren't affected: move automation to managed identities or service principals.
@@ -119,7 +121,7 @@ Roles: **Application Administrator** and **Cloud Application Administrator** man
 | Delegated (scope) | The signed-in user, limited to what the user can do | The user, if the tenant allows it and the permission doesn't require admin consent; or an administrator for all users |
 | Application (app role) | The app itself, no user | Administrator only |
 
-**User consent settings** (**Enterprise apps > Consent and permissions > User consent settings**), set by a Privileged Role Administrator:
+**User consent settings** (**Enterprise apps > Consent and permissions > User consent settings**), set by a Privileged Role Administrator with Microsoft Graph or Microsoft Graph PowerShell; in the Microsoft Entra admin center, a Global Administrator is required:
 
 | Setting | Effect |
 | --- | --- |
@@ -128,7 +130,7 @@ Roles: **Application Administrator** and **Cloud Application Administrator** man
 | Allow user consent for apps | Any permission that doesn't need admin consent (legacy, `microsoft-user-default-legacy`) |
 
 - **Permission classifications** (**Consent and permissions > Permission classifications**) mark delegated permissions that don't require admin consent as Low (Medium and High in preview). Set by a Cloud Application Administrator or Application Administrator.
-- The **admin consent workflow** (**Admin consent settings**: *Users can request admin consent to apps they are unable to consent to* = Yes, reviewers, email notifications, expiration in days) lets blocked users send a request instead of a dead end. Turning it on requires a Global Administrator; reviewers act from **My Pending**.
+- The **admin consent workflow** (**Admin consent settings**: *Users can request admin consent to apps they are unable to consent to* = Yes, reviewers, email notifications, expiration in days) lets blocked users send a request instead of a dead end. Turning it on requires a Global Administrator; reviewers act from **My Pending**. Through the workflow, only Global Administrators can approve requests for Microsoft Graph application permissions.
 
 Who can grant tenant-wide admin consent (**Enterprise apps >** app **> Permissions > Grant admin consent**, or **App registrations > API permissions**):
 
@@ -181,5 +183,5 @@ az role assignment create --assignee-object-id <principal id> \
 - Conditional Access needs P1 (risk conditions P2); use report-only first, exclude emergency accounts, target Windows Azure Service Management API to protect Azure management.
 - Manage methods in the Authentication methods policy; demand specific methods with authentication strengths; TAP onboards passwordless users.
 - App registration = application object; enterprise application = service principal. Prefer certificates, better federated credentials, best managed identities.
-- Restrict user consent to verified publishers and low-impact permissions, and turn on the admin consent workflow. Only a Privileged Role Administrator grants Microsoft Graph application permissions.
+- Restrict user consent to verified publishers and low-impact permissions, and turn on the admin consent workflow. Privileged Role Administrator, not the application administrator roles, grants Microsoft Graph application permissions; through the admin consent workflow, only a Global Administrator approves them.
 - System-assigned dies with its resource; user-assigned is shared. Managed Identity Operator assigns, Managed Identity Contributor creates.

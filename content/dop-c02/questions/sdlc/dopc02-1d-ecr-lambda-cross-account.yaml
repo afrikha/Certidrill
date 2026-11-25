@@ -1,0 +1,48 @@
+id: dopc02-1d-ecr-lambda-cross-account
+objective: "1.4.5"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    A company builds container images for AWS Lambda functions in a tooling account, 111122223333, and pushes them to an Amazon ECR repository named payments-fn in us-east-1. A deployment role in a production account, 444455556666, creates Lambda functions in us-east-1 from these images. The deployment role's identity-based policy allows ecr:BatchGetImage and ecr:GetDownloadUrlForLayer on the repository. CreateFunction fails because Lambda cannot access the image. The images must stay only in the tooling account's repository.
+
+    Which change to the repository policy of payments-fn will resolve the issue?
+body:
+  options:
+    - id: a
+      text:
+        en: |-
+          Add one statement that allows ecr:BatchGetImage and ecr:GetDownloadUrlForLayer for the principal arn:aws:iam::444455556666:root.
+    - id: b
+      text:
+        en: |-
+          Add a statement that allows ecr:BatchGetImage and ecr:GetDownloadUrlForLayer for arn:aws:iam::444455556666:root, and a statement that allows the same actions for lambda.amazonaws.com with an aws:sourceARN condition that matches functions in 444455556666.
+    - id: c
+      text:
+        en: |-
+          Add one statement that allows ecr:BatchGetImage and ecr:GetDownloadUrlForLayer for lambda.amazonaws.com with an aws:sourceARN condition that matches functions in 444455556666.
+    - id: d
+      text:
+        en: |-
+          Add a statement that allows ecr:GetAuthorizationToken, ecr:BatchGetImage, and ecr:GetDownloadUrlForLayer for arn:aws:iam::444455556666:role/deploy-role.
+answer: { optionId: b }
+explanation:
+  correct:
+    en: |-
+      Cross-account Lambda container images need permissions on both sides. The repository policy must allow the function's account, so that it can create and update functions from the image, and must also allow the lambda.amazonaws.com service principal, scoped with aws:sourceARN to that account's functions, so that Lambda can retrieve the image for optimization and caching.
+  options:
+    a:
+      en: |-
+        The account statement lets the production account reference the image, but without the statement for the lambda.amazonaws.com service principal Lambda cannot retrieve the image on behalf of the function.
+    c:
+      en: |-
+        The service principal statement alone is not enough: the account that creates the function must also be allowed by the repository policy, because cross-account access needs both the identity policy and the resource policy.
+    d:
+      en: |-
+        ecr:GetAuthorizationToken is granted by identity-based policies, not by repository policies, and this statement still lacks the Lambda service principal that retrieves the image.
+references:
+  - title: Create a Lambda Event Function using a container image - AWS Lambda
+    url: https://docs.aws.amazon.com/lambda/latest/dg/images-create.html
+  - title: Private repository policy examples in Amazon ECR - Amazon ECR
+    url: https://docs.aws.amazon.com/AmazonECR/latest/userguide/repository-policy-examples.html

@@ -172,7 +172,7 @@ az deployment group create --resource-group RG-SAP-PRD --template-file main.bice
 | `imageReference` | Marketplace image (publisher, offer, SKU, version) or `id` of a gallery image version |
 | `caching`, `writeAcceleratorEnabled` | Per-disk settings (see the storage chapter) |
 | `storageAccountType` | `Premium_LRS`, `PremiumV2_LRS`, `UltraSSD_LRS` |
-| `additionalCapabilities.ultraSSDEnabled` | Must be `true` to attach Ultra Disks |
+| `additionalCapabilities.ultraSSDEnabled` | Must be `true` to attach Ultra Disks; enabling it on an existing VM needs the VM deallocated, and Ultra Disks don't support availability sets |
 | NIC `enableAcceleratedNetworking` | Set on the network interface, not on the VM |
 
 > **Exam tip.** Bicep and ARM templates deploy infrastructure only. Installing SAP software needs another layer: Ansible in SAP Deployment Automation Framework, or the installation step of Azure Center for SAP solutions.
@@ -220,12 +220,14 @@ Deploying a new system is a guided portal experience, in two stages: infrastruct
 Deployment choices:
 
 - **Deployment type**: single server (non-production only), distributed, or distributed with high availability (recommended for production; availability zones for the 99.99% SLA option, availability sets for 99.95%).
-- **Product**: S/4HANA on HANA scale-up.
-- **OS image**: SLES for SAP Applications or RHEL for SAP Applications from the Marketplace, or a custom image from Azure Compute Gallery.
+- **Product**: S/4HANA on HANA scale-up, versions 1909, 2020, 2021 and 2022 (ISS 00).
+- **OS image**: RHEL 8.4 or 8.6 for SAP Applications, or SLES for SAP Applications 15 SP3 or SP4 (12 SP5 for S/4HANA 1909 only), from the Marketplace; or a custom image from Azure Compute Gallery, in the same subscription as the deployment, with the **Standard** security type and a supported base OS, the user-assigned managed identity having **Reader** on the gallery.
 - **Sizing**: enter the SAPS for the application tier and the database memory, and ACSS recommends VM sizes; in a high availability deployment, the ASCS and database VM counts are fixed at two.
 - **Transport directory**: create one, use an existing one, or none.
 
-Once the VIS exists (deployed, or registered for an existing NetWeaver or ABAP system on Windows, SLES or RHEL with any supported database), ACSS shows status and health, starts and stops the SAP system, provides quality checks and insights, shows infrastructure metrics and analyzes cost.
+Once the VIS exists (deployed, or registered for an existing SAP NetWeaver or ABAP system on Windows, SLES or RHEL with HANA, Db2, SQL Server, Oracle, MaxDB or SAP ASE), ACSS shows status and health, starts and stops the SAP system, provides quality checks and insights, shows infrastructure metrics and analyzes cost.
+
+Registration doesn't support HANA Large Instances, HANA scale-out, MCOS or MCOD, Java or dual-stack systems, systems spread across peered virtual networks, or IPv6. For registration, the user-assigned managed identity needs the **Azure Center for SAP solutions service role** on the resource group of the VMs, disks and load balancers, and **Reader** on the resource group of the virtual network.
 
 | Requirement | Tool |
 | --- | --- |

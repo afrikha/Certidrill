@@ -1,0 +1,48 @@
+id: dopc02-1a-parameter-store-cmk-decrypt
+objective: "1.1.6"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    An AWS CodeBuild project reads an API key from a SecureString parameter named /app/prod/api-key through the parameter-store section of the buildspec. The parameter was encrypted with the AWS managed key aws/ssm, and the builds worked. The security team re-created the parameter with a customer managed KMS key whose key policy allows IAM policies in the account to grant access to the key. Since then, the builds fail when CodeBuild retrieves the parameter. The service role allows ssm:GetParameters on the parameter.
+
+    Which change will fix the builds while following the principle of least privilege?
+body:
+  options:
+    - id: a
+      text:
+        en: |-
+          Add kms:Decrypt on the customer managed key to the CodeBuild service role.
+    - id: b
+      text:
+        en: |-
+          Change the parameter type from SecureString to String so that the build no longer needs to decrypt it.
+    - id: c
+      text:
+        en: |-
+          Add ssm:GetParametersByPath on the /app/prod path to the CodeBuild service role.
+    - id: d
+      text:
+        en: |-
+          Add kms:Decrypt on all keys in the account and ssm:GetParameters on all parameters to the CodeBuild service role.
+answer: { optionId: a }
+explanation:
+  correct:
+    en: |-
+      Reading a SecureString parameter decrypts it with AWS KMS, so the caller needs ssm:GetParameters on the parameter and kms:Decrypt on the key that encrypted it. The aws/ssm AWS managed key allows Decrypt for all IAM principals in the account, which is why the builds worked before; a customer managed key needs an explicit grant scoped to that key.
+  options:
+    b:
+      en: |-
+        A String parameter stores the API key unencrypted, which weakens the protection of the secret.
+    c:
+      en: |-
+        The build already retrieves the parameter by name; the failure comes from the missing KMS permission, not from a missing parameter action.
+    d:
+      en: |-
+        This would work but grants decryption with every key and access to every parameter, which violates least privilege.
+references:
+  - title: Setting up Parameter Store - AWS Systems Manager
+    url: https://docs.aws.amazon.com/systems-manager/latest/userguide/sysman-paramstore-access.html
+  - title: Build specification reference for CodeBuild - AWS CodeBuild
+    url: https://docs.aws.amazon.com/codebuild/latest/userguide/build-spec-ref.html

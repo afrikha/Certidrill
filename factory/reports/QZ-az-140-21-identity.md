@@ -1,0 +1,24 @@
+# QZ-az-140-21-identity — report
+
+Quiz: `content/az-140/quizzes/21-identity.yaml` (10 questions). `npx tsx factory/check-quiz.ts az-140 21-identity` → 0 problem(s), 0 warning(s).
+
+The mock exam already holds about 62 questions on 2.1.x (`az140-2a-*`, `cs1b/cs1c/cs2a/cs2b/cs3a/cs3b/cs3c/cs4b`, `sr1`). The quiz targets decisions they don't test: least-privileged role to create Conditional Access policies, the OS required for external identities, mixing join types and on-premises access from Microsoft Entra joined hosts, removing Virtual Machine Administrator Login, Workspace Contributor + Application Group Reader, enabling the FIDO2 method for in-session WebAuthn, the Kerberos server object for Microsoft Entra joined hosts reaching SMB shares, which app each Conditional Access policy covers once SSO is on, password hashes for Microsoft Entra Domain Services (synced and cloud-only users), and smart card sign-in through certificate-based authentication + SSO instead of a KDC proxy.
+
+## Facts checked on Learn (fetched 2026-11-24)
+
+- `azure/virtual-desktop/set-up-mfa`: at least Conditional Access Administrator; P1/P2; security defaults must be off; target apps and IDs; Every time only on Windows Cloud Login with SSO; two-policy structure; per-user MFA and Azure Windows VM Sign-In notes.
+- `azure/virtual-desktop/authentication`: external identities are generally available and need Windows 11 Enterprise 24H2+ (KB5065789) or Windows Server 2025 (KB5073379), Microsoft Entra joined hosts, SSO and Windows App. In-session WebAuthn redirection is on by default, and the FIDO2 security key method must be enabled for Microsoft Entra resources. Smart card and WHfB host sign-in without SSO use Kerberos only.
+- `azure/virtual-desktop/configure-single-sign-on`: a Kerberos server object is required for hybrid joined hosts, and for Microsoft Entra joined hosts when users reach AD DS resources (SMB, integrated auth). Up to 10 target device groups; consent remembered for 15 hosts / 30 days; locked sessions disconnect by default; Microsoft Entra Domain Services and AD DS-only joined hosts aren't supported.
+- `azure/virtual-desktop/azure-ad-joined-session-hosts`: a host pool should contain one join type only; on-premises resources need AD DS and line of sight; the VM User/Administrator Login roles aren't needed with a session host configuration.
+- `azure/virtual-desktop/rbac`: Workspace Contributor needs Application Group Reader to see the applications of the related application groups.
+- `entra/identity/domain-services/tutorial-create-instance`: cloud-only users must change their password after Domain Services is enabled. Synced users need password hash synchronization through Connect Sync, and Cloud Sync isn't supported with Domain Services.
+
+## Doubts and chapter discrepancies (chapter not edited)
+
+- Chapter, RBAC table: "Desktop Virtualization Virtual Machine Contributor … for the managed identity of a session host configuration". The Learn RBAC page only says the role "is used to allow the Azure Virtual Desktop Resource Provider to create, delete, update, start, and stop virtual machines", and doesn't mention a managed identity. Please verify on the session host configuration pages; that page failed to fetch (`session-host-configuration` returned a client error). Not used in the quiz.
+- Chapter, RBAC table: the Workspace Contributor row doesn't say that viewing the applications of the published application groups also needs Desktop Virtualization Application Group Reader (documented on Learn). Q5 relies on it. A careful reader can deduce it, but the chapter should state it.
+- Chapter, Microsoft Entra Domain Services: "password hashes available in the managed domain" is right, but the chapter doesn't say that **cloud-only users must change their password** after enabling Domain Services, that federated or synced users need password hash synchronization, or that **Microsoft Entra Cloud Sync isn't supported** with Domain Services. Q9 tests the first two.
+- Chapter, sign-in frequency: Learn says that with Every time on Windows Cloud Login, users are prompted when they launch a new connection more than 5–10 minutes after their last authentication. The chapter omits this. Not used.
+- Chapter, SSO step 2: Learn says dynamic device groups need Microsoft Entra ID P1 (or Intune for Education). The chapter omits this.
+- Q8 s3 (a FIDO2 key satisfies "Require multifactor authentication") relies on general Microsoft Entra knowledge that passwordless FIDO2 is a multifactor method, together with the chapter's "with SSO any method used for the service". It isn't quoted from the AVD pages.
+- French UI labels in Q8 (« Chaque fois », « Réauthentification périodique », « Accorder », « Fréquence de connexion ») are taken from the Microsoft portal wording I remember, not checked on fr-fr Learn.

@@ -44,7 +44,7 @@ Pipelines, notebooks, Dataflow Gen2 and other items use the Fabric **job schedul
 Rules to remember:
 
 - Open-ended schedules aren't supported: set a distant end date such as `01/01/2099` for a permanent schedule. The scheduler handles daylight saving time and skips invalid dates such as 30 February.
-- A pipeline accepts up to **20 schedules**, each with its own recurrence. A schedule can pass values to pipeline **parameters**, directly or from a **variable library**; a name that doesn't match exactly is ignored.
+- A pipeline can have **several schedules**, each with its own recurrence (Learn gives a limit of 20 per pipeline only for interval-based schedules). A schedule can pass values to pipeline **parameters**, directly or from a **variable library**; a name that doesn't match exactly is ignored.
 - **Interval-based schedules** (preview) run on fixed, non-overlapping windows and expose **Window start time** and **Window end time** as trigger parameters, which suits incremental loads by time slice. They can't be edited: delete and re-create them.
 - Creating or changing a schedule requires the **Contributor** role in the workspace or **Write** on the item; Viewers only see schedules.
 - **Failure notifications** go by email to users or groups of the tenant, only for **scheduled** runs, never for on-demand runs.
@@ -92,7 +92,7 @@ To review or edit a trigger, open the Reflex item, or use **Triggers > View trig
 | --- | --- | --- |
 | Pipeline parameter | Set at run start (by the caller, a schedule or a trigger), constant during the run | `@pipeline().parameters.SourceTable` |
 | Variable | Changed during the run with Set variable or Append variable | `@variables('FileList')` |
-| System variable | Provided by Fabric | `@pipeline().RunId`, `@pipeline().Pipeline`, `@pipeline().TriggerTime`, `@pipeline().DataFactory` (workspace name) |
+| System variable | Provided by Fabric | `@pipeline().RunId`, `@pipeline().Pipeline` (pipeline ID), `@pipeline().PipelineName`, `@pipeline().TriggerTime`, `@pipeline().DataFactory` (workspace ID) |
 | Activity output | Result of an earlier activity | `@activity('Lookup1').output.firstRow.MaxDate` |
 | Current item of a ForEach | One element of the Items array | `@item()`, `@item().TableName` |
 
@@ -185,7 +185,7 @@ results = notebookutils.notebook.runMultiple(DAG)
 ## Key points
 
 - Dataflow Gen2 = Power Query, no code; pipeline = orchestration and bulk copy; notebook = Spark code; copy job = wizard incremental copy.
-- Schedules: minute-based to monthly, up to 20 per pipeline, an end date is mandatory, failure emails for scheduled runs only, expiry after 90 days without owner sign-in.
+- Schedules: minute-based to monthly, several per pipeline, an end date is mandatory, failure emails for scheduled runs only, expiry after 90 days without owner sign-in.
 - Event triggers create an Activator (Reflex) item and an eventstream; trigger values come from `@pipeline()?.TriggerEvent?...`.
 - `@` keeps the type, `@{}` returns a string; Lookup `firstRow` or `value`; ForEach `@item()`.
 - Notebook parameters need a parameter cell; `exit()` returns a string read with `output.result.exitValue`.

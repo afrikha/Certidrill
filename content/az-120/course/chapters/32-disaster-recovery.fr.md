@@ -8,10 +8,10 @@ Partez des objectifs métier : le **RTO** (durée d'indisponibilité acceptable)
 | Choix de conception | Ce que dit Learn |
 | --- | --- |
 | Reprise de zone à zone | Reproduit une conception de reprise métropolitaine, mais peut ne pas suffire face à une catastrophe géographiquement étendue |
-| Paire de régions | Chaque région a une région associée dans la même zone géographique (Brésil Sud fait exception). Les paires peuvent être **asymétriques** : les SKU de série M ou Azure NetApp Files peuvent manquer dans la région associée |
+| Paire de régions | Chaque région a une région jumelée dans la même zone géographique (Brésil Sud fait exception). Les paires peuvent être **asymétriques** : les SKU de série M ou Azure NetApp Files peuvent manquer dans la région jumelée |
 | Distance | La conformité peut imposer une distance minimale ; plus de distance signifie plus de latence et potentiellement un RPO plus élevé |
 | Stockage GRS | S'applique aux comptes de stockage standard, qui ne conviennent pas aux SGBD SAP ni aux disques de données |
-| Sauvegarde Azure | Réplique les sauvegardes uniquement entre régions associées |
+| Sauvegarde Azure | Réplique les sauvegardes uniquement entre régions jumelées |
 
 Un modèle courant exécute la non-production dans la région de reprise et la sacrifie lors du basculement.
 
@@ -81,7 +81,7 @@ Pour SAP HANA entre régions, la latence exclut la HSR synchrone. Utilisez la HS
 | Résolution de noms | Mettre à jour le DNS après le basculement plutôt que reconfigurer les clients ; la région de reprise utilise une autre plage d'adresses IP |
 | Services de base | Au moins un contrôleur de domaine et un serveur DNS exécutés dans Azure ; AD et DNS doivent fonctionner avant la récupération de SAP |
 
-Le **mappage réseau** de Site Recovery relie les réseaux virtuels source et cible dans les deux sens. À l'activation de la réplication, il crée par défaut un réseau cible identique avec le suffixe `-asr`. Le sous-réseau cible est celui qui porte le même nom que le sous-réseau source, sinon le premier sous-réseau par ordre alphabétique.
+Le **mappage réseau** de Site Recovery relie les réseaux virtuels source et cible dans les deux sens. À l'activation de la réplication, il crée automatiquement les mappages dans les deux sens et, par défaut, un réseau cible identique avec le suffixe `-asr` ; si vous mappez les réseaux manuellement, vous créez aussi le mappage dans le sens inverse. Le sous-réseau cible est celui qui porte le même nom que le sous-réseau source, sinon le premier sous-réseau par ordre alphabétique.
 
 | Règle d'adresse IP au basculement | Résultat |
 | --- | --- |
@@ -94,7 +94,7 @@ Le **mappage réseau** de Site Recovery relie les réseaux virtuels source et ci
 <!-- section: backup-strategy | objectives: 3.2.4 -->
 ## Stratégie de sauvegarde pour répondre au contrat SLA
 
-La sauvegarde et restauration est l'option de reprise la moins chère et celle dont le RTO est le plus élevé, car tout doit être restauré. Sauvegarde Azure stocke les données dans un **coffre Recovery Services** répliqué en LRS, ZRS ou GRS. Avec GRS et la **restauration interrégion** (CRR) activée, vous pouvez restaurer dans la région associée.
+La sauvegarde et restauration est l'option de reprise la moins chère et celle dont le RTO est le plus élevé, car tout doit être restauré. Sauvegarde Azure stocke les données dans un **coffre Recovery Services** répliqué en LRS, ZRS ou GRS. Avec GRS et la **restauration interrégion** (CRR) activée, vous pouvez restaurer dans la région jumelée.
 
 | Charge de travail | Sauvegarde Azure |
 | --- | --- |

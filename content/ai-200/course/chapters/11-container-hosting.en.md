@@ -40,7 +40,7 @@ The token obtained by `az acr login` is valid for **3 hours**. Without a Docker 
 | Admin user | Quick tests by one person | **Disabled by default**; full push and pull, no role-based scoping |
 | Repository-scoped token | Pull or push limited to some repositories, outside Microsoft Entra ID | Not integrated with Microsoft Entra RBAC |
 
-Roles: **AcrPull** (pull) and **AcrPush** (push and pull) on the registry. A registry in the **RBAC Registry + ABAC Repository Permissions** mode uses the repository roles instead, which accept conditions limiting them to some repositories: **Container Registry Repository Reader** (pull), **Container Registry Repository Writer** (push, no delete), **Container Registry Repository Contributor** (also delete). **Container Registry Tasks Contributor** manages tasks and `az acr build` / `az acr run` without any data access.
+Roles: **AcrPull** (pull) and **AcrPush** (push and pull) on the registry. A registry in the **RBAC Registry + ABAC Repository Permissions** mode (available on every tier) uses the repository roles instead, which accept conditions limiting them to some repositories: **Container Registry Repository Reader** (pull), **Container Registry Repository Writer** (push, no delete), **Container Registry Repository Contributor** (also delete). **Container Registry Tasks Contributor** manages tasks and `az acr build` / `az acr run` without any data access.
 
 **Tagging strategy:**
 
@@ -168,7 +168,7 @@ steps:
 
 App Service runs a Linux custom container from a registry and adds what a web API needs: TLS, custom domains, deployment slots, authentication and autoscale of the plan. It suits **one HTTP container** (plus optional sidecars), not event-driven scaling to zero.
 
-**Pulling from ACR with a managed identity**, the recommended method (a service principal is no longer supported for image pull):
+**Pulling from ACR with a managed identity**, the recommended method for Linux and Windows containers (a service principal is no longer supported for Windows container image pull):
 
 ```bash
 az webapp identity assign --resource-group rg-rag --name app-rag-api \
@@ -192,7 +192,7 @@ The registry must accept ARM audience tokens (`az acr config authentication-as-a
 | Setting | Effect |
 | --- | --- |
 | App settings | Injected into the container as **environment variables**; changing one restarts the app |
-| `WEBSITES_PORT` | Port the container listens on when it isn't 80; only one HTTP port is exposed |
+| `WEBSITES_PORT` | Port the container listens on when it isn't 80; only one HTTP port is exposed; not injected into the container |
 | `WEBSITES_ENABLE_APP_SERVICE_STORAGE` | `true` = `/home` persists across restarts and is shared by instances; **disabled by default** for custom containers |
 | `DOCKER_REGISTRY_SERVER_*` | Registry credentials; not exposed to the application |
 
@@ -234,9 +234,9 @@ az webapp log config --resource-group rg-rag --name app-rag-api \
 az webapp log tail --resource-group rg-rag --name app-rag-api
 ```
 
-The browser SSH terminal and `az webapp exec` go through Kudu and need no SSH server in the image, but they need a shell (`/bin/bash` for the browser terminal), so distroless images can't open a session. Platform (Docker) logs are on by default and also available at `https://<app>.scm.azurewebsites.net/api/logs/docker`.
+The browser SSH terminal and the `az webapp exec` command (preview) go through Kudu and need no SSH server in the image, but they need a shell (`/bin/bash` for the browser terminal; `az webapp exec --shell` can use another one, such as `/bin/sh`), so distroless images can't open a session. Platform (Docker) logs are on by default and also available at `https://<app>.scm.azurewebsites.net/api/logs/docker`.
 
-**Several containers:** add up to nine **sidecar** containers next to the main container (Deployment Center > Containers), for example an OpenTelemetry collector; app settings are visible to all containers. Docker Compose multi-container apps retire on March 31, 2027 and are replaced by sidecars.
+**Several containers:** add up to nine **sidecar** containers next to the main container (Deployment Center > Containers), for example an OpenTelemetry collector; app settings are visible to all containers, and each container can also have its own environment variables. In a sidecar-enabled app, `WEBSITES_PORT` and the `DOCKER_REGISTRY_SERVER_*` settings don't apply: each container listens on its own port, and only ports 80 and 8080 receive external HTTP traffic. Docker Compose multi-container apps retire on March 31, 2027 and are replaced by sidecars.
 
 | Requirement | Service |
 | --- | --- |
@@ -251,5 +251,5 @@ The browser SSH terminal and `az webapp exec` go through Kudu and need no SSH se
 - Premium only: geo-replication, private endpoints, retention policy for untagged manifests, dedicated agent pools. Zone redundancy is on by default for every tier.
 - Admin user disabled by default; services pull with a managed identity holding AcrPull (or Container Registry Repository Reader on an ABAC registry).
 - `az acr build` = build and push in Azure without Docker; `az acr task create` adds commit, base image and timer (UTC cron) triggers; multi-step YAML chains `build`, `cmd`, `push`.
-- App Service: app settings become environment variables, `WEBSITES_PORT` for a non-80 port, `acrUseManagedIdentityCreds` to pull with the identity.
+- App Service: app settings become environment variables, `WEBSITES_PORT` for a non-80 port (not in a sidecar-enabled app, which receives external traffic on port 80 or 8080), `acrUseManagedIdentityCreds` to pull with the identity.
 - Key Vault references `@Microsoft.KeyVault(...)` need the app's identity with Key Vault Secrets User; unversioned references follow rotation within 24 hours.

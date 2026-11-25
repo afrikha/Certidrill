@@ -14,7 +14,7 @@ The **shared responsibility model** decides what a baseline must cover:
 | Operating system | Microsoft | Microsoft | Customer |
 | Physical hosts, network, datacenter | Microsoft | Microsoft | Microsoft |
 
-**Azure security baselines** apply the Microsoft cloud security benchmark to each Azure service. Each baseline entry gives the MCSB control ID, the feature, whether it is **supported**, whether it is **enabled by default**, the **configuration responsibility** (Customer, Microsoft or Shared), configuration guidance and whether Defender for Cloud monitors it. Controls that don't fit a model are marked not applicable: OS configuration management doesn't apply to a PaaS service.
+**Azure security baselines** apply the Microsoft cloud security benchmark to each Azure service. Each baseline entry gives the MCSB control ID, the feature, whether it is **supported**, whether it is **enabled by default**, the **configuration responsibility** (Customer, Microsoft or Shared), configuration guidance and whether Defender for Cloud monitors it. Controls that don't fit a model are marked not applicable: OS configuration management doesn't apply to a PaaS service. Baselines such as the Key Vault one are based on MCSB v1.0 and point to the service's own security guidance (for example, Secure your Azure Key Vault) for current advice.
 
 Where each baseline comes from and how it is enforced:
 
@@ -76,7 +76,7 @@ Container security is a **supply chain**: base image, build, registry, deploymen
 | Registry | Private Azure Container Registry; Microsoft Entra authentication with AcrPull and AcrPush roles; admin user disabled; private endpoint and public access disabled (Premium) |
 | Vulnerabilities | Defender for Containers or Defender CSPM: agentless scanning of registry images and running containers, rescanned daily |
 | Integrity | Sign images with the **Notary Project** and verify signatures before deployment |
-| Deployment | Gated deployment in Defender for Containers to audit or block images that break vulnerability rules |
+| Deployment | Gated deployment in Defender for Containers to audit or block images that break vulnerability rules; supported on AKS 1.31 or later only (Linux, commercial clouds) |
 | Runtime | Defender sensor for runtime threat detection (crypto miners, binary drift) |
 
 Docker Content Trust is deprecated in Azure Container Registry: since **May 31, 2026** it can't be enabled on registries that didn't use it, and it is removed on **March 31, 2028**. New designs specify Notary Project signatures.
@@ -115,8 +115,8 @@ AI services (Microsoft Foundry, Azure OpenAI models, Azure AI Search, the Foundr
 
 | Area | Requirement and solution |
 | --- | --- |
-| Identity | Microsoft Entra ID authentication with managed identities; **disable key (local) authentication**, enforced at scale with the built-in Azure Policy; data roles such as Foundry User for applications, not Contributor |
-| Network | Private endpoints with public network access disabled; private endpoints for connected Storage, Azure Cosmos DB and Azure AI Search too; agents reaching private resources need network injection decided at deployment |
+| Identity | Microsoft Entra ID authentication with managed identities; **disable key (local) authentication**, enforced at scale with the built-in Azure Policy; data roles such as Foundry User for applications that build with or call the project's deployments, or Foundry Agent Consumer, the least-privileged role for principals that only interact with agent endpoints; not Contributor |
+| Network | Private endpoints with public network access disabled; private endpoints for connected Storage, Azure Cosmos DB and Azure AI Search too; agents reaching private resources need virtual network injection; for hosted agents it must be included when the Foundry account is created, because it can't be added to an existing account |
 | Data | Customer-managed keys where required, sensitivity labels and DLP on grounding data, least-privilege access to indexes |
 | Content and prompts | **Guardrails** in Foundry (Azure AI Content Safety): harmful content, user prompt attacks (jailbreak), indirect prompt injection in documents and tool output, protected material |
 | Gateway | **AI Gateway** in Azure API Management: authentication, per-project token limits, logging of model traffic |

@@ -35,7 +35,7 @@ The **integration runtime** is the usual subject of the question, because it dec
 
 > **Exam trap.** A site-to-site VPN or ExpressRoute isn't required to copy on-premises data with Data Factory: the self-hosted integration runtime initiates outbound connections only. Conversely, the Azure integration runtime alone can't reach a server inside the on-premises network.
 
-Azure Synapse Analytics includes pipelines built on the same integration engine as Data Factory, to orchestrate without leaving the workspace; they support the Azure and self-hosted integration runtimes, not Azure-SSIS. Microsoft now presents Data Factory in Microsoft Fabric as the next generation of Azure Data Factory and recommends it to teams that start a new integration project.
+Azure Synapse Analytics includes pipelines built on the same integration engine as Data Factory, to orchestrate without leaving the workspace; they support the Azure and self-hosted integration runtimes, not Azure-SSIS. Microsoft now presents Data Factory in Microsoft Fabric as the next generation of Azure Data Factory: Learn advises those who are new to data integration to start with it, and existing Azure Data Factory workloads can upgrade to it.
 
 <!-- section: data-lake-processing | objectives: 2.3.1 -->
 ## The data lake and the processing engines
@@ -68,7 +68,7 @@ Azure Synapse Analytics includes pipelines built on the same integration engine 
 | Dedicated SQL pool | Data warehouse that distributes queries over compute nodes, with data loaded into hash, round-robin or replicated tables | Reserved compute, sized in data warehouse units; can be paused so that only storage is billed. For predictable performance on a modeled warehouse |
 | Serverless SQL pool | T-SQL endpoint, present in every workspace, that queries files in the data lake (Parquet, Delta Lake, delimited text) in place | Billed for the data processed by each query, nothing to provision. For exploration, a logical data warehouse over the lake, unplanned or bursty workloads |
 | Apache Spark pool | Managed Spark for data preparation, data engineering and machine learning | No cluster to manage yourself |
-| Data Explorer pool (preview) | Interactive analytics on logs and time series | Near real-time log and IoT analytics |
+| Data Explorer pool (retired) | Former preview engine for logs and time series, retired on October 7, 2025: its workloads were deleted | Don't recommend it; Learn directs its workloads to Eventhouse in Microsoft Fabric |
 
 > **Exam trap.** A serverless SQL pool has no storage of its own and doesn't support tables or data modification statements: it reads files where they are. "Minimize cost for occasional queries over Parquet files" points to it; "consistent performance for hundreds of concurrent reports on a star schema" points to a dedicated SQL pool.
 
@@ -101,7 +101,7 @@ An analytics design usually serves several latencies at once. Identify the path 
 **Azure Stream Analytics** is the fully managed stream processing engine, programmed in a SQL language extended with time semantics.
 
 - Streaming inputs: Azure Event Hubs and Azure IoT Hub; Blob Storage or Azure Data Lake Storage for historical data. Reference data from Blob Storage or Azure SQL Database can be joined to the stream for lookups.
-- Outputs: Blob Storage and Azure Data Lake Storage, Azure SQL Database, Azure Cosmos DB, Azure Synapse Analytics, Event Hubs, Power BI for live dashboards.
+- Outputs: Blob Storage and Azure Data Lake Storage, Azure SQL Database, Azure Cosmos DB, Azure Synapse Analytics, Azure Data Explorer, Azure Database for PostgreSQL, Table storage, Event Hubs, Service Bus queues and topics, Azure Functions, Power BI for live dashboards.
 - Tumbling, hopping and sliding windows for aggregations over time.
 - Capacity is expressed in streaming units, with no cluster to provision; the service guarantees 99.9% availability.
 - The same queries can run on Azure IoT Edge to process data next to the devices.

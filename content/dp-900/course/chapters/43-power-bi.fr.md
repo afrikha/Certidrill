@@ -29,7 +29,7 @@ Dans Microsoft Fabric, le contenu Power BI réside dans des **espaces de travail
 | **Pages** | Une ou plusieurs pages | Une seule page |
 | **Source** | Un seul modèle sémantique | Des visuels épinglés depuis un ou plusieurs rapports |
 | **Filtrage et découpage** | Oui | Non |
-| **Alertes de données** | Non | Oui, sur les vignettes |
+| **Alertes de données** | Pas d'alerte de données classique ; une alerte sur un visuel de rapport se crée avec Fabric Activator | Oui, sur les vignettes de carte, de KPI et de jauge à données numériques |
 | **Créé dans** | Power BI Desktop ou le service Power BI | Le service Power BI uniquement |
 
 - Une **vignette** est un visuel **épinglé** à un tableau de bord ; la sélectionner ouvre généralement le rapport dont elle provient.
@@ -56,7 +56,7 @@ Un modèle analytique, appelé **modèle sémantique** dans Power BI et Microsof
 | Mode de stockage | Où sont les données | À retenir |
 | --- | --- | --- |
 | **Import** | Copiées dans le modèle, en mémoire | Requêtes rapides ; les données ne sont pas plus récentes que la dernière actualisation |
-| **DirectQuery** | Laissées dans la source ; chaque requête lui est envoyée | Pas d'actualisation planifiée ; données à jour ; pour des volumes trop gros à importer |
+| **DirectQuery** | Laissées dans la source ; chaque requête lui est envoyée | Pas d'actualisation des données à planifier (les vignettes de tableau de bord actualisent tout de même leur cache environ toutes les heures) ; données à jour ; pour des volumes trop gros à importer |
 | **Direct Lake** | Tables Delta dans OneLake, chargées directement en mémoire | La vitesse de la mémoire sans copier les données dans le modèle ; Microsoft Fabric |
 
 > **Conseil d'examen.** Les nombres à additionner sont dans la table de faits ; les mots qui suivent « par » (par produit, par mois, par ville) sont des dimensions.

@@ -173,6 +173,7 @@ Tenant root group
 ```
 
 - Assignments (roles and policies) at a management group apply to every subscription moved under it later.
+- Moving a subscription needs write permission on the current and the target parent management groups, except when either is the root management group. An Owner role inherited from the current management group allows a move only to a management group where you're also Owner; a direct Owner assignment on the subscription needs only Contributor on the target. A move can take up to 30 minutes to appear.
 - Production and non-production in separate subscriptions keep their quotas, budgets and permissions apart, and a mistake in non-production can't touch production.
 - Use existing subscriptions effectively, plan growth early and start new environments with a small set of subscriptions.
 

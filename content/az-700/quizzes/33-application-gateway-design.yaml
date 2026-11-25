@@ -1,0 +1,448 @@
+chapter: 33-application-gateway-design
+questions:
+  # ------------------------------------------------------------------ 1
+  - id: az700-qz-33-01
+    objective: "3.2.1"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        Contoso publishes an online store through an Application Gateway Standard_v2 named **AGW1**. The backend pool contains four web servers. The application keeps each shopping cart in the memory of the web server that created it.
+
+        You need to ensure that a user keeps reaching the same web server during the whole session. Which feature of AGW1 should you configure?
+      fr: |
+        Contoso publie une boutique en ligne via un Application Gateway Standard_v2 nommé **AGW1**. Le pool principal contient quatre serveurs web. L'application conserve chaque panier dans la mémoire du serveur web qui l'a créé.
+
+        Vous devez faire en sorte qu'un utilisateur continue d'atteindre le même serveur web pendant toute la session. Quelle fonctionnalité d'AGW1 devez-vous configurer ?
+    body:
+      options:
+        - { id: a, text: { en: "Connection draining", fr: "Drainage des connexions" } }
+        - { id: b, text: { en: "URL path-based routing", fr: "Routage basé sur le chemin d'URL" } }
+        - { id: c, text: { en: "Multi-site listeners", fr: "Écouteurs multisites" } }
+        - { id: d, text: { en: "Cookie-based affinity", fr: "Affinité basée sur les cookies" } }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          Cookie-based affinity, set in the backend settings, makes the gateway insert an `ApplicationGatewayAffinity` cookie on the first response. Later requests that carry the cookie go to the same backend server, which suits applications that keep session state locally on the server.
+        fr: |
+          L'affinité basée sur les cookies, définie dans les paramètres de back-end, fait insérer par la passerelle un cookie `ApplicationGatewayAffinity` dans la première réponse. Les requêtes suivantes qui portent ce cookie vont vers le même serveur de back-end, ce qui convient aux applications qui conservent l'état de session localement sur le serveur.
+      options:
+        a: { en: "Connection draining lets existing connections finish when a server is removed from a pool; it doesn't pin users to a server.", fr: "Le drainage des connexions laisse se terminer les connexions existantes quand un serveur est retiré d'un pool ; il n'attache pas les utilisateurs à un serveur." }
+        b: { en: "Path-based routing chooses a backend pool from the URL path; inside the pool, requests are still spread across the servers.", fr: "Le routage basé sur le chemin choisit un pool principal selon le chemin d'URL ; à l'intérieur du pool, les requêtes restent réparties entre les serveurs." }
+        c: { en: "Multi-site listeners host several host names on one gateway; they don't keep a user on one server.", fr: "Les écouteurs multisites hébergent plusieurs noms d'hôte sur une passerelle ; ils ne maintiennent pas un utilisateur sur un serveur." }
+    references:
+      - title: Azure Application Gateway Backend Settings configuration
+        url: https://learn.microsoft.com/en-us/azure/application-gateway/configuration-http-settings
+
+  # ------------------------------------------------------------------ 2
+  - id: az700-qz-33-02
+    objective: "3.2.5"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        Fabrikam has an Application Gateway Standard_v2 named **AGW1**. No custom probe is configured. When AGW1 probes the root path of each backend server, the application answers with HTTP 302, which redirects to `/login`.
+
+        How does the default probe of AGW1 evaluate this response?
+      fr: |
+        Fabrikam dispose d'un Application Gateway Standard_v2 nommé **AGW1**. Aucune sonde personnalisée n'est configurée. Quand AGW1 sonde le chemin racine de chaque serveur de back-end, l'application répond par HTTP 302, qui redirige vers `/login`.
+
+        Comment la sonde par défaut d'AGW1 évalue-t-elle cette réponse ?
+    body:
+      options:
+        - { id: a, text: { en: "Unhealthy: the default probe accepts only status code 200.", fr: "Non sain : la sonde par défaut n'accepte que le code d'état 200." } }
+        - { id: b, text: { en: "Healthy: the default probe accepts any status code from 200 through 399.", fr: "Sain : la sonde par défaut accepte tout code d'état de 200 à 399." } }
+        - { id: c, text: { en: "Unhealthy: the default probe accepts only status codes from 200 through 299.", fr: "Non sain : la sonde par défaut n'accepte que les codes d'état de 200 à 299." } }
+        - { id: d, text: { en: "Healthy: the default probe accepts any response received before the timeout.", fr: "Sain : la sonde par défaut accepte toute réponse reçue avant le délai d'expiration." } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          The default probe of Application Gateway considers a server healthy when it returns any HTTP status code from 200 through 399, so a 302 redirect counts as healthy. To require another code or a string in the body, you create a custom probe with match conditions.
+        fr: |
+          La sonde par défaut d'Application Gateway considère un serveur comme sain quand il renvoie un code d'état HTTP de 200 à 399 ; une redirection 302 est donc considérée comme saine. Pour exiger un autre code ou une chaîne dans le corps, vous créez une sonde personnalisée avec des conditions de correspondance.
+      options:
+        a: { en: "Only 200 is the rule of Azure Load Balancer HTTP probes, not of the Application Gateway default probe.", fr: "Le code 200 seul est la règle des sondes HTTP d'Azure Load Balancer, pas de la sonde par défaut d'Application Gateway." }
+        c: { en: "The default range also includes the 3xx redirection codes, up to 399.", fr: "La plage par défaut inclut aussi les codes de redirection 3xx, jusqu'à 399." }
+        d: { en: "A response outside 200-399, such as 401 or 500, marks the server unhealthy even when it arrives in time.", fr: "Une réponse hors de 200-399, comme 401 ou 500, marque le serveur comme non sain même si elle arrive à temps." }
+    references:
+      - title: Application Gateway health probes overview
+        url: https://learn.microsoft.com/en-us/azure/application-gateway/application-gateway-probe-overview
+
+  # ------------------------------------------------------------------ 3
+  - id: az700-qz-33-03
+    objective: "3.2.4"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Northwind has an Application Gateway Standard_v2 named **AGW1** in a subnet named **snet-agw** (10.0.1.0/24). Its backend pool contains two virtual machines in a subnet named **snet-web** of the same virtual network, and its backend settings use HTTP on port 8080.
+
+        The network security group of snet-web has an inbound rule that allows TCP port 8080 from the **Internet** service tag, followed by the default rules. Internet clients reach AGW1, but the **Backend health** page reports both servers as unhealthy with a connection timeout.
+
+        Which inbound rule should you add to the network security group of snet-web?
+      fr: |
+        Northwind dispose d'un Application Gateway Standard_v2 nommé **AGW1** dans un sous-réseau nommé **snet-agw** (10.0.1.0/24). Son pool principal contient deux machines virtuelles d'un sous-réseau nommé **snet-web** du même réseau virtuel, et ses paramètres de back-end utilisent HTTP sur le port 8080.
+
+        Le groupe de sécurité réseau de snet-web a une règle entrante qui autorise le port TCP 8080 depuis l'étiquette de service **Internet**, suivie des règles par défaut. Les clients internet atteignent AGW1, mais la page **Intégrité du back-end** (Backend health) signale les deux serveurs comme non sains avec un délai de connexion dépassé.
+
+        Quelle règle entrante devez-vous ajouter au groupe de sécurité réseau de snet-web ?
+    body:
+      options:
+        - { id: a, text: { en: "Allow TCP port 8080 from the public frontend IP address of AGW1", fr: "Autoriser le port TCP 8080 depuis l'adresse IP frontale publique d'AGW1" } }
+        - { id: b, text: { en: "Allow TCP ports 65200-65535 from the GatewayManager service tag", fr: "Autoriser les ports TCP 65200-65535 depuis l'étiquette de service GatewayManager" } }
+        - { id: c, text: { en: "Allow TCP port 443 from the address range 10.0.1.0/24", fr: "Autoriser le port TCP 443 depuis la plage d'adresses 10.0.1.0/24" } }
+        - { id: d, text: { en: "Allow TCP port 8080 from the address range 10.0.1.0/24", fr: "Autoriser le port TCP 8080 depuis la plage d'adresses 10.0.1.0/24" } }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          Application Gateway terminates client connections and opens its own connections to the backends from its instances in snet-agw. Both the requests and the health probes therefore reach the servers from 10.0.1.0/24 on the backend port, 8080. The Internet service tag doesn't include these private addresses.
+        fr: |
+          Application Gateway termine les connexions des clients et ouvre ses propres connexions vers les back-ends depuis ses instances de snet-agw. Les requêtes comme les sondes d'intégrité atteignent donc les serveurs depuis 10.0.1.0/24 sur le port de back-end, 8080. L'étiquette de service Internet n'inclut pas ces adresses privées.
+      options:
+        a: { en: "For backends in its virtual network, the gateway connects from its private instance addresses; only internet backends see its public frontend IP address.", fr: "Pour des back-ends de son réseau virtuel, la passerelle se connecte depuis les adresses privées de ses instances ; seuls les back-ends sur internet voient son adresse IP frontale publique." }
+        b: { en: "GatewayManager on 65200-65535 must be allowed on the NSG of the gateway's own subnet, not on the backend subnet.", fr: "GatewayManager sur 65200-65535 doit être autorisé sur le NSG du sous-réseau de la passerelle elle-même, pas sur celui du back-end." }
+        c: { en: "The source is right, but the backend settings send traffic to port 8080, not 443.", fr: "La source est correcte, mais les paramètres de back-end envoient le trafic vers le port 8080, pas 443." }
+    references:
+      - title: Troubleshoot backend health issues in Application Gateway
+        url: https://learn.microsoft.com/en-us/azure/application-gateway/application-gateway-backend-health-troubleshooting
+
+  # ------------------------------------------------------------------ 4
+  - id: az700-qz-33-04
+    objective: "3.2.3"
+    difficulty: 2
+    status: draft
+    type: single
+    shuffle: false
+    stem:
+      en: |
+        Adatum has a subnet named **snet-agw** with the prefix 10.30.4.0/26. The subnet contains an Application Gateway Standard_v2 named **AGW1** that uses autoscaling with a minimum of 2 and a maximum of 10 instances, and that has a public and a private frontend IP address.
+
+        You plan to deploy a second Application Gateway Standard_v2 named **AGW2** in snet-agw. AGW2 will use autoscaling and will have a public and a private frontend IP address.
+
+        What is the highest maximum instance count that you can configure for AGW2 without changing snet-agw?
+      fr: |
+        Adatum dispose d'un sous-réseau nommé **snet-agw** de préfixe 10.30.4.0/26. Le sous-réseau contient un Application Gateway Standard_v2 nommé **AGW1** qui utilise la mise à l'échelle automatique avec un minimum de 2 et un maximum de 10 instances, et qui a une adresse IP frontale publique et une privée.
+
+        Vous prévoyez de déployer un second Application Gateway Standard_v2 nommé **AGW2** dans snet-agw. AGW2 utilisera la mise à l'échelle automatique et aura une adresse IP frontale publique et une privée.
+
+        Quel est le nombre maximal d'instances le plus élevé que vous pouvez configurer pour AGW2 sans modifier snet-agw ?
+    body:
+      options:
+        - { id: a, text: "47" }
+        - { id: b, text: "48" }
+        - { id: c, text: "53" }
+        - { id: d, text: "58" }
+    answer: { optionId: a }
+    explanation:
+      correct:
+        en: |
+          A /26 provides 64 addresses, and Azure reserves 5 of them. Each gateway in the subnet needs one address per instance up to its maximum count, plus one for its private frontend IP address: AGW1 takes 10 + 1 = 11. That leaves 64 - 5 - 11 = 48 addresses, of which AGW2 needs one for its private frontend, so its maximum can be 47.
+        fr: |
+          Un /26 fournit 64 adresses, dont 5 sont réservées par Azure. Chaque passerelle du sous-réseau a besoin d'une adresse par instance jusqu'à son nombre maximal, plus une pour son adresse IP frontale privée : AGW1 en prend 10 + 1 = 11. Il reste 64 - 5 - 11 = 48 adresses, dont AGW2 a besoin d'une pour son adresse frontale privée ; son maximum peut donc être de 47.
+      options:
+        b: { en: "48 forgets the address taken by the private frontend IP of AGW2.", fr: "48 oublie l'adresse prise par l'adresse IP frontale privée d'AGW2." }
+        c: { en: "53 ignores the 5 addresses that Azure reserves in every subnet.", fr: "53 ignore les 5 adresses qu'Azure réserve dans chaque sous-réseau." }
+        d: { en: "58 ignores the addresses that AGW1 needs for its maximum instance count and its private frontend.", fr: "58 ignore les adresses dont AGW1 a besoin pour son nombre maximal d'instances et son adresse frontale privée." }
+    references:
+      - title: Azure Application Gateway infrastructure configuration
+        url: https://learn.microsoft.com/en-us/azure/application-gateway/configuration-infrastructure
+
+  # ------------------------------------------------------------------ 5
+  - id: az700-qz-33-05
+    objective: "3.2.2"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Litware has an Application Gateway Standard_v2 named **AGW1**. A backend pool of AGW1 contains the FQDN `app01.corp.litware.com`, which is resolved by the custom DNS servers configured on the virtual network of AGW1.
+
+        Yesterday, you replaced these DNS servers in the virtual network settings with two new servers that resolve both `corp.litware.com` and public internet names. The old servers will be decommissioned.
+
+        You need AGW1 to use the new DNS servers. What should you do?
+      fr: |
+        Litware dispose d'un Application Gateway Standard_v2 nommé **AGW1**. Un pool principal d'AGW1 contient le FQDN `app01.corp.litware.com`, résolu par les serveurs DNS personnalisés configurés sur le réseau virtuel d'AGW1.
+
+        Hier, vous avez remplacé ces serveurs DNS dans les paramètres du réseau virtuel par deux nouveaux serveurs qui résolvent à la fois `corp.litware.com` et les noms publics d'internet. Les anciens serveurs vont être mis hors service.
+
+        Vous devez faire en sorte qu'AGW1 utilise les nouveaux serveurs DNS. Que devez-vous faire ?
+    body:
+      options:
+        - { id: a, text: { en: "Stop AGW1, and then start it again.", fr: "Arrêter AGW1, puis le redémarrer." } }
+        - { id: b, text: { en: "Restart the virtual machines of the backend pool.", fr: "Redémarrer les machines virtuelles du pool principal." } }
+        - { id: c, text: { en: "Link a private DNS zone named corp.litware.com to the network.", fr: "Lier au réseau une zone DNS privée nommée corp.litware.com." } }
+        - { id: d, text: { en: "Set a host name override in the backend settings of AGW1.", fr: "Définir un remplacement du nom d'hôte dans les paramètres de back-end d'AGW1." } }
+    answer: { optionId: a }
+    explanation:
+      correct:
+        en: |
+          Application Gateway instances use the DNS servers of their virtual network, but a change of these servers applies to the gateway only after it is stopped and started again. Until then, AGW1 keeps resolving the FQDN through the old servers.
+        fr: |
+          Les instances d'Application Gateway utilisent les serveurs DNS de leur réseau virtuel, mais un changement de ces serveurs ne s'applique à la passerelle qu'après un arrêt puis un redémarrage. D'ici là, AGW1 continue de résoudre le FQDN par les anciens serveurs.
+      options:
+        b: { en: "The backend servers don't resolve the FQDN of the pool; the gateway does, with its own DNS configuration.", fr: "Ce ne sont pas les serveurs de back-end qui résolvent le FQDN du pool, mais la passerelle, avec sa propre configuration DNS." }
+        c: { en: "With custom DNS servers, the virtual network doesn't query private DNS zones directly, and the gateway still needs a stop and start to change servers.", fr: "Avec des serveurs DNS personnalisés, le réseau virtuel n'interroge pas directement les zones DNS privées, et la passerelle exige toujours un arrêt et un redémarrage pour changer de serveurs." }
+        d: { en: "A host name override changes the Host header sent to the backend, not the DNS servers used to resolve the pool members.", fr: "Un remplacement du nom d'hôte modifie l'en-tête Host envoyé au back-end, pas les serveurs DNS utilisés pour résoudre les membres du pool." }
+    references:
+      - title: Azure Application Gateway infrastructure configuration
+        url: https://learn.microsoft.com/en-us/azure/application-gateway/configuration-infrastructure
+
+  # ------------------------------------------------------------------ 6
+  - id: az700-qz-33-06
+    objective: "3.2.4"
+    difficulty: 3
+    status: draft
+    type: yesno_statements
+    stem:
+      en: |
+        Fabrikam has a hub-and-spoke topology in one region:
+
+        | Virtual network | Peered with | Contents |
+        | --- | --- | --- |
+        | VNet-Hub | VNet-Spoke1, VNet-Spoke2 | VM-H1 (web server) |
+        | VNet-Spoke1 | VNet-Hub | An Application Gateway Standard_v2 named AGW1 |
+        | VNet-Spoke2 | VNet-Hub | VM-S2 (web server) |
+
+        VNet-Hub contains no gateway, firewall or network virtual appliance, and no route table is associated with any subnet. AGW1 is a standard deployment with outbound internet access. All network security groups allow traffic from the subnet of AGW1 to the web servers.
+
+        For each of the following statements, select **Yes** if the statement is true. Otherwise, select **No**.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Fabrikam dispose d'une topologie hub-and-spoke dans une région :
+
+        | Réseau virtuel | Peering avec | Contenu |
+        | --- | --- | --- |
+        | VNet-Hub | VNet-Spoke1, VNet-Spoke2 | VM-H1 (serveur web) |
+        | VNet-Spoke1 | VNet-Hub | Un Application Gateway Standard_v2 nommé AGW1 |
+        | VNet-Spoke2 | VNet-Hub | VM-S2 (serveur web) |
+
+        VNet-Hub ne contient ni passerelle, ni pare-feu, ni appliance virtuelle réseau, et aucune table de routage n'est associée à un sous-réseau. AGW1 est un déploiement standard avec un accès sortant à internet. Tous les groupes de sécurité réseau autorisent le trafic du sous-réseau d'AGW1 vers les serveurs web.
+
+        Pour chacune des affirmations suivantes, sélectionnez **Oui** si l'affirmation est vraie. Sinon, sélectionnez **Non**.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      statements:
+        - id: s1
+          text: { en: "AGW1 can load-balance requests to VM-H1 if you add the private IP address of VM-H1 to a backend pool.", fr: "AGW1 peut répartir des requêtes vers VM-H1 si vous ajoutez l'adresse IP privée de VM-H1 à un pool principal." }
+        - id: s2
+          text: { en: "AGW1 can load-balance requests to VM-S2 if you add the private IP address of VM-S2 to a backend pool.", fr: "AGW1 peut répartir des requêtes vers VM-S2 si vous ajoutez l'adresse IP privée de VM-S2 à un pool principal." }
+        - id: s3
+          text: { en: "AGW1 can load-balance requests to a web server hosted by another cloud provider if you add its public IP address to a backend pool.", fr: "AGW1 peut répartir des requêtes vers un serveur web hébergé chez un autre fournisseur de cloud si vous ajoutez son adresse IP publique à un pool principal." }
+    answer:
+      values: { s1: true, s2: false, s3: true }
+    explanation:
+      correct:
+        en: |
+          Backend pool members aren't tied to the gateway's virtual network: any target that the gateway reaches over IP works. VM-H1 is in a directly peered network, and a public IP address outside Azure is reachable through the gateway's internet access. Peering isn't transitive, so without a peering between the spokes or a hub router, AGW1 has no route to VM-S2.
+        fr: |
+          Les membres d'un pool principal ne sont pas liés au réseau virtuel de la passerelle : toute cible que la passerelle atteint en IP convient. VM-H1 est dans un réseau directement associé par peering, et une adresse IP publique hors d'Azure est joignable grâce à l'accès internet de la passerelle. Le peering n'est pas transitif : sans peering entre les spokes ni routeur dans le hub, AGW1 n'a aucun itinéraire vers VM-S2.
+      options:
+        s2: { en: "VNet-Spoke1 and VNet-Spoke2 are each peered only with the hub; peering isn't transitive, so the private address of VM-S2 is unreachable from AGW1.", fr: "VNet-Spoke1 et VNet-Spoke2 sont chacun associés uniquement au hub ; le peering n'est pas transitif, donc l'adresse privée de VM-S2 est injoignable depuis AGW1." }
+    references:
+      - title: Application gateway components
+        url: https://learn.microsoft.com/en-us/azure/application-gateway/application-gateway-components
+
+  # ------------------------------------------------------------------ 7
+  - id: az700-qz-33-07
+    objective: "3.2.5"
+    difficulty: 3
+    status: draft
+    type: single
+    stem:
+      en: |
+        Tailspin has an Application Gateway Standard_v2 named **AGW1** that runs with a fixed capacity of four instances. A routing rule uses one backend settings and a backend pool of three servers. You are creating a custom probe for the health page `/healthz`, which answers in less than one second.
+
+        The probe must meet the following requirements:
+
+        - A server that fails must stop receiving requests no more than 45 seconds after its failure.
+        - A server must be marked unhealthy only after three consecutive failed probes.
+        - Each server must receive no more than 30 probe requests per minute.
+
+        Which probe settings should you use?
+      fr: |
+        Tailspin dispose d'un Application Gateway Standard_v2 nommé **AGW1** qui fonctionne avec une capacité fixe de quatre instances. Une règle de routage utilise un seul paramètre de back-end et un pool principal de trois serveurs. Vous créez une sonde personnalisée pour la page d'intégrité `/healthz`, qui répond en moins d'une seconde.
+
+        La sonde doit répondre aux exigences suivantes :
+
+        - Un serveur défaillant doit cesser de recevoir des requêtes au plus 45 secondes après sa panne.
+        - Un serveur ne doit être marqué comme non sain qu'après trois sondes consécutives en échec.
+        - Chaque serveur ne doit pas recevoir plus de 30 requêtes de sonde par minute.
+
+        Quels paramètres de sonde devez-vous utiliser ?
+    body:
+      options:
+        - { id: a, text: { en: "Interval 30 seconds, unhealthy threshold 3", fr: "Intervalle de 30 secondes, seuil de défaillance de 3" } }
+        - { id: b, text: { en: "Interval 5 seconds, unhealthy threshold 3", fr: "Intervalle de 5 secondes, seuil de défaillance de 3" } }
+        - { id: c, text: { en: "Interval 10 seconds, unhealthy threshold 3", fr: "Intervalle de 10 secondes, seuil de défaillance de 3" } }
+        - { id: d, text: { en: "Interval 10 seconds, unhealthy threshold 1", fr: "Intervalle de 10 secondes, seuil de défaillance de 1" } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          A failed server is marked unhealthy after about the first detection plus the unhealthy threshold multiplied by the interval: 10 + 3 × 10 = 40 seconds, within 45. Each gateway instance probes every server independently, so four instances probing every 10 seconds send 24 probe requests per minute to each server, under the limit of 30.
+        fr: |
+          Un serveur défaillant est marqué comme non sain après environ la première détection plus le seuil de défaillance multiplié par l'intervalle : 10 + 3 × 10 = 40 secondes, sous les 45. Chaque instance de la passerelle sonde chaque serveur indépendamment : quatre instances qui sondent toutes les 10 secondes envoient donc 24 requêtes de sonde par minute à chaque serveur, sous la limite de 30.
+      options:
+        a: { en: "These default values need about 30 + 3 × 30 = 120 seconds to mark a failed server unhealthy.", fr: "Ces valeurs par défaut demandent environ 30 + 3 × 30 = 120 secondes pour marquer un serveur défaillant comme non sain." }
+        b: { en: "Detection is fast enough, but four instances probing every 5 seconds send 48 probe requests per minute to each server.", fr: "La détection est assez rapide, mais quatre instances qui sondent toutes les 5 secondes envoient 48 requêtes de sonde par minute à chaque serveur." }
+        d: { en: "A threshold of 1 marks a server unhealthy after a single failed probe, not after three consecutive failures.", fr: "Un seuil de 1 marque un serveur comme non sain après une seule sonde en échec, et non après trois échecs consécutifs." }
+    references:
+      - title: Application Gateway health probes overview
+        url: https://learn.microsoft.com/en-us/azure/application-gateway/application-gateway-probe-overview
+
+  # ------------------------------------------------------------------ 8
+  - id: az700-qz-33-08
+    objective: "3.2.3"
+    difficulty: 3
+    status: draft
+    type: single
+    shuffle: false
+    stem:
+      en: |
+        Wingtip Toys sells concert tickets through an Application Gateway Standard_v2 named **AGW-Tix**, which uses autoscaling with a maximum of 125 instances. Every day at 10:00, ticket sales open: in less than one minute, traffic rises from almost nothing to its daily peak, which lasts about two hours.
+
+        At peak, AGW-Tix handles 1,500 new TLS connections per second with an RSA 2048-bit certificate, 100,000 persistent connections and 150 Mbps of throughput. No request may fail when sales open, and the cost must be minimized.
+
+        Which minimum instance count should you configure?
+      fr: |
+        Wingtip Toys vend des billets de concert via un Application Gateway Standard_v2 nommé **AGW-Tix**, qui utilise la mise à l'échelle automatique avec un maximum de 125 instances. Chaque jour à 10 h, la vente des billets ouvre : en moins d'une minute, le trafic passe de presque rien à son pic quotidien, qui dure environ deux heures.
+
+        Au pic, AGW-Tix traite 1 500 nouvelles connexions TLS par seconde avec un certificat RSA 2048 bits, 100 000 connexions persistantes et un débit de 150 Mbit/s. Aucune requête ne doit échouer à l'ouverture des ventes, et le coût doit être réduit au minimum.
+
+        Quel nombre minimal d'instances devez-vous configurer ?
+    body:
+      options:
+        - { id: a, text: "3" }
+        - { id: b, text: "4" }
+        - { id: c, text: "7" }
+        - { id: d, text: "14" }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          A capacity unit is the highest of 1 compute unit (about 50 TLS connections per second on Standard_v2), 2,500 persistent connections or 2.22 Mbps. The peak needs 30 compute units, 40 units for the connections and about 68 for the throughput, so 68 capacity units. Scale-out takes 3 to 5 minutes, longer than the ramp, so the minimum must already cover the peak: with 10 capacity units per instance, that is 7 instances.
+        fr: |
+          Une unité de capacité correspond à la plus élevée de 1 unité de calcul (environ 50 connexions TLS par seconde en Standard_v2), 2 500 connexions persistantes ou 2,22 Mbit/s. Le pic demande 30 unités de calcul, 40 unités pour les connexions et environ 68 pour le débit, donc 68 unités de capacité. Le scale-out prend 3 à 5 minutes, plus que la montée en charge : le minimum doit donc déjà couvrir le pic, soit 7 instances à 10 unités de capacité chacune.
+      options:
+        a: { en: "3 instances cover only the 30 compute units of the TLS connections, not the throughput, which is the highest dimension.", fr: "3 instances ne couvrent que les 30 unités de calcul des connexions TLS, pas le débit, qui est la dimension la plus élevée." }
+        b: { en: "4 instances cover the persistent connections but not the 68 capacity units required by the throughput.", fr: "4 instances couvrent les connexions persistantes, mais pas les 68 unités de capacité exigées par le débit." }
+        d: { en: "14 adds up the three dimensions, but a capacity unit is set by the highest one, so half of this reserved capacity would be paid for nothing.", fr: "14 additionne les trois dimensions, alors qu'une unité de capacité est fixée par la plus élevée : la moitié de cette capacité réservée serait payée pour rien." }
+    references:
+      - title: Understanding Pricing for Azure Application Gateway and Web Application Firewall
+        url: https://learn.microsoft.com/en-us/azure/application-gateway/understanding-pricing
+      - title: Scaling and Zone-redundant Application Gateway v2
+        url: https://learn.microsoft.com/en-us/azure/application-gateway/application-gateway-autoscaling-zone-redundant
+
+  # ------------------------------------------------------------------ 9
+  - id: az700-qz-33-09
+    objective: "3.2.1"
+    difficulty: 3
+    status: draft
+    type: dragdrop
+    stem:
+      en: |
+        Woodgrove Bank plans to publish its online banking portal through an Application Gateway Standard_v2 named **AGW-Bank**, which has a public and a private frontend IP address. The security and application teams have defined four requirements for AGW-Bank, shown in the answer area.
+
+        You need to meet each requirement by using a capability of AGW-Bank. To answer, drag the appropriate features to the correct requirements. Each feature may be used once or not at all.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Woodgrove Bank prévoit de publier son portail de banque en ligne via un Application Gateway Standard_v2 nommé **AGW-Bank**, doté d'une adresse IP frontale publique et d'une privée. Les équipes de sécurité et d'application ont défini pour AGW-Bank quatre exigences, présentées dans la zone de réponse.
+
+        Vous devez répondre à chaque exigence au moyen d'une fonctionnalité d'AGW-Bank. Pour répondre, faites glisser les fonctionnalités appropriées vers les exigences correspondantes. Chaque fonctionnalité peut être utilisée une fois ou pas du tout.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      reuse: false
+      items:
+        - { id: privatelink, text: { en: "Private Link configuration", fr: "Configuration Private Link" } }
+        - { id: privatefe, text: { en: "Private frontend IP configuration", fr: "Configuration IP frontale privée" } }
+        - { id: sslprofile, text: { en: "SSL profile with client authentication", fr: "Profil SSL avec authentification du client" } }
+        - { id: urlrewrite, text: { en: "Rewrite rule set with a URL rewrite action", fr: "Ensemble de règles de réécriture avec une action de réécriture d'URL" } }
+        - { id: redirect, text: { en: "Redirection on the routing rule", fr: "Redirection sur la règle de routage" } }
+        - { id: keyvault, text: { en: "Listener certificate referenced from Azure Key Vault", fr: "Certificat d'écouteur référencé depuis Azure Key Vault" } }
+      targets:
+        - id: t1
+          text: { en: "A partner in another Microsoft Entra tenant must reach the gateway privately from its own virtual network, without peering or VPN.", fr: "Un partenaire d'un autre locataire Microsoft Entra doit atteindre la passerelle en privé depuis son propre réseau virtuel, sans peering ni VPN." }
+        - id: t2
+          text: { en: "Only clients that present a certificate issued by the internal certification authority of Woodgrove can connect to the HTTPS listener.", fr: "Seuls les clients qui présentent un certificat émis par l'autorité de certification interne de Woodgrove peuvent se connecter à l'écouteur HTTPS." }
+        - id: t3
+          text: { en: "Requests for /accounts/123 must reach the backend as /account.aspx?id=123, while the browser keeps showing the original URL.", fr: "Les requêtes vers /accounts/123 doivent atteindre le back-end sous la forme /account.aspx?id=123, tandis que le navigateur continue d'afficher l'URL d'origine." }
+        - id: t4
+          text: { en: "The listener certificate, renewed every 90 days by the security team in a central store, must be picked up without any change to the gateway.", fr: "Le certificat de l'écouteur, renouvelé tous les 90 jours par l'équipe de sécurité dans un magasin central, doit être pris en compte sans aucune modification de la passerelle." }
+    answer:
+      mapping: { t1: privatelink, t2: sslprofile, t3: urlrewrite, t4: keyvault }
+    explanation:
+      correct:
+        en: |
+          Private Link lets clients in other virtual networks, subscriptions or tenants reach the gateway through a private endpoint in their own network. Mutual TLS is enabled by an SSL profile whose client authentication holds the trusted client CA certificates, associated with the HTTPS listener. A URL rewrite changes the path and query string before forwarding, without the client seeing it. With a versionless Key Vault secret ID, the gateway polls Key Vault and rotates the certificate automatically.
+        fr: |
+          Private Link permet à des clients d'autres réseaux virtuels, abonnements ou locataires d'atteindre la passerelle via un point de terminaison privé dans leur propre réseau. Le TLS mutuel s'active par un profil SSL dont l'authentification du client contient les certificats d'autorité de certification clients approuvés, associé à l'écouteur HTTPS. Une réécriture d'URL modifie le chemin et la chaîne de requête avant le transfert, sans que le client le voie. Avec un ID de secret Key Vault sans version, la passerelle interroge Key Vault et fait tourner le certificat automatiquement.
+      options:
+        privatefe: { en: "A private frontend is reachable only from networks connected by peering, VPN or ExpressRoute, which the partner doesn't have.", fr: "Une adresse frontale privée n'est joignable que depuis des réseaux connectés par peering, VPN ou ExpressRoute, ce dont le partenaire ne dispose pas." }
+        redirect: { en: "A redirection sends the new URL back to the client, whose browser then shows it.", fr: "Une redirection renvoie la nouvelle URL au client, dont le navigateur l'affiche ensuite." }
+    references:
+      - title: Azure Application Gateway Private Link
+        url: https://learn.microsoft.com/en-us/azure/application-gateway/private-link
+      - title: Overview of mutual authentication on Azure Application Gateway
+        url: https://learn.microsoft.com/en-us/azure/application-gateway/mutual-authentication-overview
+
+  # ------------------------------------------------------------------ 10
+  - id: az700-qz-33-10
+    objective: "3.2.2"
+    difficulty: 3
+    status: draft
+    type: multi
+    stem:
+      en: |
+        Contoso plans to deploy an Application Gateway Standard_v2 named **AGW2** that uses autoscaling with a maximum of 30 instances, with a public and a private frontend IP address. Network isolation (private deployment) won't be enabled.
+
+        A network administrator prepared an empty subnet named **snet-agw2** (10.20.8.0/26) in the virtual network **VNet-Prod**:
+
+        - The network security group **nsg-agw2** has two custom inbound rules: priority 100 allows TCP port 443 from the **Internet** service tag, and priority 200 allows any port from the **AzureLoadBalancer** service tag. All the other rules are the default rules.
+        - The route table **rt-agw2** contains a route for 0.0.0.0/0 whose next hop is a firewall virtual appliance at 10.20.0.4. Gateway route propagation is enabled, and VNet-Prod has no virtual network gateway.
+
+        Which two changes must you make before you deploy AGW2? Each correct answer presents part of the solution.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Contoso prévoit de déployer un Application Gateway Standard_v2 nommé **AGW2** qui utilise la mise à l'échelle automatique avec un maximum de 30 instances, avec une adresse IP frontale publique et une privée. L'isolement réseau (déploiement privé) ne sera pas activé.
+
+        Un administrateur réseau a préparé un sous-réseau vide nommé **snet-agw2** (10.20.8.0/26) dans le réseau virtuel **VNet-Prod** :
+
+        - Le groupe de sécurité réseau **nsg-agw2** a deux règles entrantes personnalisées : la priorité 100 autorise le port TCP 443 depuis l'étiquette de service **Internet**, et la priorité 200 autorise tous les ports depuis l'étiquette de service **AzureLoadBalancer**. Toutes les autres règles sont les règles par défaut.
+        - La table de routage **rt-agw2** contient un itinéraire pour 0.0.0.0/0 dont le tronçon suivant est une appliance virtuelle de pare-feu en 10.20.0.4. La propagation des itinéraires de passerelle est activée, et VNet-Prod n'a aucune passerelle de réseau virtuel.
+
+        Quelles sont les deux modifications à effectuer avant de déployer AGW2 ? Chaque bonne réponse présente une partie de la solution.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      choose: 2
+      options:
+        - { id: a, text: { en: "Resize snet-agw2 to a /24 so that it can hold the maximum instance count of AGW2.", fr: "Agrandir snet-agw2 en /24 pour qu'il puisse contenir le nombre maximal d'instances d'AGW2." } }
+        - { id: b, text: { en: "Add an inbound rule to nsg-agw2 that allows TCP ports 65200-65535 from the GatewayManager service tag.", fr: "Ajouter à nsg-agw2 une règle entrante qui autorise les ports TCP 65200-65535 depuis l'étiquette de service GatewayManager." } }
+        - { id: c, text: { en: "Disable gateway route propagation on rt-agw2, and keep the 0.0.0.0/0 route to the firewall.", fr: "Désactiver la propagation des itinéraires de passerelle sur rt-agw2, et conserver l'itinéraire 0.0.0.0/0 vers le pare-feu." } }
+        - { id: d, text: { en: "Change the next hop of the 0.0.0.0/0 route in rt-agw2 to Internet.", fr: "Remplacer le tronçon suivant de l'itinéraire 0.0.0.0/0 de rt-agw2 par Internet." } }
+        - { id: e, text: { en: "Add an outbound rule to nsg-agw2 that allows TCP ports 65200-65535 to the GatewayManager service tag.", fr: "Ajouter à nsg-agw2 une règle sortante qui autorise les ports TCP 65200-65535 vers l'étiquette de service GatewayManager." } }
+    answer: { optionIds: [b, d] }
+    explanation:
+      correct:
+        en: |
+          A standard v2 deployment requires the subnet's network security group to allow inbound TCP 65200-65535 from GatewayManager for infrastructure communication; the default rules don't allow it. Forced tunneling of 0.0.0.0/0 through a virtual appliance isn't supported for v2: the supported route for 0.0.0.0/0 sends it directly to the Internet. The /26 is large enough, because AGW2 needs 30 instance addresses, one private frontend address and the 5 reserved addresses.
+        fr: |
+          Un déploiement v2 standard exige que le groupe de sécurité réseau du sous-réseau autorise en entrée TCP 65200-65535 depuis GatewayManager pour la communication de l'infrastructure ; les règles par défaut ne l'autorisent pas. Le tunneling forcé de 0.0.0.0/0 via une appliance virtuelle n'est pas pris en charge en v2 : l'itinéraire pris en charge pour 0.0.0.0/0 l'envoie directement vers Internet. Le /26 suffit, car AGW2 a besoin de 30 adresses d'instance, d'une adresse frontale privée et des 5 adresses réservées.
+      options:
+        a: { en: "/24 is recommended for 125 instances, but 30 instances, one private frontend and 5 reserved addresses fit in the 64 addresses of a /26.", fr: "/24 est recommandé pour 125 instances, mais 30 instances, une adresse frontale privée et 5 adresses réservées tiennent dans les 64 adresses d'un /26." }
+        c: { en: "Disabling propagation only stops routes learned from gateways; the 0.0.0.0/0 route through the firewall remains forced tunneling.", fr: "Désactiver la propagation n'arrête que les itinéraires appris des passerelles ; l'itinéraire 0.0.0.0/0 via le pare-feu reste du tunneling forcé." }
+        e: { en: "GatewayManager traffic is inbound to the gateway, and the default outbound rules already allow traffic to the internet.", fr: "Le trafic GatewayManager entre dans la passerelle, et les règles sortantes par défaut autorisent déjà le trafic vers internet." }
+    references:
+      - title: Azure Application Gateway infrastructure configuration
+        url: https://learn.microsoft.com/en-us/azure/application-gateway/configuration-infrastructure

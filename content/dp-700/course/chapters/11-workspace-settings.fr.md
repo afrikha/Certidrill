@@ -35,7 +35,7 @@ Options d'un pool personnalisé :
 <!-- section: spark-environment-jobs | objectives: 1.1.1 -->
 ## Environnement, travaux et haute concurrence
 
-**Environnement.** Un élément **Environment** regroupe la version du runtime Spark, les propriétés Spark, les propriétés de calcul et les bibliothèques. Choisissez-en un comme **environnement par défaut** de l'espace de travail pour donner à tous les notebooks les mêmes bibliothèques et le même runtime ; sans environnement par défaut, choisissez la **Runtime version** dans une liste déroulante. Le bouton **Customize compute configurations for items** permet aux utilisateurs de modifier les cœurs et la mémoire du pilote et des exécuteurs par élément (via un environnement ou une session). Quand il est désactivé, le pool par défaut et sa configuration s'appliquent à tous les environnements de l'espace de travail.
+**Environnement.** Un élément **Environment** regroupe la version du runtime Spark, les propriétés Spark, les propriétés de calcul et les bibliothèques. Choisissez-en un comme **environnement par défaut** de l'espace de travail pour donner à tous les notebooks les mêmes bibliothèques et le même runtime ; sans environnement par défaut, choisissez la **Runtime version** dans une liste déroulante. Le bouton **Customize compute configurations for items** permet aux utilisateurs de modifier les cœurs et la mémoire du pilote et des exécuteurs par élément (via un environnement ou une session). Quand il est désactivé, la section **Compute** des éléments Environment est désactivée (pas d'**Environment pool**, pas de tailles de pilote ni d'exécuteurs) et tous les travaux Spark utilisent le pool par défaut de l'espace de travail : choisir un pool dans un environnement exige que ce bouton soit activé.
 
 **Travaux (Jobs).** Ces paramètres contrôlent l'admission des travaux Spark sur la capacité :
 
@@ -104,10 +104,10 @@ L'onglet **OneLake** des paramètres de l'espace de travail contient deux foncti
 - Les fichiers de plus de **1 Go** ne sont pas mis en cache.
 - **Reset cache** supprime d'un coup tous les fichiers en cache de l'espace de travail.
 
-**Diagnostics OneLake.** Le bouton **Add diagnostic events to a lakehouse** envoie les **événements d'accès aux données** (qui a lu ou écrit quel fichier, via le portail, les API, les pipelines ou les moteurs, y compris via des raccourcis) sous forme de fichiers JSON dans un lakehouse que vous choisissez.
+**Diagnostics OneLake.** Le bouton **Add diagnostic events to a lakehouse** envoie les **événements d'accès aux données** sous forme de fichiers JSON dans un lakehouse que vous choisissez. Chaque opération via le portail Fabric et les API Blob ou ADLS est journalisée, y compris via des raccourcis ; pour l'accès par les moteurs Fabric (Spark, SQL), seul un événement `FabricWorkloadAccess` indique qu'un accès temporaire a été accordé, et le détail se trouve dans les journaux propres au moteur.
 
 - Il faut le rôle **Admin** sur l'espace de travail surveillé et **Contributor** sur le lakehouse de destination.
-- Le lakehouse de destination doit être sur la **même capacité** que l'espace de travail surveillé.
+- Le lakehouse de destination doit être sur la **même capacité** que l'espace de travail surveillé. Déplacer l'espace de travail vers une autre capacité, ou supprimer le lakehouse de destination, désactive les diagnostics (pour tous les espaces de travail qui pointent vers ce lakehouse) ; les événements déjà écrits ne sont pas supprimés.
 - Les événements commencent à arriver en une heure environ, sous `Files/DiagnosticLogs/OneLake/Workspaces/...`.
 - L'**immuabilité** peut être appliquée à l'espace de travail qui contient le lakehouse de diagnostic : personne ne peut alors modifier ni supprimer les fichiers pendant la période de rétention ; ce choix ne peut plus être modifié une fois défini.
 
@@ -127,8 +127,8 @@ Un **travail Apache Airflow** (Apache Airflow job) exécute des DAG Airflow sur 
 | | Pool de démarrage (Starter pool) | Pool personnalisé |
 | --- | --- | --- |
 | Par défaut | Oui | Non : choisissez **New Pool** |
-| Disponibilité | Reprend en 5 minutes au plus ; **s'arrête après 20 minutes d'inactivité** | **Toujours actif** jusqu'à une pause manuelle ; reprend en 5 minutes au plus |
-| Taille de nœud | Fixe | **Small** (DAG simples) ou **Large** (DAG complexes ou de production) |
+| Disponibilité | Démarre instantanément, reprend en 5 minutes au plus ; **s'arrête après 20 minutes d'inactivité** | Créé à l'arrêt ; **toujours actif** jusqu'à une pause manuelle ; reprend en 5 minutes au plus |
+| Taille de nœud | Large (fixe) | **Small** (DAG simples) ou **Large** (DAG complexes ou de production) |
 | Mise à l'échelle | Aucune | **Enable autoscale**, et **Extra nodes** : chaque nœud ajoute la capacité d'environ trois workers de plus, donc plus de tâches de DAG en parallèle |
 | Usage conseillé | Développement et exécutions occasionnelles | DAG de production qui doivent s'exécuter à l'heure, sans délai de démarrage |
 

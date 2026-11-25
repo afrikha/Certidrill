@@ -36,7 +36,7 @@ JSON garde chaque nom de colonne à côté de sa valeur et les objets imbriqués
 
 | Construction | Sortie | À utiliser pour |
 | --- | --- | --- |
-| `FOR JSON AUTO` | Tableau d'objets, structure déduite de la requête et de ses jointures | Une mise en forme rapide |
+| `FOR JSON AUTO` | Tableau d'objets, structure déduite de la requête et de ses jointures ; les alias avec des points deviennent des clés qui contiennent des points, pas des objets imbriqués | Une mise en forme rapide |
 | `FOR JSON PATH` | Tableau d'objets, imbrication définie par des alias à points comme `[product.price]` | Le contrôle complet des noms et de l'imbrication (la plupart du code RAG) |
 | `WITHOUT_ARRAY_WRAPPER` | Supprime les `[ ]` | Un résultat d'une seule ligne (un client, une commande) |
 | `ROOT('products')` | Encapsule la sortie dans une propriété racine nommée | Indiquer au modèle de quelles données il s'agit |
@@ -151,7 +151,7 @@ Une requête de saisie semi-automatique de conversation (chat completions) prend
 | `user` | Le contexte récupéré plus la question de l'utilisateur |
 | `assistant` | Les réponses précédentes, pour poursuivre une conversation à plusieurs tours |
 
-Les instructions d'ancrage du message système maintiennent le modèle dans vos données : répondre uniquement à partir des produits fournis, ne pas inventer de caractéristiques, le dire quand l'information manque, rester bref. Deux paramètres contrôlent la sortie : `max_tokens` limite la longueur de la réponse (les modèles récents utilisent `max_completion_tokens`), et une `temperature` basse (autour de 0,3 à 0,5 dans les exemples de Learn) favorise des réponses cohérentes et factuelles.
+Les instructions d'ancrage du message système maintiennent le modèle dans vos données : répondre uniquement à partir des produits fournis, ne pas inventer de caractéristiques, le dire quand l'information manque, rester bref. Deux paramètres contrôlent la sortie : `max_tokens` limite la longueur de la réponse (les modèles récents utilisent `max_completion_tokens`), et une `temperature` basse (autour de 0,3 à 0,5 dans les exemples de Learn) favorise des réponses cohérentes et factuelles. La plupart des modèles de raisonnement ne prennent pas en charge `temperature` ni `max_tokens` (consultez le tableau des fonctionnalités du modèle) : leur sortie se limite avec `max_completion_tokens`.
 
 ```text
 DECLARE @system NVARCHAR(MAX) = N'You are the Contoso Outdoors assistant. Answer only from the products in the JSON. If the answer is not in the data, say that you do not know.';

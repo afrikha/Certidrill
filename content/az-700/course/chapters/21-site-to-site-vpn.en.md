@@ -20,7 +20,7 @@ Zone resilience: AZ SKUs (VpnGw1AZ to VpnGw5AZ) deploy the instances across avai
 | --- | --- |
 | More than 100 S2S tunnels, or many branches with automated any-to-any transit | Azure Virtual WAN instead of VPN Gateway |
 | Site-to-site VPN as a backup of ExpressRoute in the same virtual network | ExpressRoute/VPN coexistence: both gateways in a larger GatewaySubnet |
-| Branch networks overlap the virtual network | NAT rules on the gateway (VpnGw2/VpnGw2AZ and above): IngressSNAT translates on-premises ranges, EgressSNAT translates the virtual network range; static rules are 1:1 and bidirectional, dynamic rules allow only flows initiated from the internal side |
+| Branch networks overlap the virtual network | NAT rules on the gateway (VpnGw2/VpnGw2AZ and above): IngressSNAT translates on-premises ranges, EgressSNAT translates the virtual network range; static rules are 1:1 and bidirectional, dynamic rules allow only flows initiated from the internal side. Limits: one prefix per rule, up to 500 rules per gateway; a dynamic rule serves one connection and maps to a /26 at most; not supported with policy-based traffic selectors, policy-based VPNs or APIPA BGP addresses; create the rules before the connections |
 | Several sites on one gateway | One local network gateway and one connection per site; address spaces must not overlap between connections |
 
 > **Exam trap.** Active-active alone doesn't protect against the failure of the single on-premises device. "Survive the loss of an on-premises VPN device" needs two devices, two local network gateways and BGP.
@@ -43,7 +43,7 @@ Since November 1, 2025, new VPN gateways use the **AZ** SKUs. Non-AZ VpnGw1-5 ga
 
 A single tunnel is slower than the aggregate: about 650 Mbps on VpnGw1AZ and up to 2.3 Gbps on VpnGw4AZ/5AZ with GCMAES256, the fastest algorithm.
 
-Changing SKU: upgrade or downgrade within the AZ family (about 45 minutes, public IP unchanged); Gen1 to Gen2 AZ by migration. **Basic can't be resized**: delete and re-create the gateway, which changes its public IP address.
+Changing SKU: upgrade or downgrade within the AZ family (about 45 minutes, public IP unchanged); Gen1 to Gen2 AZ by migration. Learn also says that gateways that already use a Standard public IP are upgraded to Gen2 during regular service updates before September 2026, while the SKU table still lists Gen1 rows for VpnGw1AZ to VpnGw3AZ. **Basic can't be resized**: delete and re-create the gateway, which changes its public IP address.
 
 <!-- section: s2s-implementation | objectives: 2.1.3 -->
 ## Implementing a site-to-site VPN connection
@@ -84,7 +84,7 @@ Choose **route-based** in almost every case. A policy-based gateway can't be con
 To connect a route-based gateway to **policy-based on-premises firewalls** (one or several), enable **policy-based traffic selectors** (`UsePolicyBasedTrafficSelectors`) on each connection:
 
 - The devices must support **IKEv2**.
-- It's part of the custom IPsec/IKE policy: specify the full policy.
+- With PowerShell, it's part of the custom IPsec/IKE policy: specify the full policy. In the portal, it can also be set with the Default policy.
 - The device must define selectors for every combination of on-premises and Azure prefixes, not any-to-any.
 - Those sites reach the virtual network only: **no transit** to other sites or networks through the gateway.
 
@@ -123,7 +123,7 @@ Without a custom policy, the gateway proposes its **default** set. A **custom** 
 | Main mode SA lifetime | Fixed at 28,800 seconds |
 | DPD timeout | Default 45 seconds, 9 to 3,600; 30-45 recommended |
 
-With GCMAES for IPsec encryption, use the **same** GCMAES algorithm and key length for IPsec integrity. Policy-based traffic selectors and DPD timeout can also be set with the default policy.
+With GCMAES for IPsec encryption, use the **same** GCMAES algorithm and key length for IPsec integrity. In the portal, policy-based traffic selectors and DPD timeout can also be set with the Default policy, without a custom policy.
 
 ```powershell
 $policy = New-AzIpsecPolicy -IkeEncryption AES256 -IkeIntegrity SHA384 -DhGroup DHGroup24 `

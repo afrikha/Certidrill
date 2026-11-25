@@ -15,6 +15,8 @@ Les deux exécutent des pipelines YAML sur des machines hébergées ou auto-héb
 | Azure DevOps Server local | Azure Pipelines avec des agents auto-hébergés |
 | Code sur GitHub mais l'organisation standardise sur Azure DevOps | Azure Pipelines avec l'application GitHub Azure Pipelines |
 
+Seuls les pipelines de build classiques proposent **Export to YAML** : les pipelines de mise en production classiques n'ont pas d'exportation YAML, leurs tâches s'exportent donc une par une. Après une migration, vérifiez les planifications cron : les planifications YAML utilisent l'UTC, les planifications classiques le fuseau horaire de l'organisation.
+
 Le vocabulaire se correspond terme à terme :
 
 | Azure Pipelines | GitHub Actions |
@@ -49,11 +51,11 @@ Les **travaux parallèles** sont l'unité de licence d'Azure Pipelines, achetés
 | Élément | Valeur |
 | --- | --- |
 | Octroi gratuit hébergé par Microsoft (projets privés) | 1 travail parallèle, 60 minutes par exécution, 1 800 minutes par mois |
-| Travail parallèle hébergé par Microsoft payant | Pas de limite mensuelle, 360 minutes par travail |
-| Octroi gratuit auto-hébergé | 1 travail parallèle, minutes illimitées |
+| Travail parallèle hébergé par Microsoft payant | Pas de limite mensuelle, 360 minutes par travail ; le premier achat ne fait que lever les limites de temps du travail gratuit : deux travaux simultanés exigent deux achats |
+| Octroi gratuit auto-hébergé | 1 travail parallèle, minutes illimitées ; les travaux auto-hébergés achetés s'y ajoutent (5 travaux simultanés = 4 achats) |
 | Plafond par défaut des nouvelles organisations | 25 travaux parallèles hébergés par Microsoft (demande au support pour l'augmenter) |
 | Qui achète | Project Collection Administrators, Paramètres de l'organisation > Travaux parallèles, facturation configurée via un abonnement Azure |
-| Ne consomment pas de travail parallèle | Exécutions en attente d'approbation, travaux serveur (sans agent) |
+| Ne consomment pas de travail parallèle | Exécutions en attente d'une approbation ou d'une intervention manuelle, travaux serveur (sans agent), mises en production qui déploient vers un groupe de déploiement ; une exécution n'en consomme un que pendant qu'elle s'exécute sur un agent |
 
 Managed DevOps Pools coûte le calcul, le stockage et la sortie de données Azure **plus** les travaux parallèles auto-hébergés : un pool dont Maximum agents vaut 5 avec seulement le travail parallèle gratuit n'exécute qu'un travail à la fois.
 
@@ -162,7 +164,7 @@ Les variables secrètes ne sont pas mappées automatiquement en variables d'envi
 | Phases | S'exécutent en séquence, chacune dépend de la précédente | `dependsOn: []` (parallèle), `dependsOn: [A, B]` (convergence) |
 | Travaux d'une phase | S'exécutent en parallèle | `dependsOn` |
 | Condition | S'exécute si toutes les dépendances ont réussi | `condition: failed()`, `always()`, `and(succeeded(), eq(...))` |
-| Délai d'expiration du travail | 60 minutes | `timeoutInMinutes` (0 = maximum autorisé) |
+| Délai d'expiration du travail | 60 minutes | `timeoutInMinutes` (0 = maximum autorisé : sans limite sur les agents auto-hébergés, 360 minutes sur les agents hébergés par Microsoft pour un projet public, 60 minutes pour un projet privé sauf capacité supplémentaire payée) |
 
 ```yaml
 stages:
@@ -200,7 +202,7 @@ GitHub Actions : les jobs s'exécutent en parallèle sauf si `needs` est défini
 | Serveurs cibles inscrits une fois, déployés par lots successifs | Environnement avec des ressources machine virtuelle (agent installé sur chaque machine) |
 | Machines de build identiques et versionnées | Créer une image de machine virtuelle avec Azure VM Image Builder (basé sur HashiCorp Packer) ou Packer, la publier dans une Azure Compute Gallery, l'utiliser dans Managed DevOps Pools ou un groupe identique |
 | Image personnalisée de groupe identique | Généraliser la machine (`sysprep` ou `waagent -deprovision+user`), créer l'image, mettre à jour le groupe identique ; les machines existantes gardent l'ancienne image |
-| Outils de build sans maintenir d'image de machine | Travail de conteneur (`container:` sur le travail) sur n'importe quel agent |
+| Outils de build sans maintenir d'image de machine | Travail de conteneur (`container:` sur le travail) sur un agent Windows ou Ubuntu (les agents macOS ne prennent pas en charge les conteneurs) |
 | Travail de plus de 6 heures | Agent ou exécuteur auto-hébergé (Managed DevOps Pools : jusqu'à deux jours par travail) |
 | Attente sans agent, appel REST ou validation manuelle | Travail serveur (`pool: server`) avec Delay, Invoke REST API ou Manual Validation |
 
@@ -253,7 +255,7 @@ Un environnement est référencé par un **travail de déploiement** (`environme
 | Evaluate artifact | Stratégie sur une image conteneur |
 | Exclusive lock | Une seule exécution à la fois sur la ressource (`lockBehavior: sequential` ou `runLatest`) |
 
-Ordre : vérifications statiques (contrôle de branche, modèle obligatoire, évaluation d'artefact), approbations préalables, vérifications dynamiques, approbations postérieures, verrou exclusif. Rôles de sécurité d'un environnement : Creator, Reader, User, Administrator.
+Ordre : vérifications statiques (contrôle de branche, modèle obligatoire, évaluation d'artefact), approbations préalables, vérifications dynamiques, approbations postérieures, verrou exclusif. Rôles de sécurité d'un environnement : Creator, Reader, User, Administrator ; Creator, User et Administrator (pas Reader) peuvent gérer les approbations et les vérifications, et seul le créateur d'un environnement reçoit le rôle Administrator. Une exécution manuelle ou CI qui référence un environnement inexistant échoue : l'environnement n'est créé automatiquement que depuis l'assistant de création de pipeline ou l'éditeur web.
 
 Dans GitHub, un job avec `environment: production` attend ses **règles de protection de déploiement** : jusqu'à six réviseurs obligatoires (une approbation suffit, empêchement de l'auto-révision en option), un minuteur d'attente jusqu'à 43 200 minutes, et les branches et étiquettes autorisées au déploiement. Les secrets d'environnement ne sont lisibles qu'une fois les règles satisfaites. Sur les plans Free, Pro et Team, les réviseurs obligatoires et les minuteurs d'attente ne s'appliquent qu'aux dépôts publics.
 
@@ -263,7 +265,7 @@ Dans GitHub, un job avec `environment: production` attend ses **règles de prote
 ## Points clés
 
 - Hébergé par Microsoft : effort minimal, pas de réseau privé ; auto-hébergé, groupe identique ou Managed DevOps Pools : accès réseau et outils spécifiques.
-- Un travail parallèle hébergé par Microsoft gratuit (60 minutes, 1 800 minutes par mois) et un travail auto-hébergé gratuit ; le parallélisme exige d'acheter des travaux parallèles.
+- Un travail parallèle hébergé par Microsoft gratuit (60 minutes, 1 800 minutes par mois) et un travail auto-hébergé gratuit ; le parallélisme exige d'acheter des travaux parallèles (le premier achat hébergé par Microsoft n'ajoute aucune simultanéité).
 - Utilisez l'application GitHub Azure Pipelines pour les dépôts GitHub ; les builds de duplications n'ont pas de secrets.
 - `trigger: none`, `pr: none`, filtres de chemins, planifications en UTC, `resources.pipelines` pour enchaîner ; les builds de demandes de tirage Azure Repos viennent des stratégies de branche.
 - `${{ }}` à la compilation, `$[ ]` à l'exécution, `$( )` macro.

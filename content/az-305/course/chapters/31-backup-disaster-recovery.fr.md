@@ -56,7 +56,8 @@ La charge de travail détermine le type de coffre :
 | Fréquence | Une fois par jour (RPO jusqu'à 24 heures) | Plusieurs fois par jour, jusqu'à toutes les 4 heures |
 | Instantanés de restauration instantanée | 1 à 5 jours (2 par défaut) | 1 à 30 jours (7 par défaut), redondants interzone |
 | Ultra Disk, Premium SSD v2 | Non pris en charge | Pris en charge |
-| Changement de type de stratégie | Peut passer à la stratégie améliorée | Ne peut pas revenir à la stratégie standard |
+| Machines virtuelles à lancement fiable (Trusted Launch) | Uniquement avec Azure CLI 2.73.0+, Azure PowerShell Az 14.0.0+ ou l'API REST 2025-01-01+ | Pris en charge |
+| Changement de type de stratégie | Peut passer à la stratégie améliorée (migration en préversion) | Ne peut pas revenir à la stratégie standard |
 
 La **restauration interrégion (Cross Region Restore)** restaure dans la région jumelée à tout moment, pour des exercices ou pendant une panne. Elle exige un coffre géoredondant, et la région secondaire peut avoir jusqu'à 36 heures de retard.
 
@@ -82,7 +83,7 @@ Le stockage du coffre est géoredondant par défaut, ou bien localement redondan
 <!-- section: database-backup | objectives: 3.1.3 -->
 ## Sauvegarde et récupération des bases de données
 
-**Azure SQL Database et SQL Managed Instance** se sauvegardent eux-mêmes : sauvegardes complètes chaque semaine, sauvegardes différentielles toutes les 12 ou 24 heures, sauvegardes du journal des transactions environ toutes les 10 minutes.
+**Azure SQL Database et SQL Managed Instance** se sauvegardent eux-mêmes : sauvegardes complètes chaque semaine, sauvegardes différentielles toutes les 12 ou 24 heures, sauvegardes du journal des transactions toutes les 5 à 10 minutes.
 
 | Capacité | Ce qu'elle apporte |
 | --- | --- |
@@ -119,14 +120,14 @@ La **géoréplication active** se configure par base de données, autorise jusqu
 <!-- section: unstructured-backup | objectives: 3.1.4 -->
 ## Sauvegarde et récupération des données non structurées
 
-**Objets blob.** Sauvegarde Azure propose deux modes, tous deux gérés depuis un coffre de sauvegarde :
+**Objets blob.** Sauvegarde Azure propose deux modes, tous deux gérés depuis un coffre de sauvegarde. Une nouvelle stratégie de sauvegarde inclut toujours la sauvegarde archivée (sélectionnée par défaut, elle ne peut pas être désactivée) et peut y ajouter la sauvegarde opérationnelle : une stratégie uniquement opérationnelle ne peut plus être créée, mais les stratégies existantes ne changent pas.
 
 | | Sauvegarde opérationnelle | Sauvegarde archivée (vaulted backup) |
 | --- | --- | --- |
 | Où sont les données | Restent dans le compte de stockage source | Copiées dans le coffre de sauvegarde |
 | Comment | En continu : restauration à un instant dans le passé, contrôle de version, flux de modification et suppression réversible | Copies planifiées, conservées selon la stratégie |
 | Restauration | À n'importe quel instant, dans le compte source uniquement | Dans le compte source ou dans un autre compte de stockage |
-| Protège contre | La suppression accidentelle ou la corruption d'objets blob de blocs | Aussi la suppression de conteneurs ou du compte de stockage lui-même |
+| Protège contre | La suppression accidentelle ou la corruption d'objets blob de blocs ; un verrou Suppression qu'elle applique au compte le protège contre une suppression accidentelle | Aussi la suppression de conteneurs ou du compte de stockage lui-même |
 | Limites | Rétention jusqu'à 360 jours ; objets blob de blocs des comptes standard usage général v2 | Points de récupération uniquement aux heures planifiées |
 
 **Azure Files.** La sauvegarde par instantané conserve des instantanés de partage dans le compte de stockage : restaurer un partage ou des fichiers isolés est rapide, mais les instantanés disparaissent avec le compte. La sauvegarde archivée transfère les données dans le coffre Recovery Services : une copie hors site qui survit à la perte du compte et peut être restaurée dans une autre région. Pour des serveurs de fichiers locaux, synchronisez-les avec Azure File Sync et sauvegardez le partage de fichiers Azure, ou utilisez l'agent MARS sur les serveurs.

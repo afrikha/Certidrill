@@ -1,0 +1,15 @@
+# Q-kcsa-6a — KCSA questions, compliance 6.1.x and 6.2.x (2026-11-23)
+
+33 `single` questions in `content/kcsa/questions/compliance/kcsa-6a-*.yaml` (6/6/6/5/5/5 per objective). Difficulty 13 easy / 15 medium / 5 hard. Correct options spread a 8, b 9, c 9, d 7.
+Check: `CERT=kcsa npx tsx factory/validate.ts --prefix kcsa-6a-` → 0 problem(s); `npm run content:validate -- --cert kcsa --prefix kcsa-6a-` → 0 problems, 0 warnings.
+
+## Sources fetched (2026-11-23)
+CNCF Cloud Native Security Whitepaper v2 (tag-security.cncf.io: compliance section names PCI-DSS, HIPAA, FedRAMP, GDPR, SP 800-190, CIS; "compliant is not secure"; STRIDE examples; ATT&CK; log forwarding out of reach of cluster credentials), CNCF "Rosetta Stone Guide to Compliance in a Cloud Native World" (SOC 2 Trust Services Criteria, control matrix), csrc.nist.gov SP 800-190 and SP 800-66r2, nvlpubs SP 800-190 PDF (risk categories, container-specific host OS, grouping by sensitivity, secrets out of images), kube-bench GitHub, kubernetes.io (Auditing, RBAC Good Practices, PSS, PSA), kyverno.io Policy Reports, attack.mitre.org (Containers matrix v20, TA0003, T1525, T1552.007, T1609, T1610, T1611, T1612, T1613, T1496), owasp.org Threat Modeling Project.
+Verified but not citable (hosts outside lib/vendors.ts): pcisecuritystandards.org (PCI DSS scope), gdpr-info.eu (Art. 32 encryption/pseudonymisation, Art. 33 72 hours), cisecurity.org (consensus process, Level 1/Level 2 definitions — not used in a question because no accepted-host page covers it).
+
+## Doubts and choices
+1. **ATT&CK tactic names**: no question depends on Defense Evasion / Stealth / Defense Impairment. Tactic names used (Persistence, Privilege Escalation, Initial Access, Credential Access) are unchanged in v19/v20. Deploy Container is now listed under Execution only; it appears only as a distractor technique.
+2. **Stated from general knowledge, low risk**: GDPR extraterritorial scope (Art. 3(2), not fetched), HIPAA covering business associates, SOC 2 issued by an auditor (CPA), ISO/IEC 27001 as a certifiable ISMS standard (iso.org fetch failed), NIST SP 800-53 and SP 800-204 titles/scope (SP 800-204 is named by the whitepaper), Kubernetes Events being short-lived (no number given).
+3. **STRIDE category definitions** (property mapping) are not on any fetched accepted-host page in full; the whitepaper gives one example per category, which the questions follow (repudiation = disabled auditing, EoP = excessive privileges).
+4. **Possible overlap with Q-kcsa-6b / 3c**: `kcsa-6a-running-resources-evidence` (Kyverno background scans as evidence) is close to 6.4.3 territory; framed as audit evidence for 6.1.3. Audit-level questions were avoided because `kcsa-3c-*` already tests them. `kcsa-6a-cis-benchmark-finding` uses an API server manifest permission as the answer, to stay away from `kcsa-6b-kube-bench-kubelet-evidence`.
+5. Sigstore policy-controller as a signature-verification tool (distractor explanation) is taken from the C-kcsa-6 report, not re-fetched.

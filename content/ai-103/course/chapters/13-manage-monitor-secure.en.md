@@ -3,7 +3,7 @@ Once a Foundry solution runs, you manage how much it can consume and what it cos
 <!-- section: quotas-cost | objectives: 1.3.1 -->
 ## Managing quotas, scaling, rate limits and cost
 
-**Quota** is assigned to a subscription per region, per model and per deployment type, in tokens per minute (TPM). You split it among deployments: with 240,000 TPM of a model in a region, you can create one deployment of 240,000 TPM or two of 120,000, as long as the total in that region stays within the quota. Each deployment then enforces a **rate limit** derived from its TPM, plus a requests-per-minute (RPM) limit whose ratio to TPM depends on the model (6 RPM per 1,000 TPM for older chat models, 1 RPM per 1,000 TPM for `o3`).
+**Quota** is assigned to a subscription per region, per model and per deployment type, in tokens per minute (TPM). You split it among deployments: with 240,000 TPM of a model in a region, you can create one deployment of 240,000 TPM or two of 120,000, as long as the total in that region stays within the quota. Each deployment then enforces a **rate limit** derived from its TPM, plus a requests-per-minute (RPM) limit whose ratio to TPM depends on the model (6 RPM per 1,000 TPM for older chat models; the quota page lists lower RPM ratios for the o-series reasoning models).
 
 How limits are evaluated:
 
@@ -44,7 +44,7 @@ Cost levers, from the most effective:
 
 Foundry observability has three parts, all integrated with Azure Monitor Application Insights: **evaluation** (quality, safety and reliability scores on datasets, production traces or simulated conversations), **monitoring** (real-time dashboards of operational metrics, token consumption, latency, error rates and quality scores, with alerts), and **tracing** (built on OpenTelemetry: every model call, tool invocation and reasoning step of a run). Connect an Application Insights resource to the project to collect traces and metrics.
 
-In production, combine four practices: operational metrics, **continuous evaluation** of production traffic at a sampled rate, **scheduled evaluation** on test datasets to detect drift, and scheduled red teaming; Azure Monitor alerts notify you when outputs fail quality thresholds or produce harmful content.
+In production, combine four practices: operational metrics, **continuous evaluation** of production traffic at a sampled rate, **scheduled evaluation** on test datasets to detect drift, and scheduled red teaming; Azure Monitor alerts notify you when outputs fail quality thresholds or produce harmful content. In the Agent Monitoring Dashboard, recurring evaluations, red team scans and alerts are marked preview; continuous evaluation isn't.
 
 | What to watch | Signal | Where |
 | --- | --- | --- |
@@ -59,11 +59,11 @@ Drift comes from several causes, each with its check:
 | Cause | How to detect it |
 | --- | --- |
 | A model version changed (automatic upgrade) | Version upgrade policy, deployment history, evaluation before and after |
-| User questions changed | Relevance and intent resolution scores on sampled traffic |
+| User questions changed | Relevance scores (and Intent Resolution, in preview) on sampled traffic |
 | Source content changed or the index is stale | Groundedness scores, indexer status (next section) |
 | Prompts or tools changed | Compare agent versions with the same evaluation dataset |
 
-Built-in evaluator families: general purpose (coherence, fluency), RAG (groundedness, relevance, retrieval, response completeness), agents (task adherence, task completion, intent resolution, tool call accuracy, tool selection), and risk and safety (hate and unfairness, sexual, violence, self-harm, protected materials, indirect attack, code vulnerability, sensitive data leakage). Several agent evaluators are in preview.
+Built-in evaluator families: general purpose (coherence, fluency), RAG (groundedness, relevance, retrieval, response completeness), agents (task adherence, task completion, intent resolution, tool call accuracy, tool selection), and risk and safety (hate and unfairness, sexual, violence, self-harm, protected materials, indirect attack, code vulnerability, sensitive data leakage). Response Completeness, Groundedness Pro, Task Adherence, Task Completion and Intent Resolution are in preview; the tool evaluators (Tool Call Accuracy, Tool Selection, Tool Input Accuracy, Tool Output Utilization, Tool Call Success) aren't.
 
 > **Exam trap.** A content filter blocks harmful content at run time but says nothing about whether an answer is correct. To detect answers that aren't supported by the documents, run a groundedness evaluator. To see why a single run failed (which tool was called, with what arguments, how long it took), open its trace.
 
@@ -145,7 +145,7 @@ Steps to make an application keyless:
 
 Developers get Foundry User on the project and Reader on the Foundry resource. Avoid Owner and Contributor for daily work: Contributor can deploy models but has no data actions. Azure AI Developer applies to hubs and Azure Machine Learning workspaces, not to Foundry projects.
 
-**Managed identities between services.** The Foundry resource and its projects have managed identities. Give the project's managed identity Foundry User on the Foundry resource; for a storage account created outside Foundry, give the Foundry resource's managed identity Storage Blob Data Reader; add Foundry to the role assignments of an external Azure AI Search service.
+**Managed identities between services.** The Foundry resource and its projects have managed identities. Give the project's managed identity Foundry User on the Foundry resource; for a storage account created outside Foundry, give the Foundry resource's managed identity Storage Blob Data Reader; for the Azure AI Search tool, give the Foundry account's system-assigned managed identity Search Index Data Contributor and Search Service Contributor on the search service (the tool page's troubleshooting names the project's managed identity instead).
 
 **Private networking.**
 
@@ -158,7 +158,7 @@ Developers get Foundry User on the project and Reader on the Foundry resource. A
 | Azure AI Search must reach the Foundry resource behind its firewall | Trusted Azure services exception, plus a role for the search service's managed identity |
 | Name resolution | Private DNS zone for the `privatelink` subdomain linked to the virtual network |
 
-Some agent tools aren't supported with network injection (for example browser automation, computer use and image generation), and Grounding with Bing, web search and SharePoint grounding use public endpoints. An indexer that must reach its data source through private endpoints needs `executionEnvironment` set to `"Private"`; otherwise indexing can fail silently and leave an empty index.
+Some agent tools aren't supported with network injection: computer use, image generation and Logic Apps are under development, and the Fabric data agent needs public network access; Fabric IQ and workflow agents are only partly supported. Grounding with Bing, web search and SharePoint grounding use public endpoints. An indexer that must reach its data source through private endpoints needs `executionEnvironment` set to `"Private"`; otherwise indexing can fail silently and leave an empty index. A search service with public access disabled behind a private endpoint needs the standard agent setup with network injection, and the Search tool connection must use the project's managed identity: key-based authentication isn't supported with private networking.
 
 > **Exam trap.** Azure RBAC applies only with Microsoft Entra ID authentication. A caller with an API key bypasses every role, so "only users with role X may call the model" requires disabling local authentication. And the role that lets an application call models and agents is a data role (Foundry User), not Contributor or Owner.
 

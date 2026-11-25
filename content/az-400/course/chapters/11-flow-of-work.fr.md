@@ -105,7 +105,7 @@ Les **notifications Azure DevOps** sont des abonnements à quatre niveaux :
 
 Les abonnements par défaut sont prédéfinis et activés ; les administrateurs choisissent ceux qui sont proposés, et chaque utilisateur peut se désinscrire d'un abonnement par défaut, d'équipe ou de projet. Les notifications sont remises par e-mail (à l'adresse de contact préférée de l'utilisateur, la même pour toutes ses organisations) ou, par un crochet de service (service hook), à un autre service.
 
-> **Piège d'examen.** Les macros de requête `@CurrentIteration`, `@Follows`, `@MyRecentActivity`, `@RecentMentions`, `@RecentProjectActivity` et `@TeamAreas` ne fonctionnent que dans le portail web, pas dans les filtres de notification, les exportations Excel ni l'API REST.
+> **Piège d'examen.** Les macros de requête `@CurrentIteration`, `@Follows`, `@MyRecentActivity`, `@RecentMentions`, `@RecentProjectActivity` et `@TeamAreas` ne fonctionnent que dans le portail web : une requête qui les utilise ne fonctionne pas quand elle est ouverte dans Visual Studio (Team Explorer), Excel ou Project, et `@CurrentIteration` ne fonctionne pas dans l'API REST.
 
 <!-- section: tracking-integration | objectives: 1.1.3 -->
 ## Intégrer le suivi du travail aux dépôts
@@ -122,7 +122,7 @@ Les **projets GitHub** couvrent plusieurs dépôts : un projet d'organisation pe
 
 **Azure Boards avec Azure Repos.** Mentionnez un élément de travail avec `#1423` dans un message de commit ou une pull request pour le lier. À la finalisation d'une pull request, l'option **Complete associated work items after merging** fait changer d'état les éléments liés. La stratégie de branche **Check for linked work items** bloque les pull requests sans élément de travail.
 
-**Azure Boards avec GitHub.** Connectez le projet aux dépôts GitHub (étapes de configuration dans le chapitre sur la collaboration). Ensuite, `AB#1423` dans un message de commit, une description de pull request ou une description d'issue lie l'élément de travail, et les liens apparaissent dans la section **Development** de l'élément de travail et dans la pull request. Vous pouvez aussi créer une branche GitHub depuis un élément de travail (**Work item actions > New GitHub branch**).
+**Azure Boards avec GitHub.** Connectez le projet aux dépôts GitHub (étapes de configuration dans le chapitre sur la collaboration). Ensuite, `AB#1423` dans un message de commit, une description de pull request ou une description d'issue lie l'élément de travail, et les liens apparaissent dans la section **Development** de l'élément de travail et dans la pull request. Vous pouvez aussi créer une branche GitHub depuis un élément de travail (**Work item actions > New GitHub branch**). Quand une branche liée est supprimée, en général après sa fusion, son lien est retiré automatiquement de l'élément de travail.
 
 | Point | Valeur |
 | --- | --- |
@@ -151,7 +151,7 @@ La traçabilité répond à trois questions : quel code implémente cette exigen
 
 Pour les pipelines YAML, activez **Automatically link new work items in this build** dans les paramètres du pipeline : après l'exécution, un lien **Integrated in build** apparaît sur chaque élément de travail lié aux commits du build. Quand une pull request est créée depuis une branche liée à un élément de travail, la pull request est liée elle aussi, de même que le commit de fusion.
 
-Les mentions `AB#` font aussi changer les éléments d'état. Dans une description de pull request, `Fixes AB#1423` fait passer l'élément au premier état de la catégorie Resolved (ou de la catégorie Completed s'il n'y en a pas) quand la pull request est fusionnée dans la branche par défaut ; `Closed AB#1423` le fait passer à l'état Closed.
+Les mentions `AB#` font aussi changer l'état des éléments de travail. Dans une description de pull request, `Fixes AB#1423` fait passer l'élément au premier état de la catégorie Resolved (ou de la catégorie Completed s'il n'y en a pas) quand la pull request est fusionnée dans la branche par défaut ; `Closed AB#1423` le fait passer à l'état Closed. Dans le processus Agile, la table des catégories d'état de Learn ne place dans la catégorie Resolved que l'état Resolved du bogue : pour faire passer une user story à Resolved, écrivez le nom de l'état, `Resolved AB#1423`.
 
 > **Piège d'examen.** Avec `Fixes AB#123, AB#124, AB#125`, les trois éléments sont liés mais seul le premier change d'état. Pour faire changer les trois, répétez le mot-clé : `Fixes AB#123, Fixes AB#124, Fixes AB#125`.
 

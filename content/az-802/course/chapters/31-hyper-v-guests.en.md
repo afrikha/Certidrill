@@ -105,7 +105,7 @@ What can change while the VM runs:
 | --- | --- |
 | Turn Dynamic Memory on or off | No, turn the VM off |
 | Static memory size (runtime memory resize) | Yes, for generation 1 and 2 VMs running Windows Server 2016 / Windows 10 or later |
-| Dynamic Memory maximum up, minimum down, buffer, weight | Yes |
+| Dynamic Memory: increase the maximum, decrease the minimum | Yes |
 
 Other rules:
 
@@ -180,7 +180,7 @@ GPU partitioning (GPU-P) shares one physical GPU between VMs: SR-IOV gives each 
 | GPU mode | DDA | Partitionable (a GPU is one or the other, not both) |
 | Host OS | Windows Server 2016 to 2025 | **Windows Server 2025** |
 | Live migration | No | Yes on Windows Server 2025 with IOMMU DMA bit tracking processors (it falls back to TCP/IP with compression) |
-| Supported GPUs | More models | A short list of NVIDIA (A, L series) and AMD (Radeon PRO V710) data center GPUs |
+| Supported GPUs | More models | A short list of data center GPUs: NVIDIA A and L series, NVIDIA RTX Pro 6000 Blackwell Server Edition, AMD Radeon PRO V710 |
 
 Prerequisites: SR-IOV and virtualization enabled in the BIOS, IOMMU (Intel VT-d or AMD-Vi), the GPU vendor's host driver (NVIDIA vGPU software), the guest driver in each VM. Guests: Windows 10 or later, Windows Server 2019 or later, Ubuntu 18.04/20.04/22.04 LTS. Clusters (failover for unplanned downtime) need **Windows Server 2025 Datacenter** and identical GPUs (make, model, size, partition count) on every node.
 

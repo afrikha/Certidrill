@@ -1,0 +1,46 @@
+id: aipc01-2a-idempotent-write-tool
+objective: "2.1.6"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    A logistics company's agent books pickups with a create_pickup tool implemented as a Lambda function. Sometimes the carrier API responds slowly, the tool call times out on the agent side after the carrier has already created the pickup, and the model then requests create_pickup again for the same shipment. Customers are charged for duplicate pickups. Retries must still be possible when a call really fails, and a repeated request must return the pickup that already exists.
+
+    Which solution will meet these requirements?
+body:
+  options:
+    - id: a
+      text:
+        en: |-
+          Disable all retries in the agent framework and in the AWS SDK so that the tool is invoked only once for each request that the model makes.
+    - id: b
+      text:
+        en: |-
+          Set the temperature of the model to 0 so that the model does not request the same tool twice for the same shipment in one conversation.
+    - id: c
+      text:
+        en: |-
+          Add a sentence to the tool description that tells the model never to call create_pickup a second time for a shipment that it has already booked a pickup for.
+    - id: d
+      text:
+        en: |-
+          Record an idempotency key built from the shipment ID and pickup date with a conditional write in DynamoDB, and return the stored pickup when the key already exists.
+answer: { optionId: d }
+explanation:
+  correct:
+    en: |-
+      Write tools must be idempotent because model requests and retries can repeat. A key based on the business request identifies the same pickup whatever the toolUseId of the new request, the conditional write lets only the first call create it, and later calls return the existing pickup, while genuine failures can still be retried.
+  options:
+    a:
+      en: |-
+        The duplicate comes from the model requesting the tool again, not only from SDK retries, and disabling retries makes transient failures fail.
+    b:
+      en: |-
+        Temperature affects randomness, not whether the model repeats a tool request after a timeout; it gives no guarantee.
+    c:
+      en: |-
+        A description is guidance for the model, not an enforced control, so duplicates remain possible.
+references:
+  - title: Use a tool to complete an Amazon Bedrock model response - Amazon Bedrock
+    url: https://docs.aws.amazon.com/bedrock/latest/userguide/tool-use.html

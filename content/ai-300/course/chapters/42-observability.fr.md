@@ -13,7 +13,7 @@ Après le déploiement, Foundry surveille une application à quatre niveaux :
 | **Red teaming planifié** (red team scans, préversion) | Analyses adverses récurrentes des faiblesses de sûreté et de sécurité | Attaques générées |
 | **Alertes** (préversion) | Préviennent quand la latence, la consommation de jetons, les scores d'évaluation ou les résultats de red teaming franchissent un seuil | Tout ce qui précède |
 
-L'onglet **Monitor** d'un agent (Build, Agents, sélection de l'agent, Monitor) est le tableau de bord. Il affiche des cartes de synthèse et des graphiques sur la plage de temps choisie :
+L'onglet **Monitor** d'un agent (Build, Agents, sélection de l'agent, Monitor) est le tableau de bord. Il affiche des cartes de synthèse et des graphiques sur la plage de temps choisie (la vue des métriques d'agent est en préversion) :
 
 | Métrique | À examiner quand |
 | --- | --- |
@@ -90,7 +90,7 @@ Les métriques des déploiements sont collectées automatiquement dans Azure Mon
 | Provisioned-managed Utilization V2 | `AzureOpenAIProvisionedManagedUtilizationV2` | PTU consommées divisées par PTU déployées ; à 100 %, les appels renvoient **HTTP 429** |
 | Model Availability Rate | `ModelAvailabilityRate` | (appels moins erreurs serveur) divisé par appels ; les erreurs serveur sont les codes HTTP 500 et plus |
 
-Les dimensions utiles sont `ModelDeploymentName`, `ModelName`, `ModelVersion`, `StatusCode` et `StreamType`. Time Between Tokens et Tokens Per Second ne sont pas disponibles pour les déploiements Standard. N'utilisez pas l'ancienne métrique **Latency** de la catégorie Cognitive Services HTTP Requests pour Azure OpenAI.
+Les dimensions utiles sont `ModelDeploymentName`, `ModelName`, `ModelVersion`, `StatusCode` et `StreamType`. Time to Response, Time Between Tokens et Tokens Per Second ne sont actuellement pas disponibles pour les déploiements Standard. N'utilisez pas l'ancienne métrique **Latency** de la catégorie Cognitive Services HTTP Requests pour Azure OpenAI.
 
 Ordre de diagnostic :
 
@@ -139,16 +139,16 @@ Chaque réponse renvoie aussi un objet `usage`, la source par requête pour la r
 Analyse des coûts dans **Cost Management** :
 
 - Limitez l'étendue au **groupe de ressources** de la ressource Foundry (les compteurs des modèles partenaires et communautaires apparaissent sous le groupe de ressources), puis regroupez par **Meter** (quelles séries de modèles coûtent le plus) ou par **Resource**.
-- La consommation Azure OpenAI est classée sous le service **Cognitive Services**. Segmentez avec des étiquettes de déploiement ou personnalisées ; les Models sold by Azure pris en charge reçoivent automatiquement l'étiquette `project` (préversion) pour l'imputation par projet.
-- Rôles : **Cost Management Reader** pour consulter les coûts ; un rôle personnalisé avec `Microsoft.Consumption/*/read` et `Microsoft.CostManagement/*/read` pour un lecteur limité aux coûts.
-- Les coûts apparaissent dans l'analyse des coûts environ cinq heures après la consommation. Créez des **budgets et des alertes** sur l'abonnement ou le groupe de ressources : Azure OpenAI n'a **aucune limite de dépense stricte**, et les groupes d'actions ne font qu'automatiser une réaction.
+- La consommation Azure OpenAI est classée sous le service **Cognitive Services** : pour l'isoler, filtrez sur **Service tier** = Azure OpenAI. Segmentez avec des étiquettes de déploiement ou personnalisées ; les Models sold by Azure pris en charge reçoivent automatiquement l'étiquette `project` (préversion, pas pour les modèles Azure Marketplace ni Claude) pour l'imputation par projet, et Foundry ajoute une étiquette `agent.name` quand un agent appelle un modèle.
+- Rôles : **Cost Management Reader** ou **Reader** sur le groupe de ressources ou l'abonnement pour consulter les coûts (aucun rôle Foundry n'affiche les coûts) ; Cost Management Contributor ou Contributor pour créer des budgets et des exportations ; un rôle personnalisé avec `Microsoft.Consumption/*/read` et `Microsoft.CostManagement/*/read` pour un lecteur limité aux coûts.
+- Les coûts apparaissent dans l'analyse des coûts 8 à 24 heures après la consommation (la consommation de jetons apparaît en quelques minutes). Créez des **budgets et des alertes** sur l'abonnement ou le groupe de ressources : les budgets **ne bloquent pas les requêtes**, et les groupes d'actions ne font qu'automatiser une réaction. Les **contrôles des coûts** de Foundry (cost controls, préversion, Manage, Cost) peuvent alerter ou bloquer les requêtes quand les dépenses ou les jetons atteignent un budget, et les **limites de jetons de la passerelle IA** (AI gateway, Manage, Gateways) plafonnent les jetons qu'un projet peut utiliser sur un déploiement.
 
-Pour mesurer **par consommateur** quand plusieurs applications partagent un déploiement, placez **Azure API Management** devant : `llm-emit-token-metric` émet des métriques de jetons avec des dimensions personnalisées (abonnement, ID utilisateur, API) vers Application Insights, et `llm-token-limit` plafonne les jetons par minute ou par période pour chaque clé de compteur.
+Pour mesurer **par consommateur** quand plusieurs applications partagent un déploiement, placez **Azure API Management** devant : `llm-emit-token-metric` émet des métriques de jetons vers Application Insights avec des dimensions par défaut (comme API ID, Subscription ID et User ID) et jusqu'à cinq dimensions personnalisées (par exemple un ID d'utilisateur final tiré de la requête), et `llm-token-limit` plafonne les jetons par minute ou par période pour chaque clé de compteur.
 
 | Levier | Effet |
 | --- | --- |
-| Mise en cache des invites | Activée par défaut pour les modèles pris en charge ; exige des invites d'au moins 1 024 jetons au début identique. Placez le contenu stable (instructions, définitions d'outils) en premier et le contenu variable en dernier ; les jetons d'entrée en cache sont facturés à prix réduit |
-| Global Batch ou Data Zone Batch | 50 % moins cher que Global Standard pour les travaux qui peuvent attendre (objectif de 24 heures) |
+| Mise en cache des invites | Activée par défaut pour les modèles pris en charge ; exige des invites d'au moins 1 024 jetons au début identique. Placez le contenu stable (instructions, définitions d'outils) en premier et le contenu variable en dernier ; les jetons d'entrée en cache sont facturés à prix réduit ; sur les modèles GPT-5.6 et ultérieurs, les écritures dans le cache peuvent aussi être facturées |
+| Global Batch ou Data Zone Batch | 50 % moins cher que Global Standard pour les travaux qui peuvent attendre (objectif de 24 heures) ; les modèles ajustés ne sont pas pris en charge |
 | Modèle plus petit, invites plus courtes, `max_tokens` plus bas | Moins de jetons, et moins chers |
 | Mise en cache sémantique dans API Management | `llm-semantic-cache-lookup` et `llm-semantic-cache-store` réutilisent les réponses aux invites similaires |
 | Débit approvisionné | Prix horaire fixe : rentable seulement avec une utilisation élevée et régulière |
@@ -168,6 +168,7 @@ Les **journaux de ressources** de la ressource Foundry nécessitent un **paramè
 | `Trace` | Journaux détaillés pour déboguer les appels d'inférence |
 | `Audit` | Opérations d'administration : déploiements, changements de configuration, événements d'accès |
 | `AzureOpenAIRequestUsage` | Journaux de consommation et de jetons (l'exportation est facturée) |
+| `ManagedNetworkEvent` | Événements du réseau managé (l'exportation est facturée) |
 
 Les journaux arrivent dans **AzureDiagnostics**, les métriques exportées dans **AzureMetrics** ; comptez jusqu'à 15 minutes avant les données :
 
@@ -182,7 +183,7 @@ Le **traçage** montre ce qui s'est passé à l'intérieur d'une requête. Chaqu
 
 | Option | Comment | Remarques |
 | --- | --- | --- |
-| Côté serveur | Automatique pour les agents d'invite, les agents hébergés et les workflows une fois Application Insights connecté | Sans code ; traces dans l'onglet **Traces** pour les **90 derniers jours** ; en disponibilité générale pour les agents d'invite et hébergés |
+| Côté serveur | Automatique pour les agents d'invite, les agents hébergés et les workflows une fois Application Insights connecté | Sans code ; traces dans l'onglet **Traces** pour les **90 derniers jours** ; en disponibilité générale pour les agents d'invite et hébergés, en préversion pour les workflows |
 | Côté client | SDK Foundry et OpenTelemetry dans votre code | Vos propres étendues et fonctions ; préversion |
 | Local | Collecteur de Foundry Toolkit pour Visual Studio Code | Pas besoin d'Application Insights |
 
@@ -240,6 +241,6 @@ with tracer.start_as_current_span("support-request"):
 - Les lecteurs ont besoin de Log Analytics Reader, plus Privileged Monitoring Data Reader pour les tables protégées.
 - TTLT = TTFT + TBT x jetons : associez les métriques de latence aux métriques de jetons. Time to Response pour le streaming, Time to Last Byte sans streaming.
 - Provisioned-managed Utilization V2 à 100 % signifie des erreurs 429 ; le streaming ne raccourcit que le temps jusqu'au premier jeton.
-- Coûts : métriques de jetons et `usage`, Cost Management par compteur, étiquettes et étiquette `project`, budgets (pas de limite stricte), métriques de jetons par consommateur dans API Management, mise en cache des invites et batch pour économiser.
+- Coûts : métriques de jetons et `usage`, Cost Management par compteur, étiquettes et étiquette `project`, budgets (alertes seulement ; les contrôles des coûts, en préversion, peuvent bloquer), métriques de jetons par consommateur dans API Management, mise en cache des invites et batch pour économiser.
 - Les paramètres de diagnostic envoient les journaux `RequestResponse`, `Trace`, `Audit` et `AzureOpenAIRequestUsage` vers AzureDiagnostics.
 - Traçage côté client : définir `AZURE_EXPERIMENTAL_ENABLE_GENAI_TRACING` avant `instrument()` ; enregistrement du contenu désactivé par défaut.

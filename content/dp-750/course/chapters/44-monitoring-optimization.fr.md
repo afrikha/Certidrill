@@ -33,7 +33,7 @@ Leviers pour réduire le coût :
 | Mise à l'échelle automatique | Ajoute ou retire des workers entre un minimum et un maximum |
 | Calcul de jobs plutôt que calcul polyvalent | Le cluster se termine avec l'exécution |
 | Étiquettes | Propagées aux enregistrements de facturation pour la refacturation ; pas rétroactives |
-| Budgets | E-mail quand les dépenses approchent un objectif ; créés par un **administrateur de compte** |
+| Budgets | E-mail quand les dépenses dépassent un seuil ; créés par un **administrateur de compte**, ou par un administrateur d'espace de travail pour les espaces de travail qu'il administre (Governance Hub) |
 | Dimensionnement de l'entrepôt | Bloqué à son nombre maximal de clusters ou nombreuses requêtes en file d'attente : relevez le maximum |
 
 > **Piège d'examen.** L'onglet Metrics n'existe pas pour le calcul serverless : utilisez Query insights pour les notebooks et les jobs serverless, et `system.billing.usage` avec `product_features.is_serverless = true` pour son coût.
@@ -67,7 +67,7 @@ Les détails de réparation utilisés à l'examen :
 - Les tâches qui partagent un cluster de job en reçoivent un nouveau pour la réparation (`my_job_cluster_v1`).
 - C'est l'état d'exécution, et non l'état désactivé, qui décide de ce qui est réparé ; ajoutez une tâche désactivée à `rerun_tasks` dans la requête d'API pour la forcer.
 
-Corrections selon la cause : chemin ou paramètre erroné, **Edit task** ; calcul insuffisant, plus de workers ou des workers plus grands ; exécutions Skipped, relevez **Maximum concurrent runs**. Prévenez avec des notifications d'échec (e-mail, Slack, webhook) et des requêtes sur `system.lakeflow.job_run_timeline` (395 jours d'historique).
+Corrections selon la cause : chemin ou paramètre erroné, **Edit task** ; calcul insuffisant, plus de workers ou des workers plus grands ; exécutions Skipped, relevez **Maximum concurrent runs** ou activez **Queue** (activée par défaut pour les jobs créés dans l'interface depuis le 15 avril 2024), pour qu'une exécution attende jusqu'à 48 heures au lieu d'être ignorée. Prévenez avec des notifications d'échec (e-mail, Slack, webhook) et des requêtes sur `system.lakeflow.job_run_timeline` (395 jours d'historique).
 
 > **Piège d'examen.** « Réexécuter la tâche en échec et ses tâches en aval, pas celles qui ont réussi » correspond à **Repair run**, pas à Run now. « Un job continu attend de plus en plus longtemps entre les tentatives » : **Restart run**.
 
@@ -106,7 +106,7 @@ Commencez par le **DAG** pour le flux global (les shuffles sont des nœuds **Exc
 | --- | --- | --- |
 | Mise en cache insuffisante | **Input** élevé sur des étapes qui relisent les mêmes données | Activer le cache disque (fichiers de données Parquet mis en cache sur les workers) avec des workers dotés de SSD ; `cache()` sur un DataFrame réutilisé |
 | Mise en cache excessive | La mémoire nécessaire au traitement est occupée par des données en cache (onglet **Storage**) | Ne mettre en cache que les données réutilisées ; `unpersist()` une fois terminé |
-| Déséquilibrage (skew) | **Summary Metrics** de l'étape : durée **Max** des tâches supérieure de plus de 50 % au **75th percentile** | L'exécution adaptative des requêtes (AQE, activée par défaut) gère les jointures déséquilibrées ; saler les clés dominantes ; diffuser le petit côté |
+| Déséquilibrage (skew) | **Summary Metrics** de l'étape : durée **Max** des tâches supérieure de plus de 50 % au **75th percentile** | L'exécution adaptative des requêtes (AQE, activée par défaut) gère les jointures déséquilibrées (ajuster `spark.sql.adaptive.skewJoin.*` ; les jointures de diffusion ne sont jamais optimisées pour le déséquilibrage) ; saler les clés dominantes ; liquid clustering pour une table stockée déséquilibrée ; indicateur `REBALANCE` pour une écriture déséquilibrée |
 | Déversement (spill) | **Shuffle Spill (Memory)** / **Shuffle Spill (Disk)** non nuls en haut de la page de l'étape | Plus de partitions (`spark.sql.shuffle.partitions` = `auto`), workers avec plus de mémoire par cœur, moins de colonnes et filtres plus tôt |
 | Shuffle excessif | **Shuffle Read** / **Shuffle Write** importants ; nœuds Exchange dans le profil | Filtrer avant les jointures, jointures de diffusion pour une petite table (AQE convertit sous 30 Mo par défaut), éviter les `repartition()` inutiles |
 
@@ -129,7 +129,7 @@ Le déséquilibrage vient d'une clé dominante, de valeurs nulles envoyées dans
 | Objectif | Performances : compacte les petits fichiers ou regroupe les données | Coût de stockage : supprime les fichiers de données non référencés plus anciens que le seuil de rétention |
 | Effet sur les lecteurs | Aucun ; mêmes résultats avant et après | Le voyage dans le temps vers les versions plus anciennes que la rétention est perdu |
 | Automatisé par l'optimisation prédictive | Oui, sur les tables managées Unity Catalog | Oui, sur les tables managées Unity Catalog |
-| Options | `WHERE` sur les colonnes de partition, `ZORDER BY` (tables sans liquid clustering), `FULL` (liquid clustering, Databricks Runtime 16.0+) | `RETAIN n HOURS`, `DRY RUN`, `LITE` (utilise le journal des transactions au lieu de lister les fichiers), `FULL` (par défaut) |
+| Options | `WHERE` sur les colonnes de partition, `ZORDER BY` (tables sans liquid clustering), `FULL` (liquid clustering, Databricks Runtime 16.0+) | `RETAIN n HOURS`, `DRY RUN`, `LITE` (préversion publique, Databricks Runtime 16.4 LTS+ ; utilise le journal des transactions au lieu de lister les fichiers), `FULL` (par défaut) |
 | Fréquence | Commencer par une exécution quotidienne, puis équilibrer coût et performances | Régulièrement, sur toutes les tables |
 
 ```text
@@ -146,10 +146,10 @@ VACUUM sales.silver.orders LITE;
 Règles à retenir :
 
 - `OPTIMIZE` écrit de nouveaux fichiers mais ne supprime pas les anciens : seul `VACUUM` libère le stockage.
-- Le seuil de rétention par défaut est de **7 jours**, le minimum recommandé ; une valeur plus courte est bloquée par une vérification de sécurité (`spark.databricks.delta.retentionDurationCheck.enabled`).
+- Le seuil de rétention par défaut est de **7 jours**, le minimum recommandé ; une valeur plus courte est bloquée par une vérification de sécurité (`spark.databricks.delta.retentionDurationCheck.enabled`). Sur Databricks Runtime 18.0 et versions ultérieures (12.2 LTS et versions ultérieures pour les tables managées Unity Catalog), la propriété de table `deletedFileRetentionDuration` contrôle la rétention.
 - `VACUUM` ne supprime pas les fichiers du journal des transactions (nettoyés après les points de contrôle, 30 jours par défaut) ; `LITE` exige un `VACUUM` réussi pendant cette période.
 - Avec le **liquid clustering**, `OPTIMIZE` regroupe les données selon les clés de clustering ; Databricks recommande le liquid clustering plutôt que le partitionnement et `ZORDER`.
-- L'**optimisation prédictive** exécute `OPTIMIZE`, `VACUUM` et `ANALYZE` sur les **tables managées Unity Catalog** uniquement, sur le calcul serverless pour les jobs ; elle est activée par défaut pour les comptes créés depuis le 11 novembre 2024. Contrôlez-la avec `ALTER CATALOG | SCHEMA | TABLE ... ENABLE | DISABLE | INHERIT PREDICTIVE OPTIMIZATION` ; historique dans `system.storage.predictive_optimization_operations_history`.
+- L'**optimisation prédictive** exécute `OPTIMIZE`, `VACUUM` et `ANALYZE` sur les **tables managées Unity Catalog** uniquement, sur le calcul serverless pour les jobs ; elle est activée par défaut (plan Premium, régions prises en charge), et les tables managées héritent du paramètre du compte. Contrôlez-la avec `ALTER CATALOG | SCHEMA | TABLE ... ENABLE | DISABLE | INHERIT PREDICTIVE OPTIMIZATION` ; historique dans `system.storage.predictive_optimization_operations_history`.
 
 > **Piège d'examen.** « Réduire le coût de stockage des fichiers laissés par les mises à jour et les suppressions » correspond à `VACUUM`, pas à `OPTIMIZE`. « Les utilisateurs doivent encore interroger la table telle qu'elle était il y a 10 jours » signifie que la rétention doit dépasser 10 jours avant le `VACUUM`.
 
@@ -183,7 +183,7 @@ New-AzDiagnosticSetting -ResourceId $databricks.ResourceId `
 | `DatabricksClusters` | Création, arrêt, redimensionnement et modifications de configuration des clusters |
 | `DatabricksNotebook` | Exécution, création et modification des notebooks |
 | `DatabricksSQL` | Opérations des entrepôts SQL et requêtes |
-| `DatabricksTables` | Création, suppression, accès et modifications d'autorisations des tables |
+| `DatabricksUnityCatalog` | Événements d'audit Unity Catalog (catégorie `unityCatalog`), comme la création de tables, l'accès et les modifications d'autorisations |
 | `DatabricksWorkspace` | Actions d'administration de l'espace de travail |
 | `DatabricksSecrets` | Accès aux étendues de secrets et aux secrets |
 
@@ -197,7 +197,7 @@ DatabricksJobs
 | order by FailureCount desc
 ```
 
-> **Conseil d'examen.** Pour interroger les événements d'audit depuis Azure Databricks, Databricks recommande la table système `system.access.audit`. Choisissez Log Analytics quand l'exigence est une supervision centralisée entre services Azure, KQL ou des alertes Azure Monitor.
+> **Conseil d'examen.** Pour interroger les événements d'audit depuis Azure Databricks, Databricks recommande la table système `system.access.audit` (préversion publique) et déconseille fortement de déplacer les données d'audit hors de la plateforme, car cela peut exposer des données sensibles. Choisissez Log Analytics quand l'exigence est une supervision centralisée entre services Azure, KQL ou des alertes Azure Monitor.
 
 <!-- section: azure-monitor-alerts | objectives: 4.4.7 -->
 ## Configurer des alertes avec Azure Monitor

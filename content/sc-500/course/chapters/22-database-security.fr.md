@@ -7,7 +7,7 @@ Pour un serveur logique Azure SQL Database, **Sécurité > Mise en réseau** com
 
 | Paramètre | Valeurs | Faits d'examen |
 | --- | --- | --- |
-| Accès au réseau public | Désactiver, Réseaux sélectionnés | Désactivé : seuls les points de terminaison privés se connectent (erreur 47073), et les règles de pare-feu ne peuvent être ni créées ni modifiées (erreur 42101) |
+| Accès au réseau public | Désactiver (par défaut), Réseaux sélectionnés | Désactivé : seuls les points de terminaison privés se connectent (erreur 47073), et les règles de pare-feu ne peuvent être ni créées ni modifiées (erreur 42101) |
 | Version TLS minimale | 1.2 (la plus basse prise en charge), 1.3 | Les clients sous le minimum échouent avec l'erreur 47072. Une fois un minimum imposé, impossible de revenir à la valeur par défaut |
 | Stratégie de connexion | Default, Redirect, Proxy | Redirect est recommandée plutôt que Proxy (latence la plus faible, débit le plus élevé) |
 
@@ -56,14 +56,14 @@ Le **chiffrement transparent des données (TDE)** chiffre au repos les fichiers 
 | --- | --- |
 | Magasin de clés | Azure Key Vault ou Managed HSM, dans n'importe quelle région |
 | Paramètres du coffre | Suppression réversible et protection contre la suppression définitive, sinon la configuration échoue |
-| Clé | RSA ou RSA-HSM de 2048 ou 3072 bits, activée, non expirée |
+| Clé | RSA ou RSA-HSM de 2048 ou 3072 bits (SQL Database et SQL Managed Instance) ou, pour SQL Database uniquement, AES de 128, 192 ou 256 bits dans Key Vault Premium ou Managed HSM (AES-256 recommandé pour les nouveaux protecteurs) ; activée, non expirée |
 | Identité du serveur | Identité managée affectée par le système ou par l'utilisateur |
 | Accès | Rôle **Key Vault Crypto Service Encryption User** (modèle RBAC) ou `get`, `wrapKey`, `unwrapKey` (modèle de stratégie d'accès) |
 | Pare-feu du coffre | Autoriser les services Microsoft approuvés, sauf si vous utilisez un point de terminaison privé |
-| Rotation | La rotation automatique est désactivée par défaut ; activée, le protecteur passe à la dernière version de la clé sous 24 heures. Conservez les anciennes versions : les sauvegardes en ont besoin |
+| Rotation | La rotation automatique est désactivée par défaut ; activée, le protecteur passe à la dernière version de la clé sous 24 heures. Un identificateur de clé sans version (SQL Database uniquement) utilise toujours la dernière version activée. Conservez les anciennes versions : les sauvegardes en ont besoin |
 | Géoréplication | Les deux serveurs doivent accéder aux coffres qui contiennent les clés |
 
-Passer d'une clé gérée par le service à une clé gérée par le client ne rechiffre que la DEK : opération en ligne, sans interruption. Si le serveur perd l'accès à la clé (autorisation retirée, clé ou coffre supprimé, changement de pare-feu, identité supprimée), les bases deviennent **inaccessibles** en une dizaine de minutes ; si l'accès est rétabli sous 30 minutes, elles se rétablissent automatiquement.
+Passer d'une clé gérée par le service à une clé gérée par le client ne rechiffre que la DEK : opération en ligne, sans interruption. Si le serveur perd l'accès à la clé (autorisation retirée, clé ou coffre supprimé, changement de pare-feu, identité supprimée), les bases deviennent **inaccessibles** en une dizaine de minutes (erreurs 4XX de Key Vault : au bout de 30 minutes ; les erreurs 5XX intermittentes bénéficient d'un délai de 24 heures). Si l'accès revient sous 30 minutes, elles se rétablissent automatiquement en une heure ; au-delà, restaurez la version d'origine de la clé (une nouvelle version ne suffit pas), puis sélectionnez **Retry existing key** et **Validate key** sur la page **Transparent data encryption**.
 
 Autres contrôles de plateforme que l'examen met en opposition :
 
@@ -98,7 +98,7 @@ az sql server audit-policy update --resource-group RG-Sql --name sql-contoso \
   --log-analytics-workspace-resource-id "<workspace resource ID>"
 ```
 
-Envoyer les journaux d'audit vers Log Analytics ou Event Hubs crée un paramètre de diagnostic nommé `SQLSecurityAuditEvents_...` ; le supprimer fait échouer l'audit sans message. Les journaux d'audit écrits dans le stockage sont des objets blob d'ajout au format `.xel`. Un compte de stockage derrière un pare-feu ou un réseau virtuel doit être **v2 universel** (general-purpose v2), et le serveur s'authentifie alors avec son identité managée.
+Envoyer les journaux d'audit vers Log Analytics ou Event Hubs crée un paramètre de diagnostic nommé `SQLSecurityAuditEvents_...` ; le supprimer fait échouer l'audit sans message. Les journaux d'audit écrits dans le stockage sont des objets blob d'ajout au format `.xel` ; depuis la refonte de l'audit de serveur de juillet 2025 (SQL Database), une seule session d'événements étendus au niveau du serveur capture les événements de toutes les bases, et tous les journaux d'audit du serveur vont dans un seul dossier `master`. Un compte de stockage derrière un pare-feu ou un réseau virtuel doit être **v2 universel** (general-purpose v2), et le serveur s'authentifie alors avec son identité managée.
 
 Pour SQL Managed Instance :
 
@@ -117,14 +117,14 @@ WITH (STATE = ON);
 ALTER SERVER AUDIT [Audit-Logins] WITH (STATE = ON);
 ```
 
-Pour envoyer plutôt les événements d'audit de Managed Instance vers Log Analytics ou Event Hubs, ajoutez un paramètre de diagnostic avec la catégorie **SQLSecurityAuditEvents**, puis créez l'audit avec `TO EXTERNAL_MONITOR`.
+Pour envoyer plutôt les événements d'audit de Managed Instance vers Log Analytics ou Event Hubs, ajoutez un paramètre de diagnostic avec la catégorie **SQLSecurityAuditEvents**, puis créez l'audit avec `TO EXTERNAL_MONITOR`. Les opérations du support Microsoft exigent un audit de serveur **distinct** : sélectionner **Microsoft support operations** sur un audit existant le remplace, et il ne journalise plus que les opérations du support.
 
 > **Piège d'examen.** Activer l'audit à la fois sur le serveur et sur une base ne remplace pas l'un par l'autre : les deux s'exécutent et vous obtenez deux pistes d'audit. Utilisez la stratégie de serveur pour « toutes les bases, y compris les futures », et une stratégie de base uniquement pour une destination ou un ensemble d'événements différent.
 
 <!-- section: defender-for-databases | objectives: 2.2.3 -->
 ## Configurer Defender for Databases
 
-Dans **Defender for Cloud > Paramètres d'environnement > abonnement > Plans Defender**, le plan **Bases de données** regroupe quatre plans, chacun facturé séparément. Passer Bases de données sur **Activé** active les quatre ; **Sélectionner des types** permet de choisir.
+Dans **Defender for Cloud > Paramètres d'environnement > abonnement > Plans Defender**, le plan **Bases de données** regroupe quatre plans, chacun facturé séparément. Passer Bases de données sur **Activé** active les quatre ; pour activer ou modifier un seul plan, suivez l'article d'activation propre à ce plan.
 
 | Plan | Protège | Remarques |
 | --- | --- | --- |
@@ -147,6 +147,7 @@ L'**évaluation des vulnérabilités SQL** recherche les erreurs de configuratio
 | | Configuration express (recommandée) | Configuration classique |
 | --- | --- | --- |
 | Stockage des résultats d'analyse | Géré par Defender for Cloud, sans compte de stockage | Votre compte Stockage Azure |
+| Dépendance | Identité managée affectée par le système (SQL Managed Instance uniquement) | Le compte Stockage Azure |
 | Analyses récurrentes | Toujours actives | Activables ou désactivables |
 | Lignes de base | Par lot ou par règle ; s'appliquent sans nouvelle analyse | Par règle ; s'appliquent après une nouvelle analyse |
 | Modifier les paramètres | SQL Security Manager ou Security Admin | SQL Security Manager **et** Storage Blob Data Reader **et** Owner du compte de stockage |
@@ -160,6 +161,6 @@ L'**évaluation des vulnérabilités SQL** recherche les erreurs de configuratio
 - L'accès au réseau public sur Désactiver ne laisse que les points de terminaison privés ; la règle « Autoriser les services Azure » admet tous les clients Azure.
 - Les règles IP au niveau de la base sont en T-SQL uniquement et vérifiées avant celles du serveur ; les règles de réseau virtuel exigent le point de terminaison de service `Microsoft.Sql`.
 - L'authentification Microsoft Entra uniquement exige d'abord un administrateur Entra ; SQL Security Manager peut l'activer, pas SQL Server Contributor.
-- TDE géré par le client : suppression réversible et protection contre la suppression définitive, clé RSA, identité managée avec Key Vault Crypto Service Encryption User ; perdre la clé rend les bases inaccessibles.
+- TDE géré par le client : suppression réversible et protection contre la suppression définitive, clé RSA (ou AES pour SQL Database), identité managée avec Key Vault Crypto Service Encryption User ; perdre la clé rend les bases inaccessibles.
 - L'audit de serveur couvre toutes les bases ; l'audit de Managed Instance se fait en T-SQL `CREATE SERVER AUDIT` vers une URL ou `EXTERNAL_MONITOR`.
 - Defender for Databases = quatre plans ; la configuration express de l'évaluation des vulnérabilités n'exige pas de compte de stockage.

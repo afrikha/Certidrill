@@ -9,7 +9,7 @@ Les tables Delta prennent en charge deux contraintes **appliquées**. Quand une 
 | --- | --- | --- |
 | Nullabilité | Contrainte de colonne `NOT NULL` | `ALTER TABLE t ALTER COLUMN c SET NOT NULL` (ou `DROP NOT NULL`) |
 | Plage, valeurs autorisées, règle entre colonnes | Contrainte `CHECK` | `ALTER TABLE t ADD CONSTRAINT name CHECK (expr)` |
-| Unicité d'une clé | `PRIMARY KEY` ou `UNIQUE` informationnelle : **non appliquée** | Vérifiez par une requête (ci-dessous) |
+| Unicité d'une clé | `PRIMARY KEY` (en disponibilité générale à partir de Databricks Runtime 15.2) ou `UNIQUE` (préversion publique, Databricks SQL et Databricks Runtime 18.2 et versions ultérieures ; les valeurs null sont considérées comme distinctes) informationnelle : **non appliquée** | Vérifiez par une requête (ci-dessous) |
 | Intégrité référentielle | `FOREIGN KEY` informationnelle : **non appliquée** | Vérifiez par une jointure anti gauche |
 
 ```text
@@ -33,8 +33,8 @@ Règles à connaître :
 
 - L'ajout d'une contrainte `NOT NULL` ou `CHECK` vérifie d'abord **toutes les lignes existantes** ; il échoue si l'une d'elles la viole.
 - Une expression `CHECK` ne peut utiliser que des fonctions déterministes : ni fonction définie par l'utilisateur, ni fonction d'agrégation ou de fenêtrage, ni sous-requête. Une contrainte ne peut donc pas exprimer « unique » ni « existe dans une autre table ».
-- L'ajout d'une contrainte peut mettre à niveau le protocole d'écriture de la table, ce qui compte pour les clients Delta externes.
-- CTAS n'accepte pas de clauses de contrainte : créez la table, puis ajoutez les contraintes.
+- L'ajout d'une contrainte peut mettre à niveau le protocole d'écriture de la table, ce qui compte pour les clients Delta externes. À partir de Databricks Runtime 15.4 LTS, `ALTER TABLE ... DROP FEATURE` supprime les contraintes `CHECK` et rétrograde le protocole.
+- CTAS n'accepte pas les clauses `PRIMARY KEY`, `FOREIGN KEY` et `UNIQUE` : créez la table, puis ajoutez les contraintes.
 - Les contraintes `CHECK` apparaissent dans `SHOW TBLPROPERTIES` et `DESCRIBE DETAIL` ; les contraintes de clé dans `information_schema`, `DESCRIBE TABLE EXTENDED` ou `SHOW CREATE TABLE`.
 
 Les vérifications de cardinalité et d'intégrité référentielle sont des requêtes qu'un job exécute avant de publier :
@@ -127,12 +127,12 @@ Pour les fichiers, le paramètre `cloudFiles.schemaEvolutionMode` d'Auto Loader 
 | Mode | Quand une nouvelle colonne apparaît |
 | --- | --- |
 | `addNewColumns` (par défaut sans schéma fourni) | Le flux échoue avec `UnknownFieldException` après avoir ajouté la colonne au schéma ; un redémarrage reprend avec le nouveau schéma. Les types des colonnes existantes ne changent pas |
-| `addNewColumnsWithTypeWidening` | Idem, et les types pris en charge sont élargis (`int` vers `long`) ; les changements non pris en charge vont dans la colonne de données récupérées |
+| `addNewColumnsWithTypeWidening` (préversion publique, Databricks Runtime 16.4 et versions ultérieures) | Idem, et les types pris en charge sont élargis (`int` vers `long`) ; les changements non pris en charge vont dans la colonne de données récupérées |
 | `rescue` | Le schéma n'évolue jamais et le flux n'échoue pas ; les nouvelles colonnes vont dans la colonne de données récupérées |
 | `failOnNewColumns` | Le flux échoue et reste en échec jusqu'à ce que vous mettiez à jour le schéma ou retiriez le fichier |
 | `none` (par défaut avec un schéma fourni) | Les nouvelles colonnes sont ignorées ; rien n'est récupéré sauf si `rescuedDataColumn` est défini |
 
-L'historique du schéma se trouve dans le dossier `_schemas` de `cloudFiles.schemaLocation`. Exécutez les flux en mode `addNewColumns` dans un job Lakeflow avec des nouvelles tentatives, pour que l'échec attendu redémarre automatiquement.
+`addNewColumns` n'est pas autorisé quand le schéma du flux est fourni (`.schema(...)`) ; il fonctionne quand les types connus sont donnés par `cloudFiles.schemaHints`, qu'Auto Loader n'utilise que si aucun schéma n'est fourni. L'historique du schéma se trouve dans le dossier `_schemas` de `cloudFiles.schemaLocation`. Exécutez les flux en mode `addNewColumns` dans un job Lakeflow avec des nouvelles tentatives, pour que l'échec attendu redémarre automatiquement.
 
 > **Piège d'examen.** Avec `addNewColumns`, le premier échec est voulu, ce n'est pas un bogue. « Les nouvelles colonnes doivent apparaître dans la table sans intervention manuelle » signifie `addNewColumns` plus un redémarrage automatique ; « le flux ne doit jamais s'arrêter » signifie `rescue` ; « un ingénieur doit examiner chaque changement de schéma » signifie `failOnNewColumns`.
 
@@ -173,8 +173,8 @@ Règles à connaître :
 - La contrainte est une expression SQL booléenne évaluée pour chaque enregistrement : pas de fonction Python, pas d'appel externe, pas de sous-requête sur une autre table. Les noms sont uniques par jeu de données.
 - `expect_all`, `expect_all_or_drop` et `expect_all_or_fail` prennent un dictionnaire de règles et n'existent qu'en Python ; SQL déclare plusieurs clauses `CONSTRAINT` mais ne peut pas les regrouper.
 - Avec fail, un pipeline déclenché fait échouer ce seul flux (les flux parallèles continuent) ; un pipeline continu arrête le flux et les flux qui en dépendent. Corrigez le code ou les données avant de relancer.
-- Les métriques apparaissent dans l'onglet **Data quality** du jeu de données dans l'interface du pipeline et dans le **journal des événements** du pipeline. Il n'y en a aucune pour fail, ni pour les vues tant qu'elles ne sont pas interrogées.
-- Les attentes ne sont pas prises en charge avec `AUTO CDC FROM SNAPSHOT`.
+- Les métriques apparaissent dans l'onglet **Data quality** du jeu de données dans l'interface du pipeline et dans le **journal des événements** du pipeline. Il n'y en a aucune pour fail, ni pour les vues tant qu'elles ne sont pas interrogées. Les tables de diffusion en continu et vues matérialisées créées dans Databricks SQL (pipeline autonome) n'ont pas d'onglet Data quality : interrogez le journal des événements.
+- Les attentes ne sont pas prises en charge avec `AUTO CDC FROM SNAPSHOT`, ni sur les tables ciblées par des flux `REPLACE WHERE`.
 - L'ancien `import dlt` et `@dlt.expect` fonctionnent encore, mais `from pyspark import pipelines as dp` est le module actuel.
 
 Pour conserver les enregistrements incorrects au lieu de les perdre, utilisez un modèle de **quarantaine** : une table avec les règles en attentes drop, et une seconde table qui sélectionne la condition inverse.

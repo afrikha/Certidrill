@@ -5,69 +5,76 @@ difficulty: 2
 status: draft
 stem:
   en: |
-    Contoso mirrors an Azure Cosmos DB for NoSQL database into a mirrored database item named sales-mirror. Workspace monitoring is enabled in the Fabric workspace.
+    Contoso mirrors an Azure Cosmos DB for NoSQL database into a Microsoft Fabric mirrored database item named sales-mirror. The operations team writes a runbook to check the replication of the mirrored tables every morning.
 
-    You need a query that lists, for the last 24 hours, the mirrored tables whose ongoing replication of changes had batches that took more than five minutes to replicate.
-
-    How should you complete the query? Select the appropriate options in the answer area.
+    How should you complete the runbook? Select the appropriate options in the answer area.
 
     NOTE: Each correct selection is worth one point.
   fr: |
-    Contoso met en miroir une base de données Azure Cosmos DB for NoSQL dans un élément de base de données en miroir nommé sales-mirror. La surveillance de l'espace de travail est activée dans l'espace de travail Fabric.
+    Contoso met en miroir une base de données Azure Cosmos DB for NoSQL dans un élément de base de données en miroir Microsoft Fabric nommé sales-mirror. L'équipe d'exploitation rédige un runbook pour vérifier chaque matin la réplication des tables en miroir.
 
-    Vous avez besoin d'une requête qui liste, pour les dernières 24 heures, les tables en miroir dont la réplication continue des modifications a eu des lots qui ont mis plus de cinq minutes à être répliqués.
-
-    Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
+    Comment devez-vous compléter le runbook ? Sélectionnez les options appropriées dans la zone de réponse.
 
     Remarque : chaque sélection correcte vaut un point.
 body:
-  layout: code
-  language: kusto
-  template: |
-    [[table]]
-    | where Timestamp > ago(24h)
-    | where ItemName == "sales-mirror" and OperationName == "[[op]]"
-    | summarize maxLatency = max([[metric]]) by SourceTableName
-    | where maxLatency > 300
+  layout: text
+  template:
+    en: |
+      To find when the orders table was last refreshed from the source, read the [[refresh]] column in Monitor replication.
+
+      To get the cumulative number of inserts, updates and deletes applied to orders, read the [[count]] column.
+
+      If the database status is [[paused]], the Fabric capacity was paused and then resumed.
+
+      To read the status of the database and of each table from a script, call [[api]].
+    fr: |
+      Pour savoir quand la table orders a été actualisée pour la dernière fois depuis la source, lisez la colonne [[refresh]] dans Monitor replication.
+
+      Pour obtenir le nombre cumulé d'insertions, de mises à jour et de suppressions appliquées à orders, lisez la colonne [[count]].
+
+      Si l'état de la base de données est [[paused]], la capacité Fabric a été suspendue puis reprise.
+
+      Pour lire l'état de la base de données et de chaque table depuis un script, appelez [[api]].
   slots:
-    - id: table
+    - id: refresh
       options:
-        - { id: mirror, text: MirroredDatabaseTableExecution }
-        - { id: dataplane, text: CDBDataPlaneRequests }
-        - { id: diag, text: AzureDiagnostics }
-        - { id: pkru, text: CDBPartitionKeyRUConsumption }
-    - id: op
+        - { id: lastcompleted, text: Last completed }
+        - { id: rowsrep, text: Rows replicated }
+        - { id: name, text: Name }
+        - { id: tablestatus, text: Table level status }
+    - id: count
       options:
-        - { id: snapshot, text: Snapshotting }
-        - { id: replicating, text: Replicating }
-        - { id: reseed, text: StartReseeding }
-        - { id: addtable, text: AddTable }
-    - id: metric
+        - { id: lastcompleted, text: Last completed }
+        - { id: rowsrep, text: Rows replicated }
+        - { id: name, text: Name }
+        - { id: tablestatus, text: Table level status }
+    - id: paused
       options:
-        - { id: duration, text: DurationMs }
-        - { id: bytes, text: ProcessedBytes }
-        - { id: latency, text: ReplicatorBatchLatency }
+        - { id: stopped, text: Stopped }
+        - { id: failed, text: Failed }
+        - { id: paused, text: Paused }
+        - { id: warning, text: Running with warning }
+    - id: api
+      options:
+        - { id: fabricapi, text: { en: "the Microsoft Fabric mirroring REST API", fr: "l'API REST de mise en miroir de Microsoft Fabric" } }
+        - { id: armapi, text: { en: "the Azure Cosmos DB resource provider REST API", fr: "l'API REST du fournisseur de ressources Azure Cosmos DB" } }
+        - { id: cdbcontrol, text: { en: "a KQL query on CDBControlPlaneRequests", fr: "une requête KQL sur CDBControlPlaneRequests" } }
 answer:
-  values: { table: mirror, op: replicating, metric: latency }
+  values: { refresh: lastcompleted, count: rowsrep, paused: paused, api: fabricapi }
 explanation:
   correct:
-    en: "With workspace monitoring enabled, mirrored database execution logs land in the `MirroredDatabaseTableExecution` table of the monitoring KQL database. `Replicating` is the operation of the ongoing change replication, as opposed to the initial snapshot. `ReplicatorBatchLatency` gives the time to replicate a batch in seconds, so the threshold of five minutes is 300."
-    fr: "Avec la surveillance de l'espace de travail activée, les journaux d'exécution des bases de données en miroir arrivent dans la table `MirroredDatabaseTableExecution` de la base de données KQL de surveillance. `Replicating` est l'opération de la réplication continue des modifications, par opposition à l'instantané initial. `ReplicatorBatchLatency` donne la durée de réplication d'un lot en secondes : le seuil de cinq minutes vaut donc 300."
+    en: "In Monitor replication, Last completed is the last time the mirrored table was refreshed from the source, and Rows replicated is the cumulative count of inserts, updates and deletes applied to the target table. The database status Paused appears when the Fabric capacity is paused and resumed. The same database and table statuses are available programmatically through the Fabric mirroring REST API or SDK."
+    fr: "Dans Monitor replication, Last completed est la dernière actualisation de la table en miroir depuis la source, et Rows replicated est le nombre cumulé d'insertions, de mises à jour et de suppressions appliquées à la table cible. L'état Paused de la base de données apparaît quand la capacité Fabric est suspendue puis reprise. Les mêmes états de base de données et de table sont disponibles par programmation avec l'API REST ou le SDK de mise en miroir de Fabric."
   options:
-    dataplane:
-      en: "`CDBDataPlaneRequests` holds the data plane requests of an Azure Cosmos DB account in Log Analytics, not the Fabric mirroring logs."
-      fr: "`CDBDataPlaneRequests` contient les requêtes du plan de données d'un compte Azure Cosmos DB dans Log Analytics, pas les journaux de mise en miroir de Fabric."
-    snapshot:
-      en: "`Snapshotting` covers the initial copy of the table, not the replication of later changes."
-      fr: "`Snapshotting` couvre la copie initiale de la table, pas la réplication des modifications ultérieures."
-    duration:
-      en: "`DurationMs` is documented as not applicable for this table, and it would be in milliseconds."
-      fr: "`DurationMs` est documenté comme non applicable pour cette table, et il serait en millisecondes."
-    bytes:
-      en: "`ProcessedBytes` measures the volume of data processed, not latency."
-      fr: "`ProcessedBytes` mesure le volume de données traitées, pas la latence."
+    stopped:
+      en: "Stopped means that replication was stopped, for example with Stop replication; it isn't tied to the capacity."
+      fr: "Stopped signifie que la réplication a été arrêtée, par exemple avec Stop replication ; cet état n'est pas lié à la capacité."
+    armapi:
+      en: "The Azure Cosmos DB resource provider manages the source account; it doesn't report the state of a Fabric mirror."
+      fr: "Le fournisseur de ressources Azure Cosmos DB gère le compte source ; il ne rapporte pas l'état d'un miroir Fabric."
+    cdbcontrol:
+      en: "CDBControlPlaneRequests logs control plane operations on the Azure Cosmos DB account, not mirroring status in Fabric."
+      fr: "CDBControlPlaneRequests journalise les opérations du plan de contrôle du compte Azure Cosmos DB, pas l'état de la mise en miroir dans Fabric."
 references:
-  - title: Mirrored database operation logs
-    url: https://learn.microsoft.com/en-us/fabric/mirroring/monitor-logs
   - title: Monitor Fabric mirrored database replication
     url: https://learn.microsoft.com/en-us/fabric/mirroring/monitor

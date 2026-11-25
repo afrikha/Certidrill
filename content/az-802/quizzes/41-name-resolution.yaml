@@ -1,0 +1,560 @@
+chapter: 41-name-resolution
+questions:
+  # ------------------------------------------------------------------ 1
+  - id: az802-qz-41-01
+    objective: "4.1.1"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        Your network contains an AD DS domain named **contoso.com**. An administrator accidentally deleted the SRV records of a domain controller named **DC4** from the DNS zones of the domain. The zones accept secure dynamic updates.
+
+        You need DC4 to register its domain controller locator records again now.
+
+        What should you run on DC4?
+      fr: |
+        Votre réseau contient un domaine AD DS nommé **contoso.com**. Un administrateur a supprimé par erreur les enregistrements SRV d'un contrôleur de domaine nommé **DC4** dans les zones DNS du domaine. Les zones acceptent les mises à jour dynamiques sécurisées.
+
+        Vous devez faire en sorte que DC4 inscrive de nouveau ses enregistrements de localisation de contrôleur de domaine dès maintenant.
+
+        Que devez-vous exécuter sur DC4 ?
+    body:
+      options:
+        - { id: a, text: "`ipconfig /flushdns && ipconfig /registerdns`" }
+        - { id: b, text: "`dcdiag /test:dns /v /s:DC4`" }
+        - { id: c, text: "`net stop netlogon && net start netlogon`" }
+        - { id: d, text: "`net stop dnscache && net start dnscache`" }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          The Net Logon service of a domain controller registers the DNS records that locate it, including the SRV records and the GUID-based CNAME under `_msdcs`. Restarting Net Logon makes it register them again immediately.
+        fr: |
+          Le service Net Logon d'un contrôleur de domaine inscrit les enregistrements DNS qui permettent de le localiser, dont les enregistrements SRV et le CNAME basé sur le GUID sous `_msdcs`. Redémarrer Net Logon lui fait inscrire de nouveau ces enregistrements immédiatement.
+      options:
+        a: { en: "`ipconfig /registerdns` makes the DNS Client service register the host (A) record, not the domain controller locator records.", fr: "`ipconfig /registerdns` fait inscrire par le service Client DNS l'enregistrement d'hôte (A), pas les enregistrements de localisation du contrôleur de domaine." }
+        b: { en: "`dcdiag /test:dns` checks the DNS configuration and registration of the domain controller; it doesn't register the missing records.", fr: "`dcdiag /test:dns` vérifie la configuration DNS et l'inscription du contrôleur de domaine ; il n'inscrit pas les enregistrements manquants." }
+        d: { en: "Restarting the DNS Client service clears its cache; the domain controller locator records are registered by Net Logon.", fr: "Redémarrer le service Client DNS vide son cache ; les enregistrements de localisation du contrôleur de domaine sont inscrits par Net Logon." }
+    references:
+      - title: Verify DNS Functionality to Support Directory Replication
+        url: https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/manage/troubleshoot/verify-dns-functionality-to-support-directory-replication
+
+  # ------------------------------------------------------------------ 2
+  - id: az802-qz-41-02
+    objective: "4.1.2"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        A DNS server named **DNS1** hosts the primary zone **east.contoso.com**, which contains about 12,000 records. A DNS server named **DNS2** hosts a secondary copy of the zone. Both servers run Windows Server 2025.
+
+        An administrator changes three records on DNS1.
+
+        Which type of zone transfer lets DNS2 receive only the changed records?
+      fr: |
+        Un serveur DNS nommé **DNS1** héberge la zone principale **east.contoso.com**, qui contient environ 12 000 enregistrements. Un serveur DNS nommé **DNS2** héberge une copie secondaire de la zone. Les deux serveurs exécutent Windows Server 2025.
+
+        Un administrateur modifie trois enregistrements sur DNS1.
+
+        Quel type de transfert de zone permet à DNS2 de recevoir uniquement les enregistrements modifiés ?
+    body:
+      options:
+        - { id: a, text: { en: "A full zone transfer (AXFR)", fr: "Un transfert de zone complet (AXFR)" } }
+        - { id: b, text: { en: "An incremental zone transfer (IXFR)", fr: "Un transfert de zone incrémentiel (IXFR)" } }
+        - { id: c, text: { en: "A NOTIFY message sent by DNS1", fr: "Un message NOTIFY envoyé par DNS1" } }
+        - { id: d, text: { en: "Active Directory replication of the zone", fr: "La réplication Active Directory de la zone" } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          An incremental zone transfer (IXFR) replicates only the records that have been modified since the version that the secondary server holds. A full zone transfer (AXFR) copies the entire zone.
+        fr: |
+          Un transfert de zone incrémentiel (IXFR) ne réplique que les enregistrements modifiés depuis la version que détient le serveur secondaire. Un transfert de zone complet (AXFR) copie toute la zone.
+      options:
+        a: { en: "AXFR replicates the entire zone file, here about 12,000 records.", fr: "AXFR réplique tout le fichier de zone, ici environ 12 000 enregistrements." }
+        c: { en: "NOTIFY only tells the secondary server that the zone changed; the records then arrive by a zone transfer.", fr: "NOTIFY indique seulement au serveur secondaire que la zone a changé ; les enregistrements arrivent ensuite par un transfert de zone." }
+        d: { en: "A secondary zone can't be stored in AD DS: it is always updated by zone transfers.", fr: "Une zone secondaire ne peut pas être stockée dans AD DS : elle est toujours mise à jour par des transferts de zone." }
+    references:
+      - title: DNS zones in DNS Server on Windows Server
+        url: https://learn.microsoft.com/en-us/windows-server/networking/dns/zone-types
+
+  # ------------------------------------------------------------------ 3
+  - id: az802-qz-41-03
+    objective: "4.1.3"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        A DNS server named **DNS3** runs Windows Server 2025. Last year, an administrator created a stub zone for **fabrikam.com** on DNS3.
+
+        Fabrikam now asks that every query for fabrikam.com be sent only to its resolvers 192.168.20.10 and 192.168.20.11. On DNS3, the command `Add-DnsServerConditionalForwarderZone -Name "fabrikam.com" -MasterServers 192.168.20.10, 192.168.20.11` doesn't create the conditional forwarder.
+
+        What should you do?
+      fr: |
+        Un serveur DNS nommé **DNS3** exécute Windows Server 2025. L'année dernière, un administrateur a créé une zone de stub pour **fabrikam.com** sur DNS3.
+
+        Fabrikam demande désormais que chaque requête pour fabrikam.com soit envoyée uniquement à ses résolveurs 192.168.20.10 et 192.168.20.11. Sur DNS3, la commande `Add-DnsServerConditionalForwarderZone -Name "fabrikam.com" -MasterServers 192.168.20.10, 192.168.20.11` ne crée pas le redirecteur conditionnel.
+
+        Que devez-vous faire ?
+    body:
+      options:
+        - { id: a, text: { en: "Run the command again with the -ReplicationScope Forest parameter.", fr: "Exécuter de nouveau la commande avec le paramètre -ReplicationScope Forest." } }
+        - { id: b, text: { en: "Delete the fabrikam.com stub zone, and then run the command again.", fr: "Supprimer la zone de stub fabrikam.com, puis exécuter de nouveau la commande." } }
+        - { id: c, text: { en: "Convert the fabrikam.com stub zone to a secondary zone, and then run the command again.", fr: "Convertir la zone de stub fabrikam.com en zone secondaire, puis exécuter de nouveau la commande." } }
+        - { id: d, text: { en: "Set the server-level forwarders of DNS3 to 192.168.20.10 and 192.168.20.11.", fr: "Définir les redirecteurs au niveau du serveur de DNS3 sur 192.168.20.10 et 192.168.20.11." } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          A conditional forwarder is stored as a forwarder zone, and a DNS server can't host a primary, secondary or stub zone and a conditional forwarder with the same name. You must remove the fabrikam.com stub zone before you create the conditional forwarder.
+        fr: |
+          Un redirecteur conditionnel est stocké comme une zone de redirection, et un serveur DNS ne peut pas héberger une zone principale, secondaire ou de stub et un redirecteur conditionnel portant le même nom. Vous devez supprimer la zone de stub fabrikam.com avant de créer le redirecteur conditionnel.
+      options:
+        a: { en: "The replication scope only decides where the conditional forwarder is stored; the name conflict with the stub zone remains.", fr: "L'étendue de réplication décide seulement où le redirecteur conditionnel est stocké ; le conflit de nom avec la zone de stub demeure." }
+        c: { en: "A secondary zone with the same name conflicts with a conditional forwarder in the same way as a stub zone.", fr: "Une zone secondaire de même nom entre en conflit avec un redirecteur conditionnel de la même façon qu'une zone de stub." }
+        d: { en: "Server-level forwarders apply to every name that DNS3 can't resolve, and the stub zone would still be used for fabrikam.com.", fr: "Les redirecteurs au niveau du serveur s'appliquent à tous les noms que DNS3 ne peut pas résoudre, et la zone de stub serait toujours utilisée pour fabrikam.com." }
+    references:
+      - title: Fix a DNS Forwarder Conflict in Windows Server
+        url: https://learn.microsoft.com/en-us/windows-server/networking/dns/troubleshoot/resolve-conditional-forwarder-zone-conflict
+
+  # ------------------------------------------------------------------ 4
+  - id: az802-qz-41-04
+    objective: "4.1.2"
+    difficulty: 2
+    status: draft
+    type: dropdown
+    stem:
+      en: |
+        A domain controller named **DC2** hosts the Active Directory-integrated zone **contoso.com** and the reverse lookup zone **0.1.10.in-addr.arpa**. Aging is enabled on both zones.
+
+        You need to meet the following requirements:
+
+        - Create a host record for **app2** with the address 10.1.0.25 and its PTR record by running one command. Scavenging must never remove these records.
+        - Create a record that advertises the `_sipfederationtls._tcp` service on **sip1.contoso.com**, port 5061.
+
+        How should you complete the commands? To answer, select the appropriate options in the answer area.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Un contrôleur de domaine nommé **DC2** héberge la zone intégrée à Active Directory **contoso.com** et la zone de recherche inversée **0.1.10.in-addr.arpa**. Le vieillissement est activé sur les deux zones.
+
+        Vous devez satisfaire les exigences suivantes :
+
+        - Créer un enregistrement d'hôte pour **app2** avec l'adresse 10.1.0.25 ainsi que son enregistrement PTR en exécutant une seule commande. Le nettoyage ne doit jamais supprimer ces enregistrements.
+        - Créer un enregistrement qui annonce le service `_sipfederationtls._tcp` sur **sip1.contoso.com**, port 5061.
+
+        Comment devez-vous compléter les commandes ? Pour répondre, sélectionnez les options appropriées dans la zone de réponse.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      layout: code
+      language: powershell
+      template: |
+        Add-DnsServerResourceRecordA -ZoneName "contoso.com" -Name "app2" -IPv4Address 10.1.0.25 [[ptr]]
+        Add-DnsServerResourceRecord -ZoneName "contoso.com" [[type]] -Name "_sipfederationtls._tcp" `
+          -DomainName "sip1.contoso.com" -Priority 0 -Weight 0 [[port]] 5061
+      slots:
+        - id: ptr
+          options:
+            - { id: agerec, text: -AgeRecord }
+            - { id: createptr, text: -CreatePtr }
+            - { id: anyupd, text: -AllowUpdateAny }
+        - id: type
+          options:
+            - { id: cname, text: -CName }
+            - { id: ptrtype, text: -Ptr }
+            - { id: srv, text: -Srv }
+        - id: port
+          options:
+            - { id: pref, text: -Preference }
+            - { id: portp, text: -Port }
+            - { id: ttl, text: -TimeToLive }
+    answer:
+      values: { ptr: createptr, type: srv, port: portp }
+    explanation:
+      correct:
+        en: |
+          `-CreatePtr` makes the DNS server create the matching PTR record in the reverse lookup zone. A record created this way, without `-AgeRecord`, has no timestamp, so scavenging never removes it. A service is advertised by an SRV record (`-Srv`), which takes the target host, a priority, a weight and the port (`-Port`).
+        fr: |
+          `-CreatePtr` fait créer par le serveur DNS l'enregistrement PTR correspondant dans la zone de recherche inversée. Un enregistrement créé ainsi, sans `-AgeRecord`, n'a pas d'horodatage : le nettoyage ne le supprime donc jamais. Un service est annoncé par un enregistrement SRV (`-Srv`), qui prend l'hôte cible, une priorité, un poids et le port (`-Port`).
+      options:
+        agerec:
+          en: |
+            `-AgeRecord` gives the record a timestamp, which makes it eligible for scavenging, and it doesn't create the PTR record.
+          fr: |
+            `-AgeRecord` donne un horodatage à l'enregistrement, ce qui le rend éligible au nettoyage, et ne crée pas l'enregistrement PTR.
+        anyupd:
+          en: |
+            `-AllowUpdateAny` lets any authenticated user update the record; it doesn't create a PTR record.
+          fr: |
+            `-AllowUpdateAny` permet à tout utilisateur authentifié de mettre à jour l'enregistrement ; il ne crée pas d'enregistrement PTR.
+        cname:
+          en: |
+            A CNAME record is an alias of a host name; it carries no service port.
+          fr: |
+            Un enregistrement CNAME est un alias d'un nom d'hôte ; il ne contient aucun port de service.
+        pref:
+          en: |
+            `-Preference` belongs to MX records; the SRV record uses `-Port`.
+          fr: |
+            `-Preference` appartient aux enregistrements MX ; l'enregistrement SRV utilise `-Port`.
+    references:
+      - title: Add-DnsServerResourceRecord (DnsServer)
+        url: https://learn.microsoft.com/en-us/powershell/module/dnsserver/add-dnsserverresourcerecord
+      - title: Add-DnsServerResourceRecordA (DnsServer)
+        url: https://learn.microsoft.com/en-us/powershell/module/dnsserver/add-dnsserverresourcerecorda
+
+  # ------------------------------------------------------------------ 5
+  - id: az802-qz-41-05
+    objective: "4.1.5"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        A DNS server named **DNS1** runs Windows Server 2025 and hosts the zone **contoso.com**. A client subnet named **Branch1Subnet** contains 10.20.0.0/16. The zone contains the following records named **app**:
+
+        | Zone scope | Address of app |
+        | --- | --- |
+        | Default scope | 10.10.5.10 |
+        | BranchScope | 10.20.5.10 |
+        | AppScope | 10.30.5.10 |
+
+        DNS1 has the following zone-level query resolution policies, both with the ALLOW action:
+
+        | Policy | Processing order | Criterion | Zone scope |
+        | --- | --- | --- | --- |
+        | PolicyBranch | 1 | ClientSubnet EQ,Branch1Subnet | BranchScope,1 |
+        | PolicyApp | 2 | FQDN EQ,app.contoso.com | AppScope,1 |
+
+        A client that has the IP address 10.20.8.15 queries DNS1 for app.contoso.com.
+
+        Which address does DNS1 return?
+      fr: |
+        Un serveur DNS nommé **DNS1** exécute Windows Server 2025 et héberge la zone **contoso.com**. Un sous-réseau client nommé **Branch1Subnet** contient 10.20.0.0/16. La zone contient les enregistrements suivants nommés **app** :
+
+        | Étendue de zone | Adresse de app |
+        | --- | --- |
+        | Étendue par défaut | 10.10.5.10 |
+        | BranchScope | 10.20.5.10 |
+        | AppScope | 10.30.5.10 |
+
+        DNS1 possède les stratégies de résolution de requêtes au niveau de la zone suivantes, toutes deux avec l'action ALLOW :
+
+        | Stratégie | Ordre de traitement | Critère | Étendue de zone |
+        | --- | --- | --- | --- |
+        | PolicyBranch | 1 | ClientSubnet EQ,Branch1Subnet | BranchScope,1 |
+        | PolicyApp | 2 | FQDN EQ,app.contoso.com | AppScope,1 |
+
+        Un client dont l'adresse IP est 10.20.8.15 interroge DNS1 pour app.contoso.com.
+
+        Quelle adresse DNS1 renvoie-t-il ?
+    shuffle: false
+    body:
+      options:
+        - { id: a, text: "10.10.5.10" }
+        - { id: b, text: "10.20.5.10" }
+        - { id: c, text: "10.30.5.10" }
+        - { id: d, text: { en: "10.20.5.10 and 10.30.5.10, alternately", fr: "10.20.5.10 et 10.30.5.10, en alternance" } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          Policies of the same level are evaluated in processing order, and the server applies the first policy whose criteria match the query. The client is in Branch1Subnet, so PolicyBranch (order 1) matches first and the answer comes from BranchScope: 10.20.5.10. PolicyApp is never reached for this query.
+        fr: |
+          Les stratégies d'un même niveau sont évaluées selon leur ordre de traitement, et le serveur applique la première stratégie dont les critères correspondent à la requête. Le client est dans Branch1Subnet : PolicyBranch (ordre 1) correspond la première et la réponse provient de BranchScope, soit 10.20.5.10. PolicyApp n'est jamais atteinte pour cette requête.
+      options:
+        a: { en: "The default scope answers only when no policy matches the query, and PolicyBranch matches.", fr: "L'étendue par défaut ne répond que si aucune stratégie ne correspond à la requête, or PolicyBranch correspond." }
+        c: { en: "PolicyApp also matches, but its processing order is 2; the server stops at the first matching policy, whatever the number or precision of its criteria.", fr: "PolicyApp correspond aussi, mais son ordre de traitement est 2 ; le serveur s'arrête à la première stratégie qui correspond, quels que soient le nombre ou la précision de ses critères." }
+        d: { en: "Weights split the answers between the scopes listed in one policy; two different policies are never combined.", fr: "Les pondérations répartissent les réponses entre les étendues citées dans une même stratégie ; deux stratégies différentes ne sont jamais combinées." }
+    references:
+      - title: DNS Policies Overview
+        url: https://learn.microsoft.com/en-us/windows-server/networking/dns/deploy/dns-policies-overview
+      - title: Add-DnsServerQueryResolutionPolicy (DnsServer)
+        url: https://learn.microsoft.com/en-us/powershell/module/dnsserver/add-dnsserverqueryresolutionpolicy
+
+  # ------------------------------------------------------------------ 6
+  - id: az802-qz-41-06
+    objective: "4.1.4"
+    difficulty: 3
+    status: draft
+    type: single
+    stem:
+      en: |
+        Contoso has the following Azure resources:
+
+        - A virtual network named **VNet-Hub** that contains two domain controllers, DC-AZ1 (10.1.0.4) and DC-AZ2 (10.1.0.5). Both run the DNS Server role and use 168.63.129.16 as their only server-level forwarder.
+        - A virtual network named **VNet-Spoke1** that is peered with VNet-Hub. The DNS servers of VNet-Spoke1 are set to 10.1.0.4 and 10.1.0.5.
+        - A private DNS zone named **azure.contoso.com** that contains a manually created A record named **app1**. The zone has one virtual network link, to VNet-Spoke1, without autoregistration.
+
+        The VMs in VNet-Spoke1 resolve the names of contoso.com and internet names, but they can't resolve app1.azure.contoso.com. The VMs must keep using only DC-AZ1 and DC-AZ2 as DNS servers.
+
+        What should you do?
+      fr: |
+        Contoso dispose des ressources Azure suivantes :
+
+        - Un réseau virtuel nommé **VNet-Hub** qui contient deux contrôleurs de domaine, DC-AZ1 (10.1.0.4) et DC-AZ2 (10.1.0.5). Tous deux exécutent le rôle Serveur DNS et utilisent 168.63.129.16 comme unique redirecteur au niveau du serveur.
+        - Un réseau virtuel nommé **VNet-Spoke1** relié par peering à VNet-Hub. Les serveurs DNS de VNet-Spoke1 sont définis sur 10.1.0.4 et 10.1.0.5.
+        - Une zone DNS privée nommée **azure.contoso.com** qui contient un enregistrement A nommé **app1** créé manuellement. La zone possède un seul lien de réseau virtuel, vers VNet-Spoke1, sans inscription automatique.
+
+        Les machines virtuelles de VNet-Spoke1 résolvent les noms de contoso.com et les noms Internet, mais elles ne peuvent pas résoudre app1.azure.contoso.com. Les machines virtuelles doivent continuer à utiliser uniquement DC-AZ1 et DC-AZ2 comme serveurs DNS.
+
+        Que devez-vous faire ?
+    body:
+      options:
+        - { id: a, text: { en: "On DC-AZ1, create a conditional forwarder for azure.contoso.com that targets 168.63.129.16 and is stored in AD DS.", fr: "Sur DC-AZ1, créer un redirecteur conditionnel pour azure.contoso.com qui cible 168.63.129.16 et qui est stocké dans AD DS." } }
+        - { id: b, text: { en: "Enable autoregistration on the virtual network link between azure.contoso.com and VNet-Spoke1.", fr: "Activer l'inscription automatique sur le lien de réseau virtuel entre azure.contoso.com et VNet-Spoke1." } }
+        - { id: c, text: { en: "Create a virtual network link between azure.contoso.com and VNet-Hub.", fr: "Créer un lien de réseau virtuel entre azure.contoso.com et VNet-Hub." } }
+        - { id: d, text: { en: "Add 168.63.129.16 as a third DNS server in the DNS settings of VNet-Spoke1.", fr: "Ajouter 168.63.129.16 comme troisième serveur DNS dans les paramètres DNS de VNet-Spoke1." } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          The VMs send their queries to the domain controllers, which forward them to 168.63.129.16 from VNet-Hub. Azure DNS answers from the private zones linked to the virtual network the query comes from, and azure.contoso.com is linked only to VNet-Spoke1. Linking the zone to VNet-Hub lets the domain controllers, and therefore the spoke VMs, resolve app1.
+        fr: |
+          Les machines virtuelles envoient leurs requêtes aux contrôleurs de domaine, qui les transfèrent à 168.63.129.16 depuis VNet-Hub. Azure DNS répond à partir des zones privées liées au réseau virtuel d'où provient la requête, et azure.contoso.com n'est liée qu'à VNet-Spoke1. Lier la zone à VNet-Hub permet aux contrôleurs de domaine, et donc aux machines virtuelles spoke, de résoudre app1.
+      options:
+        a: { en: "The domain controllers already send these queries to 168.63.129.16; the query still comes from VNet-Hub, which isn't linked to the zone.", fr: "Les contrôleurs de domaine envoient déjà ces requêtes à 168.63.129.16 ; la requête provient toujours de VNet-Hub, qui n'est pas lié à la zone." }
+        b: { en: "Autoregistration creates records for the VMs of VNet-Spoke1; it doesn't change which virtual network the domain controllers query from.", fr: "L'inscription automatique crée des enregistrements pour les machines virtuelles de VNet-Spoke1 ; elle ne change pas le réseau virtuel depuis lequel les contrôleurs de domaine interrogent." }
+        d: { en: "The VMs must use only the domain controllers as DNS servers, and 168.63.129.16 doesn't resolve the AD DS names.", fr: "Les machines virtuelles doivent utiliser uniquement les contrôleurs de domaine comme serveurs DNS, et 168.63.129.16 ne résout pas les noms AD DS." }
+    references:
+      - title: What is a virtual network link subresource of Azure DNS private zones
+        url: https://learn.microsoft.com/en-us/azure/dns/private-dns-virtual-network-links
+      - title: Azure Virtual Network Name Resolution Guide
+        url: https://learn.microsoft.com/en-us/azure/virtual-network/virtual-networks-name-resolution-for-vms-and-role-instances
+
+  # ------------------------------------------------------------------ 7
+  - id: az802-qz-41-07
+    objective: "4.1.5"
+    difficulty: 3
+    status: draft
+    type: dropdown
+    stem:
+      en: |
+        A DNS server named **DNS1** runs Windows Server 2025 and hosts the zone **contoso.com**. DNS1 has two network interfaces:
+
+        - 10.0.0.56, used by the internal clients
+        - 203.0.113.56, used by internet resolvers that query contoso.com
+
+        Recursion is enabled on DNS1. A security review requires the following:
+
+        - DNS1 must perform recursion only for the queries that it receives on 10.0.0.56.
+        - Queries that it receives on 203.0.113.56 must be answered only from the zones that DNS1 hosts.
+
+        How should you complete the commands? To answer, select the appropriate options in the answer area.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Un serveur DNS nommé **DNS1** exécute Windows Server 2025 et héberge la zone **contoso.com**. DNS1 possède deux interfaces réseau :
+
+        - 10.0.0.56, utilisée par les clients internes
+        - 203.0.113.56, utilisée par les résolveurs Internet qui interrogent contoso.com
+
+        La récursivité est activée sur DNS1. Un audit de sécurité exige ce qui suit :
+
+        - DNS1 ne doit effectuer la récursivité que pour les requêtes qu'il reçoit sur 10.0.0.56.
+        - Les requêtes qu'il reçoit sur 203.0.113.56 doivent obtenir une réponse uniquement à partir des zones que DNS1 héberge.
+
+        Comment devez-vous compléter les commandes ? Pour répondre, sélectionnez les options appropriées dans la zone de réponse.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      layout: code
+      language: powershell
+      template: |
+        Set-DnsServerRecursionScope -Name [[scope]] -EnableRecursion $false
+        Add-DnsServerRecursionScope -Name "InternalClients" -EnableRecursion $true
+        Add-DnsServerQueryResolutionPolicy -Name "InternalRecursion" -Action ALLOW [[apply]] `
+          -RecursionScope "InternalClients" -ServerInterfaceIP "EQ,[[ip]]"
+      slots:
+        - id: scope
+          options:
+            - { id: internal, text: '"InternalClients"' }
+            - { id: dot, text: . }
+            - { id: zone, text: '"contoso.com"' }
+        - id: apply
+          options:
+            - { id: zonename, text: '-ZoneName "contoso.com"' }
+            - { id: condition, text: -Condition AND }
+            - { id: onrec, text: -ApplyOnRecursion }
+        - id: ip
+          options:
+            - { id: ext, text: 203.0.113.56 }
+            - { id: int, text: 10.0.0.56 }
+    answer:
+      values: { scope: dot, apply: onrec, ip: int }
+    explanation:
+      correct:
+        en: |
+          The default recursion scope is named `.` (dot); disabling recursion on it stops recursion for every query that no recursion policy redirects. You then create the InternalClients recursion scope with recursion enabled and a server-level policy with `-ApplyOnRecursion` that selects it for the queries received on the internal interface 10.0.0.56. Queries on 203.0.113.56 still get authoritative answers for contoso.com, without recursion.
+        fr: |
+          L'étendue de récursivité par défaut se nomme `.` (point) ; y désactiver la récursivité arrête la récursivité pour toute requête qu'aucune stratégie de récursivité ne redirige. Vous créez ensuite l'étendue de récursivité InternalClients avec la récursivité activée, et une stratégie au niveau du serveur avec `-ApplyOnRecursion` qui la sélectionne pour les requêtes reçues sur l'interface interne 10.0.0.56. Les requêtes reçues sur 203.0.113.56 obtiennent toujours des réponses faisant autorité pour contoso.com, sans récursivité.
+      options:
+        internal:
+          en: |
+            InternalClients is the scope that must keep recursion for the internal clients; the queries that no policy redirects use the default scope `.`, which is the one to disable.
+          fr: |
+            InternalClients est l'étendue qui doit conserver la récursivité pour les clients internes ; les requêtes qu'aucune stratégie ne redirige utilisent l'étendue par défaut `.`, qui est celle à désactiver.
+        zonename:
+          en: |
+            A recursion policy exists only at the server level; it can't be attached to a zone.
+          fr: |
+            Une stratégie de récursivité n'existe qu'au niveau du serveur ; elle ne peut pas être rattachée à une zone.
+        ext:
+          en: |
+            Matching 203.0.113.56 would give recursion to the internet resolvers and leave the internal clients without it.
+          fr: |
+            Cibler 203.0.113.56 accorderait la récursivité aux résolveurs Internet et en priverait les clients internes.
+    references:
+      - title: DNS Policies Overview
+        url: https://learn.microsoft.com/en-us/windows-server/networking/dns/deploy/dns-policies-overview
+      - title: Use DNS Policy for Split-Brain DNS Deployment
+        url: https://learn.microsoft.com/en-us/windows-server/networking/dns/deploy/split-brain-dns-deployment
+
+  # ------------------------------------------------------------------ 8
+  - id: az802-qz-41-08
+    objective: "4.1.6"
+    difficulty: 3
+    status: draft
+    type: yesno_statements
+    stem:
+      en: |
+        Your network contains an AD DS forest that has two domains, **contoso.com** and **east.contoso.com**. The forest contains the following DNS servers that run Windows Server 2025:
+
+        | Server | Configuration |
+        | --- | --- |
+        | DC1 | Domain controller of contoso.com. Hosts the Active Directory-integrated zone secure.contoso.com, which uses the Domain replication scope |
+        | DC5 | Domain controller of east.contoso.com. Recursive DNS server of the east.contoso.com clients; doesn't host secure.contoso.com |
+        | DNS9 | Member server. Recursive DNS server of the lab clients |
+
+        You sign secure.contoso.com on DC1 by using the Zone Signing Wizard and you select **Enable the distribution of trust anchors for this zone**. No Name Resolution Policy Table (NRPT) rule exists, and Active Directory replication completes.
+
+        For each of the following statements, select **Yes** if the statement is true. Otherwise, select **No**.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Votre réseau contient une forêt AD DS qui comprend deux domaines, **contoso.com** et **east.contoso.com**. La forêt contient les serveurs DNS suivants, qui exécutent Windows Server 2025 :
+
+        | Serveur | Configuration |
+        | --- | --- |
+        | DC1 | Contrôleur de domaine de contoso.com. Héberge la zone intégrée à Active Directory secure.contoso.com, qui utilise l'étendue de réplication Domain |
+        | DC5 | Contrôleur de domaine de east.contoso.com. Serveur DNS récursif des clients de east.contoso.com ; n'héberge pas secure.contoso.com |
+        | DNS9 | Serveur membre. Serveur DNS récursif des clients du laboratoire |
+
+        Vous signez secure.contoso.com sur DC1 à l'aide de l'Assistant Signature de zone et vous sélectionnez **Enable the distribution of trust anchors for this zone**. Aucune règle de la table de stratégie de résolution de noms (NRPT) n'existe, et la réplication Active Directory est terminée.
+
+        Pour chacune des affirmations suivantes, sélectionnez **Oui** si l'affirmation est vraie. Sinon, sélectionnez **Non**.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      statements:
+        - { id: s1, text: { en: "DC5 has the trust anchors of secure.contoso.com.", fr: "DC5 dispose des ancres d'approbation de secure.contoso.com." } }
+        - { id: s2, text: { en: "DNS9 has the trust anchors of secure.contoso.com.", fr: "DNS9 dispose des ancres d'approbation de secure.contoso.com." } }
+        - { id: s3, text: { en: "The clients that use DC5 accept only validated answers for names in secure.contoso.com.", fr: "Les clients qui utilisent DC5 n'acceptent que des réponses validées pour les noms de secure.contoso.com." } }
+    answer:
+      values: { s1: true, s2: false, s3: false }
+    explanation:
+      correct:
+        en: |
+          On domain controllers, trust anchors are stored in the forest directory partition and replicate to all the domain controllers of the forest, whatever the replication scope of the zone: DC5 receives them. DNS9 isn't a domain controller; its trust anchors are kept in its own TrustAnchors.dns file and must be added on it. Trust anchors let a server validate answers, but a client requires validation only when an NRPT rule tells it to, and none exists.
+        fr: |
+          Sur les contrôleurs de domaine, les ancres d'approbation sont stockées dans la partition d'annuaire de la forêt et se répliquent vers tous les contrôleurs de domaine de la forêt, quelle que soit l'étendue de réplication de la zone : DC5 les reçoit. DNS9 n'est pas un contrôleur de domaine ; ses ancres d'approbation sont conservées dans son propre fichier TrustAnchors.dns et doivent y être ajoutées. Les ancres d'approbation permettent à un serveur de valider les réponses, mais un client n'exige la validation que si une règle NRPT le lui demande, et il n'en existe aucune.
+      options:
+        s1: { en: "The trust anchors aren't stored in the zone, so the Domain replication scope of secure.contoso.com doesn't limit them.", fr: "Les ancres d'approbation ne sont pas stockées dans la zone : l'étendue de réplication Domain de secure.contoso.com ne les limite pas." }
+        s3: { en: "Without an NRPT rule that requires DNSSEC validation, the clients also accept unvalidated answers.", fr: "Sans règle NRPT exigeant la validation DNSSEC, les clients acceptent aussi des réponses non validées." }
+    references:
+      - title: What is DNSSEC on DNS Server in Windows Server?
+        url: https://learn.microsoft.com/en-us/windows-server/networking/dns/dnssec-overview
+      - title: Sign DNS Zones with DNSSEC on Windows Server
+        url: https://learn.microsoft.com/en-us/windows-server/networking/dns/sign-dnssec-zone
+
+  # ------------------------------------------------------------------ 9
+  - id: az802-qz-41-09
+    objective: "4.1.1"
+    difficulty: 3
+    status: draft
+    type: single
+    stem:
+      en: |
+        Your network contains an AD DS domain named **contoso.com**. The contoso.com zone is Active Directory-integrated and accepts only secure dynamic updates. Aging and scavenging aren't enabled.
+
+        Last month, a member server named **APP5** that had the address 10.1.0.40 was decommissioned and its computer account was deleted. Today, you join a new server named APP5 to the domain. It gets the address 10.1.0.77 from DHCP. Clients still resolve app5.contoso.com to 10.1.0.40, and the new APP5 logs an event that the update of its A record was refused.
+
+        You need app5.contoso.com to resolve to the new server today and to stay updated automatically by the new server. The zone must keep accepting only secure dynamic updates.
+
+        What should you do?
+      fr: |
+        Votre réseau contient un domaine AD DS nommé **contoso.com**. La zone contoso.com est intégrée à Active Directory et n'accepte que les mises à jour dynamiques sécurisées. Le vieillissement et le nettoyage ne sont pas activés.
+
+        Le mois dernier, un serveur membre nommé **APP5** qui avait l'adresse 10.1.0.40 a été mis hors service et son compte d'ordinateur a été supprimé. Aujourd'hui, vous joignez au domaine un nouveau serveur nommé APP5. Il obtient l'adresse 10.1.0.77 par DHCP. Les clients résolvent toujours app5.contoso.com en 10.1.0.40, et le nouveau serveur APP5 journalise un événement indiquant que la mise à jour de son enregistrement A a été refusée.
+
+        Vous devez faire en sorte qu'app5.contoso.com se résolve dès aujourd'hui vers le nouveau serveur et reste mis à jour automatiquement par ce serveur. La zone doit continuer à n'accepter que les mises à jour dynamiques sécurisées.
+
+        Que devez-vous faire ?
+    body:
+      options:
+        - { id: a, text: { en: "Add the computer account of the new APP5 to the DnsUpdateProxy group, and then run ipconfig /registerdns on APP5.", fr: "Ajouter le compte d'ordinateur du nouveau serveur APP5 au groupe DnsUpdateProxy, puis exécuter ipconfig /registerdns sur APP5." } }
+        - { id: b, text: { en: "Restart the DNS Client service on APP5, and then run ipconfig /registerdns on APP5.", fr: "Redémarrer le service Client DNS sur APP5, puis exécuter ipconfig /registerdns sur APP5." } }
+        - { id: c, text: { en: "Change the address of the existing app5 A record to 10.1.0.77 in DNS Manager.", fr: "Remplacer l'adresse de l'enregistrement A app5 existant par 10.1.0.77 dans le Gestionnaire DNS." } }
+        - { id: d, text: { en: "Delete the existing app5 A record, and then run ipconfig /registerdns on APP5.", fr: "Supprimer l'enregistrement A app5 existant, puis exécuter ipconfig /registerdns sur APP5." } }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          In a zone that accepts only secure updates, a record can be updated only by its owner, here the deleted computer account of the old APP5. A stale A record therefore blocks every other computer from registering that name. Deleting the record lets the new APP5 register it again with `ipconfig /registerdns`; the new computer account becomes its owner and keeps it updated.
+        fr: |
+          Dans une zone qui n'accepte que les mises à jour sécurisées, un enregistrement ne peut être mis à jour que par son propriétaire, ici le compte d'ordinateur supprimé de l'ancien APP5. Un enregistrement A obsolète empêche donc tout autre ordinateur d'inscrire ce nom. Supprimer l'enregistrement permet au nouveau serveur APP5 de l'inscrire de nouveau avec `ipconfig /registerdns` ; le nouveau compte d'ordinateur en devient propriétaire et le tient à jour.
+      options:
+        a: { en: "DnsUpdateProxy leaves unsecured the records that its members create; it gives no right on a record already secured by another account.", fr: "DnsUpdateProxy laisse non sécurisés les enregistrements que ses membres créent ; il ne donne aucun droit sur un enregistrement déjà sécurisé par un autre compte." }
+        b: { en: "The registration is refused again, because the existing record still belongs to the deleted computer account.", fr: "L'inscription est de nouveau refusée, car l'enregistrement existant appartient toujours au compte d'ordinateur supprimé." }
+        c: { en: "The record would resolve correctly today, but it would still belong to the old account, so the new APP5 couldn't update it when its address changes.", fr: "L'enregistrement se résoudrait correctement aujourd'hui, mais il appartiendrait toujours à l'ancien compte : le nouveau serveur APP5 ne pourrait pas le mettre à jour quand son adresse changera." }
+    references:
+      - title: Dynamic DNS Update in Windows and Windows Server
+        url: https://learn.microsoft.com/en-us/windows-server/networking/dns/dynamic-update
+
+  # ------------------------------------------------------------------ 10
+  - id: az802-qz-41-10
+    objective: "4.1.6"
+    difficulty: 3
+    status: draft
+    type: single
+    stem:
+      en: |
+        Your network contains an AD DS forest named **contoso.com**. The domain controllers host the Active Directory-integrated zone contoso.com, which is signed with DNSSEC. The trust anchors of contoso.com are on every DNS server that performs DNSSEC validation, and those servers have no other trust anchors.
+
+        A member server named **DNS7** hosts the file-backed primary zone **lab.contoso.com**, which is delegated from the contoso.com zone. You sign lab.contoso.com on DNS7.
+
+        You need the validating DNS servers to validate the answers for names in lab.contoso.com. The solution must minimize administrative effort.
+
+        What should you do?
+      fr: |
+        Votre réseau contient une forêt AD DS nommée **contoso.com**. Les contrôleurs de domaine hébergent la zone intégrée à Active Directory contoso.com, qui est signée avec DNSSEC. Les ancres d'approbation de contoso.com se trouvent sur chaque serveur DNS qui effectue la validation DNSSEC, et ces serveurs n'ont aucune autre ancre d'approbation.
+
+        Un serveur membre nommé **DNS7** héberge la zone principale stockée dans un fichier **lab.contoso.com**, déléguée depuis la zone contoso.com. Vous signez lab.contoso.com sur DNS7.
+
+        Vous devez faire en sorte que les serveurs DNS de validation valident les réponses pour les noms de lab.contoso.com. La solution doit réduire au minimum l'effort d'administration.
+
+        Que devez-vous faire ?
+    body:
+      options:
+        - { id: a, text: { en: "Add the DS record of lab.contoso.com to the lab.contoso.com zone on DNS7.", fr: "Ajouter l'enregistrement DS de lab.contoso.com à la zone lab.contoso.com sur DNS7." } }
+        - { id: b, text: { en: "Apply to the clients an NRPT rule for .lab.contoso.com that requires DNSSEC validation.", fr: "Appliquer aux clients une règle NRPT pour .lab.contoso.com qui exige la validation DNSSEC." } }
+        - { id: c, text: { en: "Add the DS record of lab.contoso.com to the contoso.com zone on a domain controller.", fr: "Ajouter l'enregistrement DS de lab.contoso.com à la zone contoso.com sur un contrôleur de domaine." } }
+        - { id: d, text: { en: "Sign lab.contoso.com again on DNS7 by using NSEC3 instead of NSEC.", fr: "Signer de nouveau lab.contoso.com sur DNS7 en utilisant NSEC3 au lieu de NSEC." } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          A DS record in the parent zone creates a secure delegation: resolvers that trust contoso.com can follow the chain of trust to the keys of lab.contoso.com without a trust anchor for the child zone. Signing a zone doesn't create the DS record; you add it to the parent zone, here once on a domain controller, from which AD DS replicates it.
+        fr: |
+          Un enregistrement DS dans la zone parente crée une délégation sécurisée : les résolveurs qui approuvent contoso.com peuvent suivre la chaîne de confiance jusqu'aux clés de lab.contoso.com sans ancre d'approbation pour la zone enfant. Signer une zone ne crée pas l'enregistrement DS ; vous l'ajoutez à la zone parente, ici une seule fois sur un contrôleur de domaine, à partir duquel AD DS le réplique.
+      options:
+        a: { en: "A DS record secures a delegation only in the parent zone; in the child zone, resolvers never use it to build the chain of trust.", fr: "Un enregistrement DS ne sécurise une délégation que dans la zone parente ; dans la zone enfant, les résolveurs ne l'utilisent jamais pour construire la chaîne de confiance." }
+        b: { en: "An NRPT rule makes the clients require validation; it doesn't give the DNS servers a way to validate lab.contoso.com.", fr: "Une règle NRPT fait exiger la validation par les clients ; elle ne donne pas aux serveurs DNS le moyen de valider lab.contoso.com." }
+        d: { en: "NSEC3 changes how nonexistent names are proven and prevents zone walking; it doesn't link lab.contoso.com to the trusted parent zone.", fr: "NSEC3 change la façon de prouver l'inexistence d'un nom et empêche le parcours de zone ; il ne relie pas lab.contoso.com à la zone parente approuvée." }
+    references:
+      - title: What is DNSSEC on DNS Server in Windows Server?
+        url: https://learn.microsoft.com/en-us/windows-server/networking/dns/dnssec-overview

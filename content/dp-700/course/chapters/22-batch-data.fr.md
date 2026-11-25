@@ -7,7 +7,7 @@ L'ingestion et la transformation par lots sont le cœur de l'examen : choisir le
 | --- | --- | --- | --- |
 | Données | Fichiers de tout format plus tables Delta | Tables structurées, schémas en étoile | Événements, journaux, télémétrie, séries chronologiques, JSON |
 | Écriture avec | Spark, Dataflow Gen2, pipelines, flux d'événements | T-SQL (`INSERT`, `UPDATE`, `DELETE`, `MERGE`, `COPY INTO`, CTAS), pipelines, Dataflow Gen2 | Flux d'événements, ingestion KQL, stratégies de mise à jour |
-| Lecture avec | Spark ; T-SQL en **lecture seule** via le point de terminaison d'analytique SQL | T-SQL | KQL (et T-SQL) |
+| Lecture avec | Spark ; T-SQL en **lecture seule** via le point de terminaison d'analytique SQL | T-SQL | KQL (et T-SQL en lecture seule) |
 | Transactions | Par table Delta | Transactions T-SQL multitables | Ingestion optimisée pour l'ajout |
 | Équipe type | Ingénieurs données, PySpark | Développeurs SQL | Analystes en temps réel |
 
@@ -40,7 +40,8 @@ Les trois gardent leurs données dans OneLake (l'eventhouse via la disponibilit�
 Un raccourci est un pointeur : les données restent dans la cible et sont lues sur place, sans copie ni planification.
 
 - Créez-le dans un **lakehouse** (Tables ou Files) ou une **base de données KQL** : **Nouveau raccourci**, choisissez la source, puis le dossier ou la table.
-- Cibles internes : lakehouses, entrepôts, bases de données KQL, bases de données mises en miroir et autres éléments Fabric. Cibles externes : ADLS Gen2, Stockage Blob Azure, Amazon S3 et compatible S3, Google Cloud Storage, Dataverse, et sources locales via une passerelle.
+- Raccourcis de lakehouse : les cibles internes sont les lakehouses, entrepôts, bases de données KQL, bases de données mises en miroir et autres éléments Fabric ; les cibles externes sont ADLS Gen2, Stockage Blob Azure, Amazon S3 et compatible S3, Google Cloud Storage, Dataverse, et les sources locales via une passerelle.
+- Raccourcis de base de données KQL : les cibles internes sont les bases de données KQL, lakehouses et entrepôts ; les cibles externes sont ADLS, Amazon S3 et Google Cloud Storage.
 - Dans **Tables**, un raccourci doit se trouver au **niveau supérieur** et pointer vers des données **Delta** pour être reconnu comme table. Dans **Files**, n'importe quel dossier et format.
 - **Authentification** : un raccourci interne utilise l'**identité de l'appelant** (qui doit avoir accès à la cible) ; un raccourci externe utilise les informations d'identification de sa **connexion cloud**.
 - **Supprimer un raccourci** ne supprime jamais la cible. **Supprimer un fichier ou un dossier via le raccourci** le supprime dans la cible.
@@ -75,8 +76,8 @@ La mise en miroir réplique une base de données externe dans OneLake sous forme
 | Mise en miroir ouverte | Votre application écrit des fichiers de changements dans une zone d'atterrissage via des API publiques | Toute source |
 
 - Créer un miroir produit un élément **base de données mise en miroir** avec un **point de terminaison d'analytique SQL** ; interrogez-le en T-SQL (noms en trois parties entre entrepôts et lakehouses), Spark, Power BI Direct Lake ou par des raccourcis.
-- **Coût** : le calcul de réplication est gratuit ; le stockage est gratuit jusqu'à **1 To par unité de capacité** (64 To sur une F64). Les requêtes sont facturées normalement. Une capacité suspendue arrête la réplication (état **Paused**).
-- **Monitor replication** affiche l'état de la base de données (Running, Running with warning, Stopping/Stopped, Failed, Paused) et, par table, l'état, les **lignes répliquées** (Rows replicated) et l'heure de **dernière exécution** (Last completed). La supervision de l'espace de travail ajoute des journaux dans la table `MirroredDatabaseTableExecution`.
+- **Coût** : le calcul de réplication est gratuit ; le stockage est gratuit jusqu'à **1 To par unité de capacité** (64 To sur une F64). Les requêtes sont facturées normalement. Une capacité suspendue arrête la réplication ; quand la capacité reprend, la base de données mise en miroir reste à l'état **Paused** jusqu'à ce que vous sélectionniez **Resume replication** (après une longue suspension, la mise en miroir peut réamorcer les données depuis le début). Avec une capacité limitée (throttling), la mise en miroir reprend d'elle-même une fois la surcharge terminée.
+- **Monitor replication** affiche l'état de la base de données (Running, Running with warning, Stopping/Stopped, Failed, Paused) et, par table, l'état, les **lignes répliquées** (Rows replicated) et l'heure de **dernière exécution** (Last completed). La supervision de l'espace de travail (préversion) ajoute des journaux dans la table `MirroredDatabaseTableExecution`.
 - La base de données SQL Fabric est mise en miroir automatiquement.
 
 | Exigence | Méthode |
@@ -95,7 +96,7 @@ L'activité **Copy data** déplace des données depuis plus de 50 connecteurs so
 
 - Les sources derrière un pare-feu ou locales passent par une **passerelle de données locale** ou une **passerelle de données de réseau virtuel** ; l'activité se lie à une **connexion** qui détient les informations d'identification.
 - Les destinations de table de lakehouse sont écrites comme des tables Delta (ajout ou remplacement).
-- Autres activités d'un pipeline d'ingestion : **Lookup** (table de contrôle ou filigrane), **Get metadata** (lister des fichiers), **ForEach**, **Delete data**, **Copy job** (exécute un travail de copie), **Dataflow Gen2**, **Notebook**, **Stored procedure**, **SQL script**, **Refresh SQL analytics endpoint** et **Lakehouse maintenance**.
+- Autres activités d'un pipeline d'ingestion : **Lookup** (table de contrôle ou filigrane), **Get metadata** (lister des fichiers), **ForEach**, **Delete data**, **Copy job** (exécute un travail de copie), **Dataflow Gen2**, **Notebook**, **Stored procedure**, **SQL script**, **Refresh SQL analytics endpoint**, **Refresh materialized lake view** et **Lakehouse maintenance**.
 
 Une ingestion pilotée par les métadonnées garde un seul pipeline pour de nombreuses tables :
 
@@ -147,7 +148,7 @@ INSERT INTO dbo.FactReturns (OrderID, ReturnDate, Amount)
 SELECT OrderID, ReturnDate, Amount FROM SalesLakehouse.dbo.returns;
 ```
 
-KQL dans un eventhouse :
+KQL dans un eventhouse (dans une base de données KQL, T-SQL sert uniquement aux requêtes : `SELECT` fonctionne, pas `CREATE`, `INSERT` ni `ALTER`, et `explain` placé devant un `SELECT` renvoie sa traduction en KQL) :
 
 ```kusto
 // Query-time transformation
@@ -252,6 +253,6 @@ Dans un eventhouse, une vue matérialisée garde à jour les données dédupliqu
 - Lakehouse pour Spark et les fichiers, entrepôt pour les écritures T-SQL, eventhouse pour les événements et KQL.
 - Dataflow Gen2 = sans code ; notebook = Spark à grande échelle ; T-SQL = entrepôt ; KQL = eventhouse.
 - Raccourci = aucune copie ; les raccourcis de Tables doivent être Delta au niveau supérieur ; les raccourcis internes utilisent l'identité de l'appelant ; supprimer via un raccourci supprime dans la cible.
-- Mise en miroir = réplica continu en Delta, calcul gratuit, 1 To par CU, Monitor replication pour l'état et les lignes.
+- Mise en miroir = réplica continu en Delta, calcul gratuit, 1 To par CU, Monitor replication pour l'état et les lignes ; après une suspension de la capacité, sélectionner Resume replication.
 - Pipelines : Copy data à grande échelle, passerelles, Lookup et ForEach pour les chargements pilotés par les métadonnées.
 - Dédupliquer avec `row_number()` ou `arg_max`, remplacer les valeurs nulles avec `COALESCE` ou `fillna`, gérer les données tardives avec une fenêtre de rattrapage et `MERGE`.

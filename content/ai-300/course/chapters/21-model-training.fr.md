@@ -126,7 +126,7 @@ AutoML entraîne en parallèle de nombreuses combinaisons d'algorithmes et de ca
 | Données | Types de tâches |
 | --- | --- |
 | Tabulaires | `classification`, `regression`, `forecasting` |
-| Images | Classification d'images, détection d'objets |
+| Images | Classification d'images (multiclasse ou multi-étiquette), détection d'objets, segmentation d'instance ; au moins 10 images, sous forme de MLTable créée à partir de JSONL |
 | Texte | Classification de texte, reconnaissance d'entités nommées |
 
 Les données d'entraînement tabulaires doivent être une **MLTable** contenant la colonne cible.
@@ -158,9 +158,9 @@ ml_client.jobs.create_or_update(job)
 | Métriques de régression et de prévision | `r2_score`, `normalized_mean_absolute_error`, `normalized_root_mean_squared_error`, `spearman_correlation` |
 | Validation par défaut | Plus de 20 000 lignes : 10 % réservés à la validation. 20 000 lignes ou moins : validation croisée (10 plis sous 1 000 lignes, 3 plis sinon) |
 | `timeout_minutes` | Le travail entier, 8 640 minutes (6 jours) par défaut |
-| `trial_timeout_minutes` | Un essai |
+| `trial_timeout_minutes` | Un essai, 43 200 minutes (1 mois) par défaut |
 | `max_trials` | 1 000 par défaut |
-| `max_concurrent_trials` | Essais en parallèle ; alignez-le sur le nombre de nœuds du cluster |
+| `max_concurrent_trials` | Essais en parallèle ; alignez-le sur le nombre de nœuds du cluster (sur une instance de calcul, sur son nombre de cœurs). Ignoré par l'entraînement distribué de classification et de régression |
 | `enable_early_termination` | Arrête le travail quand le score ne s'améliore plus |
 | Algorithmes | `allowed_training_algorithms` ou `blocked_training_algorithms` |
 | Ensembles | `enable_vote_ensemble`, `enable_stack_ensemble` |
@@ -230,7 +230,7 @@ Types d'espace de recherche : `choice` et `randint` (discrets) ; `uniform`, `log
 | `truncation_selection` | Annule les `truncation_percentage` % d'essais les moins bons à chaque intervalle |
 | Aucun (par défaut) | Tous les essais vont jusqu'au bout |
 
-`evaluation_interval` se compte en valeurs enregistrées de la métrique principale ; `delay_evaluation` ignore les premiers intervalles. Dans les limites, `max_total_trials` et `timeout` arrêtent le balayage au premier atteint ; `trial_timeout` plafonne chaque essai.
+`evaluation_interval` se compte en valeurs enregistrées de la métrique principale ; avec `delay_evaluation`, la stratégie s'applique à chaque multiple de `evaluation_interval` supérieur ou égal à `delay_evaluation` (avec 1 et 5 : à partir de l'intervalle 5). Dans les limites, `max_total_trials` et `timeout` arrêtent le balayage au premier atteint ; `trial_timeout` plafonne chaque essai.
 
 > **Piège d'examen.** `objective.primary_metric` doit correspondre exactement au nom que le script enregistre avec `mlflow.log_metric()`. Un balayage sur `accuracy` alors que le script enregistre `val_accuracy` ne produit aucun classement. De même, `grid` avec un paramètre `uniform` est invalide.
 
@@ -330,7 +330,7 @@ jobs:
 | `continue_on_step_failure` | `True` | `False` arrête le pipeline et annule les étapes en cours quand une étape échoue |
 | `force_rerun` | `False` | `True` réexécute toutes les étapes au lieu de réutiliser les sorties précédentes |
 
-Les composants sont **déterministes** par défaut (`is_deterministic: true`) : une étape dont le code, l'environnement, les entrées et les paramètres n'ont pas changé réutilise la sortie précédente. Mettez-le à `false` pour une étape qui lit des données depuis une URL qui change. Les étapes d'un pipeline sont des travaux de commande ou de balayage. Inscrivez les composants avec `az ml component create --file train.yml`, exécutez le pipeline avec `az ml job create --file pipeline.yml` et planifiez-le avec une ressource de planification (voir le chapitre sur la surveillance).
+Les composants sont **déterministes** par défaut (`is_deterministic: true`) : une étape dont le code, l'environnement, les entrées et les paramètres n'ont pas changé réutilise la sortie précédente. Mettez-le à `false` pour une étape qui lit des données depuis une URL qui change. Les étapes d'un pipeline sont des travaux de commande ou de balayage, et un travail parallèle ne s'exécute que comme étape de pipeline. Inscrivez les composants avec `az ml component create --file train.yml`, exécutez le pipeline avec `az ml job create --file pipeline.yml` et planifiez-le avec une ressource de planification (voir le chapitre sur la surveillance).
 
 > **Piège d'examen.** Une étape ne s'exécute pas après une autre à cause de sa position dans le YAML : l'ordre vient des liaisons de données. Une étape qui doit attendre `prep` doit consommer une sortie de `prep`.
 
@@ -361,6 +361,7 @@ history = mlflow.tracking.MlflowClient().get_metric_history(run_id, "loss")
 | Les filtres se combinent avec `AND` uniquement | Pas de `OR` ; lancez deux requêtes |
 | `order_by` n'accepte ni `metrics.*`, ni `params.*`, ni `tags.*` | Triez avec `sort_values` de pandas |
 | Les paramètres se filtrent avec `=`, `!=`, `like` | Les paramètres sont des chaînes : `params.num_boost_round='100'` |
+| Les étiquettes ne prennent pas en charge `!=` | Filtrez les étiquettes avec `=` ou `LIKE` |
 | Les valeurs `attributes.*` sont des chaînes entre guillemets | `attributes.status = 'Failed'` |
 | La recherche renvoie la **dernière** valeur de chaque métrique | Utilisez `get_metric_history` pour la courbe |
 | Aucune expérience indiquée | Recherche dans l'expérience active seulement ; `search_all_experiments=True` élargit la recherche |

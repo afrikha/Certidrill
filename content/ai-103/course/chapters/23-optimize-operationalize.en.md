@@ -24,14 +24,14 @@ Generation parameters:
 | `temperature` | Randomness, 0 to 2 | Low (about 0.2) for factual, legal or extraction tasks; higher (about 0.7) for creative text |
 | `top_p` | Also controls randomness, by limiting the token probability mass | Change temperature **or** top_p, not both |
 | `max_output_tokens` (Responses) / `max_completion_tokens` (Chat Completions) | Caps generated tokens, reasoning tokens included | Too low truncates the answer |
-| `reasoning` effort | How much a reasoning model thinks: `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max` (support varies by model) | Start at `medium`; raise for hard problems, lower for latency and cost |
+| `reasoning` effort | How much a reasoning model thinks: `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max` (supported values and defaults vary by model) | Raise for hard problems, lower for latency and cost; a tuning knob, not the first fix when quality drops |
 | `presence_penalty`, `frequency_penalty` (Chat Completions) | Discourage repeated tokens or topics | Repetitive output |
 
-Most reasoning models reject `temperature`, `top_p`, `presence_penalty`, `frequency_penalty`, `logprobs`, `top_logprobs`, `logit_bias` and `max_tokens`. Prompt them with a clear goal, firm constraints and an explicit output contract instead of prescribing every intermediate step. A `developer` message works like a system message.
+Reasoning models other than GPT-6 Astra don't support `temperature`, `top_p`, `presence_penalty`, `frequency_penalty`, `logprobs`, `top_logprobs`, `logit_bias` and `max_tokens`. Prompt them with a clear goal, firm constraints and an explicit output contract instead of prescribing every intermediate step. A `developer` message works like a system message.
 
 ```json
 {
-  "model": "o4-mini",
+  "model": "gpt-5-mini",
   "reasoning": { "effort": "low" },
   "max_output_tokens": 4000,
   "input": "Classify this ticket as billing, technical or account. Return only the label."
@@ -75,7 +75,7 @@ Use the evaluators as the critic or as the check after the loop:
 | Need | Tool |
 | --- | --- |
 | Is the draft supported by the sources? | Groundedness evaluator, or a critique prompt with the sources |
-| Does it follow the system rules? | Task Adherence |
+| Does it follow the system rules? | Task Adherence (preview) |
 | Weighted score on several custom criteria with per-criterion reasoning | Rubric evaluator (preview) |
 | Why did a response fail? | The `reason` returned with each evaluator score |
 
@@ -86,7 +86,7 @@ Use the evaluators as the critic or as the check after the loop:
 <!-- section: observability | objectives: 2.3.3 -->
 ## Observability: tracing, token analytics, safety signals and latency
 
-**Tracing** records every operation as OpenTelemetry spans in the Application Insights resource connected to the project: model calls, tool executions (`execute_tool`), agent invocations (`invoke_agent`), memory operations, with durations, token counts and, when content recording is on, inputs and outputs. Server-side tracing works for prompt agents once Application Insights is connected; client-side instrumentation adds your application's own spans:
+**Tracing** records every operation as OpenTelemetry spans in the Application Insights resource connected to the project: model calls, tool executions (`execute_tool`), agent invocations (`invoke_agent`), memory operations, with durations, token counts and, when content recording is on, inputs and outputs. Tracing is generally available for prompt and hosted agents (workflow and external agents are in preview) and works for prompt agents once Application Insights is connected. Client-side instrumentation (preview) adds your application's own spans:
 
 ```text
 os.environ["AZURE_EXPERIMENTAL_ENABLE_GENAI_TRACING"] = "true"
@@ -100,7 +100,7 @@ with tracer.start_as_current_span("claim-triage"):   # parent span groups the wh
     response = openai.responses.create(model="gpt-4.1-mini", input=claim_text)
 ```
 
-The `AZURE_EXPERIMENTAL_ENABLE_GENAI_TRACING` variable must be `true` before `instrument()` is called, or tracing isn't enabled. A `ConsoleSpanExporter` prints spans locally for debugging; `configure_azure_monitor` sends them to Application Insights.
+GenAI tracing instrumentation is an experimental preview feature: the `AZURE_EXPERIMENTAL_ENABLE_GENAI_TRACING` variable must be `true` before `instrument()` is called, or tracing isn't enabled. A `ConsoleSpanExporter` prints spans locally for debugging; `configure_azure_monitor` sends them to Application Insights.
 
 **Token analytics.** Every response carries a `usage` object; reasoning tokens are billed as output tokens:
 
@@ -152,11 +152,12 @@ Track input tokens (prompt size, retrieved passages, conversation history), outp
 **Model router** facts:
 
 - Routing modes: **Balanced** (default: the most cost-effective model within about 1–2% of the best quality for the prompt), **Cost** (a wider band, about 5–6%), **Quality** (the best model, ignoring cost).
-- A **model subset** limits the models it can pick; it is also the failover set, so include at least two. New models aren't added unless you add them.
-- Automatic failover to the next model on transient issues, enabled by default.
+- A **model subset** limits the models it can pick (at least one model); new models are excluded from a subset until you add them. Routing across the full pool picks up new models automatically.
+- If the selected model returns a retryable error, the router fails over to the next-best model automatically, with nothing to configure.
 - Supported deployment types: Global Standard and Data Zone Standard.
-- The context window is that of the **smallest** model in the set; routing decisions use text input only; audio isn't processed.
-- Claude models must be deployed separately before the router can use them.
+- The context window is that of the **smallest** model in the set. The router accepts text and image input but routes on the text only; audio input isn't supported.
+- Claude models must be deployed in the same Foundry resource, with a deployment type that matches the router deployment, before the router can use them.
+- Version `2025-11-18` is GA and the default; Auto, session affinity and per-request routing controls are preview.
 
 **Hybrid example.** Litware Insurance must approve claims under 1,000 USD automatically and send larger ones to an adjuster. The LLM extracts the amount, the policy number and the incident type from the claim email as JSON; a rules engine applies the threshold and the policy coverage; only the explanation letter is generated again by the LLM. The decision is reproducible and auditable, and the model never decides the payout.
 
@@ -176,8 +177,8 @@ Track input tokens (prompt size, retrieved passages, conversation history), outp
 - Prompt techniques: system message, few-shot, break down, chain of thought (non-reasoning models), output structure, grounding, repeat at the end, priming.
 - Change temperature or top_p, not both. Reasoning models: `reasoning` effort and `max_output_tokens`; no temperature or top_p.
 - Reflection: generate, critique against criteria, revise, with a bounded number of loops. Don't extract raw reasoning; use reasoning summaries.
-- Tracing: OpenTelemetry spans in Application Insights; set `AZURE_EXPERIMENTAL_ENABLE_GENAI_TRACING` before `instrument()`.
+- Tracing: OpenTelemetry spans in Application Insights; client-side tracing (preview): set `AZURE_EXPERIMENTAL_ENABLE_GENAI_TRACING` before `instrument()`.
 - Tokens: `usage.input_tokens`, `output_tokens`, `output_tokens_details.reasoning_tokens` (billed as output).
 - Safety signals: HTTP 400 `content_filter`, `finish_reason` `content_filter`, annotations, continuous safety evaluation.
-- Model router: Balanced (default), Cost, Quality; model subset = failover set; smallest context window applies.
+- Model router: Balanced (default), Cost, Quality; a model subset excludes new models until you add them; automatic failover; smallest context window applies.
 - Rules decide what must be deterministic; the LLM handles unstructured input and language.

@@ -11,7 +11,8 @@ Rules that decide answers:
 - A secondary can be a single database or a database in an elastic pool, but two secondaries of the same primary can't share a pool.
 - After a failover the endpoint **changes** to the new server: applications need a new connection string (failover groups avoid this).
 - Use database-level firewall rules and contained database users: they replicate with the database. Server-level rules and logins must be recreated on the secondary server.
-- A secondary used for no workload can be designated a license-free standby replica.
+- A secondary used for no workload can be designated a license-free standby replica: provisioned vCore single databases in General Purpose or Business Critical on standard-series or DC-series hardware only (not Hyperscale, serverless, DTU or elastic pools), one standby per primary, not on a chained secondary. Only DR drills, monitoring (DMVs) and maintenance such as `DBCC CHECKDB` are allowed on it.
+- A database that belongs to a failover group can't be failed over with the geo-replication command: fail over the group, or remove the database from the group first.
 
 Portal: database > Replicas > Create replica. T-SQL runs in `master`:
 
@@ -85,7 +86,7 @@ Clients set `MultiSubnetFailover=True`, even in a single subnet. A basic availab
 
 **SQL Managed Instance.** You don't create availability groups on a managed instance: Business Critical already runs one internally. The availability group you configure is the **Managed Instance link**, a distributed availability group between SQL Server and the instance:
 
-1. On SQL Server: enable the Always On availability groups feature, use the FULL recovery model, take a full backup, create a database mirroring endpoint secured with a certificate.
+1. On SQL Server: create a database master key in `master`, enable the Always On availability groups feature (only SQL Server 2016 needs extra Windows Server failover cluster steps for it; SQL Server 2017 and later don't), add the recommended startup trace flags `-T1800` and `-T9567`, use the FULL recovery model, take a full backup, create a database mirroring endpoint secured with a certificate.
 2. Open network connectivity between SQL Server and the instance's subnet (VPN, ExpressRoute or peering for an Azure VM).
 3. In SSMS, run the link wizard (Azure SQL Managed Instance link > Replicate database), or script it with Az.Sql or Azure CLI.
 4. Fail over with the SSMS failover wizard or, from SQL Server 2022 CU13, with T-SQL.
@@ -103,7 +104,7 @@ A failover group replicates a set of databases to a secondary server in another 
 | Setting | SQL Database | SQL Managed Instance |
 | --- | --- | --- |
 | Databases | Chosen databases or elastic pools; several groups per server | All user databases (not `master` or `msdb`); one group per instance |
-| Secondary | A server in another region, same Microsoft Entra tenant | An instance in another region sharing the **DNS zone** of the primary (set at creation), same configuration, networks connected by global peering (recommended), VPN or ExpressRoute |
+| Secondary | A server in another region, same Microsoft Entra tenant (up to four secondary servers per group in preview; the read-only listener then points to one of them) | An instance in another region sharing the **DNS zone** of the primary (set at creation), same configuration, networks connected by global peering (recommended), VPN or ExpressRoute |
 | Seeding | Up to 500 GB per hour | Up to 360 GB per hour |
 
 Failover policy: **customer managed** (`Manual`, recommended) or Microsoft managed (`Automatic`, with a grace period of at least 1 hour before a forced failover with possible data loss). Failover of the read-only listener is disabled by default.
@@ -190,8 +191,8 @@ A growing `log_send_queue_size` means more potential data loss (RPO); a growing 
 | Logins fail after a geo-failover | Server logins missing on the new primary, or created with different SIDs | Create the logins with the same SID, or use contained database users |
 | Clients refused after failover, the database is online | Server-level firewall rules don't replicate | Use database-level firewall rules or set the same server rules on both servers |
 | Applications still connect to the old primary | Connection string uses the server name | Use the failover group listener or the availability group listener with `MultiSubnetFailover=True` |
-| Cluster evicts nodes (event 1135), lease expired (errors 19407, 19419) | Monitoring thresholds too aggressive for Azure | Relaxed monitoring: SameSubnetThreshold and CrossSubnetThreshold 40, lease timeout 40 seconds, health check timeout 60 seconds |
-| Availability group doesn't fail over again after several failovers | Max failures in the specified period reached (default 2) | Increase it in the clustered role's failover properties |
+| Cluster evicts nodes (event 1135), lease expired (errors 19407, 19419) | Monitoring thresholds too aggressive for Azure | Relaxed monitoring: SameSubnetThreshold and CrossSubnetThreshold 40, lease timeout 40 seconds, health check timeout 60 seconds, session timeout 20 seconds, failure-condition level 2 |
+| Availability group doesn't fail over again after several failovers | Max failures in the specified period reached (default 2) | Increase it (relaxed value 6) in the clustered role's failover properties |
 | Listener with VNN unreachable | Load balancer without floating IP, or probe port blocked | Enable Direct Server Return and open the probe port; or switch to DNN or multi-subnet |
 | Transaction log of the primary keeps growing | A secondary replica is disconnected or suspended: the log can't be truncated | Fix the connection, then `ALTER DATABASE [SalesDb] SET HADR RESUME;` on the secondary, or remove the replica |
 | Replication lag grows | Secondary under-sized, or a large write burst | Scale the secondary to the primary's size (scale it up first) |

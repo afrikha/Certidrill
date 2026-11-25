@@ -30,7 +30,7 @@ Set-ProcessMitigation -Name C:\Apps\Lob\app.exe -Enable AuditDynamicCode
 To deploy one configuration to many servers, **export it as an XML file** from a reference machine, then deploy that file:
 
 - Group Policy: **Computer Configuration > Administrative Templates > Windows Components > Microsoft Defender Exploit Guard > Exploit Protection > Use a common set of exploit protection settings**, Enabled, with the local path, UNC path or URL of the XML file.
-- System-level changes require a restart; program-level changes don't.
+- Some changes need a restart of the app or of Windows; Windows Security tells you when one is needed.
 
 > **Exam trap.** System-level mitigations (DEP, ASLR, CFG, SEHOP, heap integrity) have no audit mode. If the requirement is "evaluate the impact before blocking", use an app-level mitigation that supports audit, such as ACG or Don't allow child processes.
 
@@ -179,6 +179,8 @@ Then configure the GPO **Computer Configuration > Policies > Administrative Temp
 
 Windows Server 2025 adds **passphrases**, **automatic account management** (LAPS creates its own account, optionally with a random name) and **image rollback detection** (needs the latest `Update-LapsADSchema`).
 
+With automatic account management (`AutomaticAccountManagementEnabled`), `AdministratorAccountName` is ignored. By default LAPS manages a **new custom account** (`AutomaticAccountManagementTarget` 1; 0 = the built-in Administrator) named `WLapsAdmin`, and the managed account is **disabled** (`AutomaticAccountManagementEnableAccount` 0). With `AutomaticAccountManagementRandomizeName`, the name becomes a prefix followed by a random six-digit suffix at each rotation.
+
 ```powershell
 Get-LapsADPassword -Identity SRV1 -AsPlainText
 Set-LapsADPasswordExpirationTime -Identity SRV1   # rotate at next processing
@@ -198,8 +200,10 @@ Defender for Servers is a plan of **Microsoft Defender for Cloud**. It protects 
 | Defender for Endpoint (EDR), alerts and incidents | Yes | Yes |
 | Agent-based vulnerability scanning, software inventory | Yes | Yes |
 | Agentless scanning (vulnerabilities, malware, secrets) | No | Yes |
-| File integrity monitoring | No | Yes |
+| File integrity monitoring (AWS and GCP machines: through Azure Arc) | No | Yes |
+| OS system updates (on-premises and other clouds: Azure Arc machines only) | No | Yes |
 | Just-in-time VM access | No | Yes |
+| Network map (Azure) | No | Yes |
 | 500 MB free daily data ingestion | No | Yes |
 | Enable on one resource | Yes | No (subscription only) |
 

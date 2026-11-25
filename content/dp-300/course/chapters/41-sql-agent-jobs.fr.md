@@ -137,7 +137,7 @@ ORDER BY h.instance_id DESC;
 | Symptôme | Cause probable | Correction |
 | --- | --- | --- |
 | Le travail ne démarre jamais | Service Agent arrêté (machine virtuelle), travail ou planification désactivé, pas de `sp_add_jobserver`, date de fin de planification dépassée | Démarrer le service et le passer en automatique ; activer le travail et la planification ; cibler le serveur |
-| SSMS affiche un nœud Agent vide | Option serveur `Agent XPs` désactivée | Démarrer SQL Server Agent (ce qui active `Agent XPs`) ou `sp_configure 'Agent XPs', 1` |
+| SSMS affiche un nœud Agent vide | Option serveur `Agent XPs` désactivée | Démarrer SQL Server Agent depuis SSMS (ce qui active automatiquement `Agent XPs`) ou exécuter `sp_configure 'Agent XPs', 1` |
 | Échec avec « impossible de déterminer si le propriétaire a accès au serveur » | La connexion du propriétaire du travail a été désactivée ou supprimée (par exemple le compte de domaine d'un employé parti) | `sp_update_job @owner_login_name` vers une connexion valide, comme une connexion de service dédiée |
 | Une étape ne peut pas lire ou écrire dans un partage ou un dossier | Le compte de service SQL Server Agent (ou les informations d'identification du proxy) n'a pas les autorisations | Accorder les droits au compte, ou utiliser un proxy avec des informations d'identification qui les ont |
 | Une étape CmdExec, PowerShell ou SSIS échoue pour un propriétaire non `sysadmin` | Aucun proxy pour ce sous-système | Créer des informations d'identification et un proxy, accorder le proxy au propriétaire, le sélectionner dans l'étape (pas sur Managed Instance) |

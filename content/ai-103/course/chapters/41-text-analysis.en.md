@@ -46,6 +46,7 @@ Schema rules in strict mode:
 - Not supported: `minLength`, `maxLength`, `pattern`, `format`, `minimum`, `maximum`, `minItems`, `maxItems` and similar constraints. Validate those in code.
 - Not compatible with parallel function calls (set `parallel_tool_calls` to `false`).
 - Check the `refusal` field: a model that declines returns a refusal instead of the schema.
+- Not supported with bring-your-own-data scenarios, Assistants or Foundry Agent Service, or `gpt-audio` and `gpt-audio-mini`.
 
 **Azure Language in Foundry Tools** classifies its features in two groups:
 
@@ -109,7 +110,7 @@ for entity in pii.entities:
     print(entity.category, entity.confidence_score)
 ```
 
-Text PII detection (GA) also supports a confidence threshold, excluded values, entity synonyms and the `syntheticReplacement` redaction policy, which replaces detected values with realistic fake ones. On a model deployment, the guardrails include a **PII** filter on outputs, beside protected material and groundedness.
+Text PII detection (GA) also supports a confidence threshold, excluded values, entity synonyms and the `syntheticReplacement` redaction policy, which replaces detected values with realistic fake ones. On a model deployment, the guardrails include a **Personally identifiable information** control (preview) that scans model outputs, beside protected material (text and code) and groundedness (preview). Groundedness detection in Azure OpenAI retires on April 30, 2027.
 
 > **Exam trap.** Content Safety detects **harm**; it doesn't detect personal data. To find and redact phone numbers or account numbers, use Azure Language **PII detection**.
 
@@ -162,7 +163,8 @@ Other facts:
 - An LLM engine requires a **Microsoft Foundry resource**, and isn't available when the Translator resource uses a **private endpoint**.
 - Limits per request: NMT 1,000 array elements of up to 50,000 each; LLM 50 elements of up to 5,000 each.
 - Billing: NMT per source character; LLM per input and output token, at Azure OpenAI prices.
-- Adaptive custom translation builds a bilingual index in minutes from 5 to 10,000 prealigned segment pairs (500 characters maximum per pair).
+- Adaptive custom translation builds a bilingual index in minutes from 5 to 10,000 prealigned segment pairs (250 characters maximum per segment; longer segments are rejected). Its playground is GA; its dataset API (v1.0) is in preview.
+- Version `2026-06-06` removed the Detect, BreakSentence, Dictionary Lookup and Dictionary Examples operations: detect a language with Azure Language language detection, or omit `language` in the translate request.
 
 An **LLM-powered translation flow** without Translator is a prompt: target language, glossary, tone and "keep product names, codes and placeholders unchanged" in the instructions, and a structured output when several languages come back together.
 

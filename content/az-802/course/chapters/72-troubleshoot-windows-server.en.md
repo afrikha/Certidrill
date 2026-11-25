@@ -107,7 +107,7 @@ w32tm /config /syncfromflags:domhier /update
 | `Local CMOS Clock` | Not synchronized (no source reachable, or service just started) |
 | `time.windows.com` | Default NTP source of a non-domain machine |
 
-Virtual machines: by default, Azure Marketplace Windows images use both the host (**VMICTimeProvider**) and time.windows.com. A virtualized DC, and particularly the PDC emulator, shouldn't follow its host: disable the VMICTimeProvider (`HKLM\SYSTEM\CurrentControlSet\Services\w32time\TimeProviders\VMICTimeProvider`, `Enabled` = 0) so it uses the domain hierarchy or the configured NTP source.
+Virtual machines: by default, Azure Marketplace Windows images use both the host (**VMICTimeProvider**) and time.windows.com. On domain-joined machines the domain sets the hierarchy, but the forest root PDC emulator still needs a source. On Hyper-V, Microsoft recommends disabling host time synchronization for VMs that are domain controllers: turn the VM off and clear **Time synchronization** under **Integration Services**, so the DC synchronizes with the domain hierarchy instead.
 
 > **Exam trap.** After moving the PDC emulator role, the new PDC emulator must get the external NTP configuration, and the former one must return to `/syncfromflags:domhier`; otherwise the forest has two "reliable" sources or none.
 
@@ -162,6 +162,7 @@ Remove-AzConnectedMachineExtension -Name AzureMonitorWindowsAgent -ResourceGroup
 - An extension that isn't **Succeeded**: remove it, then install it again. Stuck in **Deleting**: delete it with `az connectedmachine extension delete`, then remove its folder under `C:\Packages\Plugins\` if needed.
 - Extension manager logs: `%SystemDrive%\ProgramData\GuestConfig\ext_mgr_logs` (`gc_ext.log` shows download and verification errors); per-extension logs under `C:\ProgramData\GuestConfig`.
 - Local security controls refuse installs and report a failure to Azure: an **allowlist** (only listed extensions), a **blocklist**, `extensions.enabled false` (extension manager off) or **monitor mode**. They can be changed only on the server itself, and in monitor mode the lists can't be changed until `azcmagent config set config.mode full`.
+- An extension in both lists is blocked; once an allowlist exists, every unlisted extension is blocked (deleting an extension stays allowed). `azcmagent config set` **replaces** a list unless you add `--add` (append) or `--remove`; `azcmagent config clear` clears a property's value.
 
 ```powershell
 azcmagent config set extensions.allowlist "Microsoft.Azure.Monitor/AzureMonitorWindowsAgent"
@@ -193,7 +194,7 @@ Backup-BitLockerKeyProtector -MountPoint C: -KeyProtectorId $kp.KeyProtectorId
 **Azure Disk Encryption (ADE)** uses BitLocker with keys in Azure Key Vault. ADE is **retired on September 15, 2028**: use **encryption at host** for new VMs and migrate existing ones. Common ADE failures:
 
 - Key vault in another **region or subscription** than the VM, or not enabled for disk encryption.
-- A domain GPO that **enforces TPM protectors** (ADE uses an external key protector) or blocks AES-CBC.
+- A domain GPO that **enforces TPM protectors** (ADE uses an external key protector) or blocks AES-CBC; a custom BitLocker GPO without **Allow 256-bit recovery key** (*Configure user storage of BitLocker recovery information*); MBAM Group Policy features, which aren't compatible with ADE.
 - The VM can't reach the extension repository, storage or Key Vault endpoints.
 - Unsupported VM: Basic or A-series, less than 2 GB of memory, v6 or later series.
 

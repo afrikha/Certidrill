@@ -46,7 +46,7 @@ Items that a database-level migration doesn't carry over and that you must plan 
 <!-- section: online-migration | objectives: 1.3.3 -->
 ## Implementing an online migration
 
-**Managed Instance link** replicates one database per link in near real time from SQL Server 2016 or later (Enterprise, Developer or Standard). During replication the database on the managed instance is **read-only**, which also allows testing and reporting before the cutover. Prerequisites: network connectivity from SQL Server to the instance, a database mirroring endpoint (port 5022 by default), certificate-based trust between the two sides. Only user databases are replicated, not logins, jobs or server objects. Cutover: stop the application, fail the link over to the managed instance, repoint the connection strings. With SQL Server 2022 or later the link can also fail back.
+**Managed Instance link** replicates one database per link in near real time from SQL Server 2016 or later (Enterprise, Developer or Standard). During replication the database on the managed instance is **read-only**, which also allows testing and reporting before the cutover. Prerequisites on SQL Server: the Always On availability groups feature enabled (a service restart is needed) and multiple-database link mode enabled; a database master key in `master`, which protects the certificates of the trust between the two sides; a database mirroring endpoint (port 5022 by default); every replicated database in the full recovery model with at least one full backup. Network: port 5022 open in both directions and the range 11000-11999 open from SQL Server to the managed instance subnet, with no overlapping IP ranges. Trace flags `-T1800` and `-T9567` are recommended. Only user databases are replicated, not logins, jobs or server objects. Cutover: stop the application, fail the link over to the managed instance, repoint the connection strings. With SQL Server 2022 or later the link can also fail back.
 
 **Log Replay Service (LRS)** in **continuous** mode:
 
@@ -101,7 +101,7 @@ SqlPackage /a:Export /ssn:sqlsrv01 /sdn:SalesDb /tf:SalesDb.bacpac
 SqlPackage /a:Import /tsn:sql-contoso-prod.database.windows.net /tdn:SalesDb /sf:SalesDb.bacpac /ua:True /tid:"contoso.onmicrosoft.com"
 ```
 
-Import constraints: the portal creates only a single Azure SQL database, from a BACPAC in Blob Storage; a BACPAC into a managed instance needs SqlPackage or SSMS; importing into an elastic pool isn't supported by the portal, PowerShell or Azure CLI; the Import/Export service doesn't work with storage behind a firewall or when "Allow access to Azure services" is off.
+Import constraints: the portal creates only a single Azure SQL database, from a BACPAC in Blob Storage; a BACPAC into a managed instance needs SqlPackage or SSMS; importing into an elastic pool isn't supported by the portal, PowerShell or Azure CLI; the Import/Export service doesn't work with storage behind a firewall, when "Allow access to Azure services" is off, or with Microsoft Entra authentication when MFA is required.
 
 **Database Migration Service, offline** to Azure SQL Database migrates schema and data; it doesn't migrate logins or TDE-encrypted databases.
 
@@ -119,7 +119,7 @@ Whatever the tool, the procedure follows the same order:
 
 Keep the source **database compatibility level** at first and raise it after testing, with Query Store capturing plans before and after, to detect regressions.
 
-For a **SQL Server on Azure Virtual Machines** target, the common choices are backup and restore through Blob Storage (offline), Database Migration Service online, or adding the virtual machine as a replica of an existing availability group and failing over (online, minimal downtime).
+For a **SQL Server on Azure Virtual Machines** target, the common choices are backup and restore through Blob Storage (offline), Database Migration Service online or offline, or a **distributed availability group** when an availability group is already configured on-premises (minimal downtime). Azure Migrate moves a whole server as is (lift and shift).
 
 <!-- section: between-azure-sql | objectives: 1.3.6 -->
 ## Migrating between Azure SQL services
@@ -132,7 +132,7 @@ For a **SQL Server on Azure Virtual Machines** target, the common choices are ba
 | Azure SQL Database | Managed Instance | BACPAC export and import with SqlPackage (no native backup exists in SQL Database) |
 | Managed Instance | Azure SQL Database | BACPAC, or transactional replication with the managed instance as publisher |
 | Managed Instance | Managed Instance, same region | Database copy or move |
-| Managed Instance | SQL Server 2022 or SQL Server 2025 | `COPY_ONLY` backup to URL and restore, if the update policy matches the target version |
+| Managed Instance | SQL Server 2022 or SQL Server 2025 | `COPY_ONLY` backup to URL and restore `WITH MOVE` (explicit file paths), if the update policy matches the target version. A database encrypted with a service-managed TDE key (the default) can't be restored: it needs a customer-managed key that SQL Server reaches through the SQL Server Connector for Azure Key Vault |
 | SQL Server on Azure Virtual Machines | Managed Instance | Same tools as from on-premises: Managed Instance link, LRS, Database Migration Service |
 
 ```text
@@ -165,7 +165,7 @@ Rules:
 - Source and destination are different instances in the **same Azure region**; different subscriptions are allowed within the same Microsoft Entra tenant.
 - Different virtual networks need connectivity (for example peering) and TCP ports **5022** and **11000-11999** open in both directions.
 - User databases only, one operation per database at a time, up to eight concurrent operations per source instance; no rename during the operation.
-- Databases in a failover group or a Managed Instance link can't be copied or moved.
+- Databases in a failover group or a Managed Instance link can't be copied or moved, and neither the source nor the destination instance should be configured with a failover group.
 - Point-in-time backups don't follow: a new backup chain starts on the destination. Tags aren't copied; transactional replication, change data capture and distributed transactions must be reconfigured after a move.
 - The destination needs a matching or higher **update policy**, and access to the same Key Vault key for a customer-managed TDE protector.
 
@@ -194,7 +194,7 @@ FROM sys.dm_hadr_physical_seeding_stats;
 | BACPAC over 150 GB fails to import from the portal ("File contains corrupted data") or "not enough space on the disk" | Import/Export service limits (450 GB local disk) | Import with SqlPackage |
 | Import/Export request fails | Storage behind a firewall, or "Allow access to Azure services" off | Run SqlPackage from an Azure virtual machine |
 | Database Migration Service can't migrate a database | TDE-encrypted database | Use another method (link, LRS, backup and restore with the certificate) |
-| Copy or move doesn't start or stalls | Ports 5022 and 11000-11999 blocked, different region, lower update policy, database in a failover group | Open the ports, choose a valid destination |
+| Copy or move doesn't start or stalls | Ports 5022 and 11000-11999 blocked, different region, lower update policy, failover group on the database or on either instance | Open the ports, choose a valid destination |
 | Queries slower after migration | New compatibility level or outdated statistics | Compare plans in Query Store, force the good plan or lower the compatibility level, update statistics |
 
 <!-- section: key-points -->

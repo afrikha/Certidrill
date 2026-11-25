@@ -1,0 +1,44 @@
+id: kcsa-2c-etcd-auto-tls
+objective: "2.8.2"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    The etcd members of a production cluster are started with the flags below (excerpt). What is the security weakness of this configuration?
+
+    ```text
+    etcd --name member1 \
+      --listen-client-urls=https://10.0.1.10:2379 \
+      --auto-tls=true \
+      --listen-peer-urls=https://10.0.1.10:2380 \
+      --peer-auto-tls=true
+    ```
+body:
+  options:
+    - id: a
+      text: { en: "Traffic is encrypted, but the self-signed certificates do not authenticate clients or peers" }
+    - id: b
+      text: { en: "Client and peer traffic is sent in plain text, because auto-TLS covers only metrics" }
+    - id: c
+      text: { en: "Secrets are written to disk in plain text, because auto-TLS turns off encryption at rest" }
+    - id: d
+      text: { en: "Only the kube-apiserver can connect, so `etcdctl` can no longer take snapshots" }
+answer: { optionId: a }
+explanation:
+  correct:
+    en: |
+      `--auto-tls` and `--peer-auto-tls` make etcd generate self-signed certificates. The etcd documentation describes this mode as encryption without authentication: any client or machine that reaches the ports can connect. Kubernetes guidance is mutual TLS, with `--client-cert-auth` and `--peer-client-cert-auth` and certificates from a CA dedicated to etcd.
+  options:
+    b:
+      en: |
+        Auto-TLS does encrypt client and peer traffic; the problem is that the identities behind the connections are not verified.
+    c:
+      en: |
+        Encryption at rest of Kubernetes resources is done by the kube-apiserver with an EncryptionConfiguration. The etcd TLS flags have no effect on it.
+    d:
+      en: |
+        Auto-TLS does not restrict clients at all. That lack of client authentication is the weakness, not a restriction to the API server.
+references:
+  - title: "Transport security model"
+    url: https://etcd.io/docs/v3.5/op-guide/security/

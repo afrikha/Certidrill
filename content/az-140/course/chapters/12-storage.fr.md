@@ -8,7 +8,7 @@ Les données utilisateur à placer :
 | Données | Où |
 | --- | --- |
 | Profils utilisateur d'un pool d'hôtes regroupé | Conteneur de profil FSLogix (un VHD ou VHDX par utilisateur) sur un partage SMB |
-| Données des Microsoft 365 Apps seules (cache Outlook, Teams, cache OneDrive) | Conteneur ODFC FSLogix, à côté d'une autre solution de profil |
+| Données des Microsoft 365 Apps seules (cache Outlook, Teams, cache OneDrive) | Conteneur ODFC FSLogix, à côté d'une solution de profil tierce (l'usage recommandé d'ODFC) |
 | Profils utilisateur d'un pool d'hôtes personnel | Peuvent rester sur le disque du système d'exploitation de l'hôte de session de l'utilisateur ; FSLogix reste utile pour reconstruire ou remplacer l'hôte |
 | Packages App attach | Un partage SMB distinct, lu par les hôtes de session |
 
@@ -49,7 +49,7 @@ Règles de dimensionnement :
 | Composant | Clé de paramètres | Paramètre de stockage |
 | --- | --- | --- |
 | Conteneur de profil | `HKLM\SOFTWARE\FSLogix\Profiles` | `Enabled` = 1, `VHDLocations` = un ou plusieurs chemins SMB |
-| Conteneur ODFC | `HKLM\SOFTWARE\Policies\FSLogix\ODFC` | `Enabled` = 1, `VHDLocations` = chemins SMB, souvent un partage distinct |
+| Conteneur ODFC | `HKLM\SOFTWARE\Policies\FSLogix\ODFC` | `Enabled` = 1, `VHDLocations` = chemins SMB. Inutile avec des conteneurs de profils, qui contiennent déjà ces données : une configuration à double conteneur n'est pas recommandée |
 | Cloud Cache | Clé Profiles ou ODFC | `CCDLocations` au lieu de `VHDLocations` : plusieurs fournisseurs de stockage |
 
 ```powershell
@@ -174,6 +174,7 @@ Ordre de mise en œuvre :
 | Standard | Jusqu'à 16 Mio/s |
 | Premium | Jusqu'à 64 Mio/s |
 | Ultra | Jusqu'à 128 Mio/s |
+| Flexible | Défini indépendamment de la capacité, pools de capacité à QoS manuelle uniquement ; au moins 128 Mio/s par pool |
 
 Avec la QoS automatique, le débit d'un volume vaut son quota multiplié par le niveau de service : un volume Premium de 2 Tio obtient 128 Mio/s.
 

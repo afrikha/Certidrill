@@ -72,16 +72,16 @@ Déployez d'abord ce dont les autres dépendent : réseau et infrastructure part
 | Azure Front Door, Traffic Manager | Déplacer le trafic entre régions ou entre les déploiements bleu et vert |
 | Mise à niveau propagée (rolling upgrade) des groupes de machines virtuelles identiques | Mettre à niveau les instances par lots avec surveillance de l'intégrité |
 | Stratégie `rolling` d'un travail de déploiement | Lots de machines virtuelles d'un environnement |
-| Emplacements de déploiement App Service | Déployer en préproduction (staging), préchauffer, permuter avec la production |
+| Emplacements de déploiement App Service | Déployer en préproduction (staging), préchauffer, échanger avec la production |
 
-Les emplacements exigent le niveau **Standard, Premium ou Isolated**, sans coût supplémentaire : jusqu'à 5 emplacements en Standard et 20 en Premium et Isolated. Une permutation applique d'abord les paramètres d'emplacement de la cible aux instances de la source et les redémarre, attend le préchauffage, puis bascule le routage : la production reste en ligne et la permutation est elle-même une restauration (permuter à nouveau).
+Les emplacements exigent le niveau **Standard, Premium ou Isolated**, sans coût supplémentaire : jusqu'à 5 emplacements en Standard et 20 en Premium et Isolated. Un échange applique d'abord les paramètres d'emplacement de la cible aux instances de la source et les redémarre, attend le préchauffage, puis bascule le routage : la production reste en ligne et l'échange est lui-même une restauration (échanger à nouveau).
 
-| Permuté avec l'application | Reste dans l'emplacement |
+| Échangé avec l'application | Reste dans l'emplacement |
 | --- | --- |
 | Paramètres d'application et chaînes de connexion non marqués comme paramètre d'emplacement, versions d'infrastructure, mappages de gestionnaires, contenu WebJobs | Paramètres marqués **Paramètre d'emplacement de déploiement**, points de terminaison de publication, domaines personnalisés, certificats non publics et paramètres TLS, paramètres de mise à l'échelle, identités managées, intégration au réseau virtuel |
 
-- **Permutation avec aperçu** s'arrête après l'application des paramètres de la cible, pour valider avant **Terminer la permutation** ou **Annuler la permutation**.
-- **Permutation automatique** permute après chaque déploiement dans l'emplacement ; non prise en charge pour les applications web Linux ni pour Web App for Containers.
+- **Échange avec aperçu** s'arrête après l'application des paramètres de la cible, pour valider avant **Complete Swap** ou **Cancel Swap**.
+- **Échange automatique** : échange automatiquement après chaque déploiement dans l'emplacement ; non pris en charge pour les applications web Linux ni pour Web App for Containers.
 - Préchauffage : `applicationInitialization` dans `web.config`, ou `WEBSITE_SWAP_WARMUP_PING_PATH` et `WEBSITE_SWAP_WARMUP_PING_STATUSES`.
 - **% du trafic** sur un emplacement envoie une part des utilisateurs de production vers lui (canari dans App Service) ; le cookie `x-ms-routing-name` fixe un client sur l'emplacement.
 
@@ -90,7 +90,7 @@ az webapp deployment slot swap --resource-group rg-shop \
   --name app-shop --slot staging --target-slot production
 ```
 
-> **Piège d'examen.** Une chaîne de connexion qui doit continuer à pointer vers la base de test après la permutation est marquée comme paramètre d'emplacement de déploiement sur l'emplacement de préproduction. Sans cela, la valeur de préproduction passe en production.
+> **Piège d'examen.** Une chaîne de connexion qui doit continuer à pointer vers la base de test après l'échange est marquée comme paramètre d'emplacement de déploiement sur l'emplacement de préproduction. Sans cela, la valeur de préproduction passe en production.
 
 <!-- section: hotfix-path | objectives: 3.4.4 -->
 ## Plan de gestion des correctifs à priorité élevée
@@ -110,7 +110,7 @@ En développement basé sur le tronc (trunk-based), corrigez d'abord dans `main`
 | Risque | Atténuation |
 | --- | --- |
 | Échec transitoire d'une tâche (réseau, limitation) | `retryCountOnTaskFailure` sur la tâche ; relancer une phase en échec depuis l'exécution |
-| Mauvaise version détectée après la mise en production | Restauration automatisée dans `on: failure`, permutation inverse, ou redéploiement de l'artefact précédent |
+| Mauvaise version détectée après la mise en production | Restauration automatisée dans `on: failure`, échange inverse, ou redéploiement de l'artefact précédent |
 | Problème visible uniquement dans la télémétrie | Vérification Query Azure Monitor alerts, ou contrôles d'intégrité dans `postRouteTraffic`, avant la promotion |
 | Panne d'une région | Déployer vers des régions jumelées derrière Front Door ou Traffic Manager, une région à la fois |
 | Instance défaillante maintenue en rotation | Chemin de contrôle d'intégrité App Service, sondes d'intégrité de l'équilibreur de charge |
@@ -147,9 +147,9 @@ Les indicateurs de fonctionnalités se créent dans le magasin App Configuration
 | `Microsoft.TimeWindow` | Entre `Start` et `End`, éventuellement de façon récurrente |
 | `Microsoft.Targeting` | Pour les utilisateurs et groupes listés, un pourcentage de chaque groupe, un pourcentage par défaut, avec des exclusions prioritaires |
 
-`requirement_type` vaut `Any` par défaut (un filtre satisfait suffit) ou `All`. En .NET, l'application charge les indicateurs avec `UseFeatureFlags()` dans `AddAzureAppConfiguration`, enregistre `AddFeatureManagement()` (`Microsoft.FeatureManagement.AspNetCore`) et teste les indicateurs avec `IsEnabledAsync`, l'attribut `FeatureGate` ou le tag helper `feature`. Les indicateurs sont actualisés toutes les 30 secondes par défaut. L'application lit le magasin avec une identité managée qui détient **App Configuration Data Reader**.
+`requirement_type` vaut `Any` par défaut (un filtre satisfait suffit) ou `All`. En .NET, l'application charge les indicateurs avec `UseFeatureFlags()` dans `AddAzureAppConfiguration`, enregistre `AddFeatureManagement()` (`Microsoft.FeatureManagement.AspNetCore`) et teste les indicateurs avec `IsEnabledAsync`, l'attribut `FeatureGate` ou le tag helper `feature`. Sans appel à `Select` dans `UseFeatureFlags`, seuls les indicateurs **sans étiquette** sont chargés : un indicateur étiqueté par environnement se charge avec `featureFlagOptions.Select("*", "<label>")`. Les indicateurs sont actualisés toutes les 30 secondes par défaut (`SetRefreshInterval`). L'application lit le magasin avec une identité managée qui détient **App Configuration Data Reader**.
 
-> **Piège d'examen.** Modifier un indicateur ne demande ni exécution de pipeline ni redéploiement. Si l'exigence est « désactiver la fonctionnalité immédiatement sans redéployer », la réponse est l'indicateur, pas une permutation d'emplacements.
+> **Piège d'examen.** Modifier un indicateur ne demande ni exécution de pipeline ni redéploiement. Si l'exigence est « désactiver la fonctionnalité immédiatement sans redéployer », la réponse est l'indicateur, pas un échange d'emplacements.
 
 <!-- section: deploy-apps | objectives: 3.4.7 -->
 ## Déployer des conteneurs, des fichiers binaires et des scripts
@@ -211,7 +211,7 @@ Règles pour des modifications de schéma sans temps d'arrêt :
 
 - Bleu/vert : tout le trafic bascule, restauration instantanée ; canari : une petite part d'abord ; anneaux : des audiences ; indicateurs de fonctionnalités : déployer masqué, publier par configuration.
 - Ordonnez les dépendances avec les phases et `dependsOn` ou `needs`, les déclencheurs de ressource de pipeline et un artefact unique promu.
-- Les emplacements exigent Standard ou plus ; les paramètres d'emplacement restent, tout le reste est permuté ; permutez à nouveau pour restaurer.
+- Les emplacements exigent Standard ou plus ; les paramètres d'emplacement restent, tout le reste est échangé ; échangez à nouveau pour restaurer.
 - Correctif à partir du code en production, même pipeline et mêmes contrôles, puis fusion vers `main`.
 - Indicateurs App Configuration : préfixe `.appconfig.featureflag/`, filtres Percentage, TimeWindow, Targeting.
 - Base de données d'abord, modifications rétrocompatibles, DACPAC ou scripts de migration idempotents.

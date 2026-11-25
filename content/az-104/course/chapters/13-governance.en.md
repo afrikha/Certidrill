@@ -121,7 +121,7 @@ Update-AzTag -ResourceId <id> -Tag @{ CostCenter = "1234" } -Operation Merge
 - Between subscriptions, both must be in the **same Microsoft Entra tenant**, the destination must have the resource provider registered, and a resource must move **together with its dependent resources** (a virtual machine with its disks and network interface), from one single resource group.
 - Not every resource type can be moved; check before moving.
 - Required permissions: `moveResources` action on the source resource group and write on the destination.
-- Role assignments made directly on the resource don't follow. A lock on the source or destination blocks the move.
+- Role assignments made directly on the resource don't follow. A **read-only** lock on the source or destination resource group or subscription blocks the move.
 
 ```bash
 az resource move --destination-group RG2 --ids <resource id 1> <resource id 2>

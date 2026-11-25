@@ -8,7 +8,7 @@ User data to place:
 | Data | Where |
 | --- | --- |
 | User profiles in a pooled host pool | FSLogix profile container (a VHD or VHDX per user) on an SMB share |
-| Microsoft 365 Apps data only (Outlook cache, Teams, OneDrive cache) | FSLogix ODFC container, alongside another profile solution |
+| Microsoft 365 Apps data only (Outlook cache, Teams, OneDrive cache) | FSLogix ODFC container, alongside a third-party profile solution (the recommended use of ODFC) |
 | User profiles in a personal host pool | Can stay on the OS disk of the user's session host; FSLogix is still useful to rebuild or replace the host |
 | App attach packages | A separate SMB share read by session hosts |
 
@@ -49,7 +49,7 @@ Sizing rules:
 | Component | Settings key | Storage setting |
 | --- | --- | --- |
 | Profile container | `HKLM\SOFTWARE\FSLogix\Profiles` | `Enabled` = 1, `VHDLocations` = one or more SMB paths |
-| ODFC container | `HKLM\SOFTWARE\Policies\FSLogix\ODFC` | `Enabled` = 1, `VHDLocations` = SMB paths, often a separate share |
+| ODFC container | `HKLM\SOFTWARE\Policies\FSLogix\ODFC` | `Enabled` = 1, `VHDLocations` = SMB paths. Not needed with profile containers, which already include this data: a dual container configuration isn't recommended |
 | Cloud Cache | Profiles or ODFC key | `CCDLocations` instead of `VHDLocations`: several storage providers |
 
 ```powershell
@@ -174,6 +174,7 @@ Implementation order:
 | Standard | Up to 16 MiB/s |
 | Premium | Up to 64 MiB/s |
 | Ultra | Up to 128 MiB/s |
+| Flexible | Set independently of capacity, manual QoS capacity pools only; at least 128 MiB/s per pool |
 
 With auto QoS, a volume's throughput is its quota times the service level: a 2 TiB Premium volume gets 128 MiB/s.
 

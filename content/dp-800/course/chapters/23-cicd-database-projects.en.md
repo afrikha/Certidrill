@@ -108,7 +108,7 @@ Included files must be excluded from the model build, or the build tries to comp
 </ItemGroup>
 ```
 
-Environment-specific values come from **SQLCMD variables** declared in the project (`$(Environment)`) and set at deployment (`/v:Environment=prod`). The pre-deployment script prepares changes the model can't express, such as moving data before a column is dropped.
+Environment-specific values come from **SQLCMD variables** declared in the project (`$(Environment)`) and set at deployment (`/v:Environment=prod`). A `DefaultValue` declared in the project isn't compiled into the `.dacpac`: it only pre-fills the publish dialog of graphical tools, and a command-line deployment without `/v` or a publish profile gets empty values. The pre-deployment script prepares changes the model can't express, such as moving data before a column is dropped.
 
 > **Exam trap.** A plain `INSERT` in the post-deployment script fails with a duplicate key on the second deployment. Reference data scripts must be idempotent: `MERGE`, or `IF NOT EXISTS` tests. Keep `WHEN NOT MATCHED BY SOURCE THEN DELETE` only if rows removed from Git must disappear from the database.
 
@@ -139,7 +139,7 @@ dotnet build SalesDb.sqlproj
 | Unit tests | One procedure or function returns the right result for given inputs, raises the expected error for bad input | Against a test database deployed from the project |
 | Integration tests | Multi-step scenarios: procedure sequences, triggers, views after related changes, application plus database | Against a dedicated, fully deployed test environment |
 
-SQL Server unit tests (SSDT) have **pre-test** (arrange data), **test** (execute) and **post-test** (clean up) scripts, and **test conditions**: Row Count, Scalar Value, Expected Schema, Data Checksum, Empty ResultSet, Not Empty ResultSet, Execution Time. A negative test expects an error (`ExpectedSqlException` with a severity and state) and fails if the procedure succeeds. The option **Automatically deploy the database project before unit tests are run** keeps the test database in sync.
+SQL Server unit tests (SSDT) have **pre-test** (arrange data), **test** (execute) and **post-test** (clean up) scripts, and **test conditions**: Row Count, Scalar Value, Expected Schema, Data Checksum, Empty ResultSet, Not Empty ResultSet, Execution Time, and **Inconclusive**, the default condition added to every new test: it always returns Inconclusive, verifies nothing and should be deleted once real conditions are added. A negative test expects an error (`ExpectedSqlException` with a severity and state) and fails if the procedure succeeds. The option **Automatically deploy the database project before unit tests are run** keeps the test database in sync.
 
 ```yaml
 # GitHub Actions: after build and deployment to the test database
@@ -253,7 +253,7 @@ jobs:
 | --- | --- | --- |
 | Protect `main` | Branch policies: minimum number of reviewers, linked work items, comment resolution, **Build Validation** | Branch protection rules or rulesets: required pull request reviews, required status checks |
 | Mandatory reviewers for database files | Automatically included reviewers on a path such as `/Database/*` | `CODEOWNERS` with required review from code owners |
-| When pipelines run (triggers) | `trigger` (CI on push), `pr` or build validation (pull requests) | `on: push`, `on: pull_request` |
+| When pipelines run (triggers) | `trigger` (CI on push); pull requests in Azure Repos Git: **Build Validation** branch policy only, because a PR trigger can't be configured in the YAML file (`pr` applies to GitHub and Bitbucket Cloud repositories) | `on: push`, `on: pull_request` |
 | Approval before production | **Environment** with approvals and checks (approvers, business hours, branch control) | **Environment** protection rules: required reviewers, wait timer, deployment branches (only `main`) |
 | Who can use production credentials | Service connection security and a **branch control** check limited to `main` | Environment secrets, released only after the environment's rules pass |
 

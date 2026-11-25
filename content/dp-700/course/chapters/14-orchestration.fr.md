@@ -44,7 +44,7 @@ Les pipelines, les notebooks, Dataflow Gen2 et d'autres éléments utilisent le 
 Règles à retenir :
 
 - Les planifications sans fin ne sont pas prises en charge : définissez une date de fin lointaine comme `01/01/2099` pour une planification permanente. Le planificateur gère l'heure d'été et ignore les dates invalides comme le 30 février.
-- Un pipeline accepte jusqu'à **20 planifications**, chacune avec sa propre récurrence. Une planification peut transmettre des valeurs aux **paramètres** du pipeline, directement ou depuis une **bibliothèque de variables** ; un nom qui ne correspond pas exactement est ignoré.
+- Un pipeline peut avoir **plusieurs planifications**, chacune avec sa propre récurrence (Learn ne donne une limite de 20 par pipeline que pour les planifications par intervalle). Une planification peut transmettre des valeurs aux **paramètres** du pipeline, directement ou depuis une **bibliothèque de variables** ; un nom qui ne correspond pas exactement est ignoré.
 - Les **planifications par intervalle** (préversion) s'exécutent sur des fenêtres fixes sans chevauchement et exposent **Window start time** et **Window end time** comme paramètres de déclencheur, ce qui convient aux chargements incrémentiels par tranche de temps. Elles ne se modifient pas : supprimez-les et recréez-les.
 - Créer ou modifier une planification demande le rôle **Contributor** dans l'espace de travail ou **Write** sur l'élément ; les Viewers voient seulement les planifications.
 - Les **notifications d'échec** partent par e-mail vers des utilisateurs ou groupes du locataire, uniquement pour les exécutions **planifiées**, jamais pour les exécutions à la demande.
@@ -92,7 +92,7 @@ Pour consulter ou modifier un déclencheur, ouvrez l'élément Reflex, ou utilis
 | --- | --- | --- |
 | Paramètre de pipeline | Défini au démarrage de l'exécution (par l'appelant, une planification ou un déclencheur), constant pendant l'exécution | `@pipeline().parameters.SourceTable` |
 | Variable | Modifiée pendant l'exécution avec Set variable ou Append variable | `@variables('FileList')` |
-| Variable système | Fournie par Fabric | `@pipeline().RunId`, `@pipeline().Pipeline`, `@pipeline().TriggerTime`, `@pipeline().DataFactory` (nom de l'espace de travail) |
+| Variable système | Fournie par Fabric | `@pipeline().RunId`, `@pipeline().Pipeline` (ID du pipeline), `@pipeline().PipelineName`, `@pipeline().TriggerTime`, `@pipeline().DataFactory` (ID de l'espace de travail) |
 | Sortie d'activité | Résultat d'une activité précédente | `@activity('Lookup1').output.firstRow.MaxDate` |
 | Élément courant d'un ForEach | Un élément du tableau Items | `@item()`, `@item().TableName` |
 
@@ -185,7 +185,7 @@ results = notebookutils.notebook.runMultiple(DAG)
 ## Points clés
 
 - Dataflow Gen2 = Power Query, sans code ; pipeline = orchestration et copie en masse ; notebook = code Spark ; travail de copie = copie incrémentielle par Assistant.
-- Planifications : de la minute au mois, jusqu'à 20 par pipeline, date de fin obligatoire, e-mails d'échec pour les exécutions planifiées uniquement, expiration après 90 jours sans connexion du propriétaire.
+- Planifications : de la minute au mois, plusieurs par pipeline, date de fin obligatoire, e-mails d'échec pour les exécutions planifiées uniquement, expiration après 90 jours sans connexion du propriétaire.
 - Les déclencheurs d'événements créent un élément Activator (Reflex) et un flux d'événements ; les valeurs du déclencheur viennent de `@pipeline()?.TriggerEvent?...`.
 - `@` conserve le type, `@{}` renvoie une chaîne ; Lookup `firstRow` ou `value` ; ForEach `@item()`.
 - Les paramètres de notebook demandent une cellule de paramètres ; `exit()` renvoie une chaîne lue avec `output.result.exitValue`.

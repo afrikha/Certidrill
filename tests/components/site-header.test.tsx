@@ -3,8 +3,9 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { serverLocale } from "./server-intl";
 
-const { auth, signOut, hasVisibleCourse, active } = vi.hoisted(() => ({
+const { auth, signOut, hasVisibleCourse, active, readSwitches } = vi.hoisted(() => ({
   auth: vi.fn(),
+  readSwitches: vi.fn(async () => ({ signupOpen: false })),
   signOut: vi.fn(async () => undefined),
   hasVisibleCourse: vi.fn(async () => false),
   // The active certifications the footer reads (their vendors).
@@ -13,6 +14,7 @@ const { auth, signOut, hasVisibleCourse, active } = vi.hoisted(() => ({
 vi.mock("@/auth", () => ({ auth, signOut }));
 vi.mock("@/lib/db", () => ({ prisma: { certification: { findMany: async () => active.current } } }));
 vi.mock("@/lib/course/read", () => ({ hasVisibleCourse }));
+vi.mock("@/lib/settings", () => ({ readSwitches }));
 vi.mock("next-intl/server", async () => {
   const m = await import("./server-intl");
   return { getTranslations: m.getTranslationsMock, getLocale: async () => m.serverLocale.current };
@@ -27,6 +29,8 @@ beforeEach(() => {
   signOut.mockClear();
   hasVisibleCourse.mockReset();
   hasVisibleCourse.mockResolvedValue(false);
+  readSwitches.mockReset();
+  readSwitches.mockResolvedValue({ signupOpen: false });
   serverLocale.current = "en";
   active.current = [{ code: "az-104", title: "Azure Administrator", vendor: "Microsoft", blueprints: [] }];
 });
@@ -42,6 +46,20 @@ describe("SiteHeader", () => {
     expect(screen.getByRole("link", { name: "Pricing" })).toHaveAttribute("href", "/en/pricing");
     expect(screen.queryByRole("link", { name: "Dashboard" })).not.toBeInTheDocument();
     expect(screen.getByTestId("locale-switcher")).toBeInTheDocument();
+    // Registrations closed: no sign-up button.
+    expect(screen.queryByRole("link", { name: "Sign up" })).not.toBeInTheDocument();
+  });
+
+  it("offers to sign up when registrations are open, to visitors only", async () => {
+    readSwitches.mockResolvedValue({ signupOpen: true });
+    auth.mockResolvedValue(null);
+    const { unmount } = render(await SiteHeader());
+    expect(screen.getByRole("link", { name: "Sign up" })).toHaveAttribute("href", "/signup");
+    unmount();
+    auth.mockResolvedValue({ user: { id: "u", email: "a@b.c", role: "user", locale: "en" } });
+    render(await SiteHeader());
+    expect(screen.queryByRole("link", { name: "Sign up" })).not.toBeInTheDocument();
+    expect(readSwitches).toHaveBeenCalledTimes(1);
   });
 
   it("shows the member links without admin for a regular user (FR)", async () => {

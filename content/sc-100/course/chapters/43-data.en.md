@@ -46,9 +46,9 @@ Azure encrypts data at rest by default with AES-256 and **Microsoft-managed keys
 | Encryption at rest, no key management | Platform default (Microsoft-managed keys) |
 | Control rotation and be able to revoke access to the data | **Customer-managed keys (CMK)** in Azure Key Vault or Managed HSM; vault with soft delete **and** purge protection |
 | Keys in HSMs dedicated to one tenant, with your own security domain | **Azure Key Vault Managed HSM** |
-| A second encryption layer with a different algorithm and key | **Infrastructure encryption** (double encryption); for a storage account, set **at creation only** |
+| A second encryption layer with a different algorithm and key | **Infrastructure encryption** (double encryption, always with a Microsoft-managed key); for a storage account, set **at creation only**; on an account without it, a new Blob Storage encryption scope can enable it when the scope is created |
 | Encrypt VM temp disks, caches and data flows to storage | **Encryption at host**; Azure Disk Encryption is scheduled for retirement on September 15, 2028 |
-| Columns that database administrators must never read in clear | **Always Encrypted** (client-side keys), optionally with secure enclaves |
+| Columns that database administrators must never read in clear | **Always Encrypted** (client-side keys), optionally with secure enclaves (Intel SGX enclaves on DC-series reach end of support on October 31, 2027; VBS enclaves on the other compute tiers) |
 | Data protected while being processed | Confidential computing (confidential VMs and containers) |
 
 Key Vault options:
@@ -56,7 +56,7 @@ Key Vault options:
 | Option | Protection | Use |
 | --- | --- | --- |
 | Key Vault Standard | Software-protected keys, secrets, certificates | Application secrets and certificates |
-| Key Vault Premium | Adds HSM-protected keys (FIPS 140-3 Level 3 validated HSMs) | CMK that must stay in an HSM |
+| Key Vault Premium | Adds HSM-protected keys (FIPS 140-3 Level 3 validated HSMs for new keys; older key versions can be on FIPS 140-2 Level 2 HSMs) | CMK that must stay in an HSM |
 | Managed HSM | Single-tenant HSM pool, keys only, local RBAC | Highest isolation and key sovereignty |
 
 **In transit**: require HTTPS and **TLS 1.2** as the minimum on storage accounts, Azure SQL and App Service; use private endpoints so traffic stays on the Microsoft backbone; for hybrid links, add IPsec VPN over ExpressRoute private peering or **MACsec** on ExpressRoute Direct.
@@ -76,7 +76,7 @@ AI workloads read grounding data (indexes, documents, databases), store prompts,
 | Users must get only what they're allowed to see in answers | Respect source permissions (security trimming in the index), sensitivity labels with EXTRACT rights for Microsoft 365 data |
 | Find AI resources whose grounding data is sensitive or internet exposed | **Defender CSPM** AI security posture (AI bill of materials, attack paths) with sensitive data discovery |
 | Detect jailbreak, data leakage and credential theft in prompts | **Defender for AI services** (threat protection for AI services) |
-| Classify, audit and apply insider risk and retention to prompts and responses | Purview DSPM for AI; **data security for AI interactions** enabled from the Defender for AI services plan (Purview license) |
+| Classify, audit and apply insider risk and retention to prompts and responses | Purview DSPM (AI apps and agents; the earlier product is now DSPM for AI (classic)); **data security for AI interactions** enabled from the Defender for AI services plan (Purview license) |
 | Block a prompt attack before it reaches the model | Foundry guardrails (prompt shields) |
 | Stop sensitive data being pasted into consumer AI sites | Purview Endpoint DLP and browser controls |
 

@@ -65,7 +65,7 @@ Built-in **control plane** roles:
 
 | Role | Allows |
 | --- | --- |
-| DocumentDB Account Contributor | Manage Azure Cosmos DB accounts |
+| DocumentDB Account Contributor | Manage Azure Cosmos DB accounts: `databaseAccounts/*` with no NotActions, so it can also list and regenerate keys and write data plane role definitions and assignments |
 | Cosmos DB Operator | Manage accounts, databases and containers, but **no** keys, connection strings or data access, and no data plane role management |
 | Cosmos DB Account Reader Role | Read account metadata and the **read-only keys** |
 | CosmosBackupOperator | Submit a restore request (periodic mode) and change backup retention |
@@ -117,7 +117,7 @@ az cosmosdb sql role assignment create --resource-group rg-contoso \
   --scope "/dbs/sales/colls/orders"
 ```
 
-Microsoft recommends separate identities for control plane and data plane work, so that an application that reads data can't also change the account.
+Microsoft recommends separate identities for control plane and data plane work ([Secure your account](https://learn.microsoft.com/en-us/azure/cosmos-db/security)), so that an application that reads data can't also change the account.
 
 > **Exam trap.** Azure RBAC roles such as Owner, Contributor or DocumentDB Account Contributor give **no** Microsoft Entra data access; what they can do is list the keys (which bypass data plane roles unless local authentication is disabled). An application using `DefaultAzureCredential` that gets 403 on reads is missing a **data plane** role assignment, made with `az cosmosdb sql role assignment create`.
 
@@ -132,7 +132,7 @@ Every request needs a valid authorization token. Network rules add a second chec
 | Virtual network service endpoint | Enable `Microsoft.AzureCosmosDB` on the subnet, then add the subnet as a virtual network rule | Traffic arrives with the subnet identity, no longer a public IP, so existing IP rules for those machines stop matching. Up to 256 subnets. Peered networks aren't included automatically. Same Microsoft Entra tenant |
 | Private endpoint (Private Link) | Private IPs in your subnet; target subresource `Sql`; private DNS zone `privatelink.documents.azure.com` | One IP for the global endpoint plus **one per region**. Works from peered networks and on-premises over VPN or ExpressRoute. Up to 200 per account |
 | `publicNetworkAccess: Disabled` | Blocks all public and service endpoint traffic | Takes precedence over every IP and virtual network rule, including the Azure datacenters option. Only private endpoints remain |
-| Network security perimeter | Defines a network boundary around the account | Isolates it from public internet access |
+| Network security perimeter (preview) | Defines a network boundary around the account | Isolates it from public internet access |
 
 Rules for combining them:
 
@@ -152,7 +152,7 @@ az cosmosdb network-rule add --resource-group rg-contoso \
   --name cosmos-contoso --virtual-network vnet-app --subnet snet-api
 ```
 
-Transport and storage: enforce a minimum TLS version on the account, data at rest is encrypted with service-managed keys or customer-managed keys in Azure Key Vault, and Always Encrypted encrypts chosen properties on the client side.
+Transport and storage: enforce a minimum TLS version on the account (`minimalTlsVersion` accepts only `Tls12`, the minimum for every account since August 31, 2025; TLS 1.3 is supported), data at rest is encrypted with service-managed keys or customer-managed keys in Azure Key Vault, and Always Encrypted encrypts chosen properties on the client side.
 
 > **Exam trap.** "Only the App Service in the integrated subnet may connect, and the account must have no public endpoint" means a private endpoint plus `publicNetworkAccess` set to `Disabled`. A service endpoint still uses the account's public endpoint, and the datacenters option opens the account to all of Azure.
 

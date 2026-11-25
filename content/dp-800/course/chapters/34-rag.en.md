@@ -36,7 +36,7 @@ JSON keeps each column name next to its value and nested objects show relationsh
 
 | Construct | Output | Use it for |
 | --- | --- | --- |
-| `FOR JSON AUTO` | Array of objects, structure inferred from the query and its joins | Quick formatting |
+| `FOR JSON AUTO` | Array of objects, structure inferred from the query and its joins; dotted aliases become keys that contain dots, not nested objects | Quick formatting |
 | `FOR JSON PATH` | Array of objects, nesting set by dotted aliases such as `[product.price]` | Full control over names and nesting (most RAG code) |
 | `WITHOUT_ARRAY_WRAPPER` | Removes the `[ ]` | A single-row result (one customer, one order) |
 | `ROOT('products')` | Wraps the output in a named top-level property | Telling the model what the data is |
@@ -151,7 +151,7 @@ A chat completions request takes a `messages` array; each message has a `role` a
 | `user` | The retrieved context plus the user's question |
 | `assistant` | Earlier answers, to continue a multi-turn conversation |
 
-Grounding instructions in the system message keep the model inside your data: answer only from the products provided, don't invent specifications, say so when the information is missing, keep the answer short. Two settings control the output: `max_tokens` caps the answer length (newer models use `max_completion_tokens`), and a low `temperature` (around 0.3 to 0.5 in the Learn examples) favors consistent, factual answers.
+Grounding instructions in the system message keep the model inside your data: answer only from the products provided, don't invent specifications, say so when the information is missing, keep the answer short. Two settings control the output: `max_tokens` caps the answer length (newer models use `max_completion_tokens`), and a low `temperature` (around 0.3 to 0.5 in the Learn examples) favors consistent, factual answers. Most reasoning models don't support `temperature` or `max_tokens` (check the model's feature table): their output is capped with `max_completion_tokens`.
 
 ```text
 DECLARE @system NVARCHAR(MAX) = N'You are the Contoso Outdoors assistant. Answer only from the products in the JSON. If the answer is not in the data, say that you do not know.';

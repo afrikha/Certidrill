@@ -48,7 +48,7 @@ Les types d'entrepôts SQL :
 
 Choisissez serverless pour le meilleur démarrage et une mise à l'échelle rapide quand des requêtes sont en file d'attente. Choisissez pro quand le serverless n'est pas disponible dans la région ou quand l'entrepôt doit joindre des bases de données par votre propre réseau (fédération, architecture hybride). Dans l'interface, le type par défaut est serverless là où il est pris en charge ; l'API des entrepôts SQL crée un entrepôt classique sauf si vous définissez `enable_serverless_compute` à `true` avec `warehouse_type` à `pro`.
 
-> **Piège d'examen.** Les vues matérialisées, les requêtes Lakehouse Federation et les Genie Agents exigent un entrepôt SQL **pro ou serverless**. Un entrepôt classique est le distracteur.
+> **Piège d'examen.** Les vues matérialisées, les requêtes Lakehouse Federation et les Genie Agents exigent un entrepôt SQL **pro ou serverless** (les vues matérialisées autonomes peuvent aussi être créées et actualisées depuis un notebook sur un calcul serverless). Un entrepôt classique est le distracteur.
 
 <!-- section: access-modes | objectives: 1.1.1 -->
 ## Les modes d'accès : Standard et Dedicated
@@ -67,7 +67,7 @@ Le mode d'accès est **Auto** par défaut : il devient Standard, sauf si vous s�
 | --- | --- |
 | Plusieurs analystes partagent un cluster, avec l'isolation Unity Catalog | Mode d'accès Standard (« calcul partagé » dans le guide d'étude) |
 | Notebooks R, ou Databricks Runtime ML avec des données Unity Catalog | Mode d'accès Dedicated |
-| Une équipe partage un cluster qui exige des fonctionnalités réservées au mode dédié | Mode d'accès Dedicated attribué à un groupe |
+| Une équipe partage un cluster qui exige des fonctionnalités réservées au mode dédié | Mode d'accès Dedicated attribué à un groupe (préversion publique) |
 | Aucun cluster à gérer, Python et SQL uniquement | Calcul serverless |
 
 <!-- section: performance-settings | objectives: 1.1.2 -->
@@ -91,7 +91,7 @@ Pour les charges de travail de streaming, Databricks recommande les Lakeflow Spa
 
 L'**arrêt automatique** arrête le calcul universel après une période d'inactivité comprise entre 10 et 10 000 minutes ; décochez la case ou indiquez `0` pour le désactiver. Le calcul est inactif quand toutes les commandes, tous les jobs Spark, toutes les requêtes Structured Streaming et tous les appels JDBC sont terminés. Un cluster arrêté conserve sa configuration 30 jours, puis il est supprimé, sauf si un administrateur l'**épingle** (100 au maximum). Modifier un calcul en cours d'exécution (hors taille et autorisations) exige un redémarrage.
 
-Les **pools d'instances** gardent des VM inactives prêtes : les clusters attachés au pool démarrent et s'agrandissent plus vite, et les instances libérées retournent au pool. Azure Databricks ne facture aucun DBU pour les instances inactives du pool, mais le coût des VM Azure s'applique. Créer un pool exige le droit **Allow pool creation** (administrateurs de l'espace de travail par défaut). Le pilote et les workers peuvent utiliser le même pool ou des pools différents (`driver_instance_pool_id`, `instance_pool_id`). Avec la mise à l'échelle automatique, le minimum du cluster ne doit pas dépasser le minimum d'instances inactives du pool, et un maximum supérieur à la capacité du pool fait échouer la création du cluster. Si la charge de travail prend en charge le serverless, Databricks recommande le serverless plutôt que les pools.
+Les **pools d'instances** gardent des VM inactives prêtes : les clusters attachés au pool démarrent et s'agrandissent plus vite, et les instances libérées retournent au pool. Azure Databricks ne facture aucun DBU pour les instances inactives du pool, mais le coût des VM Azure s'applique. Créer un pool exige le droit **Allow pool creation** (administrateurs de l'espace de travail par défaut). Le pilote et les workers peuvent utiliser le même pool ou des pools différents (`driver_instance_pool_id`, `instance_pool_id`). Avec la mise à l'échelle automatique, le minimum du cluster ne doit pas dépasser le minimum d'instances inactives du pool (sinon le démarrage n'est pas plus rapide que sans pool), et un maximum supérieur à la capacité du pool fait échouer la création du cluster. Si la charge de travail prend en charge le serverless, Databricks recommande le serverless plutôt que les pools.
 
 ```json
 {

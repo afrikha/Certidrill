@@ -46,10 +46,10 @@ La recommandation de Microsoft Learn : commencez par l'option **la plus managée
 | Base sans connecteur managé, logique d'extraction personnalisée | Notebook avec une lecture JDBC |
 | Fichiers arrivant en continu dans le stockage cloud | Auto Loader (dans Lakeflow Spark Declarative Pipelines ou Structured Streaming) |
 | Chargement de fichiers ponctuel ou planifié simple, équipe orientée SQL | `COPY INTO` |
-| Flux Kafka ou Event Hubs | Connecteur standard dans un pipeline, ou Structured Streaming pour un contrôle total |
+| Flux Kafka ou Event Hubs | Connecteur standard dans un pipeline, ou Structured Streaming pour un contrôle total (le connecteur managé Kafka de Lakeflow Connect est en bêta) |
 | Source locale inaccessible depuis Databricks, standard d'entreprise sur ADF, orchestration entre services Azure | Azure Data Factory (runtime d'intégration auto-hébergé) dépose les données dans ADLS, puis Databricks les transforme |
 
-Les connecteurs managés Lakeflow Connect s'exécutent sur le calcul **serverless**, stockent les informations d'identification dans une **connexion** Unity Catalog (aucun secret dans le pipeline), écrivent dans des **tables de streaming**, ingèrent de façon incrémentielle après le premier chargement complet et réessaient automatiquement. Chaque planification crée un job Lakeflow. Pour les connecteurs de base de données, la passerelle d'ingestion s'exécute en continu dans son propre job.
+Les connecteurs managés Lakeflow Connect s'exécutent sur le calcul **serverless**, stockent les informations d'identification dans une **connexion** Unity Catalog (aucun secret dans le pipeline), écrivent dans des **tables de streaming**, ingèrent de façon incrémentielle après le premier chargement complet et réessaient automatiquement. Chaque planification crée un job Lakeflow. Pour les connecteurs de base de données, la passerelle d'ingestion s'exécute en continu dans son propre job. Le connecteur SQL Server propose aussi la **CDC intégrée** : un seul pipeline qui référence une connexion Unity Catalog et intègre l'extraction à chaque mise à jour, le volume intermédiaire (staging) étant défini par `data_staging_options`.
 
 Les **notebooks** offrent le plus de contrôle (toute source JDBC, analyse personnalisée, logique complexe) au prix d'un code à écrire, tester et maintenir.
 
@@ -64,7 +64,7 @@ Les **notebooks** offrent le plus de contrôle (toute source JDBC, analyse perso
 | --- | --- | --- |
 | Lots | Lit un jeu de données borné selon une planification (`spark.read`, CTAS, `COPY INTO`) | Fraîcheur quotidienne ou horaire, rechargements complets, petites sources |
 | Lots incrémentiels | Code de streaming qui traite tout ce qui est nouveau puis s'arrête : `trigger(availableNow=True)`, ou un pipeline déclenché | Fraîcheur horaire ou quotidienne avec traitement exactement une fois, incrémentiel, sans coût de calcul permanent |
-| Streaming | Requête toujours active qui traite des micro-lots à l'arrivée des données (déclencheur par défaut ou `processingTime`), ou pipeline continu | Latence de quelques secondes à quelques minutes (fraude, alertes IoT) |
+| Streaming | Requête toujours active qui traite des micro-lots à l'arrivée des données (déclencheur par défaut, environ 3 à 5 secondes de latence, ou `processingTime`), ou pipeline continu | Latence de quelques secondes à quelques minutes (fraude, alertes IoT) |
 
 Dans Lakeflow Spark Declarative Pipelines, le même code s'exécute en mode **déclenché** (traiter les données disponibles, puis s'arrêter : planifications de type lots) ou **continu** (rester actif). Changer de mode ne change pas le code.
 
@@ -109,7 +109,7 @@ Le partitionnement découpe une table en répertoires selon les valeurs d'une co
 | Choix de la colonne de partition | La colonne sur laquelle filtrent la plupart des requêtes |
 | Nombre de schémas par table | Un |
 
-En dessous de 1 To, les tables Delta non partitionnées bénéficient déjà du **clustering au moment de l'ingestion**, et le clustering liquide est l'organisation recommandée pour les nouvelles tables. Partitionnement et clustering liquide ne peuvent pas être combinés sur une même table.
+En dessous de 1 To, les tables Delta non partitionnées bénéficient déjà du **clustering au moment de l'ingestion**, et le clustering liquide est l'organisation recommandée pour les nouvelles tables. Partitionnement et clustering liquide ne peuvent pas être combinés sur une même table. À partir de Databricks Runtime 18.1, `ALTER TABLE ... REPLACE PARTITIONED BY WITH CLUSTER BY (...)` convertit sur place une table Delta partitionnée en clustering liquide ; exécutez ensuite `OPTIMIZE ... FULL`.
 
 ```text
 CREATE TABLE sales.silver.transactions (

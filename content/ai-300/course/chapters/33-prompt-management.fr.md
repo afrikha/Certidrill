@@ -7,19 +7,20 @@ Avec les modèles de conversation, une invite se compose d'un **message système
 
 | Technique | Quand elle aide | Remarque |
 | --- | --- | --- |
-| Instructions claires au début | Toujours : énoncez la tâche avant le contexte et les exemples | Les modèles de conversation récents sont moins sensibles à l'ordre que les anciens |
+| Instructions claires au début | Toujours : énoncez la tâche avant le contexte et les exemples | Toujours recommandé ; dans les tests de Learn, ChatGPT et GPT-4 donnaient la même réponse que l'énoncé soit au début ou à la fin |
 | Répéter les instructions à la fin | Le modèle ignore une règle donnée tôt dans une longue invite | Les modèles présentent un **biais de récence** : la fin de l'invite pèse davantage |
 | Exemples few-shot | La sortie doit suivre un format ou un style que le modèle ne devine pas | Conditionne uniquement l'inférence en cours ; le modèle n'est pas modifié. L'ordre des exemples compte |
 | Décomposer la tâche | Les demandes en plusieurs parties produisent des réponses incomplètes | Demandez les étapes séparément (par exemple extraire les faits, puis répondre) |
 | Chaîne de pensée (chain of thought) | Les modèles sans raisonnement se trompent sur les problèmes en plusieurs étapes | Demandez au modèle de procéder étape par étape. **Uniquement pour les modèles sans raisonnement** |
-| Spécifier la structure de sortie | Les réponses doivent être analysées ou citer leurs sources | Demandez des citations ou une structure fixe ; les citations rendent les affirmations inventées moins probables |
+| Spécifier la structure de sortie | Les réponses doivent être analysées ou citer leurs sources | Demandez des citations ou une structure fixe ; les citations rendent les affirmations inventées moins probables, et les citations **en ligne** fonctionnent mieux que les citations en fin de réponse |
 | Syntaxe claire et délimiteurs | Instructions et données se mélangent | Séparez les sections avec des titres Markdown ou des balises XML |
 | Amorcer la sortie | La réponse doit commencer sous une forme donnée | Terminez l'invite par les premiers mots de la réponse attendue |
 | Contexte d'ancrage | Les réponses doivent être factuelles et à jour | Fournissez les données sources ; plus elles sont proches de la réponse finale, moins il y a d'erreurs |
+| Utilisation d'affordances | Le modèle doit vérifier des faits ou obtenir des informations à jour au lieu de s'appuyer sur ses paramètres | Demandez-lui d'émettre des appels comme `SEARCH("query")`, arrêtez la génération à ces appels, exécutez-les, puis recollez les résultats dans l'invite |
 
-Learn précise que ces techniques d'ingénierie d'invite ne sont pas recommandées pour les **modèles de raisonnement** (gpt-5 et série o), et que certaines techniques donnent des résultats différents avec les modèles récents : testez-les par une évaluation plutôt que de supposer qu'elles aident. Extraire le raisonnement d'un modèle de raisonnement par une autre méthode que son paramètre de résumé du raisonnement n'est pas pris en charge.
+Learn précise que ces techniques d'ingénierie d'invite ne sont pas recommandées pour les **modèles de raisonnement** (gpt-5 et série o), et que certaines techniques donnent des résultats différents avec les modèles récents : testez-les par une évaluation plutôt que de supposer qu'elles aident. Extraire le raisonnement d'un modèle de raisonnement par une autre méthode que son paramètre de résumé du raisonnement (`reasoning.summary`, API Responses) n'est pas pris en charge, et les résumés ne sont pas garantis pour chaque requête.
 
-Les paramètres de génération complètent la conception. `temperature` va de 0 à 2 : des valeurs basses donnent une sortie ciblée et reproductible ; des valeurs hautes une sortie plus variée. Modifiez `temperature` ou `top_p`, pas les deux. Plafonnez la longueur de sortie pour maîtriser le coût.
+Les paramètres de génération complètent la conception. `temperature` va de 0 à 2 : des valeurs basses donnent une sortie ciblée et reproductible ; des valeurs hautes une sortie plus variée. Modifiez `temperature` ou `top_p`, pas les deux. Plafonnez la longueur de sortie pour maîtriser le coût. Les modèles de raisonnement autres que GPT-6 Astra ne prennent pas en charge `temperature`, `top_p` ni `max_tokens` : plafonnez leur sortie avec `max_output_tokens` (API Responses) ou `max_completion_tokens` (Chat Completions).
 
 Une structure de message système qui fonctionne bien et se versionne proprement :
 
@@ -77,10 +78,10 @@ Une **variante** est une autre version d'une invite ou de ses paramètres (instr
 
 | Outil | Comment il compare |
 | --- | --- |
-| Exécutions d'évaluation dans le portail | Sélectionnez deux exécutions ou plus, puis **Compare** ; définissez une **exécution de référence**. Les cellules sont colorées d'après des tests t statistiques (par exemple ImprovedStrong pour p au plus 0,001 dans le sens souhaité, Inconclusive quand il y a trop peu d'exemples ou que p vaut 0,05 ou plus). La vue de comparaison n'est pas enregistrée |
+| Exécutions d'évaluation dans le portail | Sélectionnez deux exécutions ou plus, puis **Compare** ; définissez une **exécution de référence**. Les cellules sont colorées d'après des tests t statistiques (Improved = sens souhaité, Degraded = mauvais sens, Changed = aucun sens souhaité ; suffixe Strong pour p au plus 0,001, Weak pour p supérieur à 0,001 et au plus 0,05, par exemple ImprovedStrong ou DegradedWeak ; Inconclusive quand il y a trop peu d'exemples ou que p vaut 0,05 ou plus). La vue de comparaison n'est pas enregistrée |
 | Action GitHub `microsoft/ai-agent-evals` (préversion) | `agent-ids: "order-agent:3,order-agent:4"` évalue plusieurs versions sur le fichier de données ; la première est la référence sauf si `baseline-agent-id` est défini ; le résumé montre des intervalles de confiance et un test de significativité par paire |
 
-Pour les exécutions sur une cible de modèle, le détail de l'exécution montre aussi la latence de bout en bout p50 et p95 et un coût estimé d'après l'utilisation des jetons (hors utilisation du modèle évaluateur).
+Pour les exécutions sur une cible de modèle, le détail de l'exécution montre aussi la latence de bout en bout p50 et p95 et un coût estimé d'après l'utilisation des jetons. L'estimation n'existe que pour les déploiements de modèles **Global Standard**, elle est marquée **partielle** quand certains modèles ne peuvent pas être tarifés, et elle exclut l'utilisation du modèle évaluateur, les coûts d'exécution de l'évaluation, les tarifs négociés, les engagements et les remises : utilisez les données de facturation Azure pour les frais réels.
 
 **Dans prompt flow de Foundry (classique)**, les variantes sont une fonctionnalité intégrée du nœud **outil LLM** : le nœud d'origine est `variant_0` (la variante par défaut) ; **Clone** crée `variant_1` avec un autre texte d'invite ou d'autres paramètres. Une exécution simple teste les variantes d'un seul nœud LLM à la fois, les autres nœuds utilisant leur variante par défaut. Pour comparer à grande échelle, lancez une exécution par lots avec une méthode d'évaluation sur un jeu de données, sélectionnez ensemble les exécutions des variantes et choisissez **Visualize outputs** ; définissez enfin la meilleure variante comme variante par défaut du nœud. Prompt flow sera retiré le **20 avril 2027**, n'est plus recommandé pour les nouveaux développements, et son remplaçant est Microsoft Agent Framework (les flux d'évaluation correspondent aux évaluateurs du SDK Azure AI Evaluation).
 

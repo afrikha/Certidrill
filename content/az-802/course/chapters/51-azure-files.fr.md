@@ -77,12 +77,13 @@ Les **autorisations au niveau du partage** sont des attributions de rôles Azure
 | Storage File Data SMB Share Reader | Lecture |
 | Storage File Data SMB Share Contributor | Lecture, écriture, suppression |
 | Storage File Data SMB Share Elevated Contributor | Lecture, écriture, suppression, modification des ACL (comme l'autorisation de partage *Modifier*) |
-| Storage File Data SMB Admin | Accès administrateur via SMB, y compris la prise de possession de tout fichier |
+| Storage File Data SMB Admin | Accès administrateur via SMB, équivalent à la clé du compte de stockage |
+| Storage File Data SMB Take Ownership | Prise de possession d'un fichier ou d'un répertoire |
 | Storage File Data Privileged Reader / Privileged Contributor | Lecture / lecture, écriture et modification des ACL, en passant outre les ACL existantes |
 
 Une **autorisation par défaut au niveau du partage** (`Set-AzStorageAccount -DefaultSharePermission StorageFileDataSmbShareContributor`) donne un même rôle à toute identité authentifiée sur tous les partages du compte : utilisez-la pour les identités non synchronisées avec Microsoft Entra ID (comptes d'ordinateur, gMSA), pour un AD DS synchronisé avec un autre locataire, ou pour laisser les seules ACL décider. Elle vaut **None** au départ. Quand les deux existent, l'autorisation la plus élevée s'applique. Les modifications prennent jusqu'à 30 minutes environ.
 
-> **Piège d'examen.** Les rôles au niveau du partage s'attribuent à l'identité **Microsoft Entra** d'un utilisateur ou d'un groupe synchronisé. Un utilisateur ou un compte d'ordinateur qui n'existe que dans AD DS ne peut pas recevoir de rôle RBAC : donnez-lui l'accès par l'autorisation par défaut au niveau du partage.
+> **Piège d'examen.** Les rôles au niveau du partage s'attribuent à l'identité **Microsoft Entra** d'un utilisateur ou d'un groupe synchronisé. Un utilisateur ou un compte d'ordinateur qui n'existe que dans AD DS ne peut pas recevoir lui-même de rôle RBAC. Avec l'authentification AD DS, il obtient tout de même le rôle d'un groupe AD DS synchronisé dont il est membre, car Azure Files lit les SID de groupe dans son ticket Kerberos ; sinon, donnez-lui l'accès par l'autorisation par défaut au niveau du partage.
 
 **ACL Windows.** Le niveau partage et l'ACL se combinent et le **plus restrictif** l'emporte : Contributor avec une ACL en lecture donne la lecture. Pour modifier les ACL, montez le partage avec `net use` depuis une machine qui joint un contrôleur de domaine, en tant que titulaire de **Storage File Data SMB Admin** (recommandé) ou avec la clé du compte, puis utilisez l'Explorateur de fichiers ou `icacls`.
 
@@ -98,7 +99,7 @@ Une **autorisation par défaut au niveau du partage** (`Set-AzStorageAccount -De
 | Point de terminaison cloud | Pointeur vers un partage de fichiers Azure SMB classique | Compte de stockage dans la **même région** que le service de synchronisation de stockage |
 | Point de terminaison de serveur | Un chemin (racine de volume, dossier ou point de montage) sur un serveur inscrit | Un point de terminaison de serveur par serveur dans un groupe de synchronisation donné ; 30 par serveur ; volume NTFS local uniquement, ni NAS ni partage mappé |
 
-Prérequis : Windows Server 2016 à 2025 (installation complète ou Server Core), .NET Framework 4.7.2, 2 Gio de mémoire, un volume **NTFS** local (pas ReFS), et sur un cluster le rôle **Serveur de fichiers pour une utilisation générale** avec des disques en cluster (ni serveur de fichiers avec montée en puissance parallèle ni CSV) et l'agent sur chaque nœud. Le compte doit autoriser SMB 3.1.1, NTLMv2 et AES-128-GCM. L'administrateur doit avoir Azure File Sync Administrator, Owner ou Contributor sur le service, plus `listKeys` sur le compte (Reader and Data Access ou Storage Account Contributor).
+Prérequis : Windows Server 2016 à 2025 (installation complète ou Server Core), .NET Framework 4.7.2, 2 Gio de mémoire, un volume **NTFS** local (pas ReFS), et sur un cluster le rôle **Serveur de fichiers pour une utilisation générale** avec des disques en cluster (ni serveur de fichiers avec montée en puissance parallèle ni CSV) et l'agent sur chaque nœud. Le compte doit autoriser SMB 3.1.1, NTLMv2 et AES-128-GCM. L'administrateur doit avoir Azure File Sync Administrator, Owner ou Contributor sur le service, plus `listKeys` sur le compte (Reader and Data Access ou Storage Account Contributor) ; un accès en lecture seule au compte ne suffit pas pour créer un point de terminaison cloud. Dans un déploiement par identité managée, l'identité managée d'Azure File Sync doit avoir des rôles sur le compte de stockage, comme Reader and Data Access ou Storage File Data Privileged Contributor.
 
 Ordre de déploiement :
 

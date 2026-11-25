@@ -3,12 +3,12 @@ La conception réseau de SAP sur Azure est dominée par une contrainte : le chem
 <!-- section: vnet-subnets | objectives: 2.2.1 -->
 ## Réseaux virtuels et sous-réseaux
 
-La topologie courante est **hub and spoke** : le hub contient la passerelle ExpressRoute ou VPN, le pare-feu, Azure Bastion et les services partagés ; chaque environnement SAP (ou le paysage de production) est un spoke appairé au hub.
+La topologie courante est **hub and spoke** : le hub contient la passerelle ExpressRoute ou VPN, le pare-feu, Azure Bastion et les services partagés ; chaque environnement SAP (ou le paysage de production) est un spoke relié par peering au hub.
 
 | Exigence | Conception |
 | --- | --- |
 | Séparer la couche application de la couche base de données | Des **sous-réseaux différents du même réseau virtuel**, ou des ASG dédiés dans un même sous-réseau |
-| Couche application et base de données dans des réseaux virtuels différents | Non pris en charge sauf si les réseaux sont appairés, et le peering ajoute alors un coût de transfert sur des téraoctets de trafic application-base de données |
+| Couche application et base de données dans des réseaux virtuels différents | Non pris en charge, même avec un peering (qu'une telle configuration exigerait) ; le peering ajoute aussi un coût de transfert sur des téraoctets de trafic application-base de données |
 | Volumes Azure NetApp Files | Un sous-réseau **délégué** à Azure NetApp Files ; une plage `/25` est recommandée pour SAP |
 | Passerelle ExpressRoute ou VPN | `GatewaySubnet`, `/27` ou plus grand |
 | Noms réservés | `GatewaySubnet`, `AzureFirewallSubnet`, `AzureFirewallManagementSubnet`, `AzureBastionSubnet` |
@@ -64,7 +64,7 @@ New-AzVm -ResourceGroupName "rg-sap-prd" -Name "app-z1-01" -Location "westeurope
   -AvailabilitySetName "avset-app-z1" -ProximityPlacementGroup "ppg-prd-z1" -Size "Standard_E16s_v4"
 ```
 
-Un PPG est aussi nécessaire avec le **groupe de volumes d'application pour SAP HANA** d'Azure NetApp Files quand il est déployé avec un placement épinglé. Les disques partagés Azure n'en exigent pas.
+Le **groupe de volumes d'application pour SAP HANA** d'Azure NetApp Files utilise par défaut (et de préférence) le placement de volume en zone de disponibilité, qui n'exige pas de PPG ; un PPG ancré aux machines virtuelles HANA, idéalement avec un groupe à haute disponibilité épinglé, est l'alternative, par exemple dans les régions sans zones.
 
 > **Piège d'examen.** Un PPG n'apporte pas de haute disponibilité : il réduit seulement la distance, et les disques des machines virtuelles d'application peuvent même se retrouver dans une autre zone que les machines virtuelles. La disponibilité vient des zones ou des groupes à haute disponibilité.
 
@@ -133,7 +133,7 @@ Ports à autoriser entre les niveaux (`NN` = numéro d'instance) :
 | --- | --- | --- |
 | Fonctionnement | `Microsoft.Storage` activé sur le sous-réseau, et une règle réseau sur le compte de stockage | Une carte réseau avec une adresse IP privée de votre sous-réseau, mappée au compte de stockage (sous-ressource `file` ou `blob`) |
 | Adresse de destination | Le point de terminaison public du compte de stockage | Adresse IP privée dans votre réseau virtuel |
-| Accessible depuis l'environnement local et les réseaux appairés | Non (seulement les sous-réseaux activés) | Oui |
+| Accessible depuis l'environnement local et les réseaux reliés par peering | Non (seulement les sous-réseaux activés) | Oui |
 | DNS | Aucun changement | Zone DNS privée `privatelink.file.core.windows.net` ou `privatelink.blob.core.windows.net` |
 | Coût | Gratuit | Facturé par point de terminaison et par Go traité |
 
@@ -141,7 +141,7 @@ Pour SAP :
 
 - Les **partages de fichiers Azure NFS** n'ont pas d'authentification des utilisateurs : les clients doivent se connecter par un **point de terminaison privé** ou par un **point de terminaison de service** avec des règles de réseau virtuel ; les règles IP ne sont pas prises en charge. Microsoft recommande des **points de terminaison privés** pour tout partage Azure Files NFS ou SMB utilisé par SAP, et la désactivation de l'accès réseau public.
 - Avec Azure Files ZRS, un client NFS est redirigé vers une zone saine en cas de défaillance d'une zone, sans remontage.
-- **Azure NetApp Files** n'utilise ni point de terminaison de service ni point de terminaison privé : les volumes reçoivent des adresses IP dans le sous-réseau délégué, accessibles depuis le même réseau virtuel ou des réseaux appairés de la région.
+- **Azure NetApp Files** n'utilise ni point de terminaison de service ni point de terminaison privé : les volumes reçoivent des adresses IP dans le sous-réseau délégué, accessibles depuis le même réseau virtuel ou des réseaux reliés par peering. Avec les fonctionnalités réseau Standard, seule option pour les volumes nouveaux ou modifiés depuis juillet 2026, le peering mondial fonctionne aussi (avec des frais de peering) ; les fonctionnalités réseau de base (Basic) sont limitées à la région.
 - Les sauvegardes et les médias SAP dans le Stockage Blob utilisent un point de terminaison privé blob.
 
 <!-- section: name-resolution | objectives: 2.2.8 -->
@@ -162,7 +162,7 @@ Règles :
 
 - Les redirecteurs conditionnels locaux ciblent la zone **publique** (`file.core.windows.net`), pas `privatelink.file.core.windows.net`.
 - Utilisez une zone DNS privée par type de service de point de terminaison privé ; ne mélangez pas les enregistrements de plusieurs services dans une zone.
-- Si une zone privée existe pour un service et qu'un compte nécessaire n'a pas de point de terminaison privé, activez le repli vers Internet sur la liaison de réseau virtuel, sinon la requête renvoie NXDOMAIN.
+- Quand une ressource se résout en un nom `privatelink` pour lequel votre zone Private Link liée n'a pas d'enregistrement (par exemple un compte dont le point de terminaison privé est dans le réseau d'un autre locataire), la requête renvoie NXDOMAIN. Activez le repli vers Internet (`NxDomainRedirect`) sur la liaison de réseau virtuel pour la relancer sur le point de terminaison public ; il n'existe que pour les zones Private Link.
 
 <!-- section: expressroute | objectives: 2.2.9 -->
 ## ExpressRoute pour la connectivité hybride
@@ -180,8 +180,8 @@ Les SKU `AZ` sont redondants interzone : utilisez-les avec les systèmes SAP zon
 
 **FastPath** envoie le trafic de l'environnement local directement aux machines virtuelles, en contournant la passerelle sur le chemin des données, pour une latence plus faible et un débit plus élevé. Limites à connaître :
 
-- Le trafic vers les **équilibreurs de charge internes des réseaux virtuels spoke** (frontaux des clusters SAP), vers Pare-feu Azure ou DNS Private Resolver dans les spokes, et vers les services PaaS des spokes passe toujours par la passerelle.
-- Les spokes appairés via FastPath et les UDR via FastPath exigent **ExpressRoute Direct**, avec tous les réseaux virtuels dans la même région.
+- Le trafic vers les **équilibreurs de charge internes des réseaux virtuels spoke** (frontaux des clusters SAP), vers Pare-feu Azure ou DNS Private Resolver dans les spokes, et vers les services PaaS des spokes passe toujours par la passerelle ; les équilibreurs de charge internes, Pare-feu Azure et DNS Private Resolver du hub fonctionnent avec FastPath.
+- Le peering de spokes via FastPath et les UDR via FastPath exigent **ExpressRoute Direct**, avec tous les réseaux virtuels dans la même région.
 - Les volumes Azure NetApp Files ont besoin des **fonctionnalités réseau Standard**.
 
 Résilience :

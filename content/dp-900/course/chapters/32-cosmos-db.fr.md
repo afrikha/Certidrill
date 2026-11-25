@@ -87,6 +87,8 @@ Azure Cosmos DB expose plusieurs API compatibles avec le protocole filaire de ba
 
 > **Piège d'examen.** « Table » existe deux fois. Le Stockage Table Azure est un service d'un compte de stockage ; Azure Cosmos DB for Table offre le même modèle avec la distribution mondiale et un index sur toutes les propriétés.
 
+Pour migrer une application MongoDB existante, ou pour utiliser toutes les fonctionnalités du langage de requête MongoDB, Microsoft recommande **Azure DocumentDB**, un service distinct compatible avec le protocole filaire MongoDB.
+
 Azure Cosmos DB for PostgreSQL est une offre relationnelle distincte, en voie de mise hors service ; ce n'est pas l'une des cinq API NoSQL.
 
 <!-- section: key-points -->

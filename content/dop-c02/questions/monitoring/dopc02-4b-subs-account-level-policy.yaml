@@ -1,0 +1,44 @@
+id: dopc02-4b-subs-account-level-policy
+objective: "4.1.11"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    A company runs hundreds of AWS Lambda functions and containerized services in one AWS account. Teams create new Amazon CloudWatch Logs log groups every week. A compliance requirement states that the log events of every log group in the account, including log groups created in the future, must be streamed to an Amazon Data Firehose stream that delivers them to an Amazon S3 archive. The Firehose stream writes its own delivery errors to a log group named /aws/kinesisfirehose/archive-errors. The DevOps team wants the LEAST operational overhead and must avoid any risk of a recursive delivery loop. Which solution will meet these requirements?
+body:
+  options:
+    - id: a
+      text:
+        en: |-
+          Create an Amazon EventBridge rule that matches CreateLogGroup API calls recorded by AWS CloudTrail and invokes a Lambda function that adds a subscription filter to the Firehose stream on each new log group.
+    - id: b
+      text:
+        en: |-
+          Create an account-level subscription filter policy with put-account-policy that targets the Firehose stream, and add selection criteria that exclude the /aws/kinesisfirehose/archive-errors log group.
+    - id: c
+      text:
+        en: |-
+          Create an account-level subscription filter policy with put-account-policy that targets the Firehose stream with a scope of ALL and no selection criteria, so that no log group can be missed.
+    - id: d
+      text:
+        en: |-
+          Deploy an AWS Config custom rule that flags log groups without a subscription filter, with an automatic remediation that runs an Automation runbook to add the subscription filter.
+answer: { optionId: b }
+explanation:
+  correct:
+    en: |-
+      An account-level subscription filter policy (policy type SUBSCRIPTION_FILTER_POLICY) applies one subscription to the log groups of the account in the Region without per-log-group work, and it supports Firehose as a destination. The selection criteria (LogGroupName NOT IN [...]) exist to exclude log groups that receive logs from the delivery workflow itself, which prevents an infinite recursion and the resulting ingestion charges.
+  options:
+    a:
+      en: |-
+        This works but adds a custom function, an event rule, and their error handling to maintain, which is more operational overhead than a built-in account-level policy.
+    c:
+      en: |-
+        Without selection criteria, the Firehose error log group is also subscribed, so delivery errors are sent back to the stream that produced them, which creates the recursive loop the team must avoid.
+    d:
+      en: |-
+        A custom rule and a remediation runbook must be written and maintained, and log events written before each remediation run are not streamed.
+references:
+  - title: Account-level subscription filters - Amazon CloudWatch Logs
+    url: https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/SubscriptionFilters-AccountLevel.html

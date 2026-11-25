@@ -1,0 +1,53 @@
+id: aipc01-1c-meta-tags-to-sidecar
+objective: "1.4.2"
+type: multi
+difficulty: 2
+status: draft
+stem:
+  en: |
+    A bank's document management system uploads policy PDFs to an S3 bucket that is the data source of an Amazon Bedrock knowledge base. The system writes the author in x-amz-meta-author user-defined metadata and the confidentiality level in an S3 object tag. The compliance team changes confidentiality tags several times a week. Users must be able to filter retrieval results by author and confidentiality level. The data source has no custom transformation function, and the bank wants to avoid re-embedding documents whose text has not changed.
+
+    Which combination of actions will meet these requirements? (Choose two.)
+body:
+  choose: 2
+  options:
+    - id: a
+      text:
+        en: |-
+          Add the x-amz-meta-author key and the confidentiality tag key to the inclusion prefixes of the S3 data source so that ingestion copies them into the index.
+    - id: b
+      text:
+        en: |-
+          Create an Amazon EventBridge rule for the bucket's Object Created and Object Tags Added events that invokes a Lambda function, which writes both values to the document's .metadata.json file.
+    - id: c
+      text:
+        en: |-
+          Copy each object onto itself with new user-defined metadata whenever its confidentiality level changes so that the knowledge base detects the change.
+    - id: d
+      text:
+        en: |-
+          Set includeForEmbedding to true for both attributes so that they become available to metadata filters at query time.
+    - id: e
+      text:
+        en: |-
+          Sync the data source after the metadata files are written, because a change limited to a metadata file is re-indexed without re-embedding the document.
+answer: { optionIds: [ b, e ] }
+explanation:
+  correct:
+    en: |-
+      The knowledge base reads filterable attributes only from .metadata.json files, so a function triggered by S3 events through EventBridge must copy the user metadata and the tag into each document's metadata file (the rule should ignore the .metadata.json objects themselves to avoid a loop). A sync then picks up the change; when only the metadata file changed, the content is not a CSV file, and no custom transformation function is configured, the document is updated without being re-embedded.
+  options:
+    a:
+      en: |-
+        Inclusion prefixes select which S3 paths are crawled. They do not map object metadata or tags to knowledge base attributes.
+    c:
+      en: |-
+        Rewriting the objects changes nothing for filtering, because the connector never reads user-defined metadata, and it would make the documents look modified.
+    d:
+      en: |-
+        Attributes in a metadata file are filterable whatever the includeForEmbedding value; setting it to true changes the embedded text and forces re-embedding when the values change.
+references:
+  - title: "Connect to Amazon S3 for your knowledge base - Amazon Bedrock"
+    url: https://docs.aws.amazon.com/bedrock/latest/userguide/s3-data-source-connector.html
+  - title: "Sync your data with your Amazon Bedrock knowledge base - Amazon Bedrock"
+    url: https://docs.aws.amazon.com/bedrock/latest/userguide/kb-data-source-sync-ingest.html

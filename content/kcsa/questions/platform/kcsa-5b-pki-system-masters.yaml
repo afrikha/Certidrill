@@ -1,0 +1,40 @@
+id: kcsa-5b-pki-system-masters
+objective: "5.5.1"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    A kubeconfig file leaks. It embeds a client certificate whose subject is `CN=ops-admin, O=system:masters`, valid for eleven more months. The team immediately deletes every RoleBinding and ClusterRoleBinding that names `ops-admin`.
+
+    Why is the cluster still exposed?
+body:
+  options:
+    - id: a
+      text: { en: "The certificate puts its holder in `system:masters`, a superuser group that does not depend on RBAC bindings" }
+    - id: b
+      text: { en: "The API server caches RBAC bindings for the whole lifetime of the client certificate" }
+    - id: c
+      text: { en: "A certificate with this subject is also signed by the etcd CA, so it can connect to etcd directly" }
+    - id: d
+      text: { en: "`ops-admin` is a ServiceAccount, whose token stays valid until its Pod is deleted" }
+answer: { optionId: a }
+explanation:
+  correct:
+    en: |
+      The O fields of a client certificate are the user's groups. `system:masters` is a break-glass superuser group that can bypass authorization layers such as RBAC, so deleting the user's bindings changes nothing. This is why kubeadm gives the day-to-day `admin.conf` the `kubeadm:cluster-admins` group, whose rights come from an RBAC binding, and keeps `system:masters` for `super-admin.conf`.
+  options:
+    b:
+      en: |
+        RBAC changes take effect without waiting for credentials to expire. The access remains because this group does not need any binding.
+    c:
+      en: |
+        The subject does not decide which CA signed a certificate. Client certificates of users are signed by the cluster CA; etcd trusts only its own etcd CA.
+    d:
+      en: |
+        The CN of a client certificate is a user name for a normal user, not a ServiceAccount. ServiceAccounts authenticate with tokens, not with this kubeconfig certificate.
+references:
+  - title: "PKI certificates and requirements"
+    url: https://kubernetes.io/docs/setup/best-practices/certificates/
+  - title: "Authenticating"
+    url: https://kubernetes.io/docs/reference/access-authn-authz/authentication/

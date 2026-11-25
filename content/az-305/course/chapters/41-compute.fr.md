@@ -109,11 +109,11 @@ Serverless signifie aucun serveur à dimensionner, une mise à l'échelle pilot�
 
 | Plan | Mise à l'échelle | Réseau virtuel | Délai d'exécution | Usage |
 | --- | --- | --- | --- | --- |
-| Flex Consumption | Pilotée par les événements, jusqu'à zéro, jusqu'à 1 000 instances ; instances toujours prêtes en option | Oui | 30 minutes par défaut, illimité | Choix par défaut des nouvelles applications serverless ; Linux uniquement |
+| Flex Consumption | Pilotée par les événements, jusqu'à zéro, jusqu'à 1 000 instances ; instances toujours prêtes en option | Oui | 30 minutes par défaut, illimité | Choix par défaut des nouvelles applications serverless ; Linux uniquement ; pas d'emplacement de déploiement, une seule application par plan |
 | Premium | Pilotée par les événements, au moins une instance toujours chaude | Oui | 30 minutes par défaut, illimité | Pas de démarrage à froid, Windows ou Linux, conteneurs personnalisés |
 | Dedicated (plan App Service) | Manuelle ou automatique, celle du plan | Oui | 30 minutes par défaut, illimité avec Always On | Réutiliser la capacité libre d'un plan existant ; coût prévisible |
-| Container Apps | Pilotée par les événements (KEDA), jusqu'à zéro | Oui | Selon les déclencheurs | Fonctions empaquetées en conteneurs à côté d'autres microservices |
-| Consumption (hérité) | Pilotée par les événements, jusqu'à zéro | Non | 5 minutes par défaut, 10 au maximum | Applications existantes ; les nouvelles utilisent Flex Consumption |
+| Container Apps | Pilotée par les événements (KEDA), jusqu'à zéro | Oui | 30 minutes par défaut, illimité ; avec un minimum de zéro réplica, la valeur par défaut dépend des déclencheurs | Fonctions empaquetées en conteneurs à côté d'autres microservices |
+| Consumption (hérité) | Pilotée par les événements, jusqu'à zéro | Non | 5 minutes par défaut, 10 au maximum | Applications existantes ; les nouvelles utilisent Flex Consumption ; l'hébergement Linux est mis hors service le 30 septembre 2028 |
 
 Quel que soit le plan, une fonction déclenchée par HTTP doit répondre en 230 secondes. Une opération plus longue répond immédiatement et se poursuit en arrière-plan : un message de file d'attente, ou **Durable Functions**, qui écrit en code des orchestrations avec état (chaînage de fonctions, fan-out et fan-in, attente d'une approbation humaine, minuteurs).
 
@@ -138,7 +138,7 @@ Les charges de traitement par lots s'exécutent jusqu'à leur terme sans utilisa
 | Exigence | Recommander |
 | --- | --- |
 | Travaux parallèles ou HPC à grande échelle, avec planification managée et aucun logiciel de cluster à installer | Azure Batch |
-| Conserver un planificateur existant (Slurm, PBS Pro, LSF, Grid Engine, HTCondor, HPC Pack) ou faire déborder un cluster local vers Azure | Azure CycleCloud |
+| Conserver un planificateur existant (Slurm, PBS Pro, LSF, Grid Engine, HTCondor) ou faire déborder un cluster local vers Azure | Azure CycleCloud |
 | Tâche en conteneur qui s'exécute à la demande, selon une planification ou par événement, puis s'arrête | Travail Container Apps |
 | Code court planifié | Azure Functions avec un déclencheur de minuteur |
 | Traitement par lots dans une plateforme Kubernetes existante | Travaux Kubernetes sur AKS |

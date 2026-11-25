@@ -97,7 +97,7 @@ A **service connection** stores how a pipeline authenticates to an external serv
 | App registration or managed identity (manual) | Automatic creation failed or the identity is managed by another team; federation or a secret |
 | Secret, agent-assigned managed identity, publish profile | Backward compatibility only |
 
-Scope levels: subscription (optionally narrowed to one resource group), management group, or Machine Learning workspace. An existing **automatic** service principal connection used by **one project** can be converted to workload identity federation with **Convert** (revert possible for seven days); a manually created or cross-project connection can't.
+Scope levels: subscription (optionally narrowed to one resource group), management group, or Machine Learning workspace; a manual connection with an existing service principal offers only subscription or management group. An existing **automatic** service principal connection used by **one project** can be converted to workload identity federation with **Convert** (revert possible for seven days); a manually created or cross-project connection can't. New workload identity federation connections use the Microsoft Entra issuer (`https://login.microsoftonline.com/<tenant-id>`); a connection that still uses the Azure DevOps issuer (`https://vstoken.dev.azure.com`) must be converted with **Update** on the service connection before that issuer retires on July 1, 2027.
 
 Securing a service connection:
 
@@ -175,7 +175,7 @@ In Azure DevOps, the **access level** decides which features a user sees; securi
 | Stakeholder | Free, unlimited number of users: work items, boards (limited), dashboards, wiki pages, view builds and releases, **approve releases assigned to them**; no Azure Repos code, can't author pipelines |
 | Basic | Most features, including Repos, Pipelines, Artifacts, Boards |
 | Basic + Test Plans | Basic plus Azure Test Plans |
-| Visual Studio subscriber | Detected automatically from the subscription (Professional gives Basic, Enterprise gives Basic + Test Plans) |
+| Visual Studio subscriber | Detected automatically from the subscription (Professional gives Basic, Test Professional and MSDN Platforms give Basic + Test Plans, Enterprise gives VS Enterprise); assign it rather than Basic so that nothing is charged before the first sign-in |
 | GitHub Enterprise | Users with a GitHub Enterprise license get Basic |
 
 ```bash

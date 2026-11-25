@@ -28,7 +28,7 @@ Les expériences agent demandent avant d'agir : dans l'extension MSSQL, le mode 
 
 Résidence des données dans Fabric : si la capacité est hors des États-Unis ou de la France, Copilot pour la base de données SQL reste désactivé tant qu'un administrateur n'active pas **Data sent to Azure OpenAI can be processed outside your capacity's geographic region, compliance boundary, or national cloud instance**. Quand un agent de données Fabric est consommé depuis un service extérieur à Fabric, y compris comme serveur MCP, les réponses peuvent sortir de la limite de conformité de Fabric et relever des conditions de traitement de ce service.
 
-Gouvernance de GitHub Copilot : une stratégie du tableau de bord d'administration GitHub Copilot active ou désactive le mode Agent et MCP dans SSMS, une **liste d'autorisation de serveurs MCP** limite les serveurs que les utilisateurs peuvent ajouter, et GitHub Enterprise Cloud enregistre l'usage de Copilot dans les journaux d'audit.
+Gouvernance de GitHub Copilot : une stratégie du tableau de bord d'administration GitHub Copilot active ou désactive le mode Agent et MCP dans SSMS, une **liste d'autorisation de serveurs MCP** limite les serveurs que les utilisateurs peuvent ajouter, et GitHub Enterprise Cloud enregistre l'usage de Copilot dans les journaux d'audit. Sur l'ordinateur, SSMS 22.7 et versions ultérieures dispose aussi d'un paramètre de stratégie de groupe (ADMX), Computer Configuration > Administrative Templates > SQL Server Management Studio > Copilot Settings > **Disable Agent Mode** ; la liste d'autorisation MCP se définit dans les paramètres de l'entreprise ou de l'organisation GitHub (**AI Controls** > **MCP**).
 
 > **Piège d'examen.** Le code généré par IA est un premier jet. Le filtrage du contenu réduit les modèles de code dangereux mais ne remplace pas la relecture : la bonne réponse à « garantir que le T-SQL généré respecte les normes de sécurité » est une relecture humaine (plus des tests), pas « faire confiance aux filtres de Copilot » ni « ajouter un fichier d'instructions ».
 
@@ -54,12 +54,13 @@ Dans VS Code, la première conversation sur une base vous demande d'accorder à 
 | Data sent to Azure OpenAI can be processed outside your capacity's geographic region, compliance boundary, or national cloud instance | Nécessaire quand la capacité est hors des régions où Fabric traite les requêtes Copilot (pour Copilot dans la base de données SQL : hors des États-Unis et de la France) |
 | Capacities can be designated as Fabric Copilot capacities | Permet aux administrateurs de capacité de désigner une capacité Fabric Copilot |
 | Users can use Copilot, AI Agents, and other AI experiences powered by OpenAI as a Microsoft subprocessor | Autorise les fonctionnalités qui utilisent OpenAI comme sous-traitant de Microsoft |
+| Data sent to OpenAI as a Microsoft subprocessor can be processed outside your capacity's geographic region, compliance boundary, or national cloud instance | Le paramètre de traitement hors zone géographique de ces fonctionnalités OpenAI |
 
 Prérequis et règles :
 
 - Une capacité payante **F2 ou supérieure**, ou Power BI Premium **P1 ou supérieure**, dans une région prise en charge. Les SKU d'essai ne sont pas pris en charge pour Copilot dans la base de données SQL. Les espaces de travail Pro et Premium par utilisateur ont besoin d'une **capacité Fabric Copilot**.
 - Copilot est activé par défaut pour les locataires qui ont des capacités payantes ; Microsoft recommande de le limiter d'abord à des groupes de sécurité.
-- Si les paramètres sont **délégués aux administrateurs de capacité**, chaque administrateur de capacité les active sur sa capacité.
+- Si les paramètres sont **délégués aux administrateurs de capacité**, chaque administrateur de capacité les active sur sa capacité (**OneLake catalog** > **Govern** > **Capacities**, puis les paramètres de locataire délégués de la capacité).
 - Copilot pour la base de données SQL n'est pas disponible quand Private Link est activé et l'accès public désactivé.
 
 Copilot dans l'éditeur de requêtes SQL de Fabric propose un **volet de conversation** (langage naturel vers T-SQL ; il ne peut pas modifier les requêtes déjà présentes dans l'éditeur), la **complétion de code** (Tab accepte) et les actions rapides **Fix** et **Explain** sur une requête sélectionnée. Il n'exécute pas de requêtes de lui-même.
@@ -111,7 +112,7 @@ Ajouter un serveur :
 }
 ```
 
-L'entrée `inputs` demande le jeton au démarrage et le garde hors du fichier, qui peut alors être validé dans le dépôt et partagé avec l'équipe.
+L'entrée `inputs` demande le jeton au démarrage et le garde hors du fichier, qui peut alors être validé dans le référentiel et partagé avec l'équipe.
 
 **Copilot dans Fabric** travaille automatiquement sur les ressources de l'espace de travail. Pour utiliser des données Fabric depuis un autre client de conversation, publiez un **agent de données Fabric** et copiez son URL de serveur MCP (voir la dernière section). Les fournisseurs d'IA que Fabric peut appeler sont décidés par les paramètres du locataire ci-dessus, pas par l'utilisateur dans la conversation.
 
@@ -124,13 +125,12 @@ Les fichiers d'instructions envoient les normes de l'équipe avec chaque requêt
 
 | Fichier | Emplacement | S'applique à |
 | --- | --- | --- |
-| Instructions du dépôt | `.github/copilot-instructions.md` à la racine du dépôt | Chaque requête de conversation dans le dépôt ; aucun en-tête (frontmatter) nécessaire |
+| Instructions du référentiel | `.github/copilot-instructions.md` à la racine du référentiel | Chaque requête de conversation dans le référentiel ; aucun en-tête (frontmatter) nécessaire |
 | Instructions ciblées | `.github/instructions/<name>.instructions.md` | Les fichiers qui correspondent au glob `applyTo` de l'en-tête |
-| `AGENTS.md` | Racine du dépôt | Alternative multi-agents à `copilot-instructions.md` |
 | Fichiers de prompt | `.github/prompts/<name>.prompt.md` | Rien d'automatique : un prompt réutilisable que vous choisissez dans la conversation |
 | Instructions d'utilisateur et d'organisation | Profil utilisateur, paramètres de l'organisation | Préférences personnelles ; normes gérées de façon centralisée |
 
-Un fichier de dépôt pour un projet de base de données :
+Un fichier de référentiel pour un projet de base de données :
 
 ```text
 # Database development standards
@@ -156,10 +156,10 @@ Name indexes IX_TableName_ColumnName.
 Règles à retenir :
 
 - Les modèles `applyTo` sont relatifs à la racine de l'espace de travail, pas à `.github/instructions` : `tests/**/*.sql` correspond à `tests/unit/a.sql` mais pas à `src/a.sql`.
-- Les instructions ne s'appliquent pas aux **suggestions inline** pendant la frappe ; elles s'appliquent à la conversation.
+- Selon le démarrage rapide de Learn sur les instructions personnalisées pour T-SQL, les fichiers `.instructions.md` s'appliquent à toutes les surfaces de Copilot qui correspondent à `applyTo` : modes Ask, Edit et Agent, et **complétions inline**. En mode Plan pour la conception de bases de données, les conventions sont héritées automatiquement.
 - Les instructions guident le modèle ; elles ne garantissent pas leur respect et ne remplacent ni les tests, ni la revue de code, ni les contrôles de sécurité.
 
-> **Conseil d'examen.** « Tous les développeurs doivent recevoir automatiquement les mêmes conventions T-SQL » = `.github/copilot-instructions.md` validé dans le dépôt. « Seulement pour les fichiers `.sql` » = un fichier `.instructions.md` avec `applyTo`. « Une tâche réutilisable que le développeur lance à la demande » = un fichier `.prompt.md`.
+> **Conseil d'examen.** « Tous les développeurs doivent recevoir automatiquement les mêmes conventions T-SQL » = `.github/copilot-instructions.md` validé dans le référentiel. « Seulement pour les fichiers `.sql` » = un fichier `.instructions.md` avec `applyTo`. « Une tâche réutilisable que le développeur lance à la demande » = un fichier `.prompt.md`.
 
 <!-- section: mcp-endpoints | objectives: 1.4.5 -->
 ## Se connecter à des points de terminaison de serveur MCP
@@ -217,5 +217,5 @@ Testez la connexion en mode Agent : le serveur apparaît en vert sous l'icône T
 - SSMS 22 : charge de travail AI Assistance ; mode Agent et MCP à partir de 22.7. VS Code : extensions GitHub Copilot, GitHub Copilot Chat et mssql ; `@mssql` connaît le schéma, les complétions inline non.
 - Copilot dans Fabric : paramètre de locataire « Users can use Copilot and other features powered by Azure OpenAI », F2 ou P1 et plus (pas d'essai), paramètre de traitement hors zone géographique en dehors des régions de traitement.
 - Les outils MCP ne fonctionnent qu'en mode **Agent** et doivent être activés dans la liste Tools.
-- `.github/copilot-instructions.md` pour tout le dépôt, `.instructions.md` avec `applyTo` pour des modèles de fichiers, `.prompt.md` pour des prompts réutilisables ; aucun ne s'applique aux suggestions inline.
+- `.github/copilot-instructions.md` pour tout le référentiel, `.instructions.md` avec `applyTo` pour des modèles de fichiers, `.prompt.md` pour des prompts réutilisables ; les fichiers `.instructions.md` s'appliquent aussi aux complétions inline.
 - SQL MCP Server = générateur d'API de données, sept outils DML, même RBAC que REST et GraphQL, pas de NL2SQL, pas de DDL. Lakehouse Fabric = agent de données publié, URL du serveur MCP dans ses paramètres.

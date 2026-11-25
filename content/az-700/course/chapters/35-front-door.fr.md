@@ -111,8 +111,8 @@ Certificats des domaines personnalisés :
 | --- | --- | --- |
 | Source | Émis par DigiCert ; ajoutez un enregistrement CAA `0 issue digicert.com` si votre domaine restreint les émetteurs | Importé dans Azure Key Vault comme objet certificat (PFX), émis par une autorité approuvée ; clés EC non prises en charge |
 | Domaines | Sous-domaine, apex et générique | Tout domaine correspondant au CN ou au SAN du certificat |
-| Renouvellement | Automatique quand le CNAME du domaine pointe directement vers le point de terminaison ; sinon revalidation par un nouvel enregistrement TXT 45 jours avant l'expiration | Automatique quand la version du secret est **Latest** ; une version figée doit être resélectionnée manuellement |
-| Prérequis | Domaine validé (enregistrement TXT) | Key Vault dans le **même abonnement** que le profil ; accès par une identité managée (Azure RBAC) ou par le principal de service de Front Door (stratégie d'accès) ; « Autoriser les services Microsoft approuvés » si le pare-feu du coffre est actif |
+| Renouvellement | Automatique quand le CNAME du domaine pointe directement vers le point de terminaison ; sinon revalidation par un nouvel enregistrement TXT 45 jours avant l'expiration. Les domaines apex peuvent exiger une revalidation ; les domaines génériques ne font pas l'objet d'une rotation automatique | Automatique quand la version du secret est **Latest** ; une version figée doit être resélectionnée manuellement |
+| Prérequis | Domaine validé (enregistrement TXT) | Key Vault dans le **même abonnement** que le profil ; accès par une identité managée (Azure RBAC, recommandée) ou par le principal de service de Front Door (stratégie d'accès ; cette méthode par inscription d'application est en cours de dépréciation) ; « Autoriser les services Microsoft approuvés » si le pare-feu du coffre est actif |
 
 > **Piège d'examen.** Le chiffrement « entre Front Door et les serveurs web » n'est pas un paramètre de certificat du domaine : réglez le protocole de transfert de l'itinéraire sur **HTTPS only** et vérifiez que le certificat de l'origine correspond au nom d'hôte de l'origine.
 
@@ -172,7 +172,7 @@ Front Door raccourcit le chemin entre les utilisateurs et les origines, même po
 <!-- section: rules | objectives: 3.3.8 -->
 ## Ensembles de règles, réécriture d'URL et redirection d'URL
 
-Un **ensemble de règles** regroupe des règles associées à un ou plusieurs itinéraires. Les règles WAF s'exécutent d'abord, puis les ensembles de règles de l'itinéraire dans l'ordre configuré, puis les règles de chaque ensemble dans l'ordre. Une règle compte jusqu'à **10 conditions de correspondance**, combinées par ET (plusieurs valeurs dans une même condition sont combinées par OU), et jusqu'à **5 actions**. **Arrêter l'évaluation des règles restantes** (Stop evaluating remaining rules) met fin au traitement de cette requête.
+Un **ensemble de règles** regroupe des règles associées à un ou plusieurs itinéraires. Les règles WAF s'exécutent d'abord, puis les ensembles de règles de l'itinéraire dans l'ordre configuré, puis les règles de chaque ensemble dans l'ordre. Une règle compte jusqu'à **10 conditions de correspondance**, combinées par ET (plusieurs valeurs dans une même condition sont combinées par OU), et jusqu'à **5 actions**. Avec **Arrêter l'évaluation des règles restantes** (Stop evaluating remaining rules), les ensembles de règles restants associés à l'itinéraire ne s'exécutent pas.
 
 Les conditions de correspondance incluent le chemin de la requête, l'URL, l'extension de fichier, la chaîne de requête, un en-tête, les cookies, la méthode, le protocole, le nom d'hôte, le type d'appareil et l'adresse distante (correspondance IP ou géographique). Les expressions régulières et les variables de serveur comme `{url_path:seg1}` sont prises en charge.
 
@@ -245,7 +245,7 @@ Règles de conception :
 
 - Un groupe d'origines ne peut pas mélanger origines publiques et privées.
 - Dans un profil, les origines qui partagent la même ressource, la même sous-ressource et la même région partagent un seul point de terminaison privé, approuvé une fois ; une autre région ou un autre profil impose une nouvelle approbation.
-- Chaque cluster régional accepte jusqu'à 7 200 requêtes par seconde par profil ; pour plus de charge ou une redondance régionale, ajoutez des origines qui utilisent des régions Private Link différentes.
+- Chaque cluster régional accepte jusqu'à 7 200 requêtes par seconde par profil (au-delà, les requêtes reçoivent `429 Too Many Requests`) ; pour plus de charge ou une redondance régionale, ajoutez des origines qui utilisent des régions Private Link différentes.
 - Private Link ne couvre que le trajet de Front Door à l'origine ; les clients atteignent toujours Front Door par internet.
 
 Sans Premium, verrouillez une origine publique : n'autorisez que l'étiquette de service **AzureFrontDoor.Backend** (NSG ou restriction d'accès) et rejetez les requêtes dont l'en-tête `X-Azure-FDID` ne contient pas l'ID de votre profil.

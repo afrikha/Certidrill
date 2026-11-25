@@ -19,7 +19,7 @@ WITH CHECK OPTION;
 | --- | --- |
 | `WITH SCHEMABINDING` | Les tables et colonnes utilisées par la vue ne peuvent être ni supprimées ni modifiées ; exige des noms en deux parties et interdit `SELECT *` |
 | `WITH CHECK OPTION` | Un `INSERT` ou un `UPDATE` effectué par la vue doit produire des lignes que la vue retourne encore |
-| `WITH ENCRYPTION` | Masque la définition dans `sys.sql_modules` |
+| `WITH ENCRYPTION` | Chiffre le texte stocké de la définition (les entrées de `sys.syscomments`) ; la vue ne peut pas être publiée par la réplication SQL Server |
 | `WITH VIEW_METADATA` | Les API clientes voient les métadonnées de la vue au lieu de celles des tables de base |
 
 Règles testées à l'examen :
@@ -184,7 +184,7 @@ EXECUTE @rc = Sales.usp_PlaceOrder @CustomerID = 42, @Lines = @lines, @OrderID =
 | `SCOPE_IDENTITY()` | Dernière valeur d'identité de l'étendue courante ; `@@IDENTITY` peut retourner une valeur générée par un déclencheur |
 | `WITH RECOMPILE` / `OPTION (RECOMPILE)` | Nouveau plan à chaque appel (toute la procédure / une instruction) : un remède à la sensibilité aux paramètres |
 
-Les procédures stockées sont l'unité du **privilège minimum** : accordez `EXECUTE` sur la procédure (ou le schéma) et aucune autorisation sur les tables ; le chaînage des propriétés couvre les tables quand les propriétaires sont identiques, mais pas le SQL dynamique, qui s'exécute avec les autorisations de l'appelant sauf avec `EXECUTE AS`. Passez les valeurs au SQL dynamique par les paramètres de `sp_executesql`, jamais par concaténation (injection SQL).
+Les procédures stockées sont l'unité du **privilège minimum** : accordez `EXECUTE` sur la procédure (ou le schéma) et aucune autorisation sur les tables ; le chaînage des propriétés couvre les tables quand les propriétaires sont identiques, mais pas le SQL dynamique, qui s'exécute avec les autorisations de l'appelant sauf avec `EXECUTE AS`. Transférer un schéma à un nouveau propriétaire (`ALTER AUTHORIZATION ON SCHEMA::...`) supprime les autorisations sur les objets du schéma qui n'ont pas de propriétaire explicite : accordez-les de nouveau ensuite. Passez les valeurs au SQL dynamique par les paramètres de `sp_executesql`, jamais par concaténation (injection SQL).
 
 > **Piège d'examen.** Une procédure retourne des lignes par des jeux de résultats `SELECT`, pas par `RETURN`. « Retourner l'ID de la nouvelle commande à l'appelant » est un paramètre `OUTPUT` (ou un jeu de résultats) ; `RETURN` ne porte qu'un code d'état.
 

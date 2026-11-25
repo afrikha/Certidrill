@@ -18,7 +18,7 @@ Defender pour le cloud découvre et protège aussi les charges de travail d'IA g
 <!-- section: cspm | objectives: 3.2.2 -->
 ## Gestion de la posture de sécurité cloud
 
-La **gestion de la posture de sécurité cloud (CSPM)** trouve les **configurations incorrectes** et les faiblesses avant un attaquant, et donne des conseils de renforcement. Son indicateur central est le **score de sécurité** (secure score) : Defender pour le cloud évalue vos ressources en continu et agrège les résultats en un score unique. **Plus le score est élevé, plus le risque identifié est faible.**
+La **gestion de la posture de sécurité cloud (CSPM)** trouve les **configurations incorrectes** et les faiblesses avant un attaquant, et donne des conseils de renforcement. Son indicateur central est le **score de sécurité** (secure score) : Defender pour le cloud évalue vos ressources en continu et agrège les résultats en un score unique. **Plus le score est élevé, plus le risque identifié est faible.** Ce score de sécurité classique s'affiche dans le portail Azure ; le portail Microsoft Defender affiche un autre score, fondé sur les risques, le **Cloud Secure Score** (de 0 à 100), qui pondère aussi les facteurs de risque et la criticité des ressources.
 
 | | CSPM de base (Foundational CSPM) | Defender CSPM |
 | --- | --- | --- |
@@ -49,9 +49,9 @@ La posture s'améliore par un cycle continu : les stratégies définissent les r
 | **Recommandation de sécurité** | Produite quand une ressource ne respecte pas un contrôle : description du problème, étapes de correction, ressources concernées, gravité |
 | **Tableau de bord de conformité réglementaire** | Pour chaque norme appliquée, montre chaque contrôle et combien de ressources le réussissent ou y échouent |
 
-Des normes réglementaires comme ISO 27001, SOC 2, NIST SP 800-53 et PCI DSS peuvent être ajoutées à côté du MCSB, et une même recommandation améliore souvent la conformité à plusieurs normes à la fois.
+Des normes réglementaires comme ISO 27001, SOC 2, NIST SP 800-53 et PCI DSS peuvent être ajoutées à côté du MCSB, et une même recommandation améliore souvent la conformité à plusieurs normes à la fois. Ces normes réglementaires demandent un plan payant : Defender CSPM, ou un autre plan payant comme Defender for Servers Plan 2.
 
-Les recommandations sont regroupées en **contrôles de sécurité**. Les corriger fait monter le score de sécurité. Seules les recommandations intégrées du MCSB comptent dans le score ; les recommandations signalées en préversion n'y comptent pas.
+Les recommandations sont regroupées en **contrôles de sécurité**. Les corriger fait monter le score de sécurité : un contrôle ne donne tous ses points que lorsque toutes les ressources respectent toutes ses recommandations. Seules les recommandations intégrées du MCSB comptent dans le score ; les recommandations signalées en préversion n'y comptent pas.
 
 > **Piège d'examen.** Trois scores, trois produits. **Score de sécurité** dans Defender pour le cloud : posture des ressources cloud. **Degré de sécurisation Microsoft** (Microsoft Secure Score) dans le portail Microsoft Defender : posture des identités, des appareils et des applications Microsoft 365. **Score de conformité** dans le Gestionnaire de conformité : avancement des actions d'amélioration réglementaires.
 
@@ -62,7 +62,7 @@ La **protection des charges de travail cloud** détecte les menaces qui visent l
 
 | Plan | Protège |
 | --- | --- |
-| **Defender for Servers** | Les machines Windows et Linux ; inclut Microsoft Defender pour point de terminaison pour la détection et la réponse des points de terminaison |
+| **Defender for Servers** | Les machines Windows et Linux ; inclut Microsoft Defender pour point de terminaison pour la détection et la réponse des points de terminaison ; le Plan 2 inclut aussi l'analyse sans agent des machines |
 | **Defender for Containers** | Les clusters Kubernetes et les registres de conteneurs : renforcement, évaluation des vulnérabilités, détection des menaces à l'exécution |
 | **Defender for Storage** | Les comptes de stockage, contre les activités potentiellement dangereuses |
 | **Defender for Databases** | Azure SQL, les serveurs SQL sur des machines, les bases de données relationnelles open source, Azure Cosmos DB |

@@ -69,7 +69,7 @@ export default async function PricingPage({ searchParams }: Readonly<{ searchPar
           <p className="mt-4 text-4xl font-bold tracking-tight">{format.number(0, { style: "currency", currency: (offers[0]?.currency ?? "eur").toUpperCase(), maximumFractionDigits: 0 })}</p>
           <p className="mt-1 text-sm text-muted-foreground">{tHome("freeTerms")}</p>
           <ul className="mt-6 space-y-3 text-sm">
-            {[freeExams, tHome("freeCorrection"), tHome("freeProgress")].filter(Boolean).map((b) => (
+            {[freeExams, tHome("freeCorrection"), tHome("freeCourse"), tHome("freeProgress")].filter(Boolean).map((b) => (
               <li key={b} className="flex gap-3"><Icon name="check" className="size-5 shrink-0 text-success" />{b}</li>
             ))}
           </ul>
@@ -81,7 +81,7 @@ export default async function PricingPage({ searchParams }: Readonly<{ searchPar
             <p className="mt-4 text-4xl font-bold tracking-tight tabular-nums">{price(pass)}</p>
             <p className="mt-1 text-sm text-muted-foreground">{tOffer("termsPass", { tax: tax(pass), days: pass.durationDays ?? 0 })}</p>
             <ul className="mt-6 space-y-3 text-sm">
-              {(["benefitExams", "benefitCorrection", "benefitProgress", "benefitTime"] as const).map((k) => (
+              {(["benefitExams", "benefitCorrection", "benefitCourse", "benefitProgress", "benefitTime"] as const).map((k) => (
                 <li key={k} className="flex gap-3"><Icon name="check" className="size-5 shrink-0 text-primary" />{tOffer(k)}</li>
               ))}
             </ul>

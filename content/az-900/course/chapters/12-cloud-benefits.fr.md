@@ -19,7 +19,7 @@ L'**élasticité** est la scalabilité rendue automatique : la plateforme ajoute
 <!-- section: reliability-predictability | objectives: 1.2.2 -->
 ## Fiabilité et prévisibilité
 
-La **fiabilité** est la capacité d'un système à se remettre d'une défaillance et à continuer de fonctionner. Le cloud la favorise par conception : les ressources peuvent être déployées dans plusieurs régions du monde, de sorte que si une région subit un événement catastrophique, une autre continue de tourner.
+La **fiabilité** est la capacité d'un système à se remettre d'une défaillance et à continuer de fonctionner ; c'est aussi l'un des piliers d'Azure Well-Architected Framework. Le cloud la favorise par conception : les ressources peuvent être déployées dans plusieurs régions du monde, de sorte que si une région subit un événement catastrophique, une autre continue de tourner.
 
 La **prévisibilité** permet d'avancer avec confiance. Elle a deux faces :
 

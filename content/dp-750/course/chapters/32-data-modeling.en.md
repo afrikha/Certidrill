@@ -31,7 +31,7 @@ TRACK HISTORY ON * EXCEPT (last_login);
 
 With `STORED AS SCD TYPE 2`, the target gets `__START_AT` and `__END_AT` columns (`__END_AT` is null for the current version). `TRACK HISTORY ON * EXCEPT (last_login)` updates `last_login` in place instead of creating a version. `STORED AS SCD TYPE 1` keeps only the current state, without those columns. AUTO CDC requires a serverless pipeline or the Pro or Advanced edition.
 
-Outside a pipeline, a type 2 dimension is maintained with one `MERGE` that both closes and inserts: the changed rows are sent twice, once with their key (to close the current version) and once with a null key (so they don't match and are inserted as the new version).
+Outside a pipeline, a type 2 dimension is maintained with one `MERGE` that both closes and inserts: the changed rows are sent twice, once with their key (to close the current version) and once with a null key (so they don't match and are inserted as the new version). The Learn training module uses two statements instead: a `MERGE` that closes the changed rows and inserts new customers, then an `INSERT ... SELECT` of the new versions.
 
 ```text
 MERGE INTO sales.gold.dim_customer AS t
@@ -80,8 +80,10 @@ Three mechanisms record changes over time:
 | Mechanism | What it gives | Limit |
 | --- | --- | --- |
 | Delta time travel (`VERSION AS OF`, `TIMESTAMP AS OF`, `DESCRIBE HISTORY`) | Any past state of the table, with no design work | Only within the retention windows (7 days of files, 30 days of log by default) |
-| Change data feed | Row-level changes with `_change_type` (`insert`, `update_preimage`, `update_postimage`, `delete`), `_commit_version`, `_commit_timestamp` | Off by default; only records changes made after it is enabled; follows the table retention |
+| Change data feed | Row-level changes with `_change_type` (`insert`, `update_preimage`, `update_postimage`, `delete`), `_commit_version`, `_commit_timestamp` | Off by default (legacy feed); only records changes made after it is enabled; follows the table retention |
 | Explicit history table | Every change kept as long as you decide | Must be populated by a job or pipeline |
+
+The table describes the **legacy** change data feed, turned on per table with `delta.enableChangeDataFeed`. Databricks recommends migrating to **automatic change data feed** (Databricks Runtime 19 and above, Unity Catalog Delta tables with row tracking, or Iceberg v3 tables): it computes changes at read time, needs no per-table property and is queried with the same `table_changes` and `readChangeFeed`.
 
 SCD type 2 tracks **business** versions for reporting; a temporal table records **technical** changes for debugging, audit and reproducing a report as it was.
 
@@ -110,7 +112,7 @@ To keep history beyond the retention windows, stream the change feed into an app
 
 `table_changes` versions are inclusive; `startingVersion` or `startingTimestamp` do the same in Python. Raising `delta.logRetentionDuration` and `delta.deletedFileRetentionDuration` extends time travel, at a storage cost; Microsoft Learn advises against using table history as a long-term backup.
 
-> **Exam trap.** Enabling change data feed today doesn't reveal yesterday's changes: it captures only commits made after the property is set. Enable it before loading production data.
+> **Exam trap.** Enabling the legacy change data feed today doesn't reveal yesterday's changes: it captures only commits made after the property is set. Enable it before loading production data.
 
 <!-- section: clustering | objectives: 3.1.9 -->
 ## Clustering strategy: liquid clustering, Z-ordering, deletion vectors
@@ -135,19 +137,19 @@ OPTIMIZE sales.legacy.orders ZORDER BY (customer_id, order_date);
 | Status | Recommended for new tables | Legacy | Only for tables above 1 TB |
 | Keys | Up to 4, any cardinality | Several columns, applied at `OPTIMIZE` time | One low-cardinality column (or a few) |
 | Change keys | `ALTER TABLE ... CLUSTER BY`, no rewrite (`OPTIMIZE FULL` to recluster existing data) | Full rewrite | Full rewrite |
-| Concurrency | Row-level concurrency | Transaction-level | Transaction-level |
+| Concurrency | Row-level concurrency (with deletion vectors) | Transaction-level | Transaction-level |
 | Combine with | Neither partitioning nor `ZORDER` | Partitioning | Z-ordering |
 
-Liquid clustering requires Databricks Runtime 13.3 LTS or above and is incremental: each `OPTIMIZE` reorganizes only what needs it (schedule it every one or two hours on busy tables, or let predictive optimization run it on managed tables). `CLUSTER BY AUTO` lets Databricks pick and revise the keys from the query history; it requires predictive optimization. Choose keys from the columns most used in filters; their order matters little.
+Liquid clustering is generally available for Delta tables from Databricks Runtime 15.4 LTS and is incremental: each `OPTIMIZE` reorganizes only what needs it (schedule it every one or two hours on busy tables, or let predictive optimization run it on managed tables). `CLUSTER BY AUTO` lets Databricks pick and revise the keys from the query history; it requires predictive optimization. Choose keys from the columns most used in filters; their order matters little.
 
-**Deletion vectors** make `DELETE`, `UPDATE` and `MERGE` mark rows as removed in a small file instead of rewriting whole Parquet files; readers apply them on the fly. They are enabled by default for new tables from Databricks Runtime 14.1, are applied physically by `OPTIMIZE`, auto compaction or `REORG TABLE ... APPLY (PURGE)`, and enable row-level concurrency.
+**Deletion vectors** make `DELETE`, `UPDATE` and `MERGE` mark rows as removed in a small file instead of rewriting whole Parquet files; readers apply them on the fly. On Delta tables they must be enabled explicitly, unless the workspace setting **Auto-enable deletion vectors** turns them on for new tables (SQL warehouse or Databricks Runtime 14.3 LTS and above; defaults vary by region). `MERGE` with deletion vectors needs Databricks Runtime 14.3 LTS (12.2 LTS with Photon). They are applied physically by `OPTIMIZE`, auto compaction or `REORG TABLE ... APPLY (PURGE)`, and enable row-level concurrency (Databricks Runtime 14.3 LTS and above, unpartitioned tables only).
 
 ```text
 ALTER TABLE sales.silver.orders SET TBLPROPERTIES ('delta.enableDeletionVectors' = true);
 REORG TABLE sales.silver.orders APPLY (PURGE);
 ```
 
-> **Exam trap.** Liquid clustering can't be enabled on a partitioned table. To move a partitioned table to liquid clustering, recreate it unpartitioned (for example with CTAS and `CLUSTER BY`), then run `OPTIMIZE`.
+> **Exam trap.** Liquid clustering can't be enabled on a partitioned table with `ALTER TABLE ... CLUSTER BY`. On Databricks Runtime 18.1 and above, convert it in place with `ALTER TABLE ... REPLACE PARTITIONED BY WITH CLUSTER BY (...)`, then run `OPTIMIZE ... FULL`; on older runtimes, recreate it unpartitioned (for example with CTAS and `CLUSTER BY`).
 
 <!-- section: managed-external | objectives: 3.1.10 -->
 ## Managed or unmanaged (external) tables
@@ -159,14 +161,14 @@ REORG TABLE sales.silver.orders APPLY (PURGE);
 | Formats | Delta, Iceberg | Delta, CSV, JSON, Avro, Parquet, ORC, text |
 | Predictive optimization, automatic liquid clustering | Yes | No |
 | `DROP TABLE` | Files deleted by Unity Catalog after the recovery period | Only metadata removed; files stay in storage |
-| `UNDROP TABLE` | Within the recovery period (7 days by default) | Recovers the definition; requires `CREATE EXTERNAL TABLE` on the location |
+| `UNDROP TABLE` | Within the recovery period (7 days by default; configurable to 0 hours or 7–30 days in Public Preview) | Recovers the definition; requires `CREATE EXTERNAL TABLE` on the location |
 
 ```text
 CREATE TABLE sales.bronze.legacy_orders (order_id BIGINT, amount DECIMAL(12,2))
 LOCATION 'abfss://lake@contosodata.dfs.core.windows.net/legacy/orders';
 ```
 
-Creating an external table requires `CREATE EXTERNAL TABLE` on the external location, plus `CREATE TABLE` and `USE SCHEMA` on the schema and `USE CATALOG` on the catalog.
+Creating an external table requires `CREATE EXTERNAL TABLE` on the external location, plus `CREATE TABLE` and `USE SCHEMA` on the schema and `USE CATALOG` on the catalog. Dropping a table requires ownership or `MANAGE` on it.
 
 Databricks recommends **managed** tables in most cases: automatic optimization, faster queries, lower cost, lifecycle handled by Unity Catalog. Choose **external** tables when:
 
@@ -184,7 +186,7 @@ Databricks recommends **managed** tables in most cases: automatic optimization, 
 - Type 1 overwrites, type 2 versions with a surrogate key and validity dates, type 3 keeps one previous value, type 0 never changes.
 - AUTO CDC with `SEQUENCE BY` and `STORED AS SCD TYPE 2` adds `__START_AT` and `__END_AT` and handles late records.
 - Declare the grain first; keep atomic data and derive aggregates with materialized views.
-- Time travel is bounded by retention; change data feed records changes only after it is enabled; a history table fed by `readChangeFeed` keeps everything.
-- Liquid clustering: up to 4 keys, keys change without rewrite, `CLUSTER BY AUTO` needs predictive optimization, incompatible with partitioning and `ZORDER`.
-- Deletion vectors speed up deletes and updates; `REORG ... APPLY (PURGE)` then `VACUUM` removes data physically.
+- Time travel is bounded by retention; the legacy change data feed records changes only after it is enabled (automatic change data feed needs no per-table setting); a history table fed by `readChangeFeed` keeps everything.
+- Liquid clustering: up to 4 keys, keys change without rewrite, `REPLACE PARTITIONED BY WITH CLUSTER BY` converts a partitioned table (DBR 18.1+), `CLUSTER BY AUTO` needs predictive optimization, incompatible with partitioning and `ZORDER`.
+- Deletion vectors speed up deletes and updates and must be enabled on Delta tables unless the workspace auto-enables them; `REORG ... APPLY (PURGE)` then `VACUUM` removes data physically.
 - Managed by default; external when files must survive `DROP`, other engines access them, or the format isn't Delta or Iceberg.

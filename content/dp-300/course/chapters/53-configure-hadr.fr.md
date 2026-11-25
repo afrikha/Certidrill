@@ -11,7 +11,8 @@ Règles qui décident des réponses :
 - Un secondaire peut être une base unique ou une base d'un pool élastique, mais deux secondaires du même primaire ne peuvent pas partager un pool.
 - Après un basculement, le point de terminaison **change** pour le nouveau serveur : les applications ont besoin d'une nouvelle chaîne de connexion (les groupes de basculement évitent cela).
 - Utilisez des règles de pare-feu au niveau de la base de données et des utilisateurs de base de données contenus : ils sont répliqués avec la base. Les règles au niveau du serveur et les connexions doivent être recréées sur le serveur secondaire.
-- Un secondaire sans charge de travail peut être désigné comme réplica de secours (standby) sans licence.
+- Un secondaire sans charge de travail peut être désigné comme réplica de secours (standby) sans licence : uniquement des bases uniques vCore provisionnées General Purpose ou Business Critical sur du matériel standard-series ou DC-series (ni Hyperscale, ni serverless, ni DTU, ni pools élastiques), un seul réplica de secours par primaire, pas sur un secondaire chaîné. Seuls les exercices de récupération d'urgence, la supervision (DMV) et la maintenance comme `DBCC CHECKDB` y sont autorisés.
+- Une base membre d'un groupe de basculement ne peut pas basculer avec la commande de géoréplication : basculez le groupe, ou retirez d'abord la base du groupe.
 
 Portail : base de données > Réplicas > Créer un réplica. Le T-SQL s'exécute dans `master` :
 
@@ -85,7 +86,7 @@ Les clients définissent `MultiSubnetFailover=True`, même dans un seul sous-ré
 
 **SQL Managed Instance.** Vous ne créez pas de groupes de disponibilité sur une instance managée : Business Critical en exécute déjà un en interne. Le groupe de disponibilité que vous configurez est le **lien Managed Instance**, un groupe de disponibilité distribué entre SQL Server et l'instance :
 
-1. Sur SQL Server : activez la fonctionnalité Groupes de disponibilité Always On, utilisez le mode de récupération FULL, prenez une sauvegarde complète, créez un point de terminaison de mise en miroir de bases de données sécurisé par un certificat.
+1. Sur SQL Server : créez une clé principale de base de données dans `master`, activez la fonctionnalité Groupes de disponibilité Always On (seul SQL Server 2016 exige pour cela des étapes supplémentaires de cluster de basculement Windows Server ; SQL Server 2017 et ultérieur non), ajoutez les indicateurs de trace de démarrage recommandés `-T1800` et `-T9567`, utilisez le mode de récupération FULL, prenez une sauvegarde complète, créez un point de terminaison de mise en miroir de bases de données sécurisé par un certificat.
 2. Ouvrez la connectivité réseau entre SQL Server et le sous-réseau de l'instance (VPN, ExpressRoute ou peering pour une machine virtuelle Azure).
 3. Dans SSMS, lancez l'assistant du lien (Azure SQL Managed Instance link > Replicate database), ou scriptez-le avec Az.Sql ou Azure CLI.
 4. Basculez avec l'assistant de basculement de SSMS ou, à partir de SQL Server 2022 CU13, en T-SQL.
@@ -103,7 +104,7 @@ Un groupe de basculement réplique un ensemble de bases vers un serveur secondai
 | Paramètre | SQL Database | SQL Managed Instance |
 | --- | --- | --- |
 | Bases | Bases ou pools élastiques choisis ; plusieurs groupes par serveur | Toutes les bases utilisateur (ni `master` ni `msdb`) ; un seul groupe par instance |
-| Secondaire | Un serveur d'une autre région, dans le même locataire Microsoft Entra | Une instance d'une autre région qui partage la **zone DNS** du primaire (définie à la création), même configuration, réseaux reliés par peering mondial (recommandé), VPN ou ExpressRoute |
+| Secondaire | Un serveur d'une autre région, dans le même locataire Microsoft Entra (jusqu'à quatre serveurs secondaires par groupe en préversion ; l'écouteur en lecture seule pointe alors vers l'un d'eux) | Une instance d'une autre région qui partage la **zone DNS** du primaire (définie à la création), même configuration, réseaux reliés par peering mondial (recommandé), VPN ou ExpressRoute |
 | Amorçage | Jusqu'à 500 Go par heure | Jusqu'à 360 Go par heure |
 
 Stratégie de basculement : **gérée par le client** (`Manual`, recommandée) ou gérée par Microsoft (`Automatic`, avec une période de grâce d'au moins 1 heure avant un basculement forcé avec perte de données possible). Le basculement de l'écouteur en lecture seule est désactivé par défaut.
@@ -190,8 +191,8 @@ Un `log_send_queue_size` qui grossit signifie plus de pertes de données possibl
 | Les connexions échouent après un géobasculement | Connexions de serveur absentes sur le nouveau primaire, ou créées avec des SID différents | Créez les connexions avec le même SID, ou utilisez des utilisateurs de base de données contenus |
 | Clients refusés après le basculement alors que la base est en ligne | Les règles de pare-feu au niveau du serveur ne sont pas répliquées | Utilisez des règles de pare-feu au niveau de la base de données ou définissez les mêmes règles de serveur sur les deux serveurs |
 | Les applications se connectent toujours à l'ancien primaire | La chaîne de connexion utilise le nom du serveur | Utilisez l'écouteur du groupe de basculement ou celui du groupe de disponibilité avec `MultiSubnetFailover=True` |
-| Le cluster exclut des nœuds (événement 1135), bail expiré (erreurs 19407, 19419) | Seuils de surveillance trop agressifs pour Azure | Surveillance assouplie : SameSubnetThreshold et CrossSubnetThreshold à 40, délai de bail de 40 secondes, délai de vérification d'intégrité de 60 secondes |
-| Le groupe de disponibilité ne bascule plus après plusieurs basculements | Nombre maximal d'échecs dans la période spécifiée atteint (2 par défaut) | Augmentez-le dans les propriétés de basculement du rôle en cluster |
+| Le cluster exclut des nœuds (événement 1135), bail expiré (erreurs 19407, 19419) | Seuils de surveillance trop agressifs pour Azure | Surveillance assouplie : SameSubnetThreshold et CrossSubnetThreshold à 40, délai de bail de 40 secondes, délai de vérification d'intégrité de 60 secondes, délai d'expiration de session de 20 secondes, niveau de condition d'échec (Failure-Condition Level) à 2 |
+| Le groupe de disponibilité ne bascule plus après plusieurs basculements | Nombre maximal d'échecs dans la période spécifiée (Maximum failures in the specified period) atteint (2 par défaut) | Augmentez-le (valeur assouplie : 6) dans les propriétés de basculement du rôle en cluster |
 | Écouteur VNN inaccessible | Équilibreur de charge sans IP flottante, ou port de sonde bloqué | Activez Direct Server Return et ouvrez le port de sonde ; ou passez au DNN ou au multisous-réseau |
 | Le journal des transactions du primaire ne cesse de grossir | Un réplica secondaire est déconnecté ou suspendu : le journal ne peut pas être tronqué | Rétablissez la connexion, puis `ALTER DATABASE [SalesDb] SET HADR RESUME;` sur le secondaire, ou retirez le réplica |
 | Le retard de réplication augmente | Secondaire sous-dimensionné, ou pic d'écritures | Dimensionnez le secondaire comme le primaire (augmentez-le en premier) |

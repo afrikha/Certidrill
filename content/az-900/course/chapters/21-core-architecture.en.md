@@ -7,13 +7,14 @@ A **datacenter** is a facility full of servers with its own power, cooling and n
 
 A **region** is a geographical area that contains one or more datacenters, close to each other and linked by a low-latency network. When you create a resource you usually choose its region. This choice matters for latency (close to users), for data residency (legal requirements), for price and for the services available: not every service exists in every region. A few services are **global** and have no region, such as Microsoft Entra ID, Azure DNS and Azure Traffic Manager.
 
-Most regions are **paired** with another region of the same geography, at least 300 miles (about 480 km) away where possible, for example West Europe with North Europe.
+Many regions are **paired** with another region of the same geography, at least 300 miles (about 480 km) away where possible, for example West Europe with North Europe.
 
 - If a large outage affects several regions, one region of each pair is restored first.
 - Planned Azure updates are rolled out to one region of a pair at a time.
 - Data stays within the same geography (except Brazil South), for tax and legal reasons.
 - Geo-redundant storage replicates data to the paired region.
-- Most pairs work in both directions; a few are one-directional. Some newer regions have no pair and rely on availability zones.
+- Most pairs work in both directions; a few are one-directional. Many regions, especially newer ones, have no pair and rely on availability zones.
+- A pair doesn't make resources resilient by itself: it provides no automatic high availability, disaster recovery or failover. You plan and configure them yourself; Microsoft-managed failover of geo-redundant storage happens only in catastrophic situations.
 
 **Sovereign regions** are instances of Azure isolated from the main instance, for compliance or legal reasons:
 
@@ -42,7 +43,8 @@ A **resource** is anything you create in Azure: a virtual machine, a virtual net
 
 A **resource group** is a logical container for resources. Rules:
 
-- Every resource is in **exactly one** resource group. A resource can be moved to another group.
+- Every resource is in **exactly one** resource group at a time. Some resources can be moved to another group; not every resource type supports moving.
+- A resource group **can't be renamed** after it is created.
 - Resource groups **can't be nested**.
 - An action applied to a resource group applies to everything in it: **deleting the group deletes all its resources**; granting access to the group grants access to all its resources.
 - A resource group has a location (where its metadata is stored), but it can contain resources from **different regions**.
@@ -91,7 +93,7 @@ Examples: a policy that limits virtual machine locations to one region, assigned
 
 - Region = datacenters in one area. Region pair = recovery and sequential updates within a geography. Sovereign regions = isolated instances (US Government, China operated by 21Vianet).
 - Availability zones = at least three separate datacenters in a region; zonal, zone-redundant and non-regional services.
-- Resource group: one per resource, not nestable, deleting it deletes its content, may hold resources from several regions.
+- Resource group: one per resource, not nestable, can't be renamed, deleting it deletes its content, may hold resources from several regions.
 - Subscription: billing boundary and access control boundary.
 - Management groups: nestable containers of subscriptions, six levels, inheritance of policies and roles.
 - Hierarchy: management groups > subscriptions > resource groups > resources.

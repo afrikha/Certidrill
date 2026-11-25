@@ -27,7 +27,7 @@ Règles que l'on peut ajouter quand l'accès est restreint :
 
 | Règle | Autorise | Détails |
 | --- | --- | --- |
-| Règle de réseau virtuel | Un **sous-réseau** d'un réseau virtuel | Le sous-réseau doit avoir le **point de terminaison de service** `Microsoft.Storage` (même région que le compte, ou sa région jumelée) ou `Microsoft.Storage.Global` (toute région). Le portail l'active pour vous ; la CLI et PowerShell demandent une étape séparée. Sans surcoût |
+| Règle de réseau virtuel | Un **sous-réseau** d'un réseau virtuel | Le sous-réseau doit avoir le **point de terminaison de service** `Microsoft.Storage` (comptes de la même région que le réseau virtuel) ou `Microsoft.Storage.Global` (toute région). Le portail l'active pour vous ; la CLI et PowerShell demandent une étape séparée. Sans surcoût |
 | Règle de réseau IP | Une adresse IPv4 **publique** ou une plage CIDR | Pour les clients locaux ou internet. Les plages privées (10.x, 172.16.x, 192.168.x) sont refusées. `/31` et `/32` ne sont pas acceptés : saisissez des adresses individuelles. **Sans effet sur les clients de la même région Azure que le compte** : utilisez pour eux une règle de réseau virtuel |
 | Règle d'instance de ressource | Une instance précise de ressource Azure (par exemple une fabrique Azure Data Factory) | L'accès dépend toujours du rôle donné à son identité managée |
 | Exception : services Azure approuvés | Une liste de services Microsoft exécutés hors de votre réseau (Sauvegarde Azure, Azure Site Recovery, Event Grid...) | Ne couvre pas vos propres machines virtuelles |
@@ -150,7 +150,7 @@ L'accès est ensuite vérifié à deux niveaux, et **le plus restrictif l'emport
 
 | Niveau | Mécanisme | Valeurs |
 | --- | --- | --- |
-| Partage | Rôle Azure RBAC sur le partage ou le compte | Storage File Data SMB Share **Reader** (lecture), **Contributor** (lecture, écriture, suppression), **Elevated Contributor** (modification des ACL en plus) |
+| Partage | Rôle Azure RBAC sur le partage ou le compte | Storage File Data SMB Share **Reader** (lecture), **Contributor** (lecture, écriture, suppression), **Elevated Contributor** (modification des ACL en plus). Cas particuliers : Storage File Data Privileged Reader / Privileged Contributor (passent outre les ACL existantes), Storage File Data SMB Admin (accès administrateur équivalent à la clé du compte), Storage File Data SMB Take Ownership (prise de possession d'un fichier ou d'un répertoire) |
 | Répertoire et fichier | ACL Windows (autorisations NTFS) | Définies avec l'Explorateur de fichiers, `icacls` ou `Set-Acl` après montage du partage |
 
 Une **autorisation par défaut au niveau du partage** peut remplacer les attributions de rôles individuelles : elle s'applique à toutes les identités authentifiées, et c'est le seul moyen de servir des identités non synchronisées vers Microsoft Entra ID. Sans aucune autorisation au niveau du partage, l'accès est refusé quelles que soient les autorisations NTFS.

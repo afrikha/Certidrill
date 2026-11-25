@@ -35,8 +35,8 @@ The same need with less to build:
 
 | Method | Incremental behaviour |
 | --- | --- |
-| **Copy job** | First run copies everything, later runs only changes. **Watermark** column types: `rowversion`, datetime, date, integer, string interpreted as datetime (inserts and updates only). **CDC** when enabled on the source: inserts, updates and deletes. Update methods: **Append** (default), **Merge** on a key (primary key by default), **Overwrite**, **SCD Type 2** (some databases). A failed run resumes from the last successful state; a reset forces a full copy per job or per table |
-| **Dataflow Gen2 incremental refresh** | Filters a Date, DateTime or DateTimeZone column into **buckets**; only buckets whose change-detection column maximum changed are reloaded (delete, then insert for that range). Destinations: lakehouse, warehouse, Azure SQL Database. The query should fully fold; up to 50 buckets per query |
+| **Copy job** | First run copies everything, later runs only changes. **Watermark** column types: `rowversion`, datetime, date, integer, string interpreted as datetime (inserts and updates only). **CDC** when enabled on the source (Fabric Lakehouse tables are also a CDC source): inserts, updates and deletes; a job that mixes CDC and non-CDC tables treats every table as watermark-based. Update methods: **Append** (default), **Merge** on a key (primary key by default), **Overwrite**, **SCD Type 2** (preview, not with Oracle CDC sources). A failed run resumes from the last successful state; a reset forces a full copy per job or per table |
+| **Dataflow Gen2 incremental refresh** | Filters a Date, DateTime or DateTimeZone column into **buckets**; only buckets whose change-detection column maximum changed are reloaded (delete, then insert for that range). Destinations: lakehouse, warehouse, Azure SQL Database. The query should fully fold; up to 50 buckets per query and 150 per dataflow. The destination must be set explicitly (not the default destination), with a fixed schema; the only update method is replace; OPTIMIZE and REORG TABLE aren't supported on a lakehouse table that uses it |
 | **Mirroring** | Continuous replication, nothing to schedule |
 | **Notebook** | Read changes, then Delta `MERGE` into the target |
 
@@ -92,9 +92,9 @@ WHERE d.CustomerID IS NULL;
 
 The second statement inserts both brand-new customers and the new versions of the customers expired by the first one (they no longer have a current row).
 
-**Surrogate keys**: use the smallest practical integer type. The warehouse offers `IDENTITY` (`bigint` only, values unique but not sequential); in Spark, compute `max(key) + row_number()`. Facts store surrogate keys; for an SCD type 2 dimension, look up the **current** version (or the version valid on the transaction date when loading history). Date keys are computed (`YYYYMMDD`).
+**Surrogate keys**: use the smallest practical integer type. The warehouse offers `IDENTITY` (`bigint` only, values unique but not sequential). Facts store surrogate keys; for an SCD type 2 dimension, look up the **current** version (or the version valid on the transaction date when loading history). Date keys are computed (`YYYYMMDD`). A date dimension with relative offset attributes (days or months from today) must be updated every day, with T-SQL logic in a stored procedure, and extended at the start of each year.
 
-**Missing members**: when a fact references a business key that isn't in the dimension yet, either point it to an **Unknown** member (key `-1`) and fix it later, or insert an **inferred member** (business key only, attributes "Unknown", `IsInferredMember = 1`). When the real attributes arrive, update that row in place and clear the flag: it's a late-arriving detail, not an SCD type 2 change.
+**Missing members**: when a fact references a business key that isn't in the dimension yet, either point it to an **Unknown** member (key `-1`), then run a periodic process that rereads the source for those fact rows and updates their keys, or insert an **inferred member** (business key only, attributes "Unknown", `IsInferredMember = 1`). When the real attributes arrive, update that row in place and clear the flag: it's a late-arriving detail, not an SCD type 2 change.
 
 > **Exam trap.** Never truncate and fully reload a dimension whose surrogate keys are generated: new keys break every fact that references the old ones, and SCD type 2 history may be impossible to rebuild. Reload dimensions incrementally.
 
@@ -137,7 +137,7 @@ Rules that the exam checks:
 
 - Full load = everything each run; incremental = only changes, detected by a watermark, CDC or change data feed.
 - Watermark: `>` old value, `<=` new value, save the new value on success; it never captures deletes.
-- Copy job: watermark or CDC, Append, Merge, Overwrite or SCD Type 2; Dataflow Gen2 incremental refresh: buckets, a separate change-detection column.
+- Copy job: watermark or CDC, Append, Merge, Overwrite or SCD Type 2 (preview); Dataflow Gen2 incremental refresh: buckets, a separate change-detection column.
 - Dimensional load: staging, dimensions in dependency order, then facts with surrogate key lookups; no truncate and reload of dimensions.
 - Missing dimension members: Unknown member or inferred member updated in place later.
 - Streaming: Direct ingestion or processing before ingestion to an eventhouse, Lakehouse destination, or Spark with checkpoint and trigger; update policies and materialized views inside the eventhouse.

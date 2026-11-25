@@ -72,7 +72,7 @@ $job | Set-AzSqlElasticJob -IntervalType Day -IntervalCount 1 -StartTime (Get-Da
 | Travaux planifiés sur SQL Server sur des machines virtuelles Azure | SQL Server Agent sur la machine virtuelle |
 | Tâches du plan de contrôle : mettre à l'échelle une base, exporter un BACPAC, modifier un paramètre, démarrer ou arrêter des ressources | Runbook Azure Automation (PowerShell avec les modules Az) |
 | Workflow déclenché par un événement ou low-code qui appelle SQL et d'autres services | Azure Logic Apps ou Azure Functions |
-| Orchestrer des tâches T-SQL pour une base de données SQL dans Microsoft Fabric | Pipelines Fabric, supervisés dans le hub de surveillance |
+| Orchestrer des tâches T-SQL pour une base de données SQL dans Microsoft Fabric (ni SQL Server Agent ni travaux élastiques) | Pipelines Data Factory planifiés ou travaux Apache Airflow |
 
 > **Piège d'examen.** SQL Server Agent n'existe pas dans Azure SQL Database, et l'administration multiserveur (MSX/TSX) n'est pas disponible sur SQL Managed Instance. « Exécuter le même script sur toutes les bases de trois serveurs logiques » = travaux élastiques.
 

@@ -1,0 +1,448 @@
+chapter: 31-messaging-events
+questions:
+  # ------------------------------------------------------------------ 1
+  - id: ai200-qz-31-01
+    objective: "3.1.1"
+    difficulty: 1
+    status: draft
+    type: single
+    shuffle: false
+    stem:
+      en: |
+        Contoso has a Service Bus queue named **ocr-jobs** that was created with the default settings. A Python worker receives the jobs in peek-lock mode and calls `abandon_message` each time the OCR model fails on a job.
+
+        How many times is a job that always fails delivered before Service Bus moves it to the dead-letter queue?
+      fr: |
+        Contoso dispose d'une file d'attente Service Bus nommée **ocr-jobs** créée avec les paramètres par défaut. Un worker Python reçoit les tâches en mode peek-lock et appelle `abandon_message` chaque fois que le modèle OCR échoue sur une tâche.
+
+        Combien de fois une tâche qui échoue toujours est-elle remise avant que Service Bus la déplace vers la file d'attente de lettres mortes ?
+    body:
+      options:
+        - { id: a, text: "5" }
+        - { id: b, text: "10" }
+        - { id: c, text: "30" }
+        - { id: d, text: { en: "Never: an abandoned job stays in the queue until it is completed", fr: "Jamais : une tâche abandonnée reste dans la file d'attente jusqu'à ce qu'elle soit terminée" } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          Each abandon releases the lock and the job is delivered again with a higher delivery count. When the count exceeds the maximum delivery count of the queue, 10 by default, Service Bus moves the message to the dead-letter queue with the reason `MaxDeliveryCountExceeded`.
+        fr: |
+          Chaque abandon libère le verrou, et la tâche est remise de nouveau avec un nombre de remises plus élevé. Quand ce nombre dépasse le nombre maximal de remises de la file d'attente, 10 par défaut, Service Bus déplace le message vers la file d'attente de lettres mortes avec la raison `MaxDeliveryCountExceeded`.
+      options:
+        a: { en: "5 is a value you could set with `--max-delivery-count`, but the default is 10.", fr: "5 est une valeur que vous pourriez définir avec `--max-delivery-count`, mais la valeur par défaut est 10." }
+        c: { en: "30 is the default number of delivery attempts of an Event Grid event subscription, not of a Service Bus queue.", fr: "30 est le nombre par défaut de tentatives de remise d'un abonnement aux événements Event Grid, pas d'une file d'attente Service Bus." }
+        d: { en: "Abandons count as deliveries: past the maximum delivery count, the message is dead-lettered automatically.", fr: "Les abandons comptent comme des remises : au-delà du nombre maximal de remises, le message est placé automatiquement en lettres mortes." }
+    references:
+      - title: Service Bus Dead-Letter Queues
+        url: https://learn.microsoft.com/en-us/azure/service-bus-messaging/service-bus-dead-letter-queues
+
+  # ------------------------------------------------------------------ 2
+  - id: ai200-qz-31-02
+    objective: "3.1.2"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        Fabrikam has an event subscription that delivers events from an Event Grid custom topic to a webhook. A blob container is configured as the dead-letter destination, and the retry policy uses the default values.
+
+        The webhook answers one event with HTTP 400 Bad Request because the event data is malformed. What does Event Grid do with this event?
+      fr: |
+        Fabrikam dispose d'un abonnement aux événements qui remet les événements d'une rubrique personnalisée Event Grid à un webhook. Un conteneur d'objets blob est configuré comme destination de lettres mortes, et la stratégie de nouvelles tentatives utilise les valeurs par défaut.
+
+        Le webhook répond à un événement par HTTP 400 Bad Request, car les données de l'événement sont mal formées. Que fait Event Grid de cet événement ?
+    body:
+      options:
+        - { id: a, text: { en: "It retries the event with exponential backoff for up to 30 attempts, and then dead-letters it.", fr: "Il réessaie l'événement avec une interruption exponentielle jusqu'à 30 tentatives, puis le place en lettres mortes." } }
+        - { id: b, text: { en: "It retries the event once after 10 seconds, and then drops it if the webhook answers 400 again.", fr: "Il réessaie l'événement une fois après 10 secondes, puis le supprime si le webhook répond de nouveau 400." } }
+        - { id: c, text: { en: "It drops the event without retrying it, even though a dead-letter destination is configured.", fr: "Il supprime l'événement sans le réessayer, même si une destination de lettres mortes est configurée." } }
+        - { id: d, text: { en: "It schedules the event for dead-lettering at once, without retrying the delivery to the webhook.", fr: "Il planifie immédiatement l'événement pour les lettres mortes, sans réessayer la remise au webhook." } }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          Event Grid doesn't retry a 400 (Bad Request) or a 413 (Request Entity Too Large) response, because the same request would fail again. It schedules the event for dead-lettering immediately; with a blob container configured, the event is written there for later analysis.
+        fr: |
+          Event Grid ne réessaie pas une réponse 400 (Bad Request) ou 413 (Request Entity Too Large), car la même requête échouerait de nouveau. Il planifie immédiatement l'événement pour les lettres mortes ; avec un conteneur d'objets blob configuré, l'événement y est écrit pour une analyse ultérieure.
+      options:
+        a: { en: "The backoff schedule applies to retryable failures such as 503 or a timeout, not to a 400 response.", fr: "Le calendrier d'interruption s'applique aux échecs réessayables comme 503 ou un délai dépassé, pas à une réponse 400." }
+        b: { en: "A 400 response isn't retried at all, and the event isn't dropped when a dead-letter destination exists.", fr: "Une réponse 400 n'est pas réessayée du tout, et l'événement n'est pas supprimé quand une destination de lettres mortes existe." }
+        c: { en: "The event is dropped only when no dead-letter destination is configured.", fr: "L'événement n'est supprimé que si aucune destination de lettres mortes n'est configurée." }
+    references:
+      - title: Azure Event Grid Delivery and Retry Explained
+        url: https://learn.microsoft.com/en-us/azure/event-grid/delivery-and-retry
+
+  # ------------------------------------------------------------------ 3
+  - id: ai200-qz-31-03
+    objective: "3.1.1"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Litware publishes model results to a Service Bus topic named **results**. A subscription named **indexer** feeds a vector indexing worker, and the worker dead-letters the results whose embedding has the wrong dimension.
+
+        You are writing a Python job that reads these dead-lettered messages by using the azure-servicebus library. Which receiver should the job open?
+      fr: |
+        Litware publie des résultats de modèle dans une rubrique Service Bus nommée **results**. Un abonnement nommé **indexer** alimente un worker d'indexation vectorielle, et le worker place en lettres mortes les résultats dont l'incorporation n'a pas la bonne dimension.
+
+        Vous écrivez un traitement Python qui lit ces messages en lettres mortes à l'aide de la bibliothèque azure-servicebus. Quel récepteur le traitement doit-il ouvrir ?
+    body:
+      options:
+        - { id: a, text: "client.get_queue_receiver(queue_name=\"results\", sub_queue=ServiceBusSubQueue.DEAD_LETTER)" }
+        - { id: b, text: "client.get_subscription_receiver(topic_name=\"results\", subscription_name=\"$deadletterqueue\")" }
+        - { id: c, text: "client.get_subscription_receiver(topic_name=\"results\", subscription_name=\"indexer\", sub_queue=ServiceBusSubQueue.DEAD_LETTER)" }
+        - { id: d, text: "client.get_subscription_receiver(topic_name=\"results\", subscription_name=\"indexer\"), then receive_deferred_messages" }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          Each subscription has its own dead-letter sub-queue, and the topic has none: messages don't sit at the topic level. The job opens a subscription receiver on results and indexer with `sub_queue=ServiceBusSubQueue.DEAD_LETTER`, which reads `results/Subscriptions/indexer/$deadletterqueue`.
+        fr: |
+          Chaque abonnement a sa propre sous-file de lettres mortes, et la rubrique n'en a pas : les messages ne restent pas au niveau de la rubrique. Le traitement ouvre un récepteur d'abonnement sur results et indexer avec `sub_queue=ServiceBusSubQueue.DEAD_LETTER`, qui lit `results/Subscriptions/indexer/$deadletterqueue`.
+      options:
+        a: { en: "results is a topic, not a queue, and a topic has no dead-letter queue of its own.", fr: "results est une rubrique, pas une file d'attente, et une rubrique n'a pas de file d'attente de lettres mortes en propre." }
+        b: { en: "The dead-letter queue is a sub-queue of the indexer subscription, not a subscription of the topic.", fr: "La file d'attente de lettres mortes est une sous-file de l'abonnement indexer, pas un abonnement de la rubrique." }
+        d: { en: "Deferred messages stay in the subscription itself and are read by sequence number; dead-lettered messages are in the sub-queue.", fr: "Les messages différés restent dans l'abonnement lui-même et se lisent par numéro de séquence ; les messages en lettres mortes sont dans la sous-file." }
+    references:
+      - title: Service Bus Dead-Letter Queues
+        url: https://learn.microsoft.com/en-us/azure/service-bus-messaging/service-bus-dead-letter-queues
+      - title: Azure Service Bus client library for Python
+        url: https://learn.microsoft.com/en-us/python/api/overview/azure/servicebus-readme
+
+  # ------------------------------------------------------------------ 4
+  - id: ai200-qz-31-04
+    objective: "3.1.2"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Lucerne Publishing publishes "manuscript translated" events to an Event Grid custom topic. The subject of each event is `/manuscripts/<manuscript ID>`, and the data contains a `language` value. An event subscription with no filter delivers every event to an Azure function, whose code returns at once unless the language is `fr` or `de`. Most events are in other languages.
+
+        You need to reduce the number of function executions. The publisher must not change. What should you do?
+      fr: |
+        Lucerne Publishing publie des événements « manuscrit traduit » dans une rubrique personnalisée Event Grid. L'objet (subject) de chaque événement est `/manuscripts/<ID du manuscrit>`, et les données contiennent une valeur `language`. Un abonnement aux événements sans filtre remet tous les événements à une fonction Azure, dont le code s'arrête aussitôt sauf si la langue est `fr` ou `de`. La plupart des événements sont dans d'autres langues.
+
+        Vous devez réduire le nombre d'exécutions de la fonction. L'éditeur ne doit pas changer. Que devez-vous faire ?
+    body:
+      options:
+        - { id: a, text: { en: "Add a `subjectEndsWith` filter with the values `fr` and `de` to the event subscription.", fr: "Ajouter un filtre `subjectEndsWith` avec les valeurs `fr` et `de` à l'abonnement aux événements." } }
+        - { id: b, text: { en: "Add a `StringIn` advanced filter on `data.language` with the values `fr` and `de` to the event subscription.", fr: "Ajouter un filtre avancé `StringIn` sur `data.language` avec les valeurs `fr` et `de` à l'abonnement aux événements." } }
+        - { id: c, text: { en: "Set the maximum number of delivery attempts of the event subscription to 1, and keep the check in the function.", fr: "Fixer à 1 le nombre maximal de tentatives de remise de l'abonnement aux événements, et garder le test dans la fonction." } }
+        - { id: d, text: { en: "Deliver the events to a Service Bus queue, and discard the other languages in a worker that reads the queue.", fr: "Remettre les événements à une file d'attente Service Bus, et écarter les autres langues dans un worker qui lit la file d'attente." } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          A filter on the event subscription is evaluated by Event Grid: events that don't match are never delivered, so they trigger no execution. An advanced filter reads keys of the event data with dot notation, and several values in one `StringIn` filter are combined with OR, so `fr` or `de` matches.
+        fr: |
+          Un filtre sur l'abonnement aux événements est évalué par Event Grid : les événements qui ne correspondent pas ne sont jamais remis et ne déclenchent donc aucune exécution. Un filtre avancé lit les clés des données de l'événement avec la notation pointée, et plusieurs valeurs dans un même filtre `StringIn` se combinent par OU : `fr` ou `de` correspond.
+      options:
+        a: { en: "The subject ends with the manuscript ID, not with the language, so a subject filter can't select the languages.", fr: "L'objet se termine par l'ID du manuscrit, pas par la langue : un filtre d'objet ne peut pas sélectionner les langues." }
+        c: { en: "The delivery attempts limit only stops retries of failed deliveries; every event is still delivered once.", fr: "La limite de tentatives de remise arrête seulement les nouvelles tentatives des remises échouées ; chaque événement est toujours remis une fois." }
+        d: { en: "Every event still reaches the queue and is processed by the worker, so the filtering cost only moves elsewhere.", fr: "Chaque événement atteint toujours la file d'attente et est traité par le worker : le coût du filtrage est seulement déplacé." }
+    references:
+      - title: Event Filtering in Azure Event Grid
+        url: https://learn.microsoft.com/en-us/azure/event-grid/event-filtering
+
+  # ------------------------------------------------------------------ 5
+  - id: ai200-qz-31-05
+    objective: "3.1.1"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Northwind's embedding worker receives jobs from a Service Bus queue named **embed** in peek-lock mode. For each job, it writes the embeddings to a vector store and then calls `complete_message`. When a pod is evicted between the write and the call, another pod receives the same job, and the vector store gets duplicate entries.
+
+        No job can be lost, and jobs that fail because of a transient error must still be retried automatically. What should you do?
+      fr: |
+        Le worker d'incorporation de Northwind reçoit des tâches d'une file d'attente Service Bus nommée **embed** en mode peek-lock. Pour chaque tâche, il écrit les incorporations dans un magasin vectoriel, puis appelle `complete_message`. Quand un pod est évincé entre l'écriture et l'appel, un autre pod reçoit la même tâche, et le magasin vectoriel reçoit des entrées en double.
+
+        Aucune tâche ne doit être perdue, et les tâches qui échouent à cause d'une erreur temporaire doivent toujours être réessayées automatiquement. Que devez-vous faire ?
+    body:
+      options:
+        - { id: a, text: { en: "Create embed again with duplicate detection enabled, and set the message ID of each job to its document ID.", fr: "Recréer embed avec la détection des doublons activée, et définir l'ID de message de chaque tâche sur l'ID de son document." } }
+        - { id: b, text: { en: "Set the maximum delivery count of embed to 1, so that a job is never delivered to a second pod.", fr: "Fixer à 1 le nombre maximal de remises de embed, pour qu'une tâche ne soit jamais remise à un second pod." } }
+        - { id: c, text: { en: "Receive the jobs in `RECEIVE_AND_DELETE` mode, so that a job leaves the queue as soon as a pod gets it.", fr: "Recevoir les tâches en mode `RECEIVE_AND_DELETE`, pour qu'une tâche quitte la file d'attente dès qu'un pod la reçoit." } }
+        - { id: d, text: { en: "Record the message ID of each job after its write, and skip a received job whose message ID is already recorded.", fr: "Enregistrer l'ID de message de chaque tâche après son écriture, et ignorer une tâche reçue dont l'ID de message est déjà enregistré." } }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          Peek-lock delivers at least once: when a receiver stops before settling, the lock expires and the message is delivered again. The consumer must be idempotent, and the typical way to identify a repeated delivery is its message ID: the worker records the IDs it has processed and completes a known one without writing again.
+        fr: |
+          Le mode peek-lock remet au moins une fois : quand un récepteur s'arrête avant de régler le message, le verrou expire et le message est remis de nouveau. Le consommateur doit être idempotent, et la façon habituelle de reconnaître une remise répétée est l'ID de message : le worker enregistre les ID traités et termine un message connu sans écrire de nouveau.
+      options:
+        a: { en: "Duplicate detection drops a second send of the same message ID; a redelivery after a lost lock isn't a new send, so it isn't detected.", fr: "La détection des doublons écarte un second envoi du même ID de message ; une remise après un verrou perdu n'est pas un nouvel envoi et n'est donc pas détectée." }
+        b: { en: "With a maximum delivery count of 1, a job that fails because of a transient error is dead-lettered instead of being retried.", fr: "Avec un nombre maximal de remises de 1, une tâche qui échoue à cause d'une erreur temporaire est placée en lettres mortes au lieu d'être réessayée." }
+        c: { en: "Receive-and-delete is at most once: a job is lost when the pod is evicted before the write.", fr: "Le mode receive-and-delete est « au plus une fois » : une tâche est perdue quand le pod est évincé avant l'écriture." }
+    references:
+      - title: Message Transfers, Locks, and Settlement
+        url: https://learn.microsoft.com/en-us/azure/service-bus-messaging/message-transfers-locks-settlement
+      - title: Azure Service Bus duplicate message detection
+        url: https://learn.microsoft.com/en-us/azure/service-bus-messaging/duplicate-detection
+
+  # ------------------------------------------------------------------ 6
+  - id: ai200-qz-31-06
+    objective: "3.1.1"
+    difficulty: 3
+    status: draft
+    type: dropdown
+    stem:
+      en: |
+        Adatum is creating a Service Bus queue named **transcribe** for a speech-to-text worker. Each job takes between two and three minutes, and the worker doesn't renew message locks. The queue must meet the following requirements:
+
+        - No other replica can receive a job while a replica is still processing it.
+        - A job that has been delivered three times without being completed moves to the dead-letter queue.
+        - A job that isn't received within six hours is kept in the dead-letter queue instead of being dropped.
+
+        How should you complete the command? To answer, select the appropriate options in the answer area.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Adatum crée une file d'attente Service Bus nommée **transcribe** pour un worker de reconnaissance vocale. Chaque tâche dure entre deux et trois minutes, et le worker ne renouvelle pas les verrous des messages. La file d'attente doit respecter les exigences suivantes :
+
+        - Aucun autre réplica ne peut recevoir une tâche tant qu'un réplica la traite encore.
+        - Une tâche remise trois fois sans être terminée est déplacée vers la file d'attente de lettres mortes.
+        - Une tâche qui n'est pas reçue dans les six heures est conservée dans la file d'attente de lettres mortes au lieu d'être supprimée.
+
+        Comment devez-vous compléter la commande ? Pour répondre, sélectionnez les options appropriées dans la zone de réponse.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      layout: code
+      language: bash
+      template: |
+        az servicebus queue create --resource-group rg-speech \
+          --namespace-name sb-adatum --name transcribe \
+          --lock-duration [[lock]] \
+          --max-delivery-count [[count]] \
+          --default-message-time-to-live PT6H \
+          [[expiry]] true
+      slots:
+        - id: lock
+          options:
+            - { id: pt1m, text: PT1M }
+            - { id: pt4m, text: PT4M }
+            - { id: pt10m, text: PT10M }
+        - id: count
+          options:
+            - { id: c2, text: "2" }
+            - { id: c3, text: "3" }
+            - { id: c4, text: "4" }
+        - id: expiry
+          options:
+            - { id: dedup, text: "--enable-duplicate-detection" }
+            - { id: session, text: "--enable-session" }
+            - { id: expire, text: "--enable-dead-lettering-on-message-expiration" }
+    answer:
+      values: { lock: pt4m, count: c3, expiry: expire }
+    explanation:
+      correct:
+        en: |
+          The lock must outlast the three-minute processing time without renewal, and it can't exceed 5 minutes, so `PT4M` fits. A message is dead-lettered automatically after the number of deliveries set by `--max-delivery-count`, here 3. Without dead-lettering on message expiration, expired messages are dropped; `--enable-dead-lettering-on-message-expiration true` moves them to the dead-letter queue with the reason `TTLExpiredException`.
+        fr: |
+          Le verrou doit durer plus que les trois minutes de traitement sans renouvellement, et il ne peut pas dépasser 5 minutes : `PT4M` convient. Un message est placé automatiquement en lettres mortes après le nombre de remises défini par `--max-delivery-count`, ici 3. Sans lettres mortes à l'expiration des messages, les messages expirés sont supprimés ; `--enable-dead-lettering-on-message-expiration true` les déplace vers la file d'attente de lettres mortes avec la raison `TTLExpiredException`.
+      options:
+        pt1m: { en: "PT1M is the default lock duration: the lock expires during a two- to three-minute job, and another replica receives it.", fr: "PT1M est la durée de verrou par défaut : le verrou expire pendant une tâche de deux à trois minutes, et un autre réplica la reçoit." }
+        pt10m: { en: "The lock duration can't exceed 5 minutes; longer work needs lock renewal.", fr: "La durée du verrou ne peut pas dépasser 5 minutes ; un travail plus long exige un renouvellement du verrou." }
+        c2: { en: "With 2, a job is dead-lettered after its second delivery, one delivery too early.", fr: "Avec 2, une tâche est placée en lettres mortes après sa deuxième remise, une remise trop tôt." }
+        c4: { en: "With 4, a job gets a fourth delivery before it is dead-lettered.", fr: "Avec 4, une tâche reçoit une quatrième remise avant d'être placée en lettres mortes." }
+        dedup: { en: "Duplicate detection drops repeated sends of the same message ID; it doesn't keep expired messages.", fr: "La détection des doublons écarte les envois répétés d'un même ID de message ; elle ne conserve pas les messages expirés." }
+        session: { en: "Sessions group related messages for ordered processing; they don't keep expired messages.", fr: "Les sessions regroupent des messages liés pour un traitement ordonné ; elles ne conservent pas les messages expirés." }
+    references:
+      - title: az servicebus queue
+        url: https://learn.microsoft.com/en-us/cli/azure/servicebus/queue
+      - title: Service Bus Dead-Letter Queues
+        url: https://learn.microsoft.com/en-us/azure/service-bus-messaging/service-bus-dead-letter-queues
+
+  # ------------------------------------------------------------------ 7
+  - id: ai200-qz-31-07
+    objective: "3.1.1"
+    difficulty: 3
+    status: draft
+    type: dragdrop
+    stem:
+      en: |
+        Tailspin Toys publishes the outputs of a claims model to a Service Bus topic named **claims**. Each message has its `subject` set to the document type and carries the application properties `region`, `priority` and `confidence`. The `$Default` rule was deleted from each subscription below, and each subscription gets exactly one rule.
+
+        You must use the most efficient filter type that meets each requirement. Which filter should you use for each subscription? To answer, drag the appropriate filters to the correct subscriptions. Each filter may be used once or not at all.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Tailspin Toys publie les sorties d'un modèle de sinistres dans une rubrique Service Bus nommée **claims**. Chaque message a son `subject` défini sur le type de document et porte les propriétés d'application `region`, `priority` et `confidence`. La règle `$Default` a été supprimée de chaque abonnement ci-dessous, et chaque abonnement reçoit exactement une règle.
+
+        Vous devez utiliser le type de filtre le plus efficace qui répond à chaque exigence. Quel filtre devez-vous utiliser pour chaque abonnement ? Pour répondre, faites glisser les filtres appropriés vers les abonnements correspondants. Chaque filtre peut être utilisé une fois ou pas du tout.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      reuse: false
+      items:
+        - { id: corr, text: { en: "Correlation filter", fr: "Filtre de corrélation" } }
+        - { id: sql, text: { en: "SQL filter without an action", fr: "Filtre SQL sans action" } }
+        - { id: sqlaction, text: { en: "SQL filter with an action", fr: "Filtre SQL avec une action" } }
+        - { id: truef, text: "TrueFilter" }
+        - { id: falsef, text: "FalseFilter" }
+      targets:
+        - { id: invoices, text: { en: "emea-invoices: messages whose subject is invoice and whose region is emea", fr: "emea-invoices : messages dont le subject vaut invoice et dont la région vaut emea" } }
+        - { id: review, text: { en: "review: messages whose priority is high or whose confidence is lower than 0.5", fr: "review : messages dont la priorité vaut high ou dont la confiance est inférieure à 0,5" } }
+        - { id: audit, text: { en: "audit: every message, each one stamped with a new property auditedBy set to tailspin", fr: "audit : tous les messages, chacun marqué d'une nouvelle propriété auditedBy définie sur tailspin" } }
+        - { id: paused, text: { en: "beta: no message until a new consumer is deployed, without deleting the subscription", fr: "beta : aucun message tant qu'un nouveau consommateur n'est pas déployé, sans supprimer l'abonnement" } }
+    answer:
+      mapping: { invoices: corr, review: sql, audit: sqlaction, paused: falsef }
+    explanation:
+      correct:
+        en: |
+          A correlation filter tests equality on system and application properties, all conditions combined with AND, and it's the most efficient type, so it fits subject = invoice and region = emea. An OR and a "lower than" comparison need a SQL filter. Only a SQL filter rule can carry an action that adds a property; with the expression `1=1`, it selects every message. FalseFilter selects no message while the subscription stays in place.
+        fr: |
+          Un filtre de corrélation teste l'égalité sur les propriétés système et d'application, toutes les conditions combinées par ET, et c'est le type le plus efficace : il convient à subject = invoice et region = emea. Un OU et une comparaison « inférieur à » exigent un filtre SQL. Seule une règle à filtre SQL peut porter une action qui ajoute une propriété ; avec l'expression `1=1`, elle sélectionne tous les messages. FalseFilter ne sélectionne aucun message, et l'abonnement reste en place.
+      options:
+        truef: { en: "TrueFilter selects every message but carries no action, so it can't add the auditedBy property.", fr: "TrueFilter sélectionne tous les messages mais ne porte aucune action : il ne peut pas ajouter la propriété auditedBy." }
+        sql: { en: "A SQL filter could also express the emea-invoices equality, but it lowers throughput, so it isn't the most efficient choice there.", fr: "Un filtre SQL pourrait aussi exprimer l'égalité d'emea-invoices, mais il réduit le débit : ce n'est pas le choix le plus efficace dans ce cas." }
+    references:
+      - title: Azure Service Bus Topic Filters Overview
+        url: https://learn.microsoft.com/en-us/azure/service-bus-messaging/topic-filters
+
+  # ------------------------------------------------------------------ 8
+  - id: ai200-qz-31-08
+    objective: "3.1.2"
+    difficulty: 3
+    status: draft
+    type: yesno_statements
+    stem:
+      en: |
+        Proseware receives a Blob Storage event each time a contract is uploaded. An event subscription with the default retry policy and a dead-letter blob container delivers the events to a Service Bus queue named **contracts**. A Python worker reads contracts in peek-lock mode, extracts clauses with a language model, and abandons a message when the model call fails.
+
+        For each of the following statements, select **Yes** if the statement is true. Otherwise, select **No**.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Proseware reçoit un événement Stockage Blob chaque fois qu'un contrat est chargé. Un abonnement aux événements avec la stratégie de nouvelles tentatives par défaut et un conteneur d'objets blob de lettres mortes remet les événements à une file d'attente Service Bus nommée **contracts**. Un worker Python lit contracts en mode peek-lock, extrait des clauses avec un modèle de langage et abandonne un message quand l'appel au modèle échoue.
+
+        Pour chacune des affirmations suivantes, sélectionnez **Oui** si l'affirmation est vraie. Sinon, sélectionnez **Non**.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      statements:
+        - { id: s1, text: { en: "When the worker abandons a message, Event Grid doesn't deliver the corresponding event to the queue again.", fr: "Quand le worker abandonne un message, Event Grid ne remet pas de nouveau l'événement correspondant à la file d'attente." } }
+        - { id: s2, text: { en: "An event that Event Grid can't deliver to contracts is moved to the dead-letter queue of contracts.", fr: "Un événement qu'Event Grid ne peut pas remettre à contracts est déplacé vers la file d'attente de lettres mortes de contracts." } }
+        - { id: s3, text: { en: "The worker receives the events in the order in which the contracts were uploaded.", fr: "Le worker reçoit les événements dans l'ordre dans lequel les contrats ont été chargés." } }
+    answer:
+      values: { s1: true, s2: false, s3: false }
+    explanation:
+      correct:
+        en: |
+          Event Grid's delivery ends when Service Bus accepts the event with a success code; from then on, retries are Service Bus redeliveries, counted against the maximum delivery count of the queue. An event that Event Grid can't deliver goes to the dead-letter blob container of the event subscription, not to the queue's dead-letter queue. Event Grid doesn't guarantee delivery order, so the queue can receive the events out of order.
+        fr: |
+          La remise d'Event Grid se termine quand Service Bus accepte l'événement avec un code de réussite ; ensuite, les nouvelles tentatives sont des remises Service Bus, comptées dans le nombre maximal de remises de la file d'attente. Un événement qu'Event Grid ne peut pas remettre va dans le conteneur d'objets blob de lettres mortes de l'abonnement aux événements, pas dans la file d'attente de lettres mortes de la file. Event Grid ne garantit pas l'ordre de remise : la file d'attente peut recevoir les événements dans le désordre.
+      options:
+        s2: { en: "The dead-letter queue of contracts only receives messages that Service Bus dead-letters after they were accepted.", fr: "La file d'attente de lettres mortes de contracts ne reçoit que les messages que Service Bus place en lettres mortes après les avoir acceptés." }
+        s3: { en: "The queue keeps the order in which it received the events, but Event Grid may deliver them out of order.", fr: "La file d'attente conserve l'ordre dans lequel elle a reçu les événements, mais Event Grid peut les remettre dans le désordre." }
+    references:
+      - title: Azure Event Grid Delivery and Retry Explained
+        url: https://learn.microsoft.com/en-us/azure/event-grid/delivery-and-retry
+      - title: Message Transfers, Locks, and Settlement
+        url: https://learn.microsoft.com/en-us/azure/service-bus-messaging/message-transfers-locks-settlement
+
+  # ------------------------------------------------------------------ 9
+  - id: ai200-qz-31-09
+    objective: "3.1.2"
+    difficulty: 3
+    status: draft
+    type: multi
+    stem:
+      en: |
+        Fabrikam's indexing API runs on Azure Container Apps and receives "document chunked" events from an Event Grid custom topic through a webhook event subscription. It writes each event to a vector store, and it can process at most 300 events within 30 seconds.
+
+        To reduce the number of HTTP requests, you enable output batching on the event subscription. The solution must meet the following requirements:
+
+        - Use as few requests as possible without making the deliveries fail.
+        - Never write the same event twice to the vector store.
+
+        Which two actions should you perform? Each correct answer presents part of the solution.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        L'API d'indexation de Fabrikam s'exécute sur Azure Container Apps et reçoit des événements « document segmenté » d'une rubrique personnalisée Event Grid au moyen d'un abonnement aux événements webhook. Elle écrit chaque événement dans un magasin vectoriel et peut traiter au plus 300 événements en 30 secondes.
+
+        Pour réduire le nombre de requêtes HTTP, vous activez le traitement par lot en sortie sur l'abonnement aux événements. La solution doit respecter les exigences suivantes :
+
+        - Utiliser le moins de requêtes possible sans faire échouer les remises.
+        - Ne jamais écrire deux fois le même événement dans le magasin vectoriel.
+
+        Quelles sont les deux actions à effectuer ? Chaque bonne réponse présente une partie de la solution.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      choose: 2
+      options:
+        - { id: a, text: { en: "Set the maximum number of events per batch to 5,000.", fr: "Fixer le nombre maximal d'événements par lot à 5 000." } }
+        - { id: b, text: { en: "Set the maximum number of events per batch to 300.", fr: "Fixer le nombre maximal d'événements par lot à 300." } }
+        - { id: c, text: { en: "Set the preferred batch size to 30 so that each batch is processed within 30 seconds.", fr: "Fixer la taille de lot préférée à 30 pour que chaque lot soit traité en 30 secondes." } }
+        - { id: d, text: { en: "Return HTTP 207 with the failed event IDs so that only those events are retried.", fr: "Renvoyer HTTP 207 avec les ID des événements en échec pour que seuls ces événements soient réessayés." } }
+        - { id: e, text: { en: "Skip in the API the events whose ID was already written to the vector store.", fr: "Ignorer dans l'API les événements dont l'ID a déjà été écrit dans le magasin vectoriel." } }
+    answer: { optionIds: [ b, e ] }
+    explanation:
+      correct:
+        en: |
+          Event Grid waits 30 seconds for a response, so a batch must contain no more events than the API processes in that time: 300 is the fewest requests that still succeed. Batch delivery is all or none, so a failed batch is delivered again as a whole, and delivery is at least once anyway; skipping the event IDs already written keeps the vector store free of duplicates.
+        fr: |
+          Event Grid attend une réponse pendant 30 secondes : un lot ne doit pas contenir plus d'événements que l'API n'en traite dans ce délai, et 300 donne le moins de requêtes qui réussissent encore. La remise par lot est « tout ou rien » : un lot en échec est remis de nouveau en entier, et la remise est de toute façon « au moins une fois » ; ignorer les ID d'événements déjà écrits évite les doublons dans le magasin vectoriel.
+      options:
+        a: { en: "A batch of 5,000 events can't be processed within 30 seconds, so the deliveries time out and the whole batches are retried.", fr: "Un lot de 5 000 événements ne peut pas être traité en 30 secondes : les remises dépassent le délai et les lots entiers sont réessayés." }
+        c: { en: "The preferred batch size is a ceiling in kilobytes, not a processing time.", fr: "La taille de lot préférée est un plafond en kilo-octets, pas un temps de traitement." }
+        d: { en: "Event Grid doesn't support partial success of a batch, and 207 isn't a success code, so the whole batch is retried.", fr: "Event Grid ne prend pas en charge la réussite partielle d'un lot, et 207 n'est pas un code de réussite : le lot entier est réessayé." }
+    references:
+      - title: Azure Event Grid Delivery and Retry Explained
+        url: https://learn.microsoft.com/en-us/azure/event-grid/delivery-and-retry
+
+  # ------------------------------------------------------------------ 10
+  - id: ai200-qz-31-10
+    objective: "3.1.2"
+    difficulty: 3
+    status: draft
+    type: multi
+    stem:
+      en: |
+        Wide World Importers publishes "shipment scored" events to an Event Grid custom topic. The data of each event contains `riskLevel` (`low`, `medium` or `high`) and `carrier`. The publisher can't be changed.
+
+        An Azure function must receive every event whose risk level is `high` **or** whose carrier is `Contoso`, including the events that meet both conditions. It must not receive other events, and it must apply each event only once to the shipment database.
+
+        Which two actions should you perform? Each correct answer presents part of the solution.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Wide World Importers publie des événements « expédition évaluée » dans une rubrique personnalisée Event Grid. Les données de chaque événement contiennent `riskLevel` (`low`, `medium` ou `high`) et `carrier`. L'éditeur ne peut pas être modifié.
+
+        Une fonction Azure doit recevoir chaque événement dont le niveau de risque vaut `high` **ou** dont le transporteur est `Contoso`, y compris les événements qui remplissent les deux conditions. Elle ne doit pas recevoir d'autres événements, et elle doit appliquer chaque événement une seule fois à la base de données des expéditions.
+
+        Quelles sont les deux actions à effectuer ? Chaque bonne réponse présente une partie de la solution.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      choose: 2
+      options:
+        - { id: a, text: { en: "Create one event subscription with a `StringIn` filter on `data.riskLevel` and a `StringIn` filter on `data.carrier`.", fr: "Créer un abonnement aux événements avec un filtre `StringIn` sur `data.riskLevel` et un filtre `StringIn` sur `data.carrier`." } }
+        - { id: b, text: { en: "Create one event subscription with one `StringIn` filter on `data.riskLevel` that has the values `high` and `Contoso`.", fr: "Créer un abonnement aux événements avec un seul filtre `StringIn` sur `data.riskLevel` qui a les valeurs `high` et `Contoso`." } }
+        - { id: c, text: { en: "Create two event subscriptions to the function, one with a `StringIn` filter on `data.riskLevel`, one on `data.carrier`.", fr: "Créer deux abonnements aux événements vers la fonction, l'un avec un filtre `StringIn` sur `data.riskLevel`, l'autre sur `data.carrier`." } }
+        - { id: d, text: { en: "Set `enableAdvancedFilteringOnArrays` to true so that the advanced filters of the subscription are combined with OR.", fr: "Définir `enableAdvancedFilteringOnArrays` sur true pour que les filtres avancés de l'abonnement soient combinés par OU." } }
+        - { id: e, text: { en: "Make the function skip the events whose `id` it has already applied to the shipment database.", fr: "Faire en sorte que la fonction ignore les événements dont elle a déjà appliqué l'`id` à la base de données des expéditions." } }
+    answer: { optionIds: [ c, e ] }
+    explanation:
+      correct:
+        en: |
+          Within one event subscription, different advanced filters are combined with AND, and only the values of a single filter are combined with OR, so an OR between two keys needs two event subscriptions. Event Grid delivers an event to each matching subscription, so an event that meets both conditions reaches the function twice, and delivery is at least once anyway: the function must skip the event IDs it has already applied.
+        fr: |
+          Dans un même abonnement aux événements, des filtres avancés différents se combinent par ET, et seules les valeurs d'un même filtre se combinent par OU : un OU entre deux clés exige deux abonnements aux événements. Event Grid remet un événement à chaque abonnement correspondant : un événement qui remplit les deux conditions atteint deux fois la fonction, et la remise est de toute façon « au moins une fois » ; la fonction doit ignorer les ID d'événements déjà appliqués.
+      options:
+        a: { en: "Two filters in one subscription are combined with AND: only high-risk events carried by Contoso would be delivered.", fr: "Deux filtres dans un même abonnement se combinent par ET : seuls les événements à risque élevé transportés par Contoso seraient remis." }
+        b: { en: "Both values are compared with `data.riskLevel`, so the carrier is never tested.", fr: "Les deux valeurs sont comparées à `data.riskLevel` : le transporteur n'est jamais testé." }
+        d: { en: "`enableAdvancedFilteringOnArrays` lets filters evaluate array values; it doesn't change how filters are combined.", fr: "`enableAdvancedFilteringOnArrays` permet aux filtres d'évaluer des valeurs de tableau ; il ne change pas la façon dont les filtres se combinent." }
+    references:
+      - title: Event Filtering in Azure Event Grid
+        url: https://learn.microsoft.com/en-us/azure/event-grid/event-filtering
+      - title: Azure Event Grid Delivery and Retry Explained
+        url: https://learn.microsoft.com/en-us/azure/event-grid/delivery-and-retry

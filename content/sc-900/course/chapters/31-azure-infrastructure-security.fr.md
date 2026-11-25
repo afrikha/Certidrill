@@ -49,7 +49,7 @@ Un **réseau virtuel Azure** (VNet) est le composant de base d'un réseau privé
 | --- | --- |
 | Entre ressources du même réseau virtuel | Communication autorisée, sans passer par internet |
 | Entre deux réseaux virtuels | Aucun trafic tant que vous ne les connectez pas, par exemple par un **peering de réseaux virtuels** |
-| Sortant vers internet | Autorisé |
+| Sortant vers internet | Selon le sous-réseau : les sous-réseaux des nouveaux réseaux virtuels sont privés (portail Azure, et versions d'API publiées après le 31 mars 2026) et demandent une méthode de trafic sortant explicite comme une passerelle NAT ; les réseaux virtuels existants gardent l'accès sortant par défaut |
 | Entrant depuis internet | Impossible sans adresse IP publique ou équilibreur de charge |
 
 Les **sous-réseaux** divisent un réseau virtuel en segments aux besoins de sécurité différents, par exemple les serveurs web dans l'un et les bases de données dans un autre, avec leurs propres contrôles.
@@ -86,11 +86,11 @@ Un **groupe de sécurité réseau** (NSG) filtre le trafic réseau à destinatio
 
 **Azure Bastion** est un service entièrement managé qui fournit une connectivité **RDP et SSH** sécurisée aux machines virtuelles, sur TLS (port 443), directement depuis le portail Azure dans un navigateur. Les machines virtuelles n'ont besoin d'**aucune adresse IP publique**, d'aucun agent ni d'aucun logiciel client particulier ; leurs ports de gestion ne sont donc exposés ni à internet ni à l'analyse des ports.
 
-Bastion se déploie **par réseau virtuel** et atteint aussi les machines virtuelles des réseaux virtuels appairés.
+Bastion se déploie **par réseau virtuel** et atteint aussi les machines virtuelles des réseaux virtuels reliés par peering, sauf avec le SKU Developer.
 
 | SKU | En bref |
 | --- | --- |
-| Developer | Gratuit, infrastructure partagée, une connexion à la fois ; pour le développement et les tests |
+| Developer | Gratuit, infrastructure partagée, une connexion à la fois, pas de réseaux virtuels reliés par peering ; pour le développement et les tests |
 | Basic | Déploiement dédié à capacité fixe |
 | Standard | Ajoute la mise à l'échelle, la prise en charge du client natif, les liens partageables, le transfert de fichiers |
 | Premium | Ajoute l'enregistrement des sessions et le déploiement privé uniquement |

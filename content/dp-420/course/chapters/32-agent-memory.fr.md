@@ -30,7 +30,7 @@ Clé de partition : alignez-la sur la requête dominante.
 
 Comme la mémoire à court terme et la mémoire à long terme se lisent différemment (par thread ou par utilisateur), une conception courante utilise deux conteneurs : `turns` partitionné par locataire puis par thread, et `memories` partitionné par locataire puis par utilisateur.
 
-Indexation : `quantizedFlat` pour des dizaines de milliers de vecteurs de mémoire, `diskANN` pour des centaines de milliers à des milliards, avec `vectorIndexShardKey` égal à la clé de partition ou à son premier niveau pour l'isolation multilocataire ; un index de texte intégral sur le contenu pour le rappel lexical (« refund policy », un numéro de commande). Le chemin de l'incorporation doit être déclaré dans la stratégie vectorielle du conteneur.
+Indexation : `quantizedFlat` pour des dizaines de milliers de vecteurs de mémoire, `diskANN` pour des centaines de milliers à des milliards, avec `vectorIndexShardKey` égal à la clé de partition ou à son premier niveau pour l'isolation multilocataire ; un index de texte intégral sur le contenu pour le rappel lexical (« refund policy », un numéro de commande). Le chemin de l'incorporation doit être déclaré dans la stratégie vectorielle du conteneur. La recherche vectorielle sur un conteneur à clé de partition hiérarchique, comme `["/tenantId", "/threadId"]`, exige d'abord que l'équipe Azure Cosmos DB configure le compte (contact sur la page de la recherche vectorielle).
 
 Rétention et confidentialité :
 

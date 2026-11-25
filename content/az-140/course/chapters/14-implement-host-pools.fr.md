@@ -11,6 +11,7 @@ Prérequis pour le compte qui déploie :
 | --- | --- |
 | Pool d'hôtes, espace de travail, groupe d'applications | Desktop Virtualization Contributor (groupe de ressources ou abonnement) |
 | Machines virtuelles hôtes de session sur Azure | Virtual Machine Contributor |
+| Ajout d'hôtes de session à un pool d'hôtes existant dans le portail | Desktop Virtualization Host Pool Contributor et Virtual Machine Contributor |
 | Secrets du coffre de clés lus pendant le déploiement | Key Vault Secrets User |
 | Attribution des utilisateurs au groupe d'applications | Un rôle avec `Microsoft.Authorization/roleAssignments/write` : User Access Administrator ou Owner |
 
@@ -23,13 +24,13 @@ L'onglet **Informations de base** fixe les choix qui ne peuvent pas changer ensu
 | Approche de gestion | **Standard** ou **Utiliser une configuration d'hôte de session**. Fixée à la création : un pool d'hôtes standard ne peut pas recevoir de configuration d'hôte de session plus tard |
 | Type de pool d'hôtes | Pooled (regroupé) ou Personal (personnel). Une configuration d'hôte de session ne prend en charge que le type **regroupé** |
 | Algorithme d'équilibrage de charge (regroupé) | Breadth-first (largeur d'abord) ou depth-first (profondeur d'abord), plus la **limite maximale de sessions** |
-| Type d'attribution (personnel) | Automatique ou Direct ; avec Direct, en option **Attribuer plusieurs bureaux à un même utilisateur** |
+| Type d'attribution (personnel) | Automatique ou Direct ; avec Direct, en option **Attribuer plusieurs bureaux à un même utilisateur**, impossible à désactiver une fois activée |
 | Type de groupe d'applications préféré | Desktop ou RemoteApp ; le portail crée un groupe d'applications Desktop |
 | Environnement de validation | Oui ou Non |
 
 L'onglet **Machines virtuelles** (gestion standard) crée les hôtes de session en même temps :
 
-- **Préfixe de nom** de 11 caractères au maximum ; Azure ajoute un trait d'union et un numéro (`hp01-sh-0`), et le nom complet de l'ordinateur est limité à 15 caractères.
+- **Préfixe de nom** de 11 caractères au maximum (10 avec une configuration d'hôte de session) ; Azure ajoute un trait d'union et un numéro (`hp01-sh-0`), et le nom complet de l'ordinateur est limité à 15 caractères.
 - **Nombre de machines virtuelles** : jusqu'à 400 en un déploiement, dans la limite du quota. Vous pouvez en ajouter plus tard.
 - **Type de sécurité** : Standard, **Trusted launch** (lancement sécurisé, par défaut) ou machines virtuelles confidentielles.
 - **Image** : Place de marché Azure, Azure Compute Gallery ou image managée (voir le chapitre sur les images).
@@ -212,7 +213,7 @@ Update-AzVM -ResourceGroupName rg-avd -VM $vm
 | Par appareil | Attribuée à un appareil ; convient aux équipes postées qui partagent des ordinateurs |
 | Version | La version de la CAL doit être égale ou postérieure à la version Windows Server de l'hôte de session |
 
-La **tarification de l'accès par utilisateur** est réservée à l'usage commercial externe : l'abonnement est inscrit, chaque utilisateur qui se connecte au moins une fois dans le mois est facturé d'un prix mensuel forfaitaire (niveau Apps ou niveau Desktops + apps), et elle n'inclut pas Microsoft 365 Apps. Les identités invitées (B2B) utilisées par votre propre personnel ou vos sous-traitants ne la rendent pas applicable ; elles ont besoin d'une licence éligible comme les utilisateurs internes.
+La **tarification de l'accès par utilisateur** est réservée à l'usage commercial externe : l'abonnement est inscrit, chaque utilisateur qui se connecte au moins une fois dans le mois est facturé d'un prix mensuel forfaitaire (niveau Apps ou niveau Desktops + apps), et elle n'inclut pas Microsoft Office. Les identités invitées (B2B) utilisées par votre propre personnel ou vos sous-traitants ne la rendent pas applicable ; elles ont besoin d'une licence éligible comme les utilisateurs internes.
 
 > **Piège d'examen.** La tarification de l'accès par utilisateur n'est pas un moyen de licencier des invités ou des sous-traitants, et elle ne couvre jamais Windows Server. Les sous-traitants sont des utilisateurs internes : donnez-leur Microsoft 365 E3 ou une autre licence éligible. Les hôtes de session Windows Server exigent toujours des CAL RDS.
 

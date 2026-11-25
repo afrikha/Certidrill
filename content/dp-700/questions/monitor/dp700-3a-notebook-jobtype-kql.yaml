@@ -5,62 +5,71 @@ difficulty: 3
 status: draft
 stem:
   en: |
-    Contoso has a workspace named WS-Transform that contains 15 notebooks. Some notebooks are run by pipelines, some on a schedule, and some interactively by data engineers. Workspace monitoring is enabled for WS-Transform.
+    Contoso has a warehouse named DW_Transform. Every night, a pipeline runs stored procedures that transform the staging tables of DW_Transform by using UPDATE statements. Some statements fail or are canceled and are run again. You have the Contributor role on the workspace.
 
-    You need a KQL query that returns, for the last seven days, the average duration of each notebook for the completed runs that were started by a pipeline only.
+    You need a query that returns, for the last seven days, the average duration of the UPDATE statements that completed successfully, with one row for each query shape.
 
     How should you complete the query? Select the appropriate options in the answer area.
 
     NOTE: Each correct selection is worth one point.
   fr: |
-    Contoso dispose d'un espace de travail nommé WS-Transform qui contient 15 notebooks. Certains notebooks sont exécutés par des pipelines, certains selon une planification et certains de manière interactive par des ingénieurs données. La supervision de l'espace de travail est activée pour WS-Transform.
+    Contoso dispose d'un entrepôt nommé DW_Transform. Chaque nuit, un pipeline exécute des procédures stockées qui transforment les tables de transit de DW_Transform avec des instructions UPDATE. Certaines instructions échouent ou sont annulées, puis sont exécutées à nouveau. Vous avez le rôle Contributor sur l'espace de travail.
 
-    Vous avez besoin d'une requête KQL qui renvoie, pour les sept derniers jours, la durée moyenne de chaque notebook pour les seules exécutions terminées qui ont été démarrées par un pipeline.
+    Vous avez besoin d'une requête qui renvoie, pour les sept derniers jours, la durée moyenne des instructions UPDATE terminées avec succès, avec une ligne par forme de requête.
 
     Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
 
     Remarque : chaque sélection correcte vaut un point.
 body:
   layout: code
-  language: kusto
+  language: sql
   template: |
-    ItemJobEventLogs
-    | where Timestamp > ago(7d)
-    | where JobType == "[[type]]" and JobStatus == "Completed"
-    | summarize AvgDurationMs = [[agg]](DurationMs) by [[by]]
+    SELECT query_hash, COUNT(*) AS Runs, AVG([[dur]]) AS AvgDurationMs
+    FROM [[src]]
+    WHERE start_time >= DATEADD(day, -7, GETUTCDATE())
+      AND statement_type = 'UPDATE'
+      AND status = [[status]]
+    GROUP BY [[grp]];
   slots:
-    - id: type
+    - id: src
       options:
-        - { id: run, text: RunNotebook }
-        - { id: inter, text: RunNotebookInteractive }
-        - { id: pipe, text: PipelineRunNotebook }
-        - { id: livy, text: LivyBatch }
-    - id: agg
+        - { id: sessions, text: queryinsights.exec_sessions_history }
+        - { id: requests, text: queryinsights.exec_requests_history }
+        - { id: frequent, text: queryinsights.frequently_run_queries }
+    - id: dur
       options:
-        - { id: sum, text: sum }
-        - { id: avg, text: avg }
-        - { id: max, text: max }
-    - id: by
+        - { id: cpu, text: allocated_cpu_time_ms }
+        - { id: elapsed, text: total_elapsed_time_ms }
+        - { id: rows, text: row_count }
+    - id: status
       options:
-        - { id: name, text: ItemName }
-        - { id: inst, text: JobInstanceId }
-        - { id: principal, text: ExecutingPrincipalId }
+        - { id: completed, text: "'Completed'" }
+        - { id: succeeded, text: "'Succeeded'" }
+        - { id: success, text: "'Success'" }
+    - id: grp
+      options:
+        - { id: stmt, text: distributed_statement_id }
+        - { id: hash, text: query_hash }
+        - { id: session, text: session_id }
 answer:
-  values: { type: pipe, agg: avg, by: name }
+  values: { src: requests, dur: elapsed, status: succeeded, grp: hash }
 explanation:
   correct:
     en: |
-      For notebooks, `ItemJobEventLogs` uses the job types RunNotebook, RunNotebookInteractive and PipelineRunNotebook; PipelineRunNotebook identifies the runs started by a pipeline. `avg(DurationMs)` grouped by `ItemName` returns one average duration per notebook.
+      `queryinsights.exec_requests_history` has one row per completed request, with `statement_type`, `status` and `total_elapsed_time_ms`. The `status` column takes the values Succeeded, Failed or Canceled, so `'Succeeded'` keeps the successful runs. Grouping by `query_hash`, which identifies queries of the same shape, returns one average per shape.
     fr: |
-      Pour les notebooks, `ItemJobEventLogs` utilise les types de tâche RunNotebook, RunNotebookInteractive et PipelineRunNotebook ; PipelineRunNotebook identifie les exécutions démarrées par un pipeline. `avg(DurationMs)` regroupé par `ItemName` renvoie une durée moyenne par notebook.
+      `queryinsights.exec_requests_history` contient une ligne par requête terminée, avec `statement_type`, `status` et `total_elapsed_time_ms`. La colonne `status` prend les valeurs Succeeded, Failed ou Canceled : `'Succeeded'` garde donc les exécutions réussies. Le regroupement par `query_hash`, qui identifie les requêtes de même forme, renvoie une moyenne par forme.
   options:
-    run: { en: "RunNotebook is a notebook job that isn't started by a pipeline, such as a scheduled run.", fr: "RunNotebook est une tâche de notebook qui n'est pas démarrée par un pipeline, comme une exécution planifiée." }
-    inter: { en: "RunNotebookInteractive is an interactive session of a data engineer.", fr: "RunNotebookInteractive est une session interactive d'un ingénieur données." }
-    livy: { en: "LivyBatch is a job type of lakehouses, not of notebooks.", fr: "LivyBatch est un type de tâche des lakehouses, pas des notebooks." }
-    sum: { en: "sum returns the total time spent, not the average duration.", fr: "sum renvoie le temps total passé, pas la durée moyenne." }
-    max: { en: "max returns the longest run, not the average duration.", fr: "max renvoie l'exécution la plus longue, pas la durée moyenne." }
-    inst: { en: "Grouping by JobInstanceId returns one row per run instead of one row per notebook.", fr: "Le regroupement par JobInstanceId renvoie une ligne par exécution au lieu d'une ligne par notebook." }
-    principal: { en: "Grouping by ExecutingPrincipalId returns one row per identity that ran the jobs.", fr: "Le regroupement par ExecutingPrincipalId renvoie une ligne par identité qui a exécuté les tâches." }
+    sessions: { en: "exec_sessions_history describes completed sessions, not individual statements.", fr: "exec_sessions_history décrit les sessions terminées, pas les instructions une par une." }
+    frequent: { en: "frequently_run_queries is an aggregated view of frequent queries; it isn't filtered on each run's start time and status.", fr: "frequently_run_queries est une vue agrégée des requêtes fréquentes ; elle ne se filtre pas sur l'heure de début et le statut de chaque exécution." }
+    cpu: { en: "allocated_cpu_time_ms is the CPU time allocated to the query, not its duration.", fr: "allocated_cpu_time_ms est le temps processeur alloué à la requête, pas sa durée." }
+    rows: { en: "row_count is the number of rows retrieved, not a duration.", fr: "row_count est le nombre de lignes récupérées, pas une durée." }
+    completed: { en: "Completed isn't a value of the status column of query insights.", fr: "Completed n'est pas une valeur de la colonne status de query insights." }
+    success: { en: "Success isn't a value of the status column of query insights.", fr: "Success n'est pas une valeur de la colonne status de query insights." }
+    stmt: { en: "distributed_statement_id is unique for each run, so each group holds a single run, and query_hash in the SELECT list wouldn't be grouped.", fr: "distributed_statement_id est unique pour chaque exécution : chaque groupe ne contiendrait qu'une exécution, et query_hash dans la liste SELECT ne serait pas regroupé." }
+    session: { en: "session_id groups by user session, not by query shape.", fr: "session_id regroupe par session utilisateur, pas par forme de requête." }
 references:
-  - title: Monitor Fabric items with item job event logs
-    url: https://learn.microsoft.com/en-us/fabric/fundamentals/item-job-event-logs
+  - title: queryinsights.exec_requests_history (Transact-SQL)
+    url: https://learn.microsoft.com/en-us/sql/relational-databases/system-views/queryinsights-exec-requests-history-transact-sql?view=fabric
+  - title: Query insights in Fabric Data Warehouse
+    url: https://learn.microsoft.com/en-us/fabric/data-warehouse/query-insights

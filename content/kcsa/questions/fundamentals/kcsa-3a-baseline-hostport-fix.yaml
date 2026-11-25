@@ -1,0 +1,44 @@
+id: kcsa-3a-baseline-hostport-fix
+objective: "3.1.2"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    Namespace `shop` enforces the Baseline profile with the built-in Pod Security Admission controller. A Pod is rejected because of this container port configuration:
+
+    ```yaml
+        ports:
+        - containerPort: 8080
+          hostPort: 8080
+    ```
+
+    The application must stay reachable by other workloads and by clients outside the cluster. What should you change so that the Pod is admitted?
+body:
+  options:
+    - id: a
+      text: { en: "Remove `hostPort` and expose the Pod through a Service" }
+    - id: b
+      text: { en: "Change `hostPort` to a high port number such as 30080" }
+    - id: c
+      text: { en: "Add the `NET_BIND_SERVICE` capability to the container" }
+    - id: d
+      text: { en: "Set `privileged: false` explicitly in the container securityContext" }
+answer: { optionId: a }
+explanation:
+  correct:
+    en: |
+      Baseline requires `hostPort` to be unset or `0`, because a host port binds the container directly to the node's network. Removing it and publishing the application through a Service (ClusterIP for in-cluster clients, NodePort or LoadBalancer for external ones) keeps it reachable without a host port.
+  options:
+    b:
+      en: |
+        Any non-zero `hostPort` violates Baseline. The standard mentions a list of known ports, but the built-in Pod Security Admission controller does not support such an allowlist.
+    c:
+      en: |
+        `NET_BIND_SERVICE` lets a process bind ports below 1024 inside its network namespace. It does not change the host port check.
+    d:
+      en: |
+        An unset `privileged` field already means `false`. The rejection comes from the host port, which is a separate control.
+references:
+  - title: Pod Security Standards
+    url: https://kubernetes.io/docs/concepts/security/pod-security-standards/

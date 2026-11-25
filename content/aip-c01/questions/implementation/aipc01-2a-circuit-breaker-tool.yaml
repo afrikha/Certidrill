@@ -1,0 +1,51 @@
+id: aipc01-2a-circuit-breaker-tool
+objective: "2.1.3"
+type: multi
+difficulty: 2
+status: draft
+stem:
+  en: |
+    An e-commerce company runs hundreds of concurrent agent workflows in AWS Step Functions. Each workflow calls a third-party pricing API through a Lambda tool, with a Retry that uses exponential backoff. When the API degrades for 10 to 20 minutes, every workflow keeps retrying, latency grows, and the provider starts rate limiting the company. During an outage, the workflows must stop calling the API for a cool-down period and immediately answer with cached prices, and all workflows must share the same view of the API's state.
+
+    Which combination of actions will meet these requirements? (Choose two.)
+body:
+  choose: 2
+  options:
+    - id: a
+      text:
+        en: |-
+          Increase MaxAttempts of the Retry to 10 and the BackoffRate to 3 so that each workflow waits longer between its calls to the API during an outage.
+    - id: b
+      text:
+        en: |-
+          Before each tool call, read the API's circuit record from a DynamoDB table, and use a Choice state to return cached prices when an unexpired record exists.
+    - id: c
+      text:
+        en: |-
+          Keep a failure counter in a global variable of the Lambda tool function, and return cached prices from the function when the counter exceeds a threshold.
+    - id: d
+      text:
+        en: |-
+          After the retries fail, write a circuit record for the API with an expiry timestamp to the DynamoDB table so that later executions skip the API until then.
+    - id: e
+      text:
+        en: |-
+          Set the reserved concurrency of the tool function to 0 during an outage so that no workflow can invoke the function until an operator resets it.
+answer: { optionIds: [ b, d ] }
+explanation:
+  correct:
+    en: |-
+      This is the circuit breaker pattern as AWS describes it with Step Functions and DynamoDB: after retries fail, the workflow writes a circuit record with an expiry timestamp, and every execution checks the table first and fails fast to a fallback while an unexpired record exists. The shared table gives all concurrent workflows the same state, and DynamoDB TTL can remove expired records.
+  options:
+    a:
+      en: |-
+        More retries keep every workflow calling the degraded API, which increases latency and rate limiting instead of stopping calls.
+    c:
+      en: |-
+        A global variable lives in one Lambda execution environment; concurrent environments do not share it, so workflows would not share the API's state.
+    e:
+      en: |-
+        Setting concurrency to 0 makes every invocation fail with throttling instead of returning cached prices, and it must be changed manually instead of expiring after a cool-down period.
+references:
+  - title: Circuit breaker pattern - AWS Prescriptive Guidance
+    url: https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/circuit-breaker.html

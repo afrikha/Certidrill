@@ -66,7 +66,7 @@ param adminLogin string
 @secure()
 param adminPassword string
 
-resource sqlServer 'Microsoft.Sql/servers@2022-05-01-preview' = {
+resource sqlServer 'Microsoft.Sql/servers@2023-08-01' = {
   name: 'sql-contoso-prod'
   location: location
   properties: {
@@ -75,7 +75,7 @@ resource sqlServer 'Microsoft.Sql/servers@2022-05-01-preview' = {
   }
 }
 
-resource sqlDb 'Microsoft.Sql/servers/databases@2022-05-01-preview' = {
+resource sqlDb 'Microsoft.Sql/servers/databases@2023-08-01' = {
   parent: sqlServer
   name: 'SalesDb'
   location: location
@@ -141,7 +141,7 @@ az sql mi create -g RG1 -n mi-contoso -l westeurope \
 | Un inventaire unique des instances et des bases | Portail Azure, Azure Resource Graph |
 | Licences SQL Server en paiement à l'utilisation facturées par Azure | Au lieu d'acheter des licences |
 | Mises à jour de sécurité étendues pour les versions hors support | Abonnement facturé par Azure |
-| Microsoft Defender pour le cloud, évaluation des bonnes pratiques | Exigent Azure Monitor Agent |
+| Microsoft Defender pour le cloud, évaluation des bonnes pratiques | Defender utilise son extension Defender pour SQL. L'évaluation ne fonctionne que sous Windows, exige un espace de travail Log Analytics dans le même abonnement et installe Azure Monitor Agent s'il est absent |
 | Authentification Microsoft Entra | SQL Server 2022 ou ultérieur |
 | Évaluation de migration et migration de bases | Préparation, recommandation de SKU, migration vers Managed Instance |
 | Sauvegardes automatisées, restauration à un point dans le temps, mises à jour automatiques | Indisponibles avec le type de licence « licence uniquement » |
@@ -156,6 +156,7 @@ La **base de données SQL dans Microsoft Fabric** est une base transactionnelle 
 | Authentification Microsoft Entra uniquement | Oui (pas de connexions, seulement des utilisateurs pour des principaux Entra) |
 | Authentification SQL, pools élastiques, groupes de basculement, Always Encrypted, registre (ledger), rétention à long terme | Non : Azure SQL Database |
 | Plus de 32 vCores ou plus de 4 To | Non : Azure SQL Database |
+| Permettre à un utilisateur de se connecter avec un seul `GRANT` T-SQL | Non : la connexion exige un rôle d'espace de travail Fabric ou au moins l'autorisation d'élément Read ; les autorisations SQL (et un `DENY`) s'appliquent ensuite dans la base |
 
 <!-- section: plan-partitioning | objectives: 1.1.5 -->
 ## Planifier le partitionnement de tables

@@ -55,7 +55,7 @@ Règles :
 - Une zone peut avoir de nombreux réseaux liés. Tous les réseaux liés résolvent tous les enregistrements de la zone, y compris ceux inscrits par d'autres réseaux ; **le peering n'est pas nécessaire à la résolution**, seulement au trafic lui-même.
 - L'inscription automatique ne couvre que les machines virtuelles (interface principale). Les enregistrements d'autres ressources, comme un équilibreur de charge interne, se créent à la main.
 - Les points de terminaison privés utilisent le même mécanisme avec les zones `privatelink.*`.
-- Si des serveurs DNS personnalisés sont définis sur le réseau virtuel, les machines les utilisent à la place : ces serveurs doivent transférer vers le DNS Azure (168.63.129.16) pour que les zones privées fonctionnent. **Azure DNS Private Resolver** fournit des points de terminaison entrants et sortants pour la résolution hybride avec le réseau local.
+- Si des serveurs DNS personnalisés sont définis sur le réseau virtuel, les machines les utilisent à la place : ces serveurs doivent transférer vers le DNS Azure (168.63.129.16) pour que les zones privées fonctionnent. **Azure DNS Private Resolver** prend en charge la résolution hybride : les serveurs DNS locaux envoient les requêtes des zones Azure à son **point de terminaison entrant** par un redirecteur conditionnel ; son **point de terminaison sortant**, avec un **ensemble de règles de transfert DNS**, envoie les requêtes d'Azure vers les serveurs DNS locaux.
 
 ```bash
 az network private-dns zone create -g RG1 -n corp.contoso.internal
@@ -78,7 +78,7 @@ Azure Load Balancer répartit des flux **TCP et UDP** (couche 4) sur les instanc
 | Type | Frontend | Usage |
 | --- | --- | --- |
 | Équilibreur de charge **public** | Adresse IP publique | Applications exposées sur internet ; connectivité sortante du pool principal |
-| Équilibreur de charge **interne** | Adresse IP privée d'un sous-réseau | Niveaux internes (bases de données, niveau applicatif), trafic venant de réseaux appairés ou locaux |
+| Équilibreur de charge **interne** | Adresse IP privée d'un sous-réseau | Niveaux internes (bases de données, niveau applicatif), trafic venant de réseaux reliés par peering ou de réseaux locaux |
 
 Le SKU utilisé est **Standard** (Basic a été retiré le 30 septembre 2025) : frontends redondants interzone, pools principaux composés de n'importe quelles machines d'un même réseau virtuel, et **sécurisé par défaut** : le trafic entrant doit être autorisé par un NSG sur le pool principal.
 
@@ -132,7 +132,7 @@ Symptômes et causes :
 | Un client n'est pas toujours envoyé vers la même instance | La persistance de session est Aucune : réglez IP client |
 | Les connexions sortantes du pool principal échouent par intermittence | **Épuisement des ports SNAT** : ajoutez une **passerelle NAT** sur le sous-réseau (recommandé), ou des règles de trafic sortant avec plus d'adresses IP frontend |
 | Les machines du pool principal n'ont pas d'accès internet | Derrière un équilibreur de charge interne, ou avec la SNAT sortante désactivée, il n'y a pas de chemin sortant : ajoutez une passerelle NAT |
-| Une machine du pool principal n'atteint pas le frontend de son propre équilibreur de charge interne | Le flux peut lui être renvoyé à elle-même et échouer : limitation attendue |
+| Une machine du pool principal n'atteint pas le frontend de son propre équilibreur de charge interne | Les flux sortants d'une machine du pool principal vers le frontend de son équilibreur de charge interne échouent : limitation documentée |
 
 Où regarder :
 

@@ -46,10 +46,10 @@ The guidance from Microsoft Learn: start with the **most managed** option that m
 | Database without a managed connector, custom extraction logic | Notebook with a JDBC read |
 | Files arriving continuously in cloud storage | Auto Loader (in Lakeflow Spark Declarative Pipelines or Structured Streaming) |
 | One-time or simple scheduled batch load of files, SQL-first team | `COPY INTO` |
-| Kafka or Event Hubs streams | Standard connector in a pipeline, or Structured Streaming for full control |
+| Kafka or Event Hubs streams | Standard connector in a pipeline, or Structured Streaming for full control (the Lakeflow Connect managed Kafka connector is in Beta) |
 | On-premises source not reachable from Databricks, or company standard on ADF, orchestration across Azure services | Azure Data Factory (self-hosted integration runtime) lands the data in ADLS, then Databricks transforms it |
 
-Lakeflow Connect managed connectors run on **serverless** compute, store credentials in a Unity Catalog **connection** (no secret in the pipeline), write to **streaming tables**, ingest incrementally after the first full load, and retry automatically. Each schedule creates a Lakeflow job. For database connectors, the ingestion gateway runs continuously in its own job.
+Lakeflow Connect managed connectors run on **serverless** compute, store credentials in a Unity Catalog **connection** (no secret in the pipeline), write to **streaming tables**, ingest incrementally after the first full load, and retry automatically. Each schedule creates a Lakeflow job. For database connectors, the ingestion gateway runs continuously in its own job. The SQL Server connector also offers **integrated CDC**: a single pipeline that references a Unity Catalog connection and embeds extraction in each update, with the staging volume set through `data_staging_options`.
 
 **Notebooks** give the most control (any JDBC source, custom parsing, complex logic) at the cost of code to write, test and maintain.
 
@@ -64,7 +64,7 @@ Lakeflow Connect managed connectors run on **serverless** compute, store credent
 | --- | --- | --- |
 | Batch | Reads a bounded dataset on a schedule (`spark.read`, CTAS, `COPY INTO`) | Daily or hourly freshness, full reloads, small sources |
 | Incremental batch | Streaming code that processes everything new, then stops: `trigger(availableNow=True)`, or a triggered pipeline | Hourly or daily freshness with exactly-once, incremental processing and no always-on cost |
-| Streaming | Always-on query processing micro-batches as data arrives (default trigger or `processingTime`), or a continuous pipeline | Seconds-to-minutes latency (fraud, IoT alerts) |
+| Streaming | Always-on query processing micro-batches as data arrives (default trigger, about 3-5 seconds of latency, or `processingTime`), or a continuous pipeline | Seconds-to-minutes latency (fraud, IoT alerts) |
 
 In Lakeflow Spark Declarative Pipelines, the same code runs in **triggered** mode (process available data, then stop: batch-like schedules) or **continuous** mode (keep running). Changing mode doesn't change the code.
 
@@ -109,7 +109,7 @@ Partitioning splits a table into directories by the values of a column; queries 
 | Partition column choice | The column most queries filter on |
 | Number of schemes per table | One |
 
-Below 1 TB, unpartitioned Delta tables already benefit from **ingestion time clustering**, and liquid clustering is the recommended layout for new tables. Partitioning and liquid clustering can't be combined on the same table.
+Below 1 TB, unpartitioned Delta tables already benefit from **ingestion time clustering**, and liquid clustering is the recommended layout for new tables. Partitioning and liquid clustering can't be combined on the same table. From Databricks Runtime 18.1, `ALTER TABLE ... REPLACE PARTITIONED BY WITH CLUSTER BY (...)` converts a partitioned Delta table to liquid clustering in place; then run `OPTIMIZE ... FULL`.
 
 ```text
 CREATE TABLE sales.silver.transactions (

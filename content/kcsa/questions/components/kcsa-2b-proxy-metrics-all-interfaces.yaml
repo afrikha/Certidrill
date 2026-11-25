@@ -1,0 +1,45 @@
+id: kcsa-2b-proxy-metrics-all-interfaces
+objective: "2.6.2"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    The kube-proxy configuration of a cluster contains:
+
+    ```yaml
+    apiVersion: kubeproxy.config.k8s.io/v1alpha1
+    kind: KubeProxyConfiguration
+    mode: nftables
+    metricsBindAddress: 0.0.0.0:10249
+    ```
+
+    What is the security concern with this configuration?
+body:
+  options:
+    - id: a
+      text: { en: "kube-proxy stops serving the health checks of external load balancers" }
+    - id: b
+      text: { en: "The metrics endpoint listens on every node interface instead of localhost" }
+    - id: c
+      text: { en: "Any client that reaches port 10249 can rewrite the node's Service rules" }
+    - id: d
+      text: { en: "kube-proxy connects to the API server without authentication" }
+answer: { optionId: b }
+explanation:
+  correct:
+    en: |
+      The metrics server of kube-proxy listens on `127.0.0.1:10249` by default. Setting `0.0.0.0:10249` binds it to every interface of the node, so anyone who can reach the node learns internal information about Services and endpoints. Keep it on localhost, or bind it to an internal address and allow only the monitoring system with firewall rules.
+  options:
+    a:
+      en: |
+        Health checks are served by a separate endpoint set by `healthzBindAddress` (default `0.0.0.0:10256`). Changing the metrics address does not stop it.
+    c:
+      en: |
+        The metrics endpoint publishes information; it does not accept configuration. The risk is information disclosure, not rule tampering.
+    d:
+      en: |
+        The connection to the API server uses the credential of kube-proxy's kubeconfig or ServiceAccount. The metrics address does not change it.
+references:
+  - title: "kube-proxy"
+    url: https://kubernetes.io/docs/reference/command-line-tools-reference/kube-proxy/

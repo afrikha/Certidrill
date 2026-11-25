@@ -5,7 +5,7 @@ difficulty: 3
 status: draft
 stem:
   en: |
-    Automatic attack disruption acted during incident 18342 in Microsoft Defender XDR. Your manager asks for the list of the automatic actions taken in that incident during the last 30 days, with the affected device and account.
+    During a human-operated attack at Fabrikam, automatic attack disruption disabled several Active Directory accounts through Microsoft Defender for Identity. Your manager asks for the list of the accounts disabled by attack disruption during the last 90 days, with the domain controller that performed each action.
 
     You need to build the list by using advanced hunting.
 
@@ -13,7 +13,7 @@ stem:
 
     NOTE: Each correct selection is worth one point.
   fr: |
-    L'interruption automatique d'attaque a agi au cours de l'incident 18342 dans Microsoft Defender XDR. Votre responsable demande la liste des actions automatiques effectuées dans cet incident au cours des 30 derniers jours, avec l'appareil et le compte concernés.
+    Pendant une attaque menée par des opérateurs humains chez Fabrikam, l'interruption automatique d'attaque a désactivé plusieurs comptes Active Directory par l'intermédiaire de Microsoft Defender pour Identity. Votre responsable demande la liste des comptes désactivés par l'interruption d'attaque au cours des 90 derniers jours, avec le contrôleur de domaine qui a effectué chaque action.
 
     Vous devez établir la liste à l'aide du repérage avancé.
 
@@ -24,42 +24,57 @@ body:
   layout: code
   language: kusto
   template: |
+    let AllDomainControllers =
+    DeviceNetworkEvents
+    | where TimeGenerated > ago(7d)
+    | where LocalPort == [[port]]
+    | where LocalIPType == "FourToSixMapping"
+    | extend DCDevicename = tostring(split(DeviceName, ".")[0])
+    | distinct DCDevicename;
     [[tbl]]
-    | where Timestamp > [[t]]
-    | where [[col]] == 18342
-    | project Timestamp, ActionType, AttackDisruptionCategory, DeviceName, AccountUpn
-    | order by Timestamp desc
+    | where TimeGenerated > ago(90d)
+    | where ActionType == [[act]]
+    | where Application == "Active Directory"
+    | extend ACTOR_DEVICE = tolower(tostring(AdditionalFields.["ACTOR.DEVICE"]))
+    | where isnotempty(ACTOR_DEVICE)
+    | where ACTOR_DEVICE [[op]] (AllDomainControllers)
+    | project TimeGenerated, TargetAccountUpn, ACTOR_DEVICE
   slots:
+    - id: port
+      options:
+        - { id: p88, text: "88" }
+        - { id: p389, text: "389" }
+        - { id: p443, text: "443" }
+        - { id: p3389, text: "3389" }
     - id: tbl
       options:
-        - { id: dre, text: DisruptionAndResponseEvents }
-        - { id: devevents, text: DeviceEvents }
-        - { id: evidence, text: AlertEvidence }
         - { id: idir, text: IdentityDirectoryEvents }
-    - id: t
+        - { id: ilogon, text: IdentityLogonEvents }
+        - { id: iquery, text: IdentityQueryEvents }
+        - { id: devevents, text: DeviceEvents }
+    - id: act
       options:
-        - { id: ago, text: ago(30d) }
-        - { id: agoneg, text: ago(-30d) }
-        - { id: raw, text: 30d }
-        - { id: dt, text: datetime(30d) }
-    - id: col
+        - { id: disabled, text: "\"Account disabled\"" }
+        - { id: containeduser, text: "\"ContainedUser\"" }
+        - { id: pwdchange, text: "\"Account Password changed\"" }
+    - id: op
       options:
-        - { id: incident, text: IncidentId }
-        - { id: alert, text: AlertId }
-        - { id: report, text: ReportId }
-        - { id: device, text: DeviceId }
+        - { id: in, text: in }
+        - { id: notin, text: "!in" }
+        - { id: has, text: has }
 answer:
-  values: { tbl: dre, t: ago, col: incident }
+  values: { port: p88, tbl: idir, act: disabled, op: in }
 explanation:
   correct:
-    en: "`DisruptionAndResponseEvents` (preview) holds the automatic attack disruption actions shown in the incident's Activities tab, for the whole organization. `ago(30d)` returns the time 30 days before now, and filtering on `IncidentId` scopes the result to incident 18342."
-    fr: "`DisruptionAndResponseEvents` (préversion) contient les actions d'interruption automatique d'attaque affichées dans l'onglet Activities de l'incident, pour toute l'organisation. `ago(30d)` renvoie l'heure qu'il était il y a 30 jours, et le filtre sur `IncidentId` limite le résultat à l'incident 18342."
+    en: "This is the query that Microsoft provides for the disable user action of attack disruption. The `let` statement finds the domain controllers as the devices that listen on port 88 (Kerberos). Defender for Identity disables the account in Active Directory, which `IdentityDirectoryEvents` records with the action type `Account disabled`, and `in` keeps only the rows whose actor device is one of those domain controllers."
+    fr: "C'est la requête fournie par Microsoft pour l'action de désactivation d'utilisateur de l'interruption d'attaque. L'instruction `let` identifie les contrôleurs de domaine comme les appareils qui écoutent sur le port 88 (Kerberos). Defender pour Identity désactive le compte dans Active Directory, ce que `IdentityDirectoryEvents` enregistre avec le type d'action `Account disabled`, et `in` ne garde que les lignes dont l'appareil acteur est l'un de ces contrôleurs de domaine."
   options:
-    devevents: { en: "DeviceEvents records the blocks that result from containment (ContainedDevice, ContainedUser), not the disruption actions themselves.", fr: "DeviceEvents enregistre les blocages qui résultent du confinement (ContainedDevice, ContainedUser), pas les actions d'interruption elles-mêmes." }
-    idir: { en: "IdentityDirectoryEvents shows directory changes such as disabled accounts, not every disruption action.", fr: "IdentityDirectoryEvents montre des modifications d'annuaire comme les comptes désactivés, pas toutes les actions d'interruption." }
-    agoneg: { en: "ago(-30d) returns a time 30 days in the future.", fr: "ago(-30d) renvoie une heure située 30 jours dans le futur." }
-    raw: { en: "A timespan can't be compared with a datetime.", fr: "Une durée ne peut pas être comparée à une date." }
-    alert: { en: "18342 is an incident number, and AlertId identifies an alert.", fr: "18342 est un numéro d'incident, et AlertId identifie une alerte." }
+    p389: { en: "Port 389 is LDAP, which other servers can also expose; the provided query identifies domain controllers by the Kerberos port 88.", fr: "Le port 389 est LDAP, que d'autres serveurs peuvent aussi exposer ; la requête fournie identifie les contrôleurs de domaine par le port Kerberos 88." }
+    ilogon: { en: "IdentityLogonEvents records authentications, not changes to account properties such as a disabled account.", fr: "IdentityLogonEvents enregistre les authentifications, pas les modifications des propriétés d'un compte comme sa désactivation." }
+    devevents: { en: "DeviceEvents holds the blocks caused by Contain user (ContainedUser); a contained user isn't disabled.", fr: "DeviceEvents contient les blocages causés par Contain user (ContainedUser) ; un utilisateur contenu n'est pas désactivé." }
+    containeduser: { en: "ContainedUser matches DeviceEvents blocks of a contained user, not accounts disabled in Active Directory.", fr: "ContainedUser correspond aux blocages DeviceEvents d'un utilisateur contenu, pas aux comptes désactivés dans Active Directory." }
+    notin: { en: "!in would keep the disable actions performed from devices other than the domain controllers.", fr: "!in garderait les désactivations effectuées depuis des appareils autres que les contrôleurs de domaine." }
+    has: { en: "has looks for a term in a string; it doesn't compare a value with the list returned by a let statement.", fr: "has recherche un terme dans une chaîne ; il ne compare pas une valeur à la liste renvoyée par une instruction let." }
 references:
   - title: Details and results of an automatic attack disruption action
     url: https://learn.microsoft.com/en-us/defender-xdr/autoad-results

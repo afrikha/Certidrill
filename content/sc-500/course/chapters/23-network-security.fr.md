@@ -7,7 +7,7 @@ Une règle de NSG comporte une priorité (**100 à 4096**, la plus basse l'empor
 
 | Règle par défaut | Priorité | Effet |
 | --- | --- | --- |
-| AllowVNetInBound / AllowVnetOutBound | 65000 | Trafic au sein de `VirtualNetwork` (inclut les réseaux appairés et connectés) |
+| AllowVNetInBound / AllowVnetOutBound | 65000 | Trafic au sein de `VirtualNetwork` (inclut les réseaux connectés par peering et les autres réseaux connectés) |
 | AllowAzureLoadBalancerInBound | 65001 | Sondes d'intégrité depuis `AzureLoadBalancer` |
 | AllowInternetOutBound | 65001 | Sortant vers `Internet` |
 | DenyAllInbound / DenyAllOutBound | 65500 | Tout le reste |
@@ -37,7 +37,7 @@ Azure Virtual Network Manager est créé avec une **étendue** (groupes d'admini
 | Deny (Refuser) | Bloque le trafic ; les NSG ne sont pas évalués |
 | Always Allow (Toujours autoriser) | Autorise le trafic quoi que disent les NSG ; l'évaluation s'arrête |
 
-Les règles d'administration de la sécurité (priorité **1 à 4096**) s'appliquent au niveau du réseau virtuel et sont évaluées **avant** les NSG : les équipes applicatives ne peuvent donc pas les contourner. Par défaut, elles ne s'appliquent pas aux réseaux virtuels qui contiennent Azure SQL Managed Instance ou Azure Databricks (l'option `AllowRulesOnly` n'y applique que les règles Allow), ni aux sous-réseaux des passerelles, d'Azure Bastion, du Pare-feu Azure ou d'Azure Route Server.
+Les règles d'administration de la sécurité (priorité **1 à 4096**) s'appliquent au niveau du réseau virtuel et sont évaluées **avant** les NSG : les équipes applicatives ne peuvent donc pas les contourner. Par défaut, elles ne s'appliquent pas aux réseaux virtuels qui contiennent Azure SQL Managed Instance ou Azure Databricks (l'option `AllowRulesOnly` n'y applique que les règles Allow), ni aux sous-réseaux d'Azure Application Gateway (sauf si chaque passerelle du sous-réseau utilise l'isolement réseau), d'Azure Bastion, du Pare-feu Azure, d'Azure Route Server, de VPN Gateway, de Virtual WAN ou des passerelles ExpressRoute ; les autres sous-réseaux du réseau virtuel les reçoivent toujours. Elles ne s'appliquent pas non plus aux points de terminaison privés d'un réseau virtuel managé.
 
 > **Piège d'examen.** « Bloquer le RDP depuis Internet sur tous les réseaux virtuels actuels et futurs, sans que les administrateurs locaux puissent le rouvrir » correspond à une règle d'administration de la sécurité **Deny** sur un groupe réseau dynamique, pas à un NSG ni à Azure Policy sur les NSG.
 
@@ -113,7 +113,7 @@ Un point de terminaison privé est une carte réseau en lecture seule avec une a
 
 Le DNS public renvoie un CNAME vers le nom `privatelink`, si bien que les clients continuent d'utiliser le FQDN habituel ; liez la zone DNS privée à chaque réseau virtuel qui doit la résoudre. Un point de terminaison privé **ne bloque pas l'accès public** à lui seul : réglez aussi l'accès au réseau public du service sur Désactivé. Les NSG, UDR et ASG s'appliquent aux points de terminaison privés uniquement quand les **stratégies réseau** sont activées sur le sous-réseau.
 
-> **Piège d'examen.** Point de terminaison de service contre point de terminaison privé : un point de terminaison de service garde l'adresse IP publique du service et ne fait qu'identifier votre sous-réseau auprès de son pare-feu ; un point de terminaison privé donne une adresse IP privée joignable depuis les réseaux appairés et depuis le site local via VPN ou ExpressRoute.
+> **Piège d'examen.** Point de terminaison de service contre point de terminaison privé : un point de terminaison de service garde l'adresse IP publique du service et ne fait qu'identifier votre sous-réseau auprès de son pare-feu ; un point de terminaison privé donne une adresse IP privée joignable depuis les réseaux connectés par peering et depuis le site local via VPN ou ExpressRoute.
 
 <!-- section: private-link-service | objectives: 2.3.7 -->
 ## Service Azure Private Link

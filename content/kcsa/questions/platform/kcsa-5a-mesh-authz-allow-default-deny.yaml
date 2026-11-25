@@ -1,0 +1,53 @@
+id: kcsa-5a-mesh-authz-allow-default-deny
+objective: "5.4.1"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    The `payments` namespace uses Istio with `STRICT` mutual TLS, and the policy below is the only `AuthorizationPolicy` in the mesh. A meshed Pod in the `shop` namespace that runs with the `reports` ServiceAccount sends a request to `payments-api`. What is the result?
+
+    ```yaml
+    apiVersion: security.istio.io/v1
+    kind: AuthorizationPolicy
+    metadata:
+      name: allow-frontend
+      namespace: payments
+    spec:
+      selector:
+        matchLabels:
+          app: payments-api
+      action: ALLOW
+      rules:
+      - from:
+        - source:
+            principals: ["cluster.local/ns/shop/sa/frontend"]
+    ```
+body:
+  options:
+    - id: a
+      text: { en: "Denied, because an ALLOW policy selects the workload and no rule matches the caller" }
+    - id: b
+      text: { en: "Allowed, because requests are denied only when a DENY policy matches them" }
+    - id: c
+      text: { en: "Allowed, because the caller is in the mesh and presents a valid mTLS certificate" }
+    - id: d
+      text: { en: "Denied, because `STRICT` mode rejects every caller outside the `payments` namespace" }
+answer: { optionId: a }
+explanation:
+  correct:
+    en: |
+      A workload without authorization policies accepts all requests, but as soon as at least one ALLOW policy applies to it, requests that match none of its rules are rejected. The caller's identity is `cluster.local/ns/shop/sa/reports`, which is not the allowed principal, so the request is denied.
+  options:
+    b:
+      en: |
+        DENY policies are evaluated before ALLOW policies, but the absence of a DENY match does not allow a request once an ALLOW policy selects the workload.
+    c:
+      en: |
+        mTLS authenticates the caller; it does not authorize it. The authenticated identity is then checked against the ALLOW rules.
+    d:
+      en: |
+        `STRICT` mode only requires mutual TLS. Meshed callers from any namespace can connect; access by identity is decided by the authorization policy.
+references:
+  - title: Security
+    url: https://istio.io/latest/docs/concepts/security/

@@ -26,7 +26,7 @@ Best practices the exam expects:
 
 Limits: **1 GB** per working branch, fewer than **20,000** assets recommended; use **sparse checkout** for a large repository.
 
-**Production Git folders** are created by an admin outside `/Workspace/Users/`, hold a deployment branch and are updated only by automation when a pull request is merged. Most users get **Can Run**; only admins and service principals edit them. The service principal needs a Git credential for the repository.
+**Production Git folders** are created by an admin outside `/Workspace/Users/`, hold a deployment branch and are updated only by automation when a pull request is merged. Project users, and the service principals that run automation against the folder, get **Can Run** (optionally **Can View** for everyone else); only admins and service principals edit them. The service principal needs a Git credential for the repository.
 
 > **Exam trap.** A Git folder versions code only. To version and promote the **job definition** (tasks, schedule, compute) with the code, use a bundle.
 
@@ -222,15 +222,15 @@ Bundle variables are deployment-time values: to change an input for one run, use
 | --- | --- | --- |
 | Resource names | Prefixed `[dev <short_name>]`, jobs and pipelines tagged `dev` | Unchanged |
 | Schedules and triggers | Paused | As configured |
-| Concurrent job runs | Enabled | As configured |
-| Deployment lock | Disabled | Enabled (default) |
+| Concurrent job runs | Enabled (`max_concurrent_runs: 1` disables them for one job) | As configured |
+| Deployment lock | Disabled (`bundle.deployment.lock.enabled: true` re-enables it) | Enabled (default) |
 | Pipelines | `development: true` | Must be `development: false` |
 | `--cluster-id` override | Allowed | Not allowed |
-| Validations | None | Current Git branch equals `git.branch`; without a service principal in `run_as`, paths can't point to a user folder and `run_as` and `permissions` must be set |
+| Validations | None | Current Git branch equals `git.branch`; without a service principal in `run_as`, `artifact_path`, `file_path`, `root_path` and `state_path` can't be overridden to a specific user, and `run_as` and `permissions` must be set |
 
-**Presets** (`name_prefix`, `trigger_pause_status`, `jobs_max_concurrent_runs`, `tags`) fine-tune a target such as staging; presets override the mode, and a resource's own setting overrides the presets.
+**Presets** (`name_prefix`, `pipelines_development`, `trigger_pause_status`, `jobs_max_concurrent_runs`, `tags`) fine-tune a target such as staging; presets override the mode, and a resource's own setting overrides the presets.
 
-> **Exam trap.** A schedule that never fires after deployment to the dev target isn't a bug: `mode: development` pauses every schedule. Set `pause_status: UNPAUSED` on that job if it must run.
+> **Exam trap.** A schedule that never fires after deployment to the dev target isn't a bug: `mode: development` pauses every schedule. Set `pause_status: UNPAUSED` on that job's `schedule` (or `continuous`) if it must run.
 
 <!-- section: bundle-cli-deployment | objectives: 4.3.5 -->
 ## Deploying a bundle with the Databricks CLI
@@ -261,15 +261,17 @@ databricks bundle destroy -t prod           # delete everything the bundle deplo
 | Override a variable | `--var="name=value"` |
 | Fail instead of disrupting running jobs | `deploy --fail-on-active-runs` |
 | Clear a stale lock from an interrupted deployment | `deploy --force-lock` (only if no deployment is running) |
-| Bypass the Git branch validation of production mode | `deploy --force` |
+| Override validations that block a deployment (Git branch of production mode; also overwrites a dashboard modified in the workspace) | `deploy --force` |
 | Skip prompts in a pipeline | `--auto-approve` |
 | Use an existing cluster in development | `deploy --cluster-id` (development mode only) |
-| Run only some tasks; restart a running job | `run --only ingest,transform`; `run --restart` |
-| Bring an existing job under the bundle | `bundle generate job`, `bundle deployment bind` |
+| Run only some tasks; restart a running job | `run --only ingest,transform` (`+key` adds its upstream tasks, `key+` its downstream tasks); `run --restart` |
+| Pass job parameters to one run; don't wait for the run | `run --params run_date=2026-11-24`; `run --no-wait` |
+| Deploy only some resources and their upstream dependencies (development only) | `deploy --select jobs.daily_sales` |
+| Bring an existing job under the bundle | `bundle generate job --bind`, or `bundle generate job` then `bundle deployment bind` |
 
-`bundle deploy` keeps its state in the workspace: it creates new resources, updates deployed ones and **deletes the resources removed from the configuration**. A deployment's identity is bundle name + target + deployer, so two people deploying to the same shared target conflict: let a pipeline running as a service principal deploy there. `bundle destroy` can't be undone. The workspace UI (**Deployments** pane) also deploys, as the current user and within the current workspace only; the CLI is the path for CI/CD.
+`bundle deploy` keeps its state in the workspace: it creates new resources, updates deployed ones and **deletes the resources removed from the configuration**. A deployment's identity is bundle name + target + deployer, so two people deploying to the same shared target conflict: let a pipeline running as a service principal deploy there. `bundle destroy` can't be undone; the `lifecycle` setting protects specific resources from it. The workspace UI (**Deployments** pane) also deploys, as the current user and within the current workspace only; the CLI is the path for CI/CD.
 
-> **Exam trap.** A deployment from a feature branch to a production target fails the `git.branch` check: merge, then deploy from `main`. `--force` only bypasses the safeguard.
+> **Exam trap.** A deployment from a feature branch to a production target fails the `git.branch` check: merge, then deploy from `main`. `--force` only overrides the safeguard.
 
 <!-- section: bundle-rest-ci-cd | objectives: 4.3.6 -->
 ## Deploying with REST APIs and CI/CD
@@ -318,6 +320,8 @@ To sync a **production Git folder** after a merge, the pipeline calls the Repos 
 ```bash
 databricks repos update /Workspace/Production/sales-pipeline --branch main
 ```
+
+Without external CI/CD, a scheduled job can run a notebook that calls the Databricks SDK instead (`w.repos.update(..., branch="main")`).
 
 > **Exam tip.** "No secret stored in the CI system": workload identity federation. "Deploy jobs with their configuration": a bundle. "Only refresh code in a production folder after a merge": a Repos API update.
 

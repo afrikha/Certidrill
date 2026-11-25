@@ -108,7 +108,7 @@ Les fichiers inclus doivent être exclus de la compilation du modèle, sinon le 
 </ItemGroup>
 ```
 
-Les valeurs propres à un environnement viennent de **variables SQLCMD** déclarées dans le projet (`$(Environment)`) et définies au déploiement (`/v:Environment=prod`). Le script de prédéploiement prépare les changements que le modèle ne sait pas exprimer, comme déplacer des données avant la suppression d'une colonne.
+Les valeurs propres à un environnement viennent de **variables SQLCMD** déclarées dans le projet (`$(Environment)`) et définies au déploiement (`/v:Environment=prod`). Une `DefaultValue` déclarée dans le projet n'est pas compilée dans le `.dacpac` : elle préremplit seulement la boîte de dialogue de publication des outils graphiques, et un déploiement en ligne de commande sans `/v` ni profil de publication reçoit des valeurs vides. Le script de prédéploiement prépare les changements que le modèle ne sait pas exprimer, comme déplacer des données avant la suppression d'une colonne.
 
 > **Piège d'examen.** Un simple `INSERT` dans le script de post-déploiement échoue sur une clé en double au deuxième déploiement. Les scripts de données de référence doivent être idempotents : `MERGE`, ou des tests `IF NOT EXISTS`. Ne gardez `WHEN NOT MATCHED BY SOURCE THEN DELETE` que si les lignes retirées de Git doivent disparaître de la base.
 
@@ -139,7 +139,7 @@ dotnet build SalesDb.sqlproj
 | Tests unitaires | Une procédure ou une fonction renvoie le bon résultat pour des entrées données, lève l'erreur attendue pour une entrée invalide | Sur une base de test déployée à partir du projet |
 | Tests d'intégration | Scénarios en plusieurs étapes : enchaînements de procédures, déclencheurs, vues après des changements liés, application plus base | Sur un environnement de test dédié, entièrement déployé |
 
-Les tests unitaires SQL Server (SSDT) ont des scripts de **prétest** (préparer les données), de **test** (exécuter) et de **post-test** (nettoyer), et des **conditions de test** : Row Count, Scalar Value, Expected Schema, Data Checksum, Empty ResultSet, Not Empty ResultSet, Execution Time. Un test négatif attend une erreur (`ExpectedSqlException` avec une gravité et un état) et échoue si la procédure réussit. L'option **Automatically deploy the database project before unit tests are run** garde la base de test synchronisée.
+Les tests unitaires SQL Server (SSDT) ont des scripts de **prétest** (préparer les données), de **test** (exécuter) et de **post-test** (nettoyer), et des **conditions de test** : Row Count, Scalar Value, Expected Schema, Data Checksum, Empty ResultSet, Not Empty ResultSet, Execution Time, et **Inconclusive**, la condition par défaut ajoutée à chaque nouveau test : elle renvoie toujours Inconclusive, ne vérifie rien et doit être supprimée une fois les vraies conditions ajoutées. Un test négatif attend une erreur (`ExpectedSqlException` avec une gravité et un état) et échoue si la procédure réussit. L'option **Automatically deploy the database project before unit tests are run** garde la base de test synchronisée.
 
 ```yaml
 # GitHub Actions: after build and deployment to the test database
@@ -253,7 +253,7 @@ jobs:
 | --- | --- | --- |
 | Protéger `main` | Stratégies de branche : nombre minimal de relecteurs, éléments de travail liés, résolution des commentaires, **Build Validation** | Règles de protection de branche ou ensembles de règles : relectures de pull request obligatoires, vérifications d'état obligatoires |
 | Relecteurs obligatoires pour les fichiers de base de données | Relecteurs inclus automatiquement sur un chemin comme `/Database/*` | `CODEOWNERS` avec relecture obligatoire des propriétaires du code |
-| Quand les pipelines s'exécutent (déclencheurs) | `trigger` (CI sur push), `pr` ou validation du build (pull requests) | `on: push`, `on: pull_request` |
+| Quand les pipelines s'exécutent (déclencheurs) | `trigger` (CI sur push) ; pull requests dans Azure Repos Git : stratégie de branche **Build Validation** uniquement, car un déclencheur de pull request ne se configure pas dans le fichier YAML (`pr` s'applique aux dépôts GitHub et Bitbucket Cloud) | `on: push`, `on: pull_request` |
 | Approbation avant la production | **Environnement** avec approbations et vérifications (approbateurs, heures ouvrées, contrôle de branche) | Règles de protection d'**environnement** : relecteurs obligatoires, minuteur d'attente, branches de déploiement (seulement `main`) |
 | Qui peut utiliser les informations d'identification de production | Sécurité de la connexion de service et vérification de **contrôle de branche** limitée à `main` | Secrets d'environnement, fournis seulement après le passage des règles de l'environnement |
 

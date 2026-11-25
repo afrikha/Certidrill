@@ -1,0 +1,495 @@
+chapter: 44-monitoring-optimization
+questions:
+  # ------------------------------------------------------------------ 1
+  - id: dp750-qz-44-01
+    objective: "4.4.5"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        The Delta table **contoso.sales.orders** uses the default table properties. You run the statement `VACUUM contoso.sales.orders` without any option.
+
+        Which files does the statement delete?
+      fr: |
+        La table Delta **contoso.sales.orders** utilise les propriétés de table par défaut. Vous exécutez l'instruction `VACUUM contoso.sales.orders` sans aucune option.
+
+        Quels fichiers l'instruction supprime-t-elle ?
+    body:
+      options:
+        - { id: a, text: { en: "All the data files that the latest table version doesn't reference, whatever their age", fr: "Tous les fichiers de données que la dernière version de la table ne référence pas, quel que soit leur âge" } }
+        - { id: b, text: { en: "The transaction log files older than 30 days and the data files that they reference", fr: "Les fichiers du journal des transactions de plus de 30 jours et les fichiers de données qu'ils référencent" } }
+        - { id: c, text: { en: "The data files that the table no longer references and that are older than 7 days", fr: "Les fichiers de données que la table ne référence plus et qui datent de plus de 7 jours" } }
+        - { id: d, text: { en: "The small data files that OPTIMIZE compacted into larger files during the last 7 days", fr: "Les petits fichiers de données qu'OPTIMIZE a compactés en fichiers plus grands au cours des 7 derniers jours" } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          `VACUUM` removes the data files that the table no longer references and that are older than the retention threshold, which is 7 days by default. Versions older than this threshold can no longer be queried with time travel afterward.
+        fr: |
+          `VACUUM` supprime les fichiers de données que la table ne référence plus et qui sont plus anciens que le seuil de rétention, de 7 jours par défaut. Les versions plus anciennes que ce seuil ne peuvent ensuite plus être interrogées avec le voyage dans le temps.
+      options:
+        a: { en: "Unreferenced files younger than the retention threshold are kept, so that recent versions stay available to time travel and running writers.", fr: "Les fichiers non référencés plus récents que le seuil de rétention sont conservés, pour que les versions récentes restent disponibles pour le voyage dans le temps et les écritures en cours." }
+        b: { en: "VACUUM doesn't delete transaction log files: they are removed automatically after checkpoints, with a default retention of 30 days.", fr: "VACUUM ne supprime pas les fichiers du journal des transactions : ils sont supprimés automatiquement après les points de contrôle, avec une rétention de 30 jours par défaut." }
+        d: { en: "Files replaced by OPTIMIZE within the last 7 days are still inside the retention threshold, so VACUUM keeps them.", fr: "Les fichiers remplacés par OPTIMIZE au cours des 7 derniers jours sont encore dans le seuil de rétention ; VACUUM les conserve donc." }
+    references:
+      - title: Remove unused data files with vacuum - Azure Databricks
+        url: https://learn.microsoft.com/en-us/azure/databricks/delta/vacuum
+
+  # ------------------------------------------------------------------ 2
+  - id: dp750-qz-44-02
+    objective: "4.4.1"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        Fabrikam's analysts run dashboards on a pro SQL warehouse named **wh-sales** whose scaling is set to a minimum of 1 and a maximum of 2 clusters. Every morning, the dashboards load slowly.
+
+        On the **Monitoring** tab of wh-sales, the running clusters chart stays at 2 from 8:00 to 10:00, and the peak query count chart shows many queued queries during that period. The query profiles of the slow queries show no spill to disk.
+
+        What should you change on wh-sales?
+      fr: |
+        Les analystes de Fabrikam exécutent des tableaux de bord sur un entrepôt SQL pro nommé **wh-sales** dont la mise à l'échelle est réglée sur un minimum de 1 et un maximum de 2 clusters. Chaque matin, les tableaux de bord se chargent lentement.
+
+        Dans l'onglet **Monitoring** de wh-sales, le graphique des clusters en cours d'exécution reste à 2 de 8 h 00 à 10 h 00, et le graphique du pic de requêtes montre de nombreuses requêtes en file d'attente pendant cette période. Les profils de requête des requêtes lentes ne montrent aucun déversement sur disque.
+
+        Que devez-vous modifier sur wh-sales ?
+    body:
+      options:
+        - { id: a, text: { en: "Raise the minimum number of clusters to 2", fr: "Relever le nombre minimal de clusters à 2" } }
+        - { id: b, text: { en: "Raise the cluster size from Medium to Large", fr: "Relever la taille de cluster de Medium à Large" } }
+        - { id: c, text: { en: "Raise the auto stop delay to 60 minutes", fr: "Relever le délai d'arrêt automatique à 60 minutes" } }
+        - { id: d, text: { en: "Raise the maximum number of clusters to 4", fr: "Relever le nombre maximal de clusters à 4" } }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          Queued queries while the warehouse runs its maximum number of clusters show a concurrency limit: the warehouse can't add clusters for the waiting queries. Raising the maximum number of clusters lets it scale out at peak time. Cluster size addresses queries that need more resources each, which the absence of spill rules out.
+        fr: |
+          Des requêtes en file d'attente alors que l'entrepôt exécute son nombre maximal de clusters montrent une limite de concurrence : l'entrepôt ne peut pas ajouter de clusters pour les requêtes en attente. Relever le nombre maximal de clusters lui permet de monter en charge au moment du pic. La taille de cluster vise les requêtes qui ont chacune besoin de plus de ressources, ce que l'absence de déversement exclut.
+      options:
+        a: { en: "The warehouse already reaches 2 clusters at peak time; a higher minimum doesn't raise the number of clusters available for the queue.", fr: "L'entrepôt atteint déjà 2 clusters au moment du pic ; un minimum plus élevé n'augmente pas le nombre de clusters disponibles pour la file d'attente." }
+        b: { en: "A larger cluster size helps queries that spill to disk; here the queries wait for capacity, so more clusters are needed.", fr: "Une taille de cluster plus grande aide les requêtes qui déversent sur disque ; ici les requêtes attendent de la capacité : il faut donc plus de clusters." }
+        c: { en: "Auto stop only decides when an idle warehouse stops; it has no effect on queries queued while the warehouse is busy.", fr: "L'arrêt automatique décide seulement quand un entrepôt inactif s'arrête ; il n'a aucun effet sur les requêtes en file d'attente pendant que l'entrepôt est occupé." }
+    references:
+      - title: Monitor a SQL warehouse - Azure Databricks
+        url: https://learn.microsoft.com/en-us/azure/databricks/compute/sql-warehouse/monitor
+      - title: SQL warehouse sizing, scaling, and queuing behavior - Azure Databricks
+        url: https://learn.microsoft.com/en-us/azure/databricks/compute/sql-warehouse/warehouse-behavior
+
+  # ------------------------------------------------------------------ 3
+  - id: dp750-qz-44-03
+    objective: "4.4.2"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Tailspin has a Lakeflow Jobs job named **flight_positions** that was created through the Jobs API. Its advanced settings keep their default values, except that queueing is disabled. A schedule triggers the job every 15 minutes, and its runs don't conflict with each other.
+
+        Since traffic grew, some runs take up to 25 minutes, and the matrix view shows that the next scheduled run after each of them is **Skipped**.
+
+        You need every scheduled run to start at its scheduled time. What should you do?
+      fr: |
+        Tailspin dispose d'un job Lakeflow Jobs nommé **flight_positions**, créé au moyen de l'API Jobs. Ses paramètres avancés conservent leurs valeurs par défaut, sauf la mise en file d'attente, qui est désactivée. Une planification déclenche le job toutes les 15 minutes, et ses exécutions n'entrent pas en conflit les unes avec les autres.
+
+        Depuis que le trafic a augmenté, certaines exécutions durent jusqu'à 25 minutes, et la vue matricielle montre que l'exécution planifiée qui suit chacune d'elles est **Skipped**.
+
+        Vous devez faire en sorte que chaque exécution planifiée démarre à l'heure prévue. Que devez-vous faire ?
+    body:
+      options:
+        - { id: a, text: { en: "Turn on the Queue setting in the advanced settings of the job", fr: "Activer le paramètre Queue dans les paramètres avancés du job" } }
+        - { id: b, text: { en: "Set a Timeout of 15 minutes in the duration thresholds of the job", fr: "Définir un Timeout de 15 minutes dans les seuils de durée du job" } }
+        - { id: c, text: { en: "Set Maximum concurrent runs to 2 in the advanced settings of the job", fr: "Définir Maximum concurrent runs sur 2 dans les paramètres avancés du job" } }
+        - { id: d, text: { en: "Repair each skipped run as soon as the previous run of the job ends", fr: "Réparer chaque exécution ignorée dès que l'exécution précédente du job se termine" } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          The maximum concurrent runs of a new job is 1, and Azure Databricks skips a run when the job already has that many active runs, which gives the Skipped status. Raising the value to 2 lets a scheduled run start while the previous one is still running, which is allowed here because the runs don't conflict.
+        fr: |
+          Le nombre maximal d'exécutions simultanées d'un nouveau job est de 1, et Azure Databricks ignore une exécution quand le job a déjà ce nombre d'exécutions actives, d'où l'état Skipped. Relever la valeur à 2 permet à une exécution planifiée de démarrer pendant que la précédente est encore en cours, ce qui est permis ici car les exécutions n'entrent pas en conflit.
+      options:
+        a: { en: "Queueing prevents skipped runs, but a queued run waits until the previous run ends, so it doesn't start at its scheduled time.", fr: "La mise en file d'attente évite les exécutions ignorées, mais une exécution en file d'attente attend la fin de l'exécution précédente ; elle ne démarre donc pas à l'heure prévue." }
+        b: { en: "A timeout stops the long runs with the Timed Out status, so their work is lost instead of the next run starting on time.", fr: "Un délai d'expiration arrête les exécutions longues avec l'état Timed Out : leur travail est perdu, au lieu que l'exécution suivante démarre à l'heure." }
+        d: { en: "Rerunning the work after the previous run ends still starts it late, and it doesn't stop the next runs from being skipped.", fr: "Relancer le travail après la fin de l'exécution précédente le démarre toujours en retard, et cela n'empêche pas les exécutions suivantes d'être ignorées." }
+    references:
+      - title: Configure and edit Lakeflow Jobs - Azure Databricks
+        url: https://learn.microsoft.com/en-us/azure/databricks/jobs/configure-job
+      - title: Monitor Lakeflow Jobs - Azure Databricks
+        url: https://learn.microsoft.com/en-us/azure/databricks/jobs/monitor
+
+  # ------------------------------------------------------------------ 4
+  - id: dp750-qz-44-04
+    objective: "4.4.6"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Woodgrove's security team sends the logs of its Azure Key Vault vaults and storage accounts to a Log Analytics workspace named **law-wg-sec**. The Azure Databricks workspace **adb-wg-prod** is on the Premium plan and has no diagnostic setting.
+
+        The team must correlate the secret access events of adb-wg-prod with the Key Vault logs in a single KQL query in law-wg-sec.
+
+        What should you do?
+      fr: |
+        L'équipe de sécurité de Woodgrove envoie les journaux de ses coffres Azure Key Vault et de ses comptes de stockage vers un espace de travail Log Analytics nommé **law-wg-sec**. L'espace de travail Azure Databricks **adb-wg-prod** est sur le plan Premium et n'a aucun paramètre de diagnostic.
+
+        L'équipe doit corréler les événements d'accès aux secrets d'adb-wg-prod avec les journaux Key Vault dans une seule requête KQL dans law-wg-sec.
+
+        Que devez-vous faire ?
+    body:
+      options:
+        - { id: a, text: { en: "Grant the team SELECT on system.access.audit and query it from law-wg-sec", fr: "Accorder SELECT sur system.access.audit à l'équipe et l'interroger depuis law-wg-sec" } }
+        - { id: b, text: { en: "Install the Azure Monitor Agent on the clusters with a rule that targets law-wg-sec", fr: "Installer Azure Monitor Agent sur les clusters avec une règle qui cible law-wg-sec" } }
+        - { id: c, text: { en: "Turn on verbose audit logs in adb-wg-prod and query them from law-wg-sec", fr: "Activer les journaux d'audit détaillés dans adb-wg-prod et les interroger depuis law-wg-sec" } }
+        - { id: d, text: { en: "Add a diagnostic setting on adb-wg-prod that sends the secrets logs to law-wg-sec", fr: "Ajouter un paramètre de diagnostic sur adb-wg-prod qui envoie les journaux secrets vers law-wg-sec" } }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          A diagnostic setting on the Azure Databricks workspace resource streams the selected log categories to a Log Analytics workspace, where the secrets events land in the DatabricksSecrets table. The team can then join that table with the Key Vault logs in one KQL query.
+        fr: |
+          Un paramètre de diagnostic sur la ressource d'espace de travail Azure Databricks diffuse les catégories de journaux sélectionnées vers un espace de travail Log Analytics, où les événements de secrets arrivent dans la table DatabricksSecrets. L'équipe peut alors joindre cette table aux journaux Key Vault dans une seule requête KQL.
+      options:
+        a: { en: "The audit system table is queried with SQL inside Azure Databricks; Log Analytics can't query it, so no KQL join is possible.", fr: "La table système d'audit s'interroge en SQL dans Azure Databricks ; Log Analytics ne peut pas l'interroger : aucune jointure KQL n'est donc possible." }
+        b: { en: "Audit events are produced by the workspace control plane, not by the cluster virtual machines, so an agent on the clusters doesn't collect them.", fr: "Les événements d'audit sont produits par le plan de contrôle de l'espace de travail, pas par les machines virtuelles des clusters : un agent sur les clusters ne les collecte donc pas." }
+        c: { en: "Verbose audit logs add events to the audit logs, but they don't deliver anything to Log Analytics without a diagnostic setting.", fr: "Les journaux d'audit détaillés ajoutent des événements aux journaux d'audit, mais ils ne remettent rien à Log Analytics sans paramètre de diagnostic." }
+    references:
+      - title: Configure diagnostic log delivery - Azure Databricks
+        url: https://learn.microsoft.com/en-us/azure/databricks/admin/account-settings/audit-log-delivery
+      - title: Supported log categories - Microsoft.Databricks/workspaces - Azure Monitor
+        url: https://learn.microsoft.com/en-us/azure/azure-monitor/reference/supported-logs/microsoft-databricks-workspaces-logs
+
+  # ------------------------------------------------------------------ 5
+  - id: dp750-qz-44-05
+    objective: "4.4.7"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Contoso streams the clusters log category of its Azure Databricks workspace to a Log Analytics workspace named **law-contoso-ops**. A log search alert rule on law-contoso-ops runs a query that returns the failed cluster start events of **DatabricksClusters** with their TimeGenerated column. The rule uses the **Table rows** measurement, an aggregation granularity of 5 minutes, a frequency of evaluation of 5 minutes, and the threshold **Greater than 0**.
+
+        Isolated failures that the clusters recover from on their own cause too many alerts. The rule must fire only when failures occur in three consecutive 5-minute periods, and it must keep evaluating every 5 minutes.
+
+        What should you configure?
+      fr: |
+        Contoso diffuse la catégorie de journaux clusters de son espace de travail Azure Databricks vers un espace de travail Log Analytics nommé **law-contoso-ops**. Une règle d'alerte de recherche dans les journaux sur law-contoso-ops exécute une requête qui renvoie les événements de démarrage de cluster en échec de **DatabricksClusters** avec leur colonne TimeGenerated. La règle utilise la mesure **Table rows**, une granularité d'agrégation de 5 minutes, une fréquence d'évaluation de 5 minutes et le seuil **Greater than 0**.
+
+        Des échecs isolés dont les clusters se remettent seuls déclenchent trop d'alertes. La règle ne doit se déclencher que quand des échecs se produisent pendant trois périodes consécutives de 5 minutes, et elle doit continuer d'évaluer toutes les 5 minutes.
+
+        Que devez-vous configurer ?
+    body:
+      options:
+        - { id: a, text: { en: "Set Frequency of evaluation and Aggregation granularity to 15 minutes", fr: "Définir Frequency of evaluation et Aggregation granularity sur 15 minutes" } }
+        - { id: b, text: { en: "Set Number of violations to 3 and Evaluation period to 15 minutes", fr: "Définir Number of violations sur 3 et Evaluation period sur 15 minutes" } }
+        - { id: c, text: { en: "Turn on Mute actions for 15 minutes in the details of the rule", fr: "Activer Mute actions pendant 15 minutes dans les détails de la règle" } }
+        - { id: d, text: { en: "Change the threshold of the condition to Greater than 2", fr: "Changer le seuil de la condition en Greater than 2" } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          In the advanced options of the condition, Number of violations sets how many violations trigger the alert, and Evaluation period sets the time within which they must occur. With a 5-minute aggregation granularity, 3 violations in 15 minutes means that each of the three last 5-minute periods had failures, while the rule still runs every 5 minutes. This option needs a datetime column in the query results, which TimeGenerated provides.
+        fr: |
+          Dans les options avancées de la condition, Number of violations définit le nombre de violations qui déclenchent l'alerte, et Evaluation period la période pendant laquelle elles doivent se produire. Avec une granularité d'agrégation de 5 minutes, 3 violations en 15 minutes signifient que chacune des trois dernières périodes de 5 minutes a eu des échecs, alors que la règle s'exécute toujours toutes les 5 minutes. Cette option exige une colonne datetime dans les résultats de la requête, que fournit TimeGenerated.
+      options:
+        a: { en: "The rule would run every 15 minutes, and a single failure in a 15-minute window would still fire it.", fr: "La règle s'exécuterait toutes les 15 minutes, et un seul échec dans une fenêtre de 15 minutes la déclencherait encore." }
+        c: { en: "Muting only suppresses the actions after the rule fires; the first isolated failure still fires an alert.", fr: "La mise en sourdine supprime seulement les actions après le déclenchement de la règle ; le premier échec isolé déclenche toujours une alerte." }
+        d: { en: "Three failures in one 5-minute period would fire the rule, and failures spread over three periods wouldn't.", fr: "Trois échecs dans une seule période de 5 minutes déclencheraient la règle, et des échecs répartis sur trois périodes ne la déclencheraient pas." }
+    references:
+      - title: Create Azure Monitor log search alert rules
+        url: https://learn.microsoft.com/en-us/azure/azure-monitor/alerts/alerts-create-log-alert-rule
+
+  # ------------------------------------------------------------------ 6
+  - id: dp750-qz-44-06
+    objective: "4.4.3"
+    difficulty: 3
+    status: draft
+    type: single
+    stem:
+      en: |
+        Contoso runs a nightly Lakeflow Jobs notebook task on classic job compute. The notebook aggregates **contoso.sales.silver.transactions** into a DataFrame named `df_detail` of about 300 million rows, calls `df_detail.toPandas()`, and writes the pandas DataFrame as CSV to the Unity Catalog volume `/Volumes/contoso/sales/exports`.
+
+        Since the data volume grew, the task fails with a driver out-of-memory error. In the Spark UI, the aggregation stages complete, and the workers are idle during the last step. The **Event log** shows no instance acquisition failure.
+
+        You need the task to keep succeeding as the data grows. The solution must not increase the cost of the compute.
+
+        What should you do?
+      fr: |
+        Contoso exécute chaque nuit une tâche de notebook Lakeflow Jobs sur un calcul de jobs classique. Le notebook agrège **contoso.sales.silver.transactions** dans un DataFrame nommé `df_detail` d'environ 300 millions de lignes, appelle `df_detail.toPandas()` et écrit le DataFrame pandas au format CSV dans le volume Unity Catalog `/Volumes/contoso/sales/exports`.
+
+        Depuis que le volume de données a augmenté, la tâche échoue avec une erreur de mémoire insuffisante sur le pilote. Dans l'interface utilisateur Spark, les étapes d'agrégation se terminent, et les workers sont inactifs pendant la dernière étape. L'**Event log** ne montre aucun échec d'acquisition d'instance.
+
+        Vous devez faire en sorte que la tâche continue de réussir quand les données augmentent. La solution ne doit pas augmenter le coût du calcul.
+
+        Que devez-vous faire ?
+    body:
+      options:
+        - { id: a, text: { en: "Select a driver type that has twice the memory of the current driver type", fr: "Sélectionner un type de pilote qui a deux fois la mémoire du type de pilote actuel" } }
+        - { id: b, text: { en: "Write df_detail to the volume with df_detail.write instead of calling toPandas()", fr: "Écrire df_detail dans le volume avec df_detail.write au lieu d'appeler toPandas()" } }
+        - { id: c, text: { en: "Raise spark.driver.maxResultSize in the Spark configuration of the job compute", fr: "Relever spark.driver.maxResultSize dans la configuration Spark du calcul de jobs" } }
+        - { id: d, text: { en: "Add workers to the job compute so that toPandas() runs on more executors", fr: "Ajouter des workers au calcul de jobs pour que toPandas() s'exécute sur plus d'exécuteurs" } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          `toPandas()`, like `collect()`, brings every row of the DataFrame to the driver, so the driver's memory caps the data size while the workers sit idle. Writing `df_detail` with the DataFrame writer (`df_detail.write`) keeps the work distributed: each executor writes its own part files to the volume, and the driver no longer holds the data.
+        fr: |
+          `toPandas()`, comme `collect()`, ramène toutes les lignes du DataFrame sur le pilote : la mémoire du pilote plafonne la taille des données pendant que les workers sont inactifs. Écrire `df_detail` avec `df_detail.write` garde le traitement distribué : chaque exécuteur écrit ses propres fichiers dans le volume, et le pilote ne contient plus les données.
+      options:
+        a: { en: "A larger driver increases the cost of the compute and only postpones the failure, because the data still grows on a single node.", fr: "Un pilote plus grand augmente le coût du calcul et ne fait que retarder l'échec, car les données grossissent toujours sur un seul nœud." }
+        c: { en: "This limit only caps the size of the results sent to the driver; raising it doesn't give the driver more memory to hold them.", fr: "Cette limite plafonne seulement la taille des résultats envoyés au pilote ; la relever ne donne pas au pilote plus de mémoire pour les contenir." }
+        d: { en: "The conversion to pandas collects the data on the driver; more workers add cost without relieving the driver.", fr: "La conversion en pandas rassemble les données sur le pilote ; plus de workers ajoutent du coût sans soulager le pilote." }
+    references:
+      - title: Convert between PySpark and pandas DataFrames - Azure Databricks
+        url: https://learn.microsoft.com/en-us/azure/databricks/pandas/pyspark-pandas-conversion
+      - title: Spark driver overloaded - Azure Databricks
+        url: https://learn.microsoft.com/en-us/azure/databricks/optimizations/spark-ui-guide/spark-driver-overloaded
+
+  # ------------------------------------------------------------------ 7
+  - id: dp750-qz-44-07
+    objective: "4.4.1"
+    difficulty: 3
+    status: draft
+    type: yesno_statements
+    stem:
+      en: |
+        Northwind runs its Lakeflow Jobs jobs on classic job compute in three workspaces of the same Azure Databricks account. Every job runs as a service principal. On November 1, 2026, the platform team added the custom tag `cost_center` to the compute of every job.
+
+        Finance asks you for two reports on October 2026, built from the system tables:
+
+        - The DBUs consumed, grouped by cost center and by the identity that each job runs as.
+        - The cost of this usage at list price.
+
+        For each of the following statements, select **Yes** if the statement is true. Otherwise, select **No**.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Northwind exécute ses jobs Lakeflow Jobs sur un calcul de jobs classique dans trois espaces de travail du même compte Azure Databricks. Chaque job s'exécute en tant que principal de service. Le 1er novembre 2026, l'équipe de plateforme a ajouté l'étiquette personnalisée `cost_center` au calcul de chaque job.
+
+        La finance vous demande deux rapports sur octobre 2026, construits à partir des tables système :
+
+        - Les DBU consommées, regroupées par centre de coûts et par l'identité en tant que laquelle chaque job s'exécute.
+        - Le coût de cette utilisation au prix catalogue.
+
+        Pour chacune des affirmations suivantes, sélectionnez **Oui** si l'affirmation est vraie. Sinon, sélectionnez **Non**.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      statements:
+        - id: s1
+          text:
+            en: "Grouping the October records of system.billing.usage by custom_tags['cost_center'] attributes the DBUs of every job to its cost center."
+            fr: "Regrouper les enregistrements d'octobre de system.billing.usage par custom_tags['cost_center'] attribue les DBU de chaque job à son centre de coûts."
+        - id: s2
+          text:
+            en: "Grouping the October records of the jobs by identity_metadata.run_as attributes their DBUs to the service principals that the jobs run as."
+            fr: "Regrouper les enregistrements d'octobre des jobs par identity_metadata.run_as attribue leurs DBU aux principaux de service en tant que lesquels les jobs s'exécutent."
+        - id: s3
+          text:
+            en: "Joining each October usage record to the row of system.billing.list_prices for its SKU that was in effect at the usage time gives the price to multiply by usage_quantity."
+            fr: "Joindre chaque enregistrement d'utilisation d'octobre à la ligne de system.billing.list_prices de son SKU en vigueur au moment de l'utilisation donne le prix à multiplier par usage_quantity."
+    answer:
+      values: { s1: false, s2: true, s3: true }
+    explanation:
+      correct:
+        en: |
+          Custom tags reach the billing records produced after they are added, not earlier ones: the October records have no `cost_center` tag, so grouping by it puts those DBUs under a null key. For jobs compute, `identity_metadata.run_as` holds the user or service principal of the job's run-as setting, so it attributes October's DBUs. `system.billing.list_prices` has one row per SKU price period (`price_start_time`, `price_end_time`, `pricing.default`), so the price in effect when the usage occurred, multiplied by `usage_quantity`, gives the list cost.
+        fr: |
+          Les étiquettes personnalisées atteignent les enregistrements de facturation produits après leur ajout, pas les précédents : les enregistrements d'octobre n'ont pas d'étiquette `cost_center`, donc un regroupement sur celle-ci place ces DBU sous une clé nulle. Pour le calcul de jobs, `identity_metadata.run_as` contient l'utilisateur ou le principal de service du paramètre d'exécution du job : cette colonne attribue donc les DBU d'octobre. `system.billing.list_prices` a une ligne par période de prix d'un SKU (`price_start_time`, `price_end_time`, `pricing.default`) : le prix en vigueur au moment de l'utilisation, multiplié par `usage_quantity`, donne le coût au prix catalogue.
+      options:
+        s1: { en: "Tags aren't retroactive: the records written before November 1 don't contain the cost_center tag.", fr: "Les étiquettes ne sont pas rétroactives : les enregistrements écrits avant le 1er novembre ne contiennent pas l'étiquette cost_center." }
+    references:
+      - title: Billable usage system table reference - Azure Databricks
+        url: https://learn.microsoft.com/en-us/azure/databricks/admin/system-tables/billing
+      - title: Pricing system table reference - Azure Databricks
+        url: https://learn.microsoft.com/en-us/azure/databricks/admin/system-tables/pricing
+
+  # ------------------------------------------------------------------ 8
+  - id: dp750-qz-44-08
+    objective: "4.4.7"
+    difficulty: 3
+    status: draft
+    type: multi
+    stem:
+      en: |
+        At Fabrikam, the Log Analytics workspace **law-fab-ops**, which receives the diagnostic logs of the Azure Databricks workspaces, and the action group **ag-oncall** are in the resource group **rg-ops**. Internal rules require alert rules to be created in the resource group **rg-alerts**.
+
+        A data engineer named User1 has no Azure role assignments. User1 must validate a KQL query in law-fab-ops, and then create a log search alert rule in rg-alerts that is scoped to law-fab-ops and uses ag-oncall. User1 must not be able to modify any resource in rg-ops.
+
+        Which two role assignments should you create? Each correct answer presents part of the solution. The solution must follow the principle of least privilege.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Chez Fabrikam, l'espace de travail Log Analytics **law-fab-ops**, qui reçoit les journaux de diagnostic des espaces de travail Azure Databricks, et le groupe d'actions **ag-oncall** se trouvent dans le groupe de ressources **rg-ops**. Les règles internes imposent de créer les règles d'alerte dans le groupe de ressources **rg-alerts**.
+
+        Un ingénieur données nommé User1 n'a aucune attribution de rôle Azure. User1 doit valider une requête KQL dans law-fab-ops, puis créer dans rg-alerts une règle d'alerte de recherche dans les journaux dont l'étendue est law-fab-ops et qui utilise ag-oncall. User1 ne doit pouvoir modifier aucune ressource de rg-ops.
+
+        Quelles sont les deux attributions de rôle que vous devez créer ? Chaque bonne réponse présente une partie de la solution. La solution doit respecter le principe du moindre privilège.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      choose: 2
+      options:
+        - { id: a, text: { en: "Monitoring Contributor on rg-alerts", fr: "Monitoring Contributor sur rg-alerts" } }
+        - { id: b, text: { en: "Monitoring Contributor on rg-ops", fr: "Monitoring Contributor sur rg-ops" } }
+        - { id: c, text: { en: "Monitoring Reader on rg-ops", fr: "Monitoring Reader sur rg-ops" } }
+        - { id: d, text: { en: "Log Analytics Reader on law-fab-ops", fr: "Log Analytics Reader sur law-fab-ops" } }
+        - { id: e, text: { en: "Reader on rg-alerts", fr: "Reader sur rg-alerts" } }
+    answer: { optionIds: [a, c] }
+    explanation:
+      correct:
+        en: |
+          Creating a log search alert rule requires write permission on the resource group that holds the rule, read permission on its target resource, and read permission on its action groups. Monitoring Contributor on rg-alerts lets User1 write scheduled query rules there only. Monitoring Reader on rg-ops grants read on law-fab-ops and ag-oncall and lets User1 run log queries, without any right to modify them.
+        fr: |
+          Créer une règle d'alerte de recherche dans les journaux exige une autorisation d'écriture sur le groupe de ressources qui contient la règle, une autorisation de lecture sur sa ressource cible et une autorisation de lecture sur ses groupes d'actions. Monitoring Contributor sur rg-alerts permet à User1 d'écrire des règles de requête planifiée uniquement là. Monitoring Reader sur rg-ops accorde la lecture sur law-fab-ops et ag-oncall et permet à User1 d'exécuter des requêtes de journaux, sans aucun droit de les modifier.
+      options:
+        b: { en: "Monitoring Contributor on rg-ops would let User1 modify ag-oncall and the workspace settings, which the requirement forbids.", fr: "Monitoring Contributor sur rg-ops permettrait à User1 de modifier ag-oncall et les paramètres de l'espace de travail, ce que l'exigence interdit." }
+        d: { en: "This role reads only law-fab-ops; User1 would still lack the read permission on ag-oncall that the rule needs.", fr: "Ce rôle ne lit que law-fab-ops ; User1 n'aurait toujours pas l'autorisation de lecture sur ag-oncall dont la règle a besoin." }
+        e: { en: "Reader grants no write permission, so User1 couldn't create the alert rule in rg-alerts.", fr: "Reader n'accorde aucune autorisation d'écriture : User1 ne pourrait donc pas créer la règle d'alerte dans rg-alerts." }
+    references:
+      - title: Create Azure Monitor log search alert rules
+        url: https://learn.microsoft.com/en-us/azure/azure-monitor/alerts/alerts-create-log-alert-rule
+      - title: Azure built-in roles for Monitor
+        url: https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles/monitor
+
+  # ------------------------------------------------------------------ 9
+  - id: dp750-qz-44-09
+    objective: "4.4.4"
+    difficulty: 3
+    status: draft
+    type: dragdrop
+    stem:
+      en: |
+        Adatum's data engineers review the Spark UI of four slow notebooks that run on classic all-purpose compute. Each notebook has one main finding, described in the answer area.
+
+        Which problem should you identify for each finding? To answer, drag the appropriate problems to the correct findings. Each problem may be used once or not at all.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Les ingénieurs données d'Adatum examinent l'interface utilisateur Spark de quatre notebooks lents qui s'exécutent sur un calcul polyvalent classique. Chaque notebook a une constatation principale, décrite dans la zone de réponse.
+
+        Quel problème devez-vous identifier pour chaque constatation ? Pour répondre, faites glisser les problèmes appropriés vers les constatations correspondantes. Chaque problème peut être utilisé une fois ou pas du tout.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      reuse: false
+      items:
+        - { id: undercache, text: { en: "Under-caching", fr: "Mise en cache insuffisante" } }
+        - { id: overcache, text: { en: "Over-caching", fr: "Mise en cache excessive" } }
+        - { id: skew, text: { en: "Skew", fr: "Déséquilibrage (skew)" } }
+        - { id: spill, text: { en: "Spill", fr: "Déversement (spill)" } }
+        - { id: shuffle, text: { en: "Excessive shuffle", fr: "Shuffle excessif" } }
+      targets:
+        - id: n1
+          text:
+            en: "Notebook 1: in the join stage, the Max task duration is 58 seconds and the 75th percentile is 44 seconds; the stage details show 38 GiB of Shuffle Spill (Disk)."
+            fr: "Notebook 1 : dans l'étape de jointure, la durée Max des tâches est de 58 secondes et le 75th percentile de 44 secondes ; les détails de l'étape indiquent 38 Gio de Shuffle Spill (Disk)."
+        - id: n2
+          text:
+            en: "Notebook 2: in the aggregation stage by store_id, the Max task duration is 11 minutes and the 75th percentile is 40 seconds; the stage shows no spill."
+            fr: "Notebook 2 : dans l'étape d'agrégation par store_id, la durée Max des tâches est de 11 minutes et le 75th percentile de 40 secondes ; l'étape n'indique aucun déversement."
+        - id: n3
+          text:
+            en: "Notebook 3: each of its five queries runs a stage that reads the same 300 GiB Delta table, and the Input of each of these stages is 300 GiB."
+            fr: "Notebook 3 : chacune de ses cinq requêtes exécute une étape qui lit la même table Delta de 300 Gio, et l'Input de chacune de ces étapes est de 300 Gio."
+        - id: n4
+          text:
+            en: "Notebook 4: the Storage tab shows that persisted DataFrames hold most of the executors' memory, and most of them were used by a single action."
+            fr: "Notebook 4 : l'onglet Storage montre que des DataFrames persistés occupent la majeure partie de la mémoire des exécuteurs, et que la plupart n'ont servi qu'à une seule action."
+    answer:
+      mapping: { n1: spill, n2: skew, n3: undercache, n4: overcache }
+    explanation:
+      correct:
+        en: |
+          A stage might have skew when its Max task duration exceeds the 75th percentile by 50% or more: notebook 2 (11 minutes against 40 seconds) is skewed, but notebook 1 (58 against 44 seconds, about 32% more) isn't, and its spill statistics point to spill. Stages that read the same data again and again with a high Input show under-caching, which the disk cache or a `cache()` of the reused data fixes. Cached data that holds the memory needed for processing, as seen in the Storage tab, is over-caching: cache only reused data and call `unpersist()` when it's no longer needed.
+        fr: |
+          Une étape présente peut-être un déséquilibrage quand sa durée Max des tâches dépasse le 75th percentile d'au moins 50 % : le notebook 2 (11 minutes contre 40 secondes) est déséquilibré, mais pas le notebook 1 (58 contre 44 secondes, environ 32 % de plus), dont les statistiques de déversement désignent un déversement. Des étapes qui relisent sans cesse les mêmes données avec un Input élevé montrent une mise en cache insuffisante, que corrige le cache disque ou un `cache()` des données réutilisées. Des données en cache qui occupent la mémoire nécessaire au traitement, comme le montre l'onglet Storage, relèvent d'une mise en cache excessive : ne mettez en cache que les données réutilisées et appelez `unpersist()` quand elles ne sont plus nécessaires.
+      options:
+        shuffle: { en: "Excessive shuffle shows as large Shuffle Read and Shuffle Write and Exchange nodes; no finding describes it, and notebook 1's main symptom is the spill.", fr: "Un shuffle excessif se voit à des Shuffle Read et Shuffle Write importants et à des nœuds Exchange ; aucune constatation ne le décrit, et le symptôme principal du notebook 1 est le déversement." }
+    references:
+      - title: Skew and spill - Azure Databricks
+        url: https://learn.microsoft.com/en-us/azure/databricks/optimizations/spark-ui-guide/long-spark-stage-page
+      - title: Optimize performance with caching on Azure Databricks
+        url: https://learn.microsoft.com/en-us/azure/databricks/optimizations/disk-cache
+
+  # ------------------------------------------------------------------ 10
+  - id: dp750-qz-44-10
+    objective: "4.4.5"
+    difficulty: 3
+    status: draft
+    type: dropdown
+    stem:
+      en: |
+        Predictive optimization is enabled for Litware's Azure Databricks account, and the catalog **litware** and its schemas inherit this setting. All the tables of the schema **litware.archive** are Unity Catalog managed tables, and you own the schema and its tables.
+
+        You need to meet the following requirements:
+
+        - Stop predictive optimization for the existing tables of litware.archive and for the tables that will be created in it later.
+        - Keep predictive optimization for **litware.archive.ledger_history**, which analysts query every day, even if the setting of the schema changes later.
+        - A colleague explicitly enabled predictive optimization on **litware.archive.audit_2023** last year. From now on, this table must follow the setting of the schema, including if the schema is enabled again later.
+
+        How should you complete the statements? Select the appropriate options in the answer area.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        L'optimisation prédictive est activée pour le compte Azure Databricks de Litware, et le catalogue **litware** et ses schémas héritent de ce paramètre. Toutes les tables du schéma **litware.archive** sont des tables managées Unity Catalog, et vous êtes propriétaire du schéma et de ses tables.
+
+        Vous devez répondre aux exigences suivantes :
+
+        - Arrêter l'optimisation prédictive pour les tables existantes de litware.archive et pour les tables qui y seront créées plus tard.
+        - Conserver l'optimisation prédictive pour **litware.archive.ledger_history**, que les analystes interrogent chaque jour, même si le paramètre du schéma change plus tard.
+        - Un collègue a explicitement activé l'optimisation prédictive sur **litware.archive.audit_2023** l'année dernière. Désormais, cette table doit suivre le paramètre du schéma, y compris si le schéma est de nouveau activé plus tard.
+
+        Comment devez-vous compléter les instructions ? Sélectionnez les options appropriées dans la zone de réponse.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      layout: code
+      language: sql
+      template: |
+        ALTER [[obj]] litware.archive [[sch]] PREDICTIVE OPTIMIZATION;
+
+        ALTER TABLE litware.archive.ledger_history [[t1]] PREDICTIVE OPTIMIZATION;
+
+        ALTER TABLE litware.archive.audit_2023 [[t2]] PREDICTIVE OPTIMIZATION;
+      slots:
+        - id: obj
+          options:
+            - { id: catalog, text: CATALOG }
+            - { id: schema, text: SCHEMA }
+            - { id: table, text: TABLE }
+        - id: sch
+          options:
+            - { id: enable, text: ENABLE }
+            - { id: disable, text: DISABLE }
+            - { id: inherit, text: INHERIT }
+        - id: t1
+          options:
+            - { id: enable, text: ENABLE }
+            - { id: disable, text: DISABLE }
+            - { id: inherit, text: INHERIT }
+        - id: t2
+          options:
+            - { id: enable, text: ENABLE }
+            - { id: disable, text: DISABLE }
+            - { id: inherit, text: INHERIT }
+    answer:
+      values: { obj: schema, sch: disable, t1: enable, t2: inherit }
+    explanation:
+      correct:
+        en: |
+          Predictive optimization uses an inheritance model: tables inherit the setting of their schema, which inherits from its catalog and the account, and an explicit ENABLE or DISABLE at any level overrides the inherited value. `ALTER SCHEMA ... DISABLE` stops it for the current and future tables that inherit. An explicit `ENABLE` on ledger_history overrides the schema whatever happens to it later. `INHERIT` resets audit_2023 to the schema value, so it follows any later change of the schema, which an explicit DISABLE wouldn't do.
+        fr: |
+          L'optimisation prédictive suit un modèle d'héritage : les tables héritent du paramètre de leur schéma, qui hérite de son catalogue et du compte, et un ENABLE ou un DISABLE explicite à n'importe quel niveau remplace la valeur héritée. `ALTER SCHEMA ... DISABLE` l'arrête pour les tables actuelles et futures qui héritent. Un `ENABLE` explicite sur ledger_history remplace le paramètre du schéma, quoi qu'il lui arrive ensuite. `INHERIT` réinitialise audit_2023 sur la valeur du schéma : la table suit ainsi tout changement ultérieur du schéma, ce que ne ferait pas un DISABLE explicite.
+      options:
+        catalog: { en: "litware.archive is a schema; disabling the catalog would also stop predictive optimization for the other schemas of litware.", fr: "litware.archive est un schéma ; désactiver le catalogue arrêterait aussi l'optimisation prédictive pour les autres schémas de litware." }
+        table: { en: "A table-level statement covers one table, not the existing and future tables of the schema.", fr: "Une instruction au niveau de la table couvre une seule table, pas les tables actuelles et futures du schéma." }
+        inherit: { en: "INHERIT makes the object follow its parent: the schema would stay enabled, and ledger_history would stop being optimized once the schema is disabled.", fr: "INHERIT fait suivre son parent à l'objet : le schéma resterait activé, et ledger_history ne serait plus optimisée une fois le schéma désactivé." }
+        disable: { en: "DISABLE on ledger_history would stop the table that must stay optimized; on audit_2023, it would keep the table disabled even if the schema were enabled again.", fr: "DISABLE sur ledger_history arrêterait la table qui doit rester optimisée ; sur audit_2023, il laisserait la table désactivée même si le schéma était de nouveau activé." }
+        enable: { en: "ENABLE keeps or restores predictive optimization explicitly, the opposite of the schema requirement and of following the schema for audit_2023.", fr: "ENABLE conserve ou rétablit explicitement l'optimisation prédictive, à l'inverse de l'exigence sur le schéma et du suivi du schéma pour audit_2023." }
+    references:
+      - title: Predictive optimization for Unity Catalog managed tables - Azure Databricks
+        url: https://learn.microsoft.com/en-us/azure/databricks/optimizations/predictive-optimization

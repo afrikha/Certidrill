@@ -1,0 +1,55 @@
+id: kcsa-2b-system-node-role-binding
+objective: "2.4.3"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    During a review of a cluster that was upgraded many times, you find this binding:
+
+    ```yaml
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRoleBinding
+    metadata:
+      name: legacy-nodes
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: ClusterRole
+      name: system:node
+    subjects:
+    - apiGroup: rbac.authorization.k8s.io
+      kind: Group
+      name: system:nodes
+    ```
+
+    The API server runs with `--authorization-mode=Node,RBAC`. What is the main security risk of this binding?
+body:
+  options:
+    - id: a
+      text: { en: "Kubelets lose the right to update the status of their Pods" }
+    - id: b
+      text: { en: "Every kubelet gains the permissions of `cluster-admin`" }
+    - id: c
+      text: { en: "Every kubelet credential can read every Secret in the cluster" }
+    - id: d
+      text: { en: "Kubelets can no longer request certificates through TLS bootstrapping" }
+answer: { optionId: c }
+explanation:
+  correct:
+    en: |
+      The `system:node` ClusterRole includes read access to all Secrets and write access to all Pod status objects; it only exists for compatibility with clusters upgraded from versions before v1.8. A request is allowed as soon as one authorizer allows it, so this RBAC grant overrides the per-node limits of the Node authorizer: one compromised node exposes every Secret. Remove the binding and rely on the Node authorizer and NodeRestriction.
+  options:
+    a:
+      en: |
+        The role grants write access to all Pod status objects. RBAC only adds permissions; a binding never removes rights that kubelets already have.
+    b:
+      en: |
+        `system:node` is not `cluster-admin`: it covers the resources a kubelet uses. Its danger is the breadth of Secret access, not full control of the cluster.
+    d:
+      en: |
+        Bootstrapping uses the `system:bootstrappers` group and the CertificateSigningRequest API. An additional RBAC binding cannot take that access away.
+references:
+  - title: "Using RBAC Authorization"
+    url: https://kubernetes.io/docs/reference/access-authn-authz/rbac/
+  - title: "Using Node Authorization"
+    url: https://kubernetes.io/docs/reference/access-authn-authz/node/

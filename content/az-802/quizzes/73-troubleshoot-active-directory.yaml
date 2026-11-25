@@ -1,0 +1,466 @@
+chapter: 73-troubleshoot-active-directory
+questions:
+  # ------------------------------------------------------------------ 1
+  - id: az802-qz-73-01
+    objective: "7.3.1"
+    difficulty: 1
+    status: draft
+    type: single
+    shuffle: false
+    stem:
+      en: |
+        The AD DS forest of Contoso was created with domain controllers that run Windows Server 2016. Active Directory Recycle Bin was enabled last year. Nobody has changed the `msDS-deletedObjectLifetime` or `tombstoneLifetime` attributes.
+
+        For how long after its deletion can a user account be restored, with all its attributes, from the **Deleted Objects** container?
+      fr: |
+        La forêt AD DS de Contoso a été créée avec des contrôleurs de domaine qui exécutent Windows Server 2016. La Corbeille Active Directory a été activée l'an dernier. Personne n'a modifié les attributs `msDS-deletedObjectLifetime` ou `tombstoneLifetime`.
+
+        Pendant combien de temps après sa suppression un compte d'utilisateur peut-il être restauré, avec tous ses attributs, depuis le conteneur **Deleted Objects** ?
+    body:
+      options:
+        - { id: a, text: { en: "30 days", fr: "30 jours" } }
+        - { id: b, text: { en: "60 days", fr: "60 jours" } }
+        - { id: c, text: { en: "180 days", fr: "180 jours" } }
+        - { id: d, text: { en: "365 days", fr: "365 jours" } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          Deleted objects stay restorable for the `msDS-deletedObjectLifetime`, which by default matches the `tombstoneLifetime` of the forest. In a forest created with Windows Server 2003 SP1 or later, `tombstoneLifetime` is 180 days by default. After that, the object becomes a recycled object, which the Recycle Bin can't restore.
+        fr: |
+          Les objets supprimés restent restaurables pendant la durée `msDS-deletedObjectLifetime`, qui par défaut est égale au `tombstoneLifetime` de la forêt. Dans une forêt créée avec Windows Server 2003 SP1 ou une version ultérieure, `tombstoneLifetime` vaut 180 jours par défaut. Ensuite, l'objet devient un objet recyclé, que la Corbeille ne peut pas restaurer.
+      options:
+        a: { en: "30 days isn't a default lifetime of deleted objects in AD DS.", fr: "30 jours n'est pas une durée de vie par défaut des objets supprimés dans AD DS." }
+        b: { en: "60 days is the internal default used only when tombstoneLifetime isn't set, in forests upgraded from Windows 2000 or installed with Windows Server 2003 without a service pack.", fr: "60 jours est la valeur interne utilisée seulement quand tombstoneLifetime n'est pas défini, dans les forêts mises à niveau depuis Windows 2000 ou installées avec Windows Server 2003 sans service pack." }
+        d: { en: "365 days would require changing the lifetime attributes, which nobody did.", fr: "365 jours exigerait de modifier les attributs de durée de vie, ce que personne n'a fait." }
+    references:
+      - title: Advanced AD DS Management Using Active Directory Administrative Center (Level 200)
+        url: https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/get-started/adac/introduction-to-active-directory-administrative-center-enhancements--level-100-
+
+  # ------------------------------------------------------------------ 2
+  - id: az802-qz-73-02
+    objective: "7.3.5"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        Yesterday, you promoted a server named **DC5** to an additional domain controller of the contoso.com domain. Clients that authenticate against DC5 fail to apply Group Policy. On DC5, `Get-SmbShare` lists only the ADMIN$, C$ and IPC$ shares.
+
+        What is the most likely cause?
+      fr: |
+        Hier, vous avez promu un serveur nommé **DC5** en contrôleur de domaine supplémentaire du domaine contoso.com. Les clients qui s'authentifient auprès de DC5 n'appliquent pas la stratégie de groupe. Sur DC5, `Get-SmbShare` ne liste que les partages ADMIN$, C$ et IPC$.
+
+        Quelle est la cause la plus probable ?
+    body:
+      options:
+        - { id: a, text: { en: "DC5 isn't configured as a global catalog server.", fr: "DC5 n'est pas configuré comme serveur de catalogue global." } }
+        - { id: b, text: { en: "DC5 doesn't hold any operations master role.", fr: "DC5 ne détient aucun rôle de maître d'opérations." } }
+        - { id: c, text: { en: "The SRV records of DC5 are missing from DNS.", fr: "Les enregistrements SRV de DC5 sont absents du DNS." } }
+        - { id: d, text: { en: "The initial SYSVOL synchronization of DC5 hasn't completed.", fr: "La synchronisation initiale de SYSVOL sur DC5 n'est pas terminée." } }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          A new domain controller shares SYSVOL and NETLOGON only after its initial SYSVOL synchronization completes. Without these shares, its clients can't read the Group Policy templates. Missing shares during this phase are a readiness signal: check the replication, and don't create the shares or copy policy folders by hand.
+        fr: |
+          Un nouveau contrôleur de domaine ne partage SYSVOL et NETLOGON qu'une fois sa synchronisation initiale de SYSVOL terminée. Sans ces partages, ses clients ne peuvent pas lire les modèles de stratégie de groupe. Des partages absents pendant cette phase sont un signal de disponibilité : vérifiez la réplication, et ne créez pas les partages ni ne copiez les dossiers de stratégies à la main.
+      options:
+        a: { en: "The global catalog role serves forest-wide searches and universal group memberships; it doesn't create the SYSVOL and NETLOGON shares.", fr: "Le rôle de catalogue global sert aux recherches dans la forêt et aux appartenances aux groupes universels ; il ne crée pas les partages SYSVOL et NETLOGON." }
+        b: { en: "Most domain controllers hold no operations master role and still share SYSVOL and NETLOGON.", fr: "La plupart des contrôleurs de domaine ne détiennent aucun rôle de maître d'opérations et partagent quand même SYSVOL et NETLOGON." }
+        c: { en: "Missing SRV records would prevent clients from locating DC5; here clients do authenticate against DC5, and DNS doesn't explain missing shares.", fr: "Des enregistrements SRV absents empêcheraient les clients de localiser DC5 ; ici, les clients s'authentifient bien auprès de DC5, et le DNS n'explique pas l'absence de partages." }
+    references:
+      - title: Understand the system volume and Distributed File System Replication
+        url: https://learn.microsoft.com/en-us/training/modules/understand-active-directory-database/4-understand-system-volume-replication
+
+  # ------------------------------------------------------------------ 3
+  - id: az802-qz-73-03
+    objective: "7.3.6"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        The default instance of SQL Server on a server named **SQL4** listens on TCP port 1433 and runs as the domain account **CONTOSO\svc-sql4**. Users who connect with Windows authentication are authenticated by NTLM instead of Kerberos.
+
+        A network trace shows that the KDC returns `KDC_ERR_S_PRINCIPAL_UNKNOWN` for `MSSQLSvc/sql4.contoso.com:1433`. `setspn -X` reports no duplicate SPN.
+
+        You need the users to authenticate to SQL4 by using Kerberos. What should you run?
+      fr: |
+        L'instance par défaut de SQL Server sur un serveur nommé **SQL4** écoute sur le port TCP 1433 et s'exécute sous le compte de domaine **CONTOSO\svc-sql4**. Les utilisateurs qui se connectent avec l'authentification Windows sont authentifiés par NTLM au lieu de Kerberos.
+
+        Une trace réseau montre que le KDC renvoie `KDC_ERR_S_PRINCIPAL_UNKNOWN` pour `MSSQLSvc/sql4.contoso.com:1433`. `setspn -X` ne signale aucun SPN en double.
+
+        Vous devez faire en sorte que les utilisateurs s'authentifient auprès de SQL4 à l'aide de Kerberos. Que devez-vous exécuter ?
+    body:
+      options:
+        - { id: a, text: "`setspn -S MSSQLSvc/sql4.contoso.com:1433 CONTOSO\\SQL4$`" }
+        - { id: b, text: "`setspn -D MSSQLSvc/sql4.contoso.com:1433 CONTOSO\\svc-sql4`" }
+        - { id: c, text: "`setspn -S MSSQLSvc/sql4.contoso.com:1433 CONTOSO\\svc-sql4`" }
+        - { id: d, text: "`klist purge` on the client computers" }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          `KDC_ERR_S_PRINCIPAL_UNKNOWN` means that the requested SPN isn't associated with any account, so the client can't get a service ticket and falls back to NTLM. The SPN must be registered on the account that runs the service, because the KDC encrypts the ticket with that account's key. `setspn -S` adds it after checking that no duplicate exists.
+        fr: |
+          `KDC_ERR_S_PRINCIPAL_UNKNOWN` signifie que le SPN demandé n'est associé à aucun compte : le client ne peut pas obtenir de ticket de service et revient à NTLM. Le SPN doit être inscrit sur le compte qui exécute le service, car le KDC chiffre le ticket avec la clé de ce compte. `setspn -S` l'ajoute après avoir vérifié qu'aucun doublon n'existe.
+      options:
+        a: { en: "The service runs as svc-sql4, not as the computer account: tickets encrypted with the key of SQL4$ couldn't be decrypted by the service.", fr: "Le service s'exécute sous svc-sql4, pas sous le compte d'ordinateur : des tickets chiffrés avec la clé de SQL4$ ne pourraient pas être déchiffrés par le service." }
+        b: { en: "setspn -D deletes an SPN; the SPN isn't registered anywhere, which is the problem.", fr: "setspn -D supprime un SPN ; le SPN n'est inscrit nulle part, et c'est justement le problème." }
+        d: { en: "Purging the clients' tickets doesn't help while no account holds the SPN: the KDC still can't issue a ticket for it.", fr: "Vider les tickets des clients n'aide pas tant qu'aucun compte ne détient le SPN : le KDC ne peut toujours pas émettre de ticket pour lui." }
+    references:
+      - title: Kerberos authentication troubleshooting guidance
+        url: https://learn.microsoft.com/en-us/troubleshoot/windows-server/windows-security/kerberos-authentication-troubleshooting-guidance
+      - title: Setspn
+        url: https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-server-2012-r2-and-2012/cc731241(v=ws.11)
+
+  # ------------------------------------------------------------------ 4
+  - id: az802-qz-73-04
+    objective: "7.3.3"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        The contoso.com domain has three domain controllers: DC1, which holds the PDC emulator role, DC2 and DC3. SYSVOL is replicated by DFS Replication. A faulty script corrupted the Group Policy template files of many GPOs, and the corruption replicated to all the domain controllers.
+
+        The hardware and operating system of DC1 are intact, and you have a system state backup of DC1 taken before the incident. You restarted DC1 in Directory Services Restore Mode (DSRM).
+
+        You need the SYSVOL content of the backup to become authoritative. The solution must minimize the number of steps. What should you do on DC1?
+      fr: |
+        Le domaine contoso.com possède trois contrôleurs de domaine : DC1, qui détient le rôle d'émulateur PDC, DC2 et DC3. SYSVOL est répliqué par la réplication DFS. Un script défectueux a endommagé les fichiers des modèles de stratégie de groupe de nombreux GPO, et l'endommagement a été répliqué sur tous les contrôleurs de domaine.
+
+        Le matériel et le système d'exploitation de DC1 sont intacts, et vous disposez d'une sauvegarde de l'état du système de DC1 réalisée avant l'incident. Vous avez redémarré DC1 en mode de restauration des services d'annuaire (DSRM).
+
+        Vous devez faire en sorte que le contenu SYSVOL de la sauvegarde fasse autorité. La solution doit réduire au minimum le nombre d'étapes. Que devez-vous faire sur DC1 ?
+    body:
+      options:
+        - { id: a, text: { en: "Run `wbadmin start systemstaterecovery` with the backup version, then set `msDFSR-Enabled` to FALSE and run `dfsrdiag pollad`.", fr: "Exécuter `wbadmin start systemstaterecovery` avec la version de la sauvegarde, puis définir `msDFSR-Enabled` sur FALSE et exécuter `dfsrdiag pollad`." } }
+        - { id: b, text: { en: "Run `wbadmin start systemstaterecovery` with the backup version and the `-authsysvol` option.", fr: "Exécuter `wbadmin start systemstaterecovery` avec la version de la sauvegarde et l'option `-authsysvol`." } }
+        - { id: c, text: { en: "Run `wbadmin start systemstaterecovery` with the backup version, then mark `CN=Policies,CN=System,DC=contoso,DC=com` as authoritative with ntdsutil.", fr: "Exécuter `wbadmin start systemstaterecovery` avec la version de la sauvegarde, puis marquer `CN=Policies,CN=System,DC=contoso,DC=com` comme faisant autorité avec ntdsutil." } }
+        - { id: d, text: { en: "Run `wbadmin start sysrecovery` with the backup version, then set `msDFSR-Options` to 1 on the SYSVOL Subscription object of DC1.", fr: "Exécuter `wbadmin start sysrecovery` avec la version de la sauvegarde, puis définir `msDFSR-Options` sur 1 sur l'objet SYSVOL Subscription de DC1." } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          When you can restore the system state to the same hardware and operating system instance, a system state recovery with `-authsysvol` performs the authoritative restore of SYSVOL in the same operation, which is the simpler method. Editing `msDFSR-Options` is the method to use after a bare metal restore.
+        fr: |
+          Quand vous pouvez restaurer l'état du système sur le même matériel et la même instance du système d'exploitation, une récupération de l'état du système avec `-authsysvol` effectue la restauration faisant autorité de SYSVOL dans la même opération : c'est la méthode la plus simple. La modification de `msDFSR-Options` est la méthode à utiliser après une restauration complète (bare metal).
+      options:
+        a: { en: "This is a nonauthoritative synchronization: DC1 would replace its restored SYSVOL with the corrupted copy of its partners.", fr: "C'est une synchronisation ne faisant pas autorité : DC1 remplacerait son SYSVOL restauré par la copie endommagée de ses partenaires." }
+        c: { en: "ntdsutil marks AD DS objects, such as the Group Policy containers; the template files in SYSVOL are replicated by DFS Replication, not by AD DS.", fr: "ntdsutil marque des objets AD DS, comme les conteneurs de stratégie de groupe ; les fichiers des modèles dans SYSVOL sont répliqués par la réplication DFS, pas par AD DS." }
+        d: { en: "A bare metal recovery with msDFSR-Options works, but it's meant for lost hardware and takes more steps than a system state recovery with -authsysvol.", fr: "Une récupération complète avec msDFSR-Options fonctionne, mais elle est prévue pour un matériel perdu et demande plus d'étapes qu'une récupération de l'état du système avec -authsysvol." }
+    references:
+      - title: AD Forest Recovery - Performing an authoritative synchronization of DFSR-replicated SYSVOL
+        url: https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/manage/forest-recovery-guide/ad-forest-recovery-authoritative-recovery-sysvol
+      - title: How to force authoritative and non-authoritative synchronization for DFSR-replicated sysvol replication
+        url: https://learn.microsoft.com/en-us/troubleshoot/windows-server/group-policy/force-authoritative-non-authoritative-synchronization
+
+  # ------------------------------------------------------------------ 5
+  - id: az802-qz-73-05
+    objective: "7.3.7"
+    difficulty: 2
+    status: draft
+    type: yesno_statements
+    stem:
+      en: |
+        The contoso.com domain has two domain controllers named **DC1** and **DC2**. A member server named **SRV5** runs Windows Server 2022 and keeps the default domain member settings, including the machine account password policy. Last month, after an administrator applied an old checkpoint of SRV5, domain users received the message "The trust relationship between this workstation and the primary domain failed." You are writing a runbook that the help desk will follow the next time the Netlogon secure channel of SRV5 breaks.
+
+        For each of the following statements, select **Yes** if the statement is true. Otherwise, select **No**.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Le domaine contoso.com possède deux contrôleurs de domaine nommés **DC1** et **DC2**. Un serveur membre nommé **SRV5** exécute Windows Server 2022 et conserve les paramètres par défaut des membres du domaine, y compris la stratégie de mot de passe du compte d'ordinateur. Le mois dernier, après qu'un administrateur a appliqué un ancien point de contrôle de SRV5, les utilisateurs du domaine ont reçu le message « La relation d'approbation entre cette station de travail et le domaine principal a échoué ». Vous rédigez une procédure que le support suivra la prochaine fois que le canal sécurisé Netlogon de SRV5 sera rompu.
+
+        Pour chacune des affirmations suivantes, sélectionnez **Oui** si l'affirmation est vraie. Sinon, sélectionnez **Non**.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      statements:
+        - id: s1
+          text: { en: "SRV5 submits a change of its computer account password every 30 days.", fr: "SRV5 soumet un changement du mot de passe de son compte d'ordinateur tous les 30 jours." }
+        - id: s2
+          text: { en: "Running `netdom resetpwd /server:DC1 /userd:CONTOSO\\admin1 /passwordd:*` on SRV5 resets the computer account password of SRV5.", fr: "Exécuter `netdom resetpwd /server:DC1 /userd:CONTOSO\\admin1 /passwordd:*` sur SRV5 réinitialise le mot de passe du compte d'ordinateur de SRV5." }
+        - id: s3
+          text: { en: "Running `Test-ComputerSecureChannel -Server DC2` on SRV5 checks the secure channel of SRV5 by using DC2, without repairing it.", fr: "Exécuter `Test-ComputerSecureChannel -Server DC2` sur SRV5 vérifie le canal sécurisé de SRV5 à l'aide de DC2, sans le réparer." }
+    answer:
+      values: { s1: true, s2: false, s3: true }
+    explanation:
+      correct:
+        en: |
+          By default, domain members submit a password change every 30 days. `netdom resetpwd` resets the machine account password of a domain controller only: it must run on that DC and doesn't support member servers. `Test-ComputerSecureChannel` returns $true or $false for the channel of a domain member, `-Server` chooses the domain controller, and nothing is repaired without `-Repair`.
+        fr: |
+          Par défaut, les membres du domaine soumettent un changement de mot de passe tous les 30 jours. `netdom resetpwd` ne réinitialise que le mot de passe du compte d'ordinateur d'un contrôleur de domaine : il doit s'exécuter sur ce contrôleur et ne prend pas en charge les serveurs membres. `Test-ComputerSecureChannel` renvoie $true ou $false pour le canal d'un membre du domaine, `-Server` choisit le contrôleur de domaine, et rien n'est réparé sans `-Repair`.
+      options:
+        s2: { en: "On a member server, use Test-ComputerSecureChannel -Repair or Reset-ComputerMachinePassword instead.", fr: "Sur un serveur membre, utilisez plutôt Test-ComputerSecureChannel -Repair ou Reset-ComputerMachinePassword." }
+    references:
+      - title: "Domain member: Maximum machine account password age"
+        url: https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-10/security/threat-protection/security-policy-settings/domain-member-maximum-machine-account-password-age
+      - title: netdom resetpwd
+        url: https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/netdom-resetpwd
+
+  # ------------------------------------------------------------------ 6
+  - id: az802-qz-73-06
+    objective: "7.3.1"
+    difficulty: 3
+    status: draft
+    type: dragdrop
+    stem:
+      en: |
+        Fabrikam has a single-domain AD DS forest named fabrikam.com. Active Directory Recycle Bin was enabled two years ago, and the lifetime attributes keep their default values. A system state backup of a domain controller named **DC1** is taken every night.
+
+        You must recover from the following incidents. Each change has already replicated to all the domain controllers.
+
+        Which recovery method should you use for each incident? To answer, drag the appropriate methods to the correct incidents. Each method may be used once, more than once, or not at all.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Fabrikam dispose d'une forêt AD DS à domaine unique nommée fabrikam.com. La Corbeille Active Directory a été activée il y a deux ans, et les attributs de durée de vie conservent leurs valeurs par défaut. Une sauvegarde de l'état du système d'un contrôleur de domaine nommé **DC1** est réalisée chaque nuit.
+
+        Vous devez effectuer une récupération pour les incidents suivants. Chaque modification a déjà été répliquée sur tous les contrôleurs de domaine.
+
+        Quelle méthode de récupération devez-vous utiliser pour chaque incident ? Pour répondre, faites glisser les méthodes appropriées vers les incidents correspondants. Chaque méthode peut être utilisée une fois, plusieurs fois ou pas du tout.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      reuse: true
+      items:
+        - { id: rb, text: { en: "Restore the object from the Deleted Objects container with Restore-ADObject", fr: "Restaurer l'objet depuis le conteneur Deleted Objects avec Restore-ADObject" } }
+        - { id: obj, text: { en: "Authoritative restore of the object with the ntdsutil restore object command", fr: "Restauration faisant autorité de l'objet avec la commande ntdsutil restore object" } }
+        - { id: sub, text: { en: "Authoritative restore of the OU with the ntdsutil restore subtree command", fr: "Restauration faisant autorité de l'unité d'organisation avec la commande ntdsutil restore subtree" } }
+        - { id: nonauth, text: { en: "Nonauthoritative restore of the system state of DC1", fr: "Restauration ne faisant pas autorité de l'état du système de DC1" } }
+        - { id: sysvol, text: { en: "Authoritative synchronization of SYSVOL from DC1", fr: "Synchronisation faisant autorité de SYSVOL depuis DC1" } }
+      targets:
+        - { id: t1, text: { en: "Yesterday, an administrator deleted the user account of Lina Haddad.", fr: "Hier, un administrateur a supprimé le compte d'utilisateur de Lina Haddad." } }
+        - { id: t2, text: { en: "Yesterday, a script overwrote the title, department and manager of every user account in the Sales OU.", fr: "Hier, un script a écrasé la fonction, le service et le responsable de tous les comptes d'utilisateurs de l'unité d'organisation Sales." } }
+        - { id: t3, text: { en: "Three days ago, an administrator deleted the G-Finance security group, which had 40 members.", fr: "Il y a trois jours, un administrateur a supprimé le groupe de sécurité G-Finance, qui comptait 40 membres." } }
+        - { id: t4, text: { en: "Yesterday, an administrator overwrote several attributes of the svc-erp account, and nobody recorded their previous values.", fr: "Hier, un administrateur a écrasé plusieurs attributs du compte svc-erp, et personne n'a noté leurs valeurs précédentes." } }
+    answer:
+      mapping: { t1: rb, t2: sub, t3: rb, t4: obj }
+    explanation:
+      correct:
+        en: |
+          The Recycle Bin restores deleted objects with all their attributes, including the group memberships and the members of a group, without a backup, as long as the deleted object lifetime hasn't expired. It restores an object to its state before deletion, so it can't undo changes made to objects that still exist. A replicated change is undone by an authoritative restore from a backup taken before the change: `restore subtree` for an OU and all its children, `restore object` for a single object.
+        fr: |
+          La Corbeille restaure les objets supprimés avec tous leurs attributs, y compris les appartenances aux groupes et les membres d'un groupe, sans sauvegarde, tant que la durée de vie des objets supprimés n'a pas expiré. Elle restaure un objet dans son état d'avant la suppression : elle ne peut donc pas annuler des modifications faites sur des objets qui existent encore. Une modification répliquée s'annule par une restauration faisant autorité à partir d'une sauvegarde antérieure à la modification : `restore subtree` pour une unité d'organisation et tous ses enfants, `restore object` pour un seul objet.
+      options:
+        nonauth: { en: "A nonauthoritative restore only rolls one DC back in time; the replicated changes then come back from its partners.", fr: "Une restauration ne faisant pas autorité ne fait que ramener un contrôleur de domaine dans le passé ; les modifications répliquées reviennent ensuite depuis ses partenaires." }
+        sysvol: { en: "SYSVOL holds the Group Policy templates and scripts, not user, group or service accounts.", fr: "SYSVOL contient les modèles de stratégie de groupe et les scripts, pas les comptes d'utilisateurs, les groupes ni les comptes de service." }
+    references:
+      - title: Enable and use Active Directory Recycle Bin
+        url: https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/get-started/adac/active-directory-recycle-bin
+      - title: authoritative restore
+        url: https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-server-2008-R2-and-2008/cc732211(v=ws.10)
+
+  # ------------------------------------------------------------------ 7
+  - id: az802-qz-73-07
+    objective: "7.3.5"
+    difficulty: 3
+    status: draft
+    type: single
+    stem:
+      en: |
+        The contoso.com domain has three domain controllers: DC1, DC2 and DC3. DC1 holds the PDC emulator and RID master roles. The hardware of DC1 was destroyed, and DC1 will never be brought back. DC3 has the best hardware and must hold both roles.
+
+        You open Active Directory Users and Computers connected to DC2, delete the computer object of DC1 from the Domain Controllers OU, and confirm that DC1 is permanently offline. A message then proposes to move the operations master roles of DC1 to DC2.
+
+        You need to remove DC1 from AD DS and have DC3 hold both roles. The solution must minimize administrative effort. What should you do?
+      fr: |
+        Le domaine contoso.com possède trois contrôleurs de domaine : DC1, DC2 et DC3. DC1 détient les rôles d'émulateur PDC et de maître RID. Le matériel de DC1 a été détruit, et DC1 ne sera jamais remis en service. DC3 dispose du meilleur matériel et doit détenir les deux rôles.
+
+        Vous ouvrez Utilisateurs et ordinateurs Active Directory connecté à DC2, supprimez l'objet ordinateur de DC1 de l'unité d'organisation Domain Controllers, et confirmez que DC1 est définitivement hors connexion. Un message propose alors de déplacer les rôles de maître d'opérations de DC1 vers DC2.
+
+        Vous devez retirer DC1 d'AD DS et faire détenir les deux rôles par DC3. La solution doit réduire au minimum l'effort administratif. Que devez-vous faire ?
+    body:
+      options:
+        - { id: a, text: { en: "Select OK. After the cleanup completes, transfer both roles from DC2 to DC3.", fr: "Sélectionner OK. Une fois le nettoyage terminé, transférer les deux rôles de DC2 vers DC3." } }
+        - { id: b, text: { en: "Replace DC2 with DC3 in the message, and then select OK.", fr: "Remplacer DC2 par DC3 dans le message, puis sélectionner OK." } }
+        - { id: c, text: { en: "Cancel. Transfer both roles from DC1 to DC3, then delete the DC1 object again.", fr: "Annuler. Transférer les deux rôles de DC1 vers DC3, puis supprimer de nouveau l'objet DC1." } }
+        - { id: d, text: { en: "Cancel. Delete the DC1 server object in Sites and Services, then seize both roles on DC3.", fr: "Annuler. Supprimer l'objet serveur DC1 dans Sites et services, puis prendre les deux rôles sur DC3." } }
+    answer: { optionId: a }
+    explanation:
+      correct:
+        en: |
+          Deleting the computer object of a domain controller in Active Directory Users and Computers performs the metadata cleanup and moves its operations master roles to the domain controller shown in the message. That domain controller can't be changed; to place the roles elsewhere, you move them after the cleanup completes. DC2 is online, so a transfer to DC3 works.
+        fr: |
+          Supprimer l'objet ordinateur d'un contrôleur de domaine dans Utilisateurs et ordinateurs Active Directory effectue le nettoyage des métadonnées et déplace ses rôles de maître d'opérations vers le contrôleur de domaine affiché dans le message. Ce contrôleur de domaine ne peut pas être changé ; pour placer les rôles ailleurs, vous les déplacez une fois le nettoyage terminé. DC2 est en ligne : un transfert vers DC3 fonctionne donc.
+      options:
+        b: { en: "The domain controller proposed in the message can't be changed.", fr: "Le contrôleur de domaine proposé dans le message ne peut pas être changé." }
+        c: { en: "A transfer requires the current role holder to be online; DC1 no longer exists.", fr: "Un transfert exige que le détenteur actuel du rôle soit en ligne ; DC1 n'existe plus." }
+        d: { en: "In Sites and Services, the metadata is removed automatically only when you delete the NTDS Settings object first, not the server object.", fr: "Dans Sites et services, les métadonnées ne sont supprimées automatiquement que si vous supprimez d'abord l'objet NTDS Settings, pas l'objet serveur." }
+    references:
+      - title: Clean up Active Directory Domain Controller server metadata
+        url: https://learn.microsoft.com/en-us/windows-server/identity/ad-ds/deploy/ad-ds-metadata-cleanup
+      - title: Transfer or seize Operation Master roles in Active Directory Domain Services
+        url: https://learn.microsoft.com/en-us/troubleshoot/windows-server/active-directory/transfer-or-seize-operation-master-roles-in-ad-ds
+
+  # ------------------------------------------------------------------ 8
+  - id: az802-qz-73-08
+    objective: "7.3.6"
+    difficulty: 3
+    status: draft
+    type: yesno_statements
+    stem:
+      en: |
+        The contoso.com domain uses the default Kerberos settings, and its client computers run Windows 11 with the default settings. The domain contains the following servers:
+
+        - **FS3** runs Windows Server 2025, has the IP address 10.10.5.20 and hosts a share named **Data**.
+        - **SRV9** runs a backup service as Local System. The service reads a share on FS4 by using the computer account of SRV9. Ten minutes ago, you added SRV9 to a group named **G-Backup**, which is the only group allowed to read the share.
+        - **APP3** hosts a line-of-business service. Yesterday, the service was reconfigured to run as **CONTOSO\svc-lob2** instead of **CONTOSO\svc-lob1**. The SPN `LOBsvc/app3.contoso.com` is registered only on svc-lob1.
+
+        For each of the following statements, select **Yes** if the statement is true. Otherwise, select **No**.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Le domaine contoso.com utilise les paramètres Kerberos par défaut, et ses ordinateurs clients exécutent Windows 11 avec les paramètres par défaut. Le domaine contient les serveurs suivants :
+
+        - **FS3** exécute Windows Server 2025, a l'adresse IP 10.10.5.20 et héberge un partage nommé **Data**.
+        - **SRV9** exécute un service de sauvegarde sous Système local. Le service lit un partage sur FS4 à l'aide du compte d'ordinateur de SRV9. Il y a dix minutes, vous avez ajouté SRV9 à un groupe nommé **G-Backup**, le seul groupe autorisé à lire le partage.
+        - **APP3** héberge un service métier. Hier, le service a été reconfiguré pour s'exécuter sous **CONTOSO\svc-lob2** au lieu de **CONTOSO\svc-lob1**. Le SPN `LOBsvc/app3.contoso.com` est inscrit uniquement sur svc-lob1.
+
+        Pour chacune des affirmations suivantes, sélectionnez **Oui** si l'affirmation est vraie. Sinon, sélectionnez **Non**.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      statements:
+        - id: s1
+          text: { en: "A user who opens `\\\\10.10.5.20\\Data` from a client computer is authenticated to FS3 by Kerberos.", fr: "Un utilisateur qui ouvre `\\\\10.10.5.20\\Data` depuis un ordinateur client est authentifié auprès de FS3 par Kerberos." }
+        - id: s2
+          text: { en: "Running `klist -li 0x3e7 purge` on SRV9 lets the backup service use the G-Backup membership without restarting SRV9.", fr: "Exécuter `klist -li 0x3e7 purge` sur SRV9 permet au service de sauvegarde d'utiliser l'appartenance à G-Backup sans redémarrer SRV9." }
+        - id: s3
+          text: { en: "Clients receive service tickets for `LOBsvc/app3.contoso.com` that the service on APP3 can't decrypt.", fr: "Les clients reçoivent pour `LOBsvc/app3.contoso.com` des tickets de service que le service d'APP3 ne peut pas déchiffrer." }
+    answer:
+      values: { s1: false, s2: true, s3: true }
+    explanation:
+      correct:
+        en: |
+          By default, Windows doesn't attempt Kerberos when the host name is an IP address and falls back to NTLM. The Local System session (LUID 0x3e7) holds the computer account's tickets, which carry the group memberships of the moment they were issued: purging them makes SRV9 request new tickets that include G-Backup. The KDC encrypts the service ticket with the key of the account that holds the SPN, svc-lob1, while the service now runs as svc-lob2 and can't decrypt it.
+        fr: |
+          Par défaut, Windows ne tente pas Kerberos quand le nom d'hôte est une adresse IP et revient à NTLM. La session Système local (LUID 0x3e7) contient les tickets du compte d'ordinateur, qui portent les appartenances aux groupes du moment de leur émission : les supprimer fait demander à SRV9 de nouveaux tickets qui incluent G-Backup. Le KDC chiffre le ticket de service avec la clé du compte qui détient le SPN, svc-lob1, alors que le service s'exécute désormais sous svc-lob2 et ne peut pas le déchiffrer.
+      options:
+        s1: { en: "Kerberos by IP address requires an SPN that contains the address and the TryIPSPN setting on each client; neither is configured by default.", fr: "Kerberos par adresse IP exige un SPN qui contient l'adresse et le paramètre TryIPSPN sur chaque client ; aucun des deux n'est configuré par défaut." }
+    references:
+      - title: Configuring Kerberos for IP Address
+        url: https://learn.microsoft.com/en-us/windows-server/security/kerberos/configuring-kerberos-over-ip
+      - title: klist
+        url: https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/klist
+
+  # ------------------------------------------------------------------ 9
+  - id: az802-qz-73-09
+    objective: "7.3.4"
+    difficulty: 3
+    status: draft
+    type: dropdown
+    stem:
+      en: |
+        The fabrikam.com domain has four domain controllers: DC1, DC2, DC3 and DC4. The tombstone lifetime is 180 days. DC4, in a branch office, was disconnected for seven months because of a network outage and was then reconnected.
+
+        DC4 now logs event 2042 for its replication partners, and it still contains objects that were deleted on the other domain controllers. DC1 is known to be consistent.
+
+        You need to perform the following tasks:
+
+        - First, list the lingering objects of the domain partition on DC4 by comparing DC4 with DC1, without removing anything.
+        - After the cleanup, prevent every domain controller from reintroducing lingering objects.
+
+        How should you complete the commands? Select the appropriate options in the answer area.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Le domaine fabrikam.com possède quatre contrôleurs de domaine : DC1, DC2, DC3 et DC4. La durée de vie des objets supprimés (tombstone lifetime) est de 180 jours. DC4, situé dans une succursale, a été déconnecté pendant sept mois à cause d'une panne réseau, puis reconnecté.
+
+        DC4 enregistre désormais l'événement 2042 pour ses partenaires de réplication, et il contient encore des objets qui ont été supprimés sur les autres contrôleurs de domaine. DC1 est réputé cohérent.
+
+        Vous devez effectuer les tâches suivantes :
+
+        - D'abord, lister les objets en attente (lingering objects) de la partition de domaine sur DC4 en comparant DC4 à DC1, sans rien supprimer.
+        - Après le nettoyage, empêcher chaque contrôleur de domaine de réintroduire des objets en attente.
+
+        Comment devez-vous compléter les commandes ? Sélectionnez les options appropriées dans la zone de réponse.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      layout: code
+      language: powershell
+      template: |
+        repadmin /removelingeringobjects [[dest]] [[src]] "DC=fabrikam,DC=com" [[mode]]
+        repadmin /regkey * [[key]]
+      slots:
+        - id: dest
+          options:
+            - { id: dc4, text: DC4 }
+            - { id: dc1, text: DC1 }
+            - { id: dc2, text: DC2 }
+        - id: src
+          options:
+            - { id: guid1, text: { en: "<DSA GUID of DC1>", fr: "<GUID DSA de DC1>" } }
+            - { id: guid4, text: { en: "<DSA GUID of DC4>", fr: "<GUID DSA de DC4>" } }
+            - { id: guiddom, text: { en: "<objectGUID of the fabrikam.com domain>", fr: "<objectGUID du domaine fabrikam.com>" } }
+        - id: mode
+          options:
+            - { id: adv, text: /advisory_mode }
+            - { id: adep, text: /AdeP }
+            - { id: none, text: { en: "(no option)", fr: "(aucune option)" } }
+        - id: key
+          options:
+            - { id: strict, text: "+strict" }
+            - { id: divergent, text: "+allowDivergent" }
+            - { id: nostrict, text: "-strict" }
+    answer:
+      values: { dest: dc4, src: guid1, mode: adv, key: strict }
+    explanation:
+      correct:
+        en: |
+          The syntax is `repadmin /removelingeringobjects <Dest_DSA_LIST> <Source DSA GUID> <NC> [/advisory_mode]`. The destination is DC4, the domain controller that logs event 2042 and holds the lingering objects; the source GUID identifies DC1, the reference domain controller. `/advisory_mode` only reports the lingering objects, and running the command again without it removes them. `repadmin /regkey * +strict` enables strict replication consistency on every domain controller, so destinations stop reanimating lingering objects.
+        fr: |
+          La syntaxe est `repadmin /removelingeringobjects <Dest_DSA_LIST> <Source DSA GUID> <NC> [/advisory_mode]`. La destination est DC4, le contrôleur de domaine qui enregistre l'événement 2042 et contient les objets en attente ; le GUID source identifie DC1, le contrôleur de domaine de référence. `/advisory_mode` se contente de signaler les objets en attente, et relancer la commande sans ce commutateur les supprime. `repadmin /regkey * +strict` active la cohérence stricte de la réplication sur tous les contrôleurs de domaine : les destinations cessent de faire revivre des objets en attente.
+      options:
+        dc1: { en: "DC1 is the reference: its GUID goes in the source argument, and DC4 is the domain controller to clean.", fr: "DC1 est la référence : son GUID va dans l'argument source, et DC4 est le contrôleur de domaine à nettoyer." }
+        guid4: { en: "Comparing DC4 with itself finds nothing; the source must be the known-good domain controller.", fr: "Comparer DC4 à lui-même ne trouve rien ; la source doit être le contrôleur de domaine réputé cohérent." }
+        none: { en: "Without /advisory_mode, the command removes the lingering objects immediately instead of only listing them.", fr: "Sans /advisory_mode, la commande supprime immédiatement les objets en attente au lieu de seulement les lister." }
+        divergent: { en: "Allow replication with divergent and corrupt partner is set only temporarily, after the cleanup, to resume replication; it doesn't prevent reintroduction.", fr: "L'autorisation de réplication avec un partenaire divergent et endommagé ne se définit que temporairement, après le nettoyage, pour reprendre la réplication ; elle n'empêche pas la réintroduction." }
+    references:
+      - title: Troubleshoot replication error 8614
+        url: https://learn.microsoft.com/en-us/troubleshoot/windows-server/active-directory/replication-error-8614
+
+  # ------------------------------------------------------------------ 10
+  - id: az802-qz-73-10
+    objective: "7.3.2"
+    difficulty: 3
+    status: draft
+    type: single
+    stem:
+      en: |
+        The contoso.com domain has three domain controllers: DC1, DC2 and DC3. Active Directory Recycle Bin isn't enabled. Yesterday, an administrator deleted the **Staff** OU and its 30 user accounts. The users were members of security groups stored in the **Groups** OU, which wasn't deleted.
+
+        On DC2, you restored last night's system state backup in Directory Services Restore Mode, marked `OU=Staff,DC=contoso,DC=com` as authoritative with `restore subtree`, and restarted DC2 a few minutes ago. On DC1, which is up to date, the Staff OU and the 30 accounts are back, but the accounts aren't members of their groups anymore. Ntdsutil created an .ldf file on DC2 during the authoritative restore.
+
+        You need to restore the group memberships of the 30 accounts. The solution must not roll back any other change made to the groups. What should you do?
+      fr: |
+        Le domaine contoso.com possède trois contrôleurs de domaine : DC1, DC2 et DC3. La Corbeille Active Directory n'est pas activée. Hier, un administrateur a supprimé l'unité d'organisation **Staff** et ses 30 comptes d'utilisateurs. Les utilisateurs étaient membres de groupes de sécurité stockés dans l'unité d'organisation **Groups**, qui n'a pas été supprimée.
+
+        Sur DC2, vous avez restauré la sauvegarde de l'état du système de la nuit dernière en mode de restauration des services d'annuaire, marqué `OU=Staff,DC=contoso,DC=com` comme faisant autorité avec `restore subtree`, puis redémarré DC2 il y a quelques minutes. Sur DC1, qui est à jour, l'unité d'organisation Staff et les 30 comptes sont revenus, mais les comptes ne sont plus membres de leurs groupes. Ntdsutil a créé un fichier .ldf sur DC2 pendant la restauration faisant autorité.
+
+        Vous devez restaurer les appartenances aux groupes des 30 comptes. La solution ne doit annuler aucune autre modification apportée aux groupes. Que devez-vous faire ?
+    body:
+      options:
+        - { id: a, text: { en: "Import the .ldf file on DC2 by running `ldifde -i -k -f` with the file name.", fr: "Importer le fichier .ldf sur DC2 en exécutant `ldifde -i -k -f` avec le nom du fichier." } }
+        - { id: b, text: { en: "Copy the .ldf file to DC1, then import it on DC1 by running `ldifde -i -k -f` with the file name.", fr: "Copier le fichier .ldf sur DC1, puis l'importer sur DC1 en exécutant `ldifde -i -k -f` avec le nom du fichier." } }
+        - { id: c, text: { en: "Restart DC2 in DSRM, then mark `OU=Groups,DC=contoso,DC=com` as authoritative with `restore subtree`.", fr: "Redémarrer DC2 en DSRM, puis marquer `OU=Groups,DC=contoso,DC=com` comme faisant autorité avec `restore subtree`." } }
+        - { id: d, text: { en: "On DC1, run ntdsutil `create ldif file(s) from` with the text file of restored objects, then import the result.", fr: "Sur DC1, exécuter ntdsutil `create ldif file(s) from` avec le fichier texte des objets restaurés, puis importer le résultat." } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          `restore subtree` also creates an LDIF file that restores back-links, such as the group memberships of the restored users. The file must be imported with `ldifde -i -k -f` on an up-to-date domain controller of the domain of the groups, other than the restored one: DC2 still holds old data until it finishes inbound replication, and changes made there could be lost.
+        fr: |
+          `restore subtree` crée aussi un fichier LDIF qui restaure les liens arrière (back-links), comme les appartenances aux groupes des utilisateurs restaurés. Le fichier doit être importé avec `ldifde -i -k -f` sur un contrôleur de domaine à jour du domaine des groupes, autre que celui qui a été restauré : DC2 contient encore d'anciennes données tant qu'il n'a pas terminé sa réplication entrante, et des modifications faites sur lui pourraient être perdues.
+      options:
+        a: { en: "DC2 was just restored from a backup and is still receiving inbound replication; Microsoft recommends running the file on a different, up-to-date domain controller.", fr: "DC2 vient d'être restauré à partir d'une sauvegarde et reçoit encore la réplication entrante ; Microsoft recommande d'exécuter le fichier sur un autre contrôleur de domaine à jour." }
+        c: { en: "Restoring the Groups OU authoritatively would roll back every change made to these groups since the backup, which is forbidden.", fr: "Restaurer l'unité d'organisation Groups en faisant autorité annulerait toutes les modifications apportées à ces groupes depuis la sauvegarde, ce qui est interdit." }
+        d: { en: "create ldif file(s) from is needed for groups in another domain; the groups are in contoso.com, for which the .ldf file already exists.", fr: "create ldif file(s) from sert aux groupes d'un autre domaine ; les groupes sont dans contoso.com, pour lequel le fichier .ldf existe déjà." }
+    references:
+      - title: authoritative restore
+        url: https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-server-2008-R2-and-2008/cc732211(v=ws.10)
+      - title: Run an LDIF File to Recover Back-Links
+        url: https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-server-2008-R2-and-2008/cc794957(v=ws.10)

@@ -28,13 +28,13 @@ The Foundry **model catalog** lists models from Microsoft, OpenAI and many other
 
 | Need | Type of model | Examples named by Microsoft Learn |
 | --- | --- | --- |
-| Conversation, question answering, drafting and summarizing text | Chat (text-generation) model | GPT-4.1, GPT-5 chat models, Claude, Mistral Large |
+| Conversation, question answering, drafting and summarizing text | Chat (text-generation) model | GPT-4.1, Claude, Mistral Large |
 | Multi-step reasoning, planning, agents that chain tools | Reasoning model | GPT-5 family |
 | High volume, low latency or low cost; lightweight applications | Smaller model or SLM | "mini" and "nano" variants, Phi-4 |
 | Semantic search, comparing the meaning of texts | Embedding model | text-embedding-3-small |
 | Prompts that contain images or audio as well as text | Multimodal model | GPT-4.1, Phi-4-multimodal-instruct |
-| Creating an image from a description | Image-generation model | GPT-Image-1 family, FLUX |
-| Creating a video | Video-generation model | Sora |
+| Creating an image from a description | Image-generation model | GPT-Image-1 family (GPT-Image-1.5, GPT-Image-1-Mini), FLUX |
+| Creating a video | Video-generation model | Sora 2 (preview) |
 | One well-defined task with predictable, structured output | A Foundry Tool instead of a catalog model | Azure Language, Azure Speech, Azure Content Understanding |
 
 > **Exam trap.** An embedding model returns vectors, not text: it can't hold a conversation. A chat model that only accepts text can't describe an image; the model must be multimodal. Read the capability the question requires before looking at model names.
@@ -59,7 +59,7 @@ The deployment type decides where requests are processed and how you pay:
 | **Provisioned** (global, data zone or regional) | Same three choices | Reserved provisioned throughput units (PTUs) | Predictable high volume and consistent latency |
 | **Batch** (global or data zone) | Same choices | About 50 % cheaper, results targeted within 24 hours | Large jobs that don't need an immediate answer |
 
-A deployment that receives more tokens or requests than its limit allows is **throttled**: the application gets rate-limit errors. Larger prompts and a higher maximum of output tokens consume more of the limit. The remedies are to lower the maximum of output tokens, send fewer concurrent requests or raise the TPM limit.
+A deployment that receives more tokens or requests than its limit allows is **throttled**: the application gets rate-limit errors. The limit counts the tokens actually sent and generated, not the max output tokens value set in the request: a higher cap reserves nothing. The remedies are to shorten prompts, limit the generated output to what the scenario needs, send fewer concurrent requests or spread them over time, retry with backoff, raise the TPM allocated to the deployment, or move work that can wait to batch.
 
 > **Exam trap.** Batch is cheaper but not real time: never choose it for a chat application. "Keep processing in the EU" points to a data zone deployment, not to Global Standard.
 
@@ -73,7 +73,7 @@ Parameters are set in the playground or passed in the request. They change the b
 | **System instructions** | Set the role, tone and rules of the model for the whole conversation | "You are a support assistant. Answer in three bullet points." |
 | **Temperature** | Controls randomness. A low value gives focused, repeatable answers; a high value gives varied, creative ones | Low for facts and extraction; higher for brainstorming or fiction |
 | **Top P** | Another way to control randomness | Change temperature or top P, not both at once |
-| **Max output tokens** | Caps the length of the answer; also affects token consumption and throttling | Keep costs and response time under control |
+| **Max output tokens** | Caps the length of the answer; only the tokens actually generated count toward the TPM limit | Keep costs and response time under control |
 
 > **Exam trap.** Lowering the temperature makes answers more consistent; it doesn't make them shorter and it doesn't guarantee that they are true. Max output tokens cuts the answer when the cap is reached; it doesn't ask the model to be concise. To get a short answer, say so in the instructions.
 

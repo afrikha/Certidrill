@@ -32,7 +32,8 @@ Pour créer un espace de travail : dans le portail Security Copilot, sélectionn
 | Partage des données | Si Microsoft peut capturer invites et réponses (avec révision humaine) pour valider le produit ou construire son modèle d'IA de sécurité ; désactivé par défaut dans les espaces provisionnés automatiquement |
 | Capacité | Une capacité sert un seul espace de travail à la fois ; l'association peut changer, mais un espace de travail a toujours besoin d'une capacité |
 | Accès aux données des services Microsoft 365 | Activé par défaut dans les espaces provisionnés automatiquement ; le désactiver limite Copilot avec les produits Microsoft 365 |
-| Espace de travail par défaut | Celui qu'utilisent les expériences intégrées de Defender, Microsoft Entra, Purview et Intune ; si des espaces existent déjà, le plus ancien |
+| Espace de travail par défaut | Celui qu'utilisent les expériences intégrées de Defender, Microsoft Entra, Purview et Intune quand aucun espace de travail n'est affecté au produit ; si des espaces existent déjà, le plus ancien |
+| Workspaces for Microsoft Security Copilot agents | Paramètre de propriétaire qui affecte un espace de travail par produit (Defender XDR, Purview, Intune, Microsoft Entra), pour tout le locataire. Avant de réaffecter, désactivez les déclencheurs des agents : les commentaires et la mémoire restent dans l'ancien espace |
 
 Pour provisionner de la capacité, il faut **Contributor ou Owner** sur l'abonnement Azure ou le groupe de ressources, et **Security Administrator** ou plus dans le locataire.
 
@@ -56,7 +57,7 @@ Qui est propriétaire ou contributeur sans attribution explicite :
 
 | Rôle par défaut | Membres |
 | --- | --- |
-| Copilot owner | Des rôles Microsoft Entra comme Global Administrator, Security Administrator, Conditional Access Administrator, Intune Administrator, Billing Administrator, et des rôles de conformité (Compliance Administrator, Purview Compliance Administrator, Purview Organization Management, Purview Data Governance Administrator) |
+| Copilot owner | Les rôles Microsoft Entra Global Administrator, Security Administrator, Intune Administrator, Billing Administrator et Compliance Administrator, et des rôles Purview (Purview Compliance Administrator, Purview Organization Management, Purview Data Governance Administrator) |
 | Copilot contributor | Les rôles Defender XDR personnalisés et les rôles Intune qui incluent l'autorisation Security Copilot, et des rôles Purview ; les nouvelles instances utilisent le groupe **Recommended Microsoft Security roles** |
 | Groupe Everyone | Contributeur sur les instances anciennes ; peut être retiré, et une fois retiré ne peut plus être ajouté |
 
@@ -111,7 +112,7 @@ Agents Microsoft dans le portail Defender :
 
 | Agent | Faits clés |
 | --- | --- |
-| Security Alert Triage Agent | Étend le Phishing Triage Agent ; trie les alertes e-mail et collaboration (exige Defender for Office 365 Plan 2), plus les alertes cloud et identité en préversion ; s'exécute à chaque nouvelle alerte ; Security Administrator pour le configurer |
+| Security Alert Triage Agent (préversion) | Étend le Phishing Triage Agent et n'est disponible que pour les clients de la préversion (les autres conservent le Phishing Triage Agent dans le Security Store) ; trie les alertes e-mail et collaboration (exige Defender for Office 365 Plan 2), plus les alertes cloud et identité ; s'exécute à chaque nouvelle alerte ; Security Administrator pour le configurer |
 | Threat Intelligence Briefing Agent | Synthèses régulières et personnalisées de renseignement sur les menaces ; planifié ou manuel ; Security Administrator pour le configurer |
 | Security Analyst Agent | Analyse à la demande des données Defender XDR ou Sentinel ; lié à l'identité de chaque utilisateur |
 | Threat Hunting Assistant | Repérage en langage naturel qui écrit le KQL et interprète les résultats |

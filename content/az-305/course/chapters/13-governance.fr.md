@@ -52,7 +52,7 @@ Un abonnement est une unité de gestion, de facturation et de mise à l'échelle
 | Facturation | Une entité qui doit recevoir sa propre facture |
 | Fonction de plateforme | Gestion, connectivité, identité et sécurité, chacune dans son abonnement |
 
-Raisons insuffisantes : un abonnement par région (seule la souveraineté des données le justifie) ou par petite application. Pour la refacturation à l'intérieur d'un abonnement, les étiquettes suffisent. Les grandes organisations automatisent la création avec la **distribution automatisée d'abonnements** (subscription vending) : une demande produit un abonnement déjà placé dans le bon groupe d'administration, avec ses stratégies, ses rôles et son réseau. Pour empêcher les abonnements de quitter le locataire ou d'y entrer, restreignez les transferts d'annuaire dans les stratégies d'abonnement.
+Raisons insuffisantes : un abonnement par région (seule la souveraineté des données le justifie) ou par petite application. Pour la refacturation à l'intérieur d'un abonnement, les étiquettes suffisent. Les grandes organisations automatisent la création avec la **distribution automatisée d'abonnements** (subscription vending) : une demande produit un abonnement déjà placé dans le bon groupe d'administration, avec ses stratégies, ses rôles et son réseau. Les stratégies d'abonnement contrôlent les transferts d'annuaire : depuis le 1er mai 2026, les abonnements ne peuvent plus quitter l'annuaire ni y entrer sans l'autorisation d'un Global Administrator (*Allow no users* est la valeur par défaut quand aucune stratégie n'a été définie). Seul un Global Administrator disposant d'une attribution directe, après élévation de son accès, modifie ces stratégies, et il peut exempter des utilisateurs précis.
 
 Les groupes de ressources suivent d'autres règles :
 
@@ -144,7 +144,7 @@ Les licences départagent deux réponses plausibles :
 | Licence | Apporte |
 | --- | --- |
 | Microsoft Entra ID P1 | Accès conditionnel avec conditions d'utilisation, provisionnement piloté par les RH |
-| Microsoft Entra ID P2 | PIM, révisions d'accès et gestion des droits d'utilisation dans leur forme de base |
+| Microsoft Entra ID P2 | PIM, révisions d'accès (des utilisateurs actifs et inactifs, avec des aides à la décision pour les utilisateurs inactifs) et gestion des droits d'utilisation dans leur forme de base |
 | Microsoft Entra ID Governance | Les workflows de cycle de vie et les fonctionnalités avancées : révisions limitées aux utilisateurs inactifs, recommandations par apprentissage automatique, stratégies d'attribution automatique |
 
 Qui gère PIM dépend des rôles : Privileged Role Administrator (ou Global Administrator) pour les rôles Microsoft Entra ; Owner ou User Access Administrator de la ressource pour les rôles Azure.

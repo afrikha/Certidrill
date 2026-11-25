@@ -1,0 +1,46 @@
+id: aipc01-1c-perf-pgvector-iterative-scan
+objective: "1.4.3"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    A travel company uses an Amazon Bedrock knowledge base with an Aurora PostgreSQL vector store (pgvector 0.8.0, HNSW index on the embedding column). Retrieve requests ask for 10 results with a metadata filter on country. For countries with few documents, requests often return only 2 or 3 chunks, even though dozens of matching chunks exist. The company wants to fix this with the LEAST operational effort.
+
+    Which solution will meet these requirements?
+body:
+  options:
+    - id: a
+      text:
+        en: |-
+          Add an Amazon Bedrock reranker model to the Retrieve requests so that the chunks that match the country filter are moved to the top of the results.
+    - id: b
+      text:
+        en: |-
+          Set hnsw.iterative_scan to relaxed_order and raise hnsw.max_scan_tuples on the database so that filtered HNSW scans continue until enough rows match.
+    - id: c
+      text:
+        en: |-
+          Drop the HNSW index so that every filtered query performs an exact scan over the whole table.
+    - id: d
+      text:
+        en: |-
+          Create a GIN index on to_tsvector of the chunks column so that the knowledge base runs hybrid search for filtered queries.
+answer: { optionId: b }
+explanation:
+  correct:
+    en: |-
+      When a filter is applied to an HNSW scan, the index returns a limited set of nearest candidates and the filter can discard most of them. pgvector 0.8.0 adds iterative index scans: with hnsw.iterative_scan set to relaxed_order (and a suitable hnsw.max_scan_tuples), the scan keeps going until enough rows pass the filter. AWS recommends these settings for metadata filtering; they apply to new sessions.
+  options:
+    a:
+      en: |-
+        A reranker only reorders the chunks that retrieval already returned; it cannot add the missing matches.
+    c:
+      en: |-
+        An exact scan returns complete results but makes every query scan the whole table, which hurts latency at scale; the knowledge base setup also requires the HNSW index.
+    d:
+      en: |-
+        The GIN index on the chunk text enables hybrid (keyword plus vector) search; it does not change how many rows survive a metadata filter.
+references:
+  - title: "Prerequisites for using a vector store you created for a knowledge base - Amazon Bedrock"
+    url: https://docs.aws.amazon.com/bedrock/latest/userguide/knowledge-base-setup.html

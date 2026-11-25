@@ -124,7 +124,7 @@ L'**agent Azure Monitor** (AMA) collecte les données invitées des machines vir
 | Source de données | Destination | Table |
 | --- | --- | --- |
 | Événements Windows | Espace de travail Log Analytics | `Event` |
-| Compteurs de performance | Espace de travail Log Analytics et/ou Métriques Azure Monitor | `Perf` |
+| Compteurs de performance | Espace de travail Log Analytics et/ou Métriques Azure Monitor (préversion) | `Perf` |
 | Journaux texte et JSON | Espace de travail Log Analytics | Table personnalisée |
 | Journaux IIS | Espace de travail Log Analytics | `W3CIISLog` |
 
@@ -182,9 +182,9 @@ VM Insights (« supervision améliorée » dans le portail) installe AMA et coll
 | Métriques OpenTelemetry (recommandées pour les nouveaux déploiements) | Espace de travail Azure Monitor | Nouvelle expérience des métriques, métriques par processus en option |
 | Métriques basées sur les journaux (classique) | Espace de travail Log Analytics, table `InsightsMetrics` | Vue **Performances** classique et classeurs |
 
-Activez-la depuis la machine virtuelle (**Supervision > Insights** ou l'option de supervision améliorée), depuis **Moniteur > Machines virtuelles**, ou à grande échelle avec Azure Policy, l'interface CLI, PowerShell ou des modèles. Le portail crée la DCR et l'association. Les machines hors d'Azure ont d'abord besoin de l'**agent Azure Connected Machine**.
+Activez-la depuis la machine virtuelle (**Supervision > Insights** ou l'option de supervision améliorée), depuis **Moniteur > Machines virtuelles**, ou à grande échelle avec Azure Policy (ses initiatives ne couvrent que l'expérience basée sur les journaux), l'interface CLI, PowerShell ou des modèles. Le portail crée la DCR et l'association. Les machines hors d'Azure ont d'abord besoin de l'**agent Azure Connected Machine**.
 
-La vue **Performances** compare le processeur, la mémoire disponible, l'utilisation et les IOPS des disques logiques, et le réseau entre machines, avec des listes des N premières et des tendances, pour trouver la machine virtuelle saturée. La vue **Carte** classique (processus et dépendances) exige aussi l'**agent Dependency**.
+La vue **Performances** compare le processeur, la mémoire disponible, l'utilisation et les IOPS des disques logiques, et le réseau entre machines, avec des listes des N premières et des tendances, pour trouver la machine virtuelle saturée. La vue **Carte** classique (processus et dépendances) exige aussi l'**agent Dependency** ; tous deux seront mis hors service le 30 juin 2028.
 
 ```kusto
 // Classic logs-based VM insights: free space per logical disk

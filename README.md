@@ -83,9 +83,34 @@ Le seed affiche le nombre de sections lues par les utilisateurs qu'il supprime :
 
 **Liens avec l'examen** : sous l'explication de chaque question de la correction, « Revoir le cours : … » mène aux sections qui couvrent son objectif (deux au plus, dans l'ordre du cours, avec un cadenas si le chapitre est payant) ; le rapport de score liste les chapitres des domaines sous le seuil ; le tableau de bord suggère les trois sections non lues qui couvrent le plus de questions manquées au dernier examen blanc. Rien de tout cela n'apparaît pendant l'examen.
 
+### Quiz de fin de chapitre
+
+Les quiz (`docs/SPECS-QUIZ-CHAPITRE.md`) sont dans `content/<code>/quizzes/<chapitre>.yaml` : 10 questions au format de la banque, par difficulté croissante (1 à 5 : consolidation ; 6 à 10 : niveau de l'examen). Les 23 certifications Microsoft en ont un par chapitre, sauf `00-getting-started` : 297 quiz, 2 970 questions, toutes en `draft` jusqu'à relecture humaine.
+
+- **Jamais dans un examen blanc** : les questions de quiz vont dans la table `question` avec `usage = quiz`, leur chapitre et leur position. Toute requête qui sélectionne ou compte la banque d'examen passe par `examBank()` de `lib/questions/usage.ts` : banque de l'assembleur, compteurs du back-office, seed de la banque, page Questions. Les outils sur fichiers (simulation, export à l'aveugle, `content:check`) ne lisent que `questions/`, `case-studies/` et `series/`. Un test d'intégration vérifie qu'aucun examen ne contient de question de quiz, même avec `EXAM_INCLUDE_UNPUBLISHED=true`.
+- **Validation** : `npm run content:validate` contrôle les quiz avec les cours, ou seuls avec `--quizzes`. Les règles sont dans `lib/content/quiz.ts`, communes au seed : schéma et langues, chapitre existant, 10 questions, identifiants attendus et uniques dans tout le dépôt, difficulté par position, au moins deux formats autres que `single` en 6 à 10, objectifs du chapitre tous testés, explication de chaque mauvaise option. S'y ajoute une similarité de Jaccard sur les 4-grammes de l'énoncé anglais, refusée à partir de 0,35 avec une question d'examen de la même certification. Les références et la terminologie donnent des avertissements.
+- **Seed** : après le cours, mêmes règles de statut et de version que la banque. Une question retirée des fichiers est retirée en base (`retired`) et libère sa position.
+- **Élève** : un encadré « Valider le chapitre » en bas de chaque chapitre, et l'état du quiz dans le sommaire (non tenté, à revoir, acquis, avec le meilleur score). Le quiz est sur `/course/<code>/<chapitre>/quiz` :
+  - une question à la fois, avec les composants et la notation de l'examen ;
+  - le corrigé arrive seulement dans la réponse au « Valider » de la question, par une action serveur (`lib/course/quiz.ts`) ;
+  - le résultat est sur 10, avec le détail consolidation / niveau examen et les sections à relire ;
+  - le meilleur résultat est conservé ;
+  - les tentatives sont dans `quiz_attempt`, hors de la préparation et des statistiques d'examen.
+
+  Un quiz n'est visible des élèves que si ses 10 questions sont publiées ; un administrateur peut le prévisualiser avant.
+- **Règles à confirmer (§8)** : elles sont toutes dans `lib/course/quiz-rules.ts`.
+  - Seuil : 8/10, dont 4/5 au niveau examen.
+  - XP : 25 par chapitre acquis, une seule fois (`xpPerChapter`, 0 pour désactiver).
+  - Accès : les quiz des chapitres gratuits sont ouverts au niveau gratuit (`freeChaptersOpen`), les autres demandent l'accès complet.
+- **Back-office** :
+  - la page Questions a un filtre « Usage » (banque ou quiz) et un filtre « Chapitre », et publie un quiz par lot comme la banque (audit `question.status`, filtres `usage` et `chapter`) ;
+  - l'aperçu d'une question donne son chapitre et sa position ;
+  - la page Certifications compte les questions de quiz à part ;
+  - l'aperçu d'un chapitre mène à ses questions et au quiz.
+
 ### Autres certifications
 
-`content/` contient 31 certifications : AZ-104 (en ligne), 21 autres certifications Microsoft, dont l'état est décrit dans `docs/ETAT-CONTENU-MULTI-CERTIFICATIONS.md`, et 8 certifications AWS (SAA-C03, CLF-C02, AIF-C01, DVA-C03, SOA-C03, SAP-C03, SCS-C03, DEA-C01, voir « Plusieurs éditeurs »), toutes livrées en brouillon (`active: false`, tout en `status: draft`). Une certification inactive est invisible partout : accueil, tarifs, offre, tableau de bord, cours, plan du site, démarrage d'un examen, achat et déclaration d'un résultat réel. Seul le back-office (cours, prix) la montre.
+`content/` contient 35 certifications : AZ-104 (en ligne), 21 autres certifications Microsoft, dont l'état est décrit dans `docs/ETAT-CONTENU-MULTI-CERTIFICATIONS.md`, 10 certifications AWS (SAA-C03, CLF-C02, AIF-C01, DVA-C03, SOA-C03, SAP-C03, SCS-C03, DEA-C01, DOP-C02, AIP-C01) et 2 certifications CNCF (KCNA, KCSA), voir « Plusieurs éditeurs », toutes livrées en brouillon (`active: false`, tout en `status: draft`). Une certification inactive est invisible partout : accueil, tarifs, offre, tableau de bord, cours, plan du site, démarrage d'un examen, achat et déclaration d'un résultat réel. Seul le back-office (cours, prix) la montre.
 
 - **Outils par certification** : `--cert <code>` (ou une liste, ou `all`) pour `content:validate`, `content:simulate`, `content:status`, `content:blind:export` et `content:blind:compare`. La CI valide et simule 10 examens sur toutes les certifications.
 - **Fondamentaux** (AZ-900, AI-901, DP-900, SC-900) : le blueprint n'a ni `caseStudies` ni `series` ; l'examen n'a alors qu'une section, et `content:check` refuse un fichier d'étude de cas ou de série pour un tel blueprint.
@@ -95,16 +120,16 @@ Le seed affiche le nombre de sections lues par les utilisateurs qu'il supprime :
 
 **Progression par certification** : chaque certification garde son échelle, son indice de préparation, son XP, ses badges et sa maîtrise par domaine. Le tableau de bord montre d'abord l'indicateur global « Toutes mes certifications » (certifications travaillées, examens blancs passés et réussis, certifications prêtes, XP et badges cumulés, examens réels réussis, puis une ligne par certification), et ensuite la progression d'une seule certification : celle de `?certification=`, à défaut la dernière travaillée. Un sélecteur permet de passer de l'une à l'autre.
 
-### Plusieurs éditeurs (Microsoft, AWS)
+### Plusieurs éditeurs (Microsoft, AWS, CNCF)
 
-Spécification : `docs/SPECS-AWS.md` (§3). Ce qui dépend de l'éditeur se lit dans `certification.vendor` du `blueprint.yaml` et dans `lib/vendors.ts`, une entrée par éditeur ; aucun test sur un code de certification.
+Spécifications : `docs/SPECS-AWS.md` (§3) et `docs/SPECS-KUBERNETES.md` (CNCF). Ce qui dépend de l'éditeur se lit dans `certification.vendor` du `blueprint.yaml` et dans `lib/vendors.ts`, une entrée par éditeur ; aucun test sur un code de certification.
 
-| Clé | Microsoft | AWS |
-| --- | --- | --- |
-| `docsName` (libellé des liens de correction) | Microsoft Learn | AWS Documentation |
-| `docsHosts` (références autorisées) | `learn.microsoft.com` | `docs.aws.amazon.com`, `aws.amazon.com`, `repost.aws` (Knowledge Center), `kiro.dev`, `strandsagents.com` (documentation officielle de Kiro et de Strands Agents) |
-| `localizeDocsUrl` (lecteur francophone) | `/en-us/` ↔ `/fr-fr/` | `docs.aws.amazon.com/…` → `docs.aws.amazon.com/fr_fr/…` ; `aws.amazon.com` inchangé |
-| `scoring` (règle de l'examen réel) | `per_option`, `per_element` | `all_or_nothing` |
+| Clé | Microsoft | AWS | CNCF |
+| --- | --- | --- | --- |
+| `docsName` (libellé des liens de correction) | Microsoft Learn | AWS Documentation | Kubernetes Documentation |
+| `docsHosts` (références autorisées) | `learn.microsoft.com` | `docs.aws.amazon.com`, `aws.amazon.com`, `repost.aws` (Knowledge Center), `kiro.dev`, `strandsagents.com` (documentation officielle de Kiro et de Strands Agents) | `kubernetes.io`, pages CNCF et Linux Foundation des examens, documentation des projets CNCF (Helm, Prometheus, Falco, Istio, Cilium…), et cadres de sécurité cités par le programme KCSA (NIST, MITRE ATT&CK, SLSA, OWASP) |
+| `localizeDocsUrl` (lecteur francophone) | `/en-us/` ↔ `/fr-fr/` | `docs.aws.amazon.com/…` → `docs.aws.amazon.com/fr_fr/…` ; `aws.amazon.com` inchangé | inchangé (examens en anglais seulement) |
+| `scoring` (règle de l'examen réel) | `per_option`, `per_element` | `all_or_nothing` | `all_or_nothing` (KCNA et KCSA : `single` seulement, score en pourcentage, `maxScore: 100`, réussite à 75) |
 
 Les textes propres à chaque éditeur sont dans `messages/*.json`, sous `vendors.<clé>` : mention de marque (`trademark`) et note sous le score (`scoreNote`). Ajouter un éditeur, c'est une entrée dans `lib/vendors.ts` et ces deux textes.
 
@@ -114,8 +139,9 @@ Les textes propres à chaque éditeur sont dans `messages/*.json`, sous `vendors
 - **Textes** : la mention du pied de page cite les éditeurs des certifications actives et leurs marques (aucun quand aucune certification n'est active). Le texte de l'accueil sur la correction, la FAQ « dumps », la note sous le score et le libellé des liens de correction suivent l'éditeur. La description de l'accueil (`seo.homeDescription`) ne cite les études de cas et les séries Oui/Non que si un examen actif en contient, et nomme la documentation des éditeurs proposés. L'image de partage nomme les éditeurs proposés (servie à la demande) ; le plan du site date les pages aussi du dernier blueprint d'une certification active.
 - **Contenu AWS** (branche `contenu-aws`) : SAA-C03, CLF-C02, AIF-C01, DVA-C03 (Developer), SOA-C03 (CloudOps Engineer, anciennement SysOps Administrator ; le catalogue affiche le nouveau nom, titre du `blueprint.yaml`) SAP-C03 (Solutions Architect – Professional : 75 questions, 180 minutes) SCS-C03 (Security – Specialty : 170 minutes, avec des questions de mise en ordre `ordering` et d'association `dragdrop` comme AIF-C01) et DEA-C01 (Data Engineer – Associate : 65 questions, 130 minutes), de 682 à 788 questions chacune avec un cours complet, en brouillon et inactifs. La durée, le nombre de questions et le barème de l'examen viennent du blueprint : minuteur, compteur « Question n sur N », écran de revue et rapport suivent sans valeur en dur (test d'intégration et e2e sur SAP-C03 ; SCS-C03 et AIF-C01 : durée, affichage et notation tout ou rien des `ordering` et `dragdrop`, une association partielle ou un ordre faux valant 0). Les blueprints notent en `all_or_nothing`. Les questions `multi` et `dragdrop` n'ont pas la remarque « chaque sélection correcte vaut un point », que `content:validate` refuse sous cette règle. Vérification à l'aveugle de SAA-C03 : 684 réponses sur 684 conformes au corrigé (`factory/reports/blind-saa-c03.md`). Simulation de 10 examens sans répétition pour les huit certifications, dans les pondérations (SOA-C03 : six questions ajoutées aux objectifs 3.1.2 et 3.2.2, épuisés au 10e examen).
 - **Terminologie** : chaque éditeur nomme son glossaire dans `lib/vendors.ts`. Microsoft : `content/glossary.yaml` (Microsoft Learn). AWS : `content/_shared/glossary-aws.yaml`, 130 termes vérifiés sur `docs.aws.amazon.com/fr_fr/` (`confirmed`, `source`), avec les noms gardés en anglais et, pour chaque terme, les variantes françaises à éviter (`avoid`). `content:validate` signale (⚠) ces variantes dans les questions et les chapitres français, hors code, hors marqueurs de section (commentaires HTML), hors gloses anglaises entre parenthèses et hors citations entre guillemets « » (les mots anglais de l'énoncé d'examen). Le 20/11/2026, le contenu AWS a été aligné sur la documentation AWS en français (décision du propriétaire) : instances réservées, réglage précis, vectorisation, fenêtre contextuelle, génération à enrichissement contextuel, barrière de protection (Bedrock Guardrails). Les intitulés officiels des objectifs (`objectives.yaml`) gardent la formulation du guide d'examen. `content:check` charge le glossaire et refuse ses conflits. Les termes où la documentation AWS hésite sont expliqués dans leur `note`.
+- **Langues proposées** (`docs/SPECS-AWS.md` §3.7) : `certification.languages` du `blueprint.yaml` (`[en, fr]` par défaut) liste les langues de l'examen officiel. Sans `fr` (DVA-C03, SOA-C03, SAP-C03, SCS-C03, DEA-C01, DOP-C02, AIP-C01, KCNA, KCSA), les textes n'ont que `en` et les chapitres que `<id>.en.md`. Le schéma rend `fr` facultatif, mais `content:validate`, le chargeur et le seed l'exigent partout (référentiel, questions, études de cas, séries, manifeste et fichiers du cours) dès que `languages` contient `fr` (`lib/content/languages.ts`). Un fichier français présent sans être proposé reste vérifié (parité) mais n'est pas servi : le seed enregistre l'anglais à sa place (colonne `certification.languages`). Avec l'interface en français, le cours, l'examen, la correction et le rapport d'une telle certification sont en anglais (libellés en français) avec la mention « Cet examen n'existe qu'en anglais : le contenu est en anglais. » ; le catalogue (accueil, tableau de bord, cours) affiche « Anglais seulement ». La correction n'offre alors pas de choix de langue.
 - **Langages de code** : les chapitres acceptent aussi `python`, `javascript`, `typescript` et `java` (code applicatif de la DVA-C03) et `sql` (requêtes Redshift, Athena et Aurora de la DEA-C01), colorés par Shiki comme dans les questions, avec les alias `py`, `js` et `ts`.
-- **Mentions légales et CGV** : elles nomment Microsoft et AWS (absence d'affiliation, marques) ; CGV en version du 20/11/2026.
+- **Mentions légales et CGV** : elles nomment Microsoft, AWS, The Linux Foundation et la CNCF (absence d'affiliation, marques, dont Kubernetes, KCNA, KCSA, CKA, CKAD et CKS) ; CGV en version du 24/11/2026 (`TERMS_VERSION`, conservée avec chaque paiement).
 - **Prix** : le Pass d'une certification AWS a le prix du tarif, comme AZ-104, tant qu'aucune ligne `plan_price` ne lui donne un autre prix (*Administration → Droits → Prix du Pass par certification*).
 
 Mise en ligne d'une certification : vérification à l'aveugle, relecture des rapports `factory/reports/*-<code>-*.md` et corrections, puis, après relecture humaine, publication et activation, au choix :

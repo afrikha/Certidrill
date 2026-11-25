@@ -19,7 +19,7 @@ Microsoft recommande la conception la plus simple qui répond à l'exigence :
 | Pool d'hôtes partagé (pooled), les utilisateurs doivent retrouver leurs paramètres sur n'importe quel hôte de session | Conteneur de profil seul (**conteneur unique**), `VHDLocations` avec un seul partage SMB |
 | L'organisation garde une solution de profils itinérants tierce et n'a besoin de faire suivre que les données Office | Conteneur ODFC seul, en excluant les chemins ODFC de la solution tierce |
 | Emplacement, taille ou isolation distincts pour les données Office (par exemple un profil de 10 Go et un conteneur ODFC de 50 Go) | Conteneur de profil plus conteneur ODFC (double conteneur) |
-| Le profil doit rester disponible si un fournisseur de stockage tombe, dans la même région | Cloud Cache avec au moins deux fournisseurs dans la région des hôtes de session |
+| Le profil doit rester disponible si un fournisseur de stockage tombe, dans la même région | Cloud Cache avec au moins deux fournisseurs de types différents (par exemple Azure Files et Azure NetApp Files) dans la région des hôtes de session, ou un stockage redondant interzone |
 | Reprise d'activité dans une deuxième région avec les données de profil | Cloud Cache avec un fournisseur dans chaque région, le plus proche en premier |
 | Reprise d'activité, option la plus simple, les utilisateurs acceptent de nouveaux profils | Infrastructure dupliquée dans l'autre région, `VHDLocations` standard, aucune récupération de profil |
 | Certains utilisateurs ne doivent pas voir une application installée | Règle de masquage (hiding) attribuée à ces utilisateurs ou groupes |
@@ -30,7 +30,8 @@ Recommandations générales valables pour toutes les conceptions :
 - Gardez `ProfileType = 0` : une seule connexion en lecture-écriture par profil. Azure Virtual Desktop ne prend pas en charge plusieurs connexions au même profil dans un même pool d'hôtes.
 - Placez le stockage dans la **même région** que les hôtes de session. Azure Files (Premium pour les pools de production) ou Azure NetApp Files sont les fournisseurs SMB habituels ; les autorisations au niveau du partage et NTFS doivent être définies avant la première connexion.
 - Configurez les paramètres une seule fois pour tous les hôtes de session : valeurs de Registre dans l'image, stratégie de groupe (les modèles ADMX/ADML FSLogix ajoutent un nœud **FSLogix** sous Modèles d'administration) ou catalogue de paramètres Intune.
-- Ajoutez les exclusions antivirus FSLogix (fichiers VHD et VHDX, dossiers de Cloud Cache).
+- Ajoutez les exclusions antivirus FSLogix (fichiers VHD et VHDX avec leurs fichiers `.lock`, `.meta` et `.metadata`, processus, pilotes, dossiers et clés de Registre FSLogix, dossiers de Cloud Cache).
+- La mise à jour Windows Server d'avril 2026 fait passer le type de chiffrement Kerberos par défaut de RC4 à AES-SHA1 : mettez à niveau vers AES-SHA1 les partages de fichiers qui hébergent les conteneurs avant de l'installer, sinon les conteneurs risquent de ne plus s'attacher.
 
 > **Piège d'examen.** Plusieurs entrées dans `VHDLocations` ne constituent pas une conception à haute disponibilité. FSLogix utilise le premier emplacement que l'utilisateur peut atteindre et y crée un nouveau profil vide si l'emplacement habituel est indisponible. La résilience exige Cloud Cache.
 
@@ -70,6 +71,8 @@ Autres paramètres qui apparaissent dans les questions :
 | Envoyer certains utilisateurs ou groupes vers un autre partage | `HKLM\SOFTWARE\FSLogix\Profiles\ObjectSpecific\<SID>` avec son propre `VHDLocations` |
 | Garder des dossiers hors du conteneur (caches, données temporaires) | Un fichier `redirections.xml` dans le dossier désigné par `RedirXMLSourceFolder` |
 | Attacher le disque avec le compte d'ordinateur au lieu de l'utilisateur | `AccessNetworkAsComputerObject = 1` (risque de sécurité, seulement si nécessaire) |
+
+Les paramètres propres à un objet existent sous la clé Profiles et sous la clé ODFC (`HKLM\SOFTWARE\Policies\FSLogix\ODFC\ObjectSpecific\<SID>`), et tout paramètre de conteneur peut y être défini. L'ordre de priorité est le paramètre propre à l'utilisateur, puis celui du groupe, puis les paramètres de tout le système. Ils ne se configurent pas avec les modèles de stratégie de groupe et ne prennent pas en charge les identités cloud uniquement Microsoft Entra ID.
 
 **Qui reçoit un conteneur** dépend de quatre groupes locaux créés sur chaque hôte de session : *FSLogix Profile Include List*, *FSLogix Profile Exclude List*, *FSLogix ODFC Include List* et *FSLogix ODFC Exclude List*. Everyone est membre des listes d'inclusion par défaut ; l'appartenance à une liste d'exclusion l'emporte sur la liste d'inclusion. Pour tester FSLogix avec un seul groupe, retirez Everyone de *FSLogix Profile Include List* et ajoutez-y ce groupe.
 
@@ -130,9 +133,9 @@ Les paramètres d'inscription décident de ce qui se passe quand des fournisseur
 | --- | --- | --- |
 | `ClearCacheOnLogoff` | 0 | 1 sur les hôtes partagés : supprime le cache local à la déconnexion pour économiser l'espace disque |
 | `HealthyProvidersRequiredForRegister` | 0 | 1 : bloque la connexion quand aucun fournisseur n'est sain (à combiner avec `PreventLoginWithFailure`) |
-| `HealthyProvidersRequiredForUnregister` | 1 | Nombre de fournisseurs sains nécessaires pour se déconnecter ; 0 n'est pas recommandé (risque de perte de données) |
+| `HealthyProvidersRequiredForUnregister` | 1 | Nombre de fournisseurs sains nécessaires pour se déconnecter ; 0 n'est pas recommandé : `CcdUnregisterTimeout` et `ClearCacheOnForcedUnregister` n'ont alors plus d'effet (risque de perte de données) |
 | `CcdUnregisterTimeout` | 0 | Secondes pendant lesquelles la déconnexion attend les fournisseurs ; 0 attend indéfiniment |
-| `ClearCacheOnForcedUnregister` | 0 | 1 supprime le cache local à l'expiration du délai (les données non écrites sont perdues) |
+| `ClearCacheOnForcedUnregister` | 0 | 1 supprime le cache local à l'expiration du délai (les données non écrites sont perdues). Avec 0, le cache d'une déconnexion forcée est conservé même si `ClearCacheOnLogoff` vaut 1, et doit être supprimé manuellement après la récupération |
 
 > **Conseil d'examen.** « Région principale Europe Ouest, basculement Europe Nord, les profils doivent survivre à une panne régionale » désigne Cloud Cache : les hôtes d'Europe Ouest listent d'abord le partage d'Europe Ouest puis celui d'Europe Nord ; les hôtes d'Europe Nord utilisent l'ordre inverse.
 

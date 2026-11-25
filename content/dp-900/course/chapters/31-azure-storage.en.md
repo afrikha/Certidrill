@@ -28,9 +28,10 @@ Access tiers balance the cost of storage against the cost and speed of access:
 | **Cold** | Rarely accessed, but must stay immediately readable | 90 days | Lower storage cost, higher access cost than cool |
 | **Archive** | Kept for history and almost never read | 180 days | Lowest storage cost; the blob is offline |
 
-- Blobs in the hot, cool and cold tiers are read in milliseconds. A blob in the archive tier must first be **rehydrated** by changing its tier to hot, cool or cold, which can take hours.
+- Blobs in the hot, cool and cold tiers are read in milliseconds. A blob in the archive tier must first be **rehydrated** by changing its tier to hot, cool or cold, which can take up to 15 hours.
 - Removing a blob before the minimum period leads to an early deletion charge.
 - A **lifecycle management policy** moves blobs automatically from hot to cool, cold and archive according to the number of days since their last modification, and can delete outdated blobs.
+- The **smart tier**, set as the default access tier of a standard general-purpose v2 account with zone-redundant storage (ZRS, GZRS or RA-GZRS), moves block blobs between hot, cool and cold according to their access, without a policy to write; it doesn't use the archive tier.
 
 **Azure Data Lake Storage Gen2** is Blob Storage with the **hierarchical namespace** enabled on the storage account. Blobs are then organized in real directories, on which POSIX-compliant access control lists set permissions for individual files and folders. Analytics platforms such as Azure Databricks and Microsoft Fabric work with it. An existing account can be upgraded, but the upgrade can't be reverted.
 

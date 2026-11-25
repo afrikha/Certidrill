@@ -59,7 +59,7 @@ Chaque signal de surveillance compare une fenêtre de données de **production**
 | Dérive de l'attribution des caractéristiques (préversion) | Importance des caractéristiques en production par rapport à l'entraînement | Données d'entraînement (obligatoires) | Gain cumulé actualisé normalisé (NDCG) |
 | Performances du modèle (préversion) | Prédictions par rapport à la **vérité terrain** (ground truth) | Données de vérité terrain (obligatoires) | Classification : exactitude, précision, rappel. Régression : MAE, MSE, RMSE |
 
-Le taux hors limites s'appuie sur la référence : l'intervalle du minimum au maximum pour les caractéristiques numériques, l'ensemble des valeurs connues pour les caractéristiques catégorielles. Fenêtres : la fenêtre de rétrospection de production vaut par défaut la fréquence de surveillance ; la référence peut être une fenêtre fixe (`window_start_date`, `window_end_date`) ou glissante (`lookback_window_size`, `lookback_window_offset`, par exemple `P7D`).
+Le taux hors limites s'appuie sur la référence : l'intervalle du minimum au maximum pour les caractéristiques numériques, l'ensemble des valeurs connues pour les caractéristiques catégorielles. Fenêtres : la fenêtre de rétrospection de production vaut par défaut la fréquence de surveillance ; la référence peut être une fenêtre fixe (`window_start_date`, `window_end_date`) ou glissante (`lookback_window_size`, `lookback_window_offset`, par exemple `P7D`). Le décalage de la référence vaut par défaut deux fois la `lookback_window_size` de production ; pour que les deux fenêtres ne se chevauchent pas, fixez-le au moins à la taille de la fenêtre de production plus son décalage.
 
 La **surveillance prête à l'emploi** (out-of-box) ne demande que le déploiement : elle détecte les ressources de données collectées, prend les données de production récentes comme référence et exécute la dérive des données, la dérive des prédictions et la qualité des données, en envoyant un e-mail à l'utilisateur qui l'a configurée quand un seuil est dépassé. La **surveillance avancée** choisit les signaux, les données de référence, les caractéristiques et les seuils :
 
@@ -122,14 +122,14 @@ az ml schedule create --file churn-monitoring.yml
 
 Les travaux de surveillance s'exécutent sur un calcul **Spark serverless** (tailles comme `Standard_E4s_v3`, `Standard_E8s_v3`). Microsoft recommande une fréquence quotidienne pour les modèles à fort trafic quotidien, hebdomadaire ou mensuelle sinon. La surveillance des modèles ne prend pas en charge le mode d'isolement de réseau managé `AllowOnlyApprovedOutbound`. Les métriques de dérive sont calculées **par caractéristique** : les résultats montrent quelles caractéristiques ont dérivé ; `top_n_feature_importance` limite la surveillance de la dérive aux caractéristiques les plus importantes, là où une dérive explique le plus probablement une baisse de qualité.
 
-> **Piège d'examen.** La dérive des données porte sur les entrées, la dérive des prédictions sur les sorties, et aucune des deux n'a besoin d'étiquettes. Seul le signal de performances du modèle mesure l'exactitude, et il a besoin de la **vérité terrain** jointe aux prédictions par un ID de corrélation. « Les clients ont changé » relève de la dérive des données ; « le modèle prédit maintenant deux fois plus d'attrition » relève de la dérive des prédictions ; « des valeurs nulles sont apparues » relève de la qualité des données.
+> **Piège d'examen.** La dérive des données porte sur les entrées, la dérive des prédictions sur les sorties, et aucune des deux n'a besoin d'étiquettes. Seul le signal de performances du modèle (préversion) mesure l'exactitude, et il a besoin de la **vérité terrain** jointe aux prédictions par un ID de corrélation. « Les clients ont changé » relève de la dérive des données ; « le modèle prédit maintenant deux fois plus d'attrition » relève de la dérive des prédictions ; « des valeurs nulles sont apparues » relève de la qualité des données.
 
 <!-- section: performance-metrics | objectives: 2.4.2 -->
 ## Surveiller les métriques de performances des modèles déployés
 
 Deux types de performances comptent : la qualité du **modèle** sur les données réelles et la santé opérationnelle du **point de terminaison**.
 
-La qualité du modèle utilise le signal `model_performance`. La vérité terrain arrive plus tard (par exemple, si le client est réellement parti) et elle est inscrite comme ressource de données avec le même ID de corrélation :
+La qualité du modèle utilise le signal `model_performance`, en **préversion** pour la classification et la régression (sans SLA, déconseillé pour les charges de travail de production) ; la dérive des données, la dérive des prédictions et la qualité des données sont les signaux en disponibilité générale. La vérité terrain arrive plus tard (par exemple, si le client est réellement parti) et elle est inscrite comme ressource de données avec le même ID de corrélation :
 
 ```yaml
   monitoring_signals:
@@ -163,14 +163,14 @@ La santé du point de terminaison vient d'**Azure Monitor** :
 | --- | --- | --- |
 | Métriques du point de terminaison | Latence des requêtes, requêtes par minute, nouvelles connexions par seconde, octets réseau ; détail par déploiement ou par état | Tendances de latence et d'erreurs, règles d'alerte |
 | Métriques du déploiement | Utilisation du CPU, du GPU, de la mémoire et du disque, jusqu'à l'instance | Dimensionnement et mise à l'échelle automatique |
-| `AmlOnlineEndpointTrafficLog` | Chaque requête : code et motif de réponse, code d'état du modèle, déploiement, durées, délais de limitation | Quel déploiement renvoie des erreurs, d'où vient la latence |
+| `AmlOnlineEndpointTrafficLog` | Chaque requête : `ResponseCode` (renvoyé au client) et `ModelStatusCode` (renvoyé par le modèle), déploiement, `TotalDurationMs`, `RequestDurationMs`, `ResponseDurationMs`, `RequestThrottlingDelayMs`, `ResponseThrottlingDelayMs` | Quel déploiement renvoie des erreurs, d'où vient la latence |
 | `AmlOnlineEndpointConsoleLog` | Sortie console du conteneur (stdout) | Erreurs affichées par `score.py` |
 | `AmlOnlineEndpointEventLog` | Événements du conteneur : `LivenessProbeFailed`, `ReadinessProbeFailed`, `BackOff`, `Killing`, `Started` | Redémarrages et échecs de sondes |
 | Application Insights | Métriques en temps réel, vues des échecs et des performances du déploiement (`app_insights_enabled: true`) | Traçage au niveau de l'application |
 
 Les trois tables de journaux demandent un **paramètre de diagnostic** sur le point de terminaison qui envoie les journaux à un espace de travail Log Analytics (comptez jusqu'à une heure pour les premières données). La limitation due aux limites de bande passante apparaît dans la métrique des octets réseau et dans les en-têtes de fin de réponse `ms-azureml-bandwidth-request-delay-ms` et `ms-azureml-bandwidth-response-delay-ms`.
 
-> **Conseil d'examen.** « Quel déploiement renvoie des erreurs 5xx et combien de temps prend le modèle » → interrogez `AmlOnlineEndpointTrafficLog`. « Pourquoi le conteneur redémarre » → `AmlOnlineEndpointEventLog`. « L'exactitude du modèle a baissé » → le signal de performances du modèle, pas les métriques du point de terminaison.
+> **Conseil d'examen.** « Quel déploiement renvoie des erreurs 5xx et combien de temps prend le modèle » → interrogez `AmlOnlineEndpointTrafficLog`. « Pourquoi le conteneur redémarre » → `AmlOnlineEndpointEventLog`. « L'exactitude du modèle a baissé » → le signal de performances du modèle (préversion), pas les métriques du point de terminaison.
 
 <!-- section: alerts-retraining | objectives: 2.4.3 -->
 ## Configurer des alertes et des déclencheurs de réentraînement
@@ -195,7 +195,7 @@ Pour un seuil de surveillance, créez un abonnement aux événements sur l'espac
 | --- | --- |
 | `Microsoft.MachineLearningServices.RunCompleted` | Une exécution se termine |
 | `Microsoft.MachineLearningServices.RunStatusChanged` | Une exécution change d'état |
-| `Microsoft.MachineLearningServices.ModelRegistered` | Un modèle ou une version de modèle est inscrit (filtre sur les étiquettes du modèle ou sur le sujet `models/<name>`) |
+| `Microsoft.MachineLearningServices.ModelRegistered` | Un modèle ou une version de modèle est inscrit (filtre sur les étiquettes du modèle ou sur le sujet `models/<name>:<version>` : un filtre sur le nom du modèle doit porter sur le début du sujet, pas sur sa fin) |
 | `Microsoft.MachineLearningServices.ModelDeployed` | Des modèles sont déployés sur un point de terminaison |
 
 Les opérations en échec ou annulées ne déclenchent pas les événements de réussite (un déploiement en échec ne déclenche aucun `ModelDeployed`). Créer des abonnements demande Contributor ou Owner sur l'espace de travail et le fournisseur de ressources `Microsoft.EventGrid` inscrit.
@@ -225,7 +225,7 @@ az ml schedule disable --name churn_weekly_retraining
 ## Points clés
 
 - Le collecteur de données (`model_inputs`, `model_outputs`, DataFrames pandas) alimente la surveillance des points de terminaison en ligne ; les modèles par lots et externes ont besoin de leurs propres ressources de données.
-- Dérive des données = entrées, dérive des prédictions = sorties, qualité des données = valeurs nulles, types, hors limites ; les performances du modèle demandent la vérité terrain.
+- Dérive des données = entrées, dérive des prédictions = sorties, qualité des données = valeurs nulles, types, hors limites ; les performances du modèle (préversion) demandent la vérité terrain.
 - Surveillance prête à l'emploi : dérive des données, dérive des prédictions et qualité des données par rapport aux données de production récentes, e-mails au créateur.
 - Les moniteurs sont des planifications (`az ml schedule create`) exécutées sur Spark serverless, avec des `metric_thresholds` par signal.
 - Santé du point de terminaison : métriques Azure Monitor, plus journaux de trafic, de console et d'événements via un paramètre de diagnostic.

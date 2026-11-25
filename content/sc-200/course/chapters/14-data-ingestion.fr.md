@@ -46,7 +46,7 @@ Autorisation requise : lecture et écriture sur l'espace de travail Sentinel.
 | Minimal | Un petit ensemble pouvant signaler une menace : 4624, 4625, 4688, 1102, modifications de comptes et de groupes. Pas de piste d'audit complète | Volume le plus faible des jeux prédéfinis |
 | Custom | Événements sélectionnés par des requêtes XPath | Exactement les ID d'événements nécessaires |
 
-Le filtrage se fait **à la source** : les événements exclus par la DCR ne sont jamais envoyés, c'est ainsi que l'on réduit les coûts d'ingestion. Règles XPath : AMA ne prend en charge que XPath 1.0, jusqu'à 20 expressions par zone et jusqu'à 100 zones par règle ; `contains` et `starts-with` ne sont pas pris en charge. Chaque entrée a la forme `LogName!XPath` :
+Le filtrage se fait **à la source** : les événements exclus par la DCR ne sont jamais envoyés, c'est ainsi que l'on réduit les coûts d'ingestion. Règles XPath : AMA ne prend en charge que XPath 1.0, et les règles de collecte de données acceptent jusqu'à 20 expressions (`Get-WinEvent` en accepte 23) ; `contains` et `starts-with` ne sont pas pris en charge. Chaque entrée a la forme `LogName!XPath` :
 
 ```text
 Security!*[System[(EventID=4624 or EventID=4625 or EventID=4688)]]
@@ -128,7 +128,7 @@ sudo wget -O Forwarder_AMA_installer.py https://raw.githubusercontent.com/Azure/
 
 Rôles requis : Virtual Machine Contributor ou Azure Connected Machine Resource Administrator pour déployer l'agent, Monitoring Contributor pour créer la DCR, et un rôle disposant de `Microsoft.Resources/deployments/*`.
 
-> **Piège d'examen.** Si Syslog et CEF utilisent la même facility, les messages sont ingérés deux fois, dans `Syslog` et dans `CommonSecurityLog`. Envoyez le CEF sur des facilities que la DCR Syslog ne collecte pas, ou ajoutez à la DCR Syslog une transformation qui écarte les messages CEF.
+> **Piège d'examen.** Si Syslog et CEF utilisent la même facility, les messages sont ingérés deux fois, dans `Syslog` et dans `CommonSecurityLog`. Envoyez le CEF sur des facilities que la DCR Syslog ne collecte pas, ou ajoutez à la DCR Syslog une transformation qui écarte les messages CEF. Depuis AMA 1.41, `ProcessName` peut ne pas contenir « CEF » pour les fournisseurs qui ne respectent pas le format d'en-tête RFC 3164 ou RFC 5424 : filtrez donc à la fois sur `ProcessName` et sur `SyslogMessage` (`CEF:0`).
 
 ```kusto
 CommonSecurityLog
@@ -153,7 +153,7 @@ Dans l'assistant de stratégie, l'attribution s'applique aux ressources créées
 
 > **Piège d'examen.** « Faire en sorte que tous les coffres de clés existants et futurs de l'abonnement envoient leurs journaux » exige l'attribution de stratégie et une tâche de correction. Sans tâche de correction, seuls les nouveaux coffres de clés sont configurés.
 
-Le connecteur **Azure Activity** collecte les événements au niveau de l'abonnement (opérations Resource Manager, intégrité des services, opérations d'écriture) dans `AzureActivity` par les paramètres de diagnostic ; les transformations de DCR ne sont pas prises en charge pour cette table. Si l'ancienne méthode de connexion est encore utilisée, sélectionnez **Disconnect All** sur la page du connecteur avant de configurer la nouvelle. Le journal d'activité lui-même conserve 90 jours ; l'ingestion des journaux d'activité envoyés à un espace de travail n'est pas facturée.
+Le connecteur **Azure Activity** collecte les événements au niveau de l'abonnement (opérations Resource Manager, intégrité des services, opérations d'écriture) dans `AzureActivity` par les paramètres de diagnostic ; les transformations de DCR ne sont pas prises en charge pour cette table. Si l'ancienne méthode de connexion est encore utilisée, sélectionnez **Disconnect All** sur la page du connecteur avant de configurer la nouvelle. Le journal d'activité lui-même conserve 90 jours ; l'ingestion des journaux d'activité envoyés à un espace de travail n'est pas facturée, et la rétention n'est facturée qu'au-delà des 90 jours par défaut.
 
 ```kusto
 AzureActivity
@@ -206,7 +206,7 @@ Règles à retenir :
 - Après une modification de schéma, mettez à jour les DCR vous-même : Azure Monitor ne le fait pas.
 - Autorisations : `Microsoft.OperationalInsights/workspaces/*` pour gérer la table (Log Analytics Contributor) et `Microsoft.Insights/dataCollectionRules/write` pour créer la DCR (Monitoring Contributor).
 
-Les données arrivent dans la table par **Custom Logs via AMA** (fichiers texte sur un serveur) ou par l'**API d'ingestion de journaux**. Pour l'API : inscrivez une application Microsoft Entra, créez d'abord la table, créez la DCR, puis attribuez à l'application le rôle **Monitoring Metrics Publisher** sur la DCR. Un point de terminaison de collecte de données n'est nécessaire qu'avec une liaison privée ou quand la DCR n'a pas de point de terminaison d'ingestion de journaux. L'API exige TLS 1.2 ou ultérieur.
+Les données arrivent dans la table par **Custom Logs via AMA** (fichiers texte sur un serveur) ou par l'**API d'ingestion de journaux**. Pour l'API : inscrivez une application Microsoft Entra, créez d'abord la table, créez la DCR, puis attribuez à l'application le rôle **Monitoring Metrics Publisher** sur la DCR. Un point de terminaison de collecte de données n'est nécessaire qu'avec une liaison privée ou quand la DCR n'a pas de point de terminaison d'ingestion de journaux ; l'Assistant de journal personnalisé du portail en demande toutefois toujours un : créez-le d'abord dans la région de l'espace de travail. L'API exige TLS 1.2 ou ultérieur.
 
 ```kusto
 // DCR transformation: build TimeGenerated and keep only useful columns
@@ -222,7 +222,7 @@ source
 
 - Connecteur = table : `SecurityEvent` (AMA), `WindowsEvent` (WEF), `Syslog`, `CommonSecurityLog` (CEF), `AzureActivity`, tables personnalisées `_CL`.
 - Les machines non Azure ont besoin d'Azure Arc avant tout connecteur basé sur AMA ; les DCR filtrent à la source pour réduire les coûts.
-- Jeux d'événements : All, Common (piste d'audit complète), Minimal (orienté menaces, sans piste d'audit), Custom (XPath 1.0, 20 expressions par zone).
+- Jeux d'événements : All, Common (piste d'audit complète), Minimal (orienté menaces, sans piste d'audit), Custom (XPath 1.0, jusqu'à 20 expressions).
 - WEF centralise la collecte sur un serveur WEC ; Network Service dans Event Log Readers ; les règles intégrées sur `SecurityEvent` ne voient pas les données de `WindowsEvent`.
 - Syslog et CEF passent par un redirecteur Linux ; séparez les facilities pour éviter les doublons.
 - Attribution Azure Policy plus tâche de correction pour les ressources existantes ; Owner à l'étendue de l'attribution.

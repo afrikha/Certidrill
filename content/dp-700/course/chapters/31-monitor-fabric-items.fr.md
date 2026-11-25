@@ -5,24 +5,24 @@ Fabric offre plusieurs endroits pour suivre ce qui s'exécute, du hub de surveil
 
 | Exigence | Outil |
 | --- | --- |
-| Voir dans une seule liste les exécutions de pipelines, dataflows, notebooks, définitions de tâche Spark, tâches de copie (Copy job) et modèles sémantiques, filtrées par type d'élément, statut et espace de travail | Hub de surveillance, page **Job runs** |
+| Voir dans une seule liste les exécutions de pipelines, dataflows, notebooks, définitions de tâche Spark, tâches de copie (Copy job) et modèles sémantiques, filtrées par type d'élément, statut et espace de travail | Hub de surveillance (Monitoring hub, filtres Status, Item Type, Start Time, Submitter, Location), ou page **Job runs** du nouveau hub de surveillance (préversion) |
 | Voir les exécutions récentes d'un élément, avec l'auteur, le statut et la durée | **Recent runs** de l'élément (menu de l'élément dans l'espace de travail) |
 | Examiner les activités d'une exécution de pipeline, avec un diagramme de Gantt | La page de détail de l'exécution du pipeline |
 | Examiner les travaux Spark, les exécuteurs et les journaux du pilote d'un notebook | Page de détail de l'application Spark, puis l'interface Spark UI |
 | Suivre les événements qui traversent un flux d'événements (eventstream), et ses erreurs | Onglets **Data insights** et **Runtime logs** de l'eventstream |
-| Conserver les journaux d'exécution de nombreux éléments, les interroger en KQL, créer des tableaux de bord | Supervision de l'espace de travail (les journaux arrivent dans un eventhouse) |
+| Conserver les journaux d'exécution de nombreux éléments, les interroger en KQL, créer des tableaux de bord | Supervision de l'espace de travail, préversion (les journaux arrivent dans un eventhouse) |
 | Trouver quel élément consomme la capacité, les pics de demande | Application Microsoft Fabric Capacity Metrics |
 | Analyser les requêtes T-SQL terminées d'un entrepôt | Vues `queryinsights` |
-| Être prévenu quand une tâche échoue ou réussit | Alertes (alertes du hub de surveillance, e-mails d'échec planifié, Activator) |
+| Être prévenu quand une tâche échoue ou réussit | Alertes (notifications d'échec dans la planification de l'élément, règles Activator sur les événements de tâche, alertes du hub de surveillance en préversion) |
 
-Tout utilisateur de Fabric peut ouvrir le hub de surveillance, mais il ne voit que les éléments qu'il a le droit de consulter. Le nouveau hub de surveillance (préversion) comporte des pages comme **Job runs**, **Capacity and cost** et **Alerts** ; l'ancien hub de surveillance (Monitoring hub) reste disponible.
+Tout utilisateur de Fabric peut ouvrir le hub de surveillance, mais il ne voit que les éléments qu'il a le droit de consulter. Le nouveau hub de surveillance (préversion) comporte des pages comme **Job runs**, **Capacity and cost** et **Alerts**, et ses alertes de tâche sont aussi en préversion ; l'ancien hub de surveillance (Monitoring hub) reste disponible et n'est pas en préversion.
 
 > **Piège d'examen.** Le hub de surveillance montre des exécutions, pas des données. Pour savoir pourquoi des lignes manquent dans une table, ouvrez le détail de l'exécution (sortie de l'activité, détails de l'actualisation) ; pour conserver des semaines de journaux et les interroger, activez la supervision de l'espace de travail.
 
 <!-- section: monitor-ingestion | objectives: 3.1.1 -->
 ## Monitorer l'ingestion des données
 
-**Page Job runs (nouveau hub de surveillance).** Chaque ligne montre le statut de la dernière exécution d'un élément, sa durée moyenne et un résumé de ses cinq dernières exécutions. Filtres : une plage de temps, **Item type**, **Status** et **Workspace** ; la zone de recherche par mot-clé ne porte que sur les éléments chargés dans la page courante. La page ne s'actualise pas en continu : sélectionnez **Refresh**. Sélectionner une ligne ouvre les détails de la dernière exécution (auteur, ce qui a déclenché l'exécution) et l'historique des exécutions. Sélectionner une exécution ouvre **Run details**, avec les activités sous forme de tableau ou de diagramme de Gantt. Pour une exécution de pipeline en échec, **Investigate** (préversion) lance une investigation en lecture seule par l'agent Operations, qui propose les causes probables sans modifier le pipeline.
+**Page Job runs (nouveau hub de surveillance, préversion).** Chaque ligne montre le statut de la dernière exécution d'un élément, sa durée moyenne et un résumé de ses cinq dernières exécutions. Filtres : une plage de temps, **Item type**, **Status** et **Workspace** ; la zone de recherche par mot-clé ne porte que sur les éléments chargés dans la page courante. La page ne s'actualise pas en continu : sélectionnez l'icône **Reload** (appelée **Refresh** dans la liste des tâches de la page). Sélectionner une ligne ouvre les détails de la dernière exécution (auteur, ce qui a déclenché l'exécution) et l'historique des exécutions. Sélectionner une exécution ouvre **Run details**, avec les activités sous forme de tableau ou de diagramme de Gantt. Pour une exécution de pipeline en échec, **Investigate** (préversion) lance une investigation en lecture seule par l'agent Operations, qui propose les causes probables sans modifier le pipeline.
 
 Les types d'éléments pris en charge comprennent les pipelines, les tâches de copie, Dataflow Gen2, les notebooks, les définitions de tâche Spark, les lakehouses, les modèles sémantiques et les fonctions de données utilisateur, mais pas Dataflow Gen1. Une exécution qui reste **Queued** attend des ressources : vérifiez la capacité.
 
@@ -30,7 +30,7 @@ Les types d'éléments pris en charge comprennent les pipelines, les tâches de 
 
 **Dans l'éditeur de pipeline.** L'onglet **Output** sous le canevas montre la dernière exécution activité par activité, avec l'entrée, la sortie et l'erreur de chacune. La sortie d'une activité Copy montre ce qui a réellement été utilisé, comme `usedDataIntegrationUnits` et les copies parallèles.
 
-**Eventstreams.** Sélectionnez un nœud sur le canevas, puis l'onglet **Data insights**. Le nœud de l'eventstream trace **IncomingMessages**, **OutgoingMessages**, **IncomingBytes** et **OutgoingBytes**. Les nœuds source et destination comme Azure Event Hubs, un lakehouse ou un eventhouse en mode *Event processing before ingestion* offrent des métriques plus riches :
+**Eventstreams.** Sélectionnez un nœud sur le canevas, puis l'onglet **Data insights**. Le nœud de l'eventstream trace **IncomingMessages**, **OutgoingMessages**, **IncomingBytes** et **OutgoingBytes**. Les nœuds Azure Event Hubs, Azure IoT Hub, lakehouse, eventhouse (mode *Event processing before ingestion*), flux dérivé (derived stream) et Activator offrent des métriques plus riches :
 
 | Métrique | À surveiller pour |
 | --- | --- |
@@ -40,6 +40,8 @@ Les types d'éléments pris en charge comprennent les pipelines, les tâches de 
 | Data conversion errors | Les événements de sortie qui ne correspondent pas au schéma de sortie attendu |
 | Deserialization errors | Les événements d'entrée illisibles (mauvais format) |
 | Watermark delay | Le retard du traitement sur le temps réel, en secondes |
+
+Les sources de connecteur de streaming (Apache Kafka, Amazon Kinesis, Google Cloud Pub/Sub, sources CDC et autres) offrent un troisième ensemble : Source Outgoing Events, Source Incoming Events, Connector Errors Logged, Connector Processing Errors, Connector Processing Failures et Connector Events Skipped.
 
 L'onglet **Runtime logs** affiche les journaux du moteur à trois niveaux (avertissement, erreur, information). Les deux onglets demandent au moins le rôle Viewer.
 
@@ -106,9 +108,12 @@ La supervision de l'espace de travail (workspace monitoring, préversion) collec
 | Charge de travail | Télémétrie |
 | --- | --- |
 | Data Factory | Exécutions d'activités de pipeline, tâches de copie, Dataflow Gen2 |
-| Data Warehouse | Journaux d'exécution des requêtes des entrepôts et des points de terminaison d'analytique SQL |
+| Data Warehouse | Journaux d'exécution des requêtes des entrepôts, des points de terminaison d'analytique SQL et des instantanés d'entrepôt |
+| Mirroring | Journaux d'exécution des bases de données mises en miroir |
+| Databases, Data Engineering | Métriques des bases de données SQL ; métriques et journaux d'opérations des API GraphQL |
 | Power BI | Journaux d'opérations des modèles sémantiques |
-| Real-Time Intelligence | Requêtes, commandes et résultats d'ingestion des eventhouses ; statut et métriques d'erreur des eventstreams |
+| Real-Time hub | Journaux des événements de tâche |
+| Real-Time Intelligence | Requêtes, commandes et résultats d'ingestion des eventhouses ; statut et métriques d'erreur des eventstreams ; notifications des règles Activator ; journaux d'opérations des tableaux de bord en temps réel et des ensembles de requêtes KQL |
 
 > **Piège d'examen.** La supervision de l'espace de travail démarre vide : elle ne peut pas expliquer un échec survenu avant son activation. Pour les exécutions passées, utilisez le hub de surveillance et l'historique d'exécution de l'élément.
 
@@ -117,17 +122,17 @@ La supervision de l'espace de travail (workspace monitoring, préversion) collec
 
 | Exigence | Alerte |
 | --- | --- |
-| E-mail gratuit quand une exécution **planifiée** d'un pipeline, d'un notebook ou d'un dataflow échoue | E-mails d'échec planifié (hub de surveillance > **Alerts**, ou **Schedule** > **Failure notifications** de l'élément) |
-| Alerte sur d'autres événements de tâche (Started, Succeeded), avec messages Teams ou action automatisée | Règle d'alerte basée sur Activator (payante), créée depuis **Job runs** > **Create and manage alerts** > **Alerts (paid)** |
+| E-mail gratuit quand une exécution **planifiée** d'un pipeline, d'un notebook ou d'un dataflow échoue | **Schedule** > **Failure notifications** de l'élément (aussi présentées comme **Schedule failure emails** dans hub de surveillance > **Alerts**, préversion) |
+| Alerte sur d'autres événements de tâche (Started, Succeeded), avec messages Teams ou action automatisée | Règle Activator sur les événements de tâche dans Real-Time hub, ou règle d'alerte basée sur Activator (payante, préversion) créée depuis **Job runs** > **Create and manage alerts** > **Alerts (paid)** |
 | E-mail quand une actualisation planifiée d'un modèle sémantique échoue | Les paramètres de notification d'échec d'actualisation du modèle |
 | Message dans le flux du pipeline, avec les détails de l'exécution | Activité Teams sur le chemin Upon Failure |
 | Alerte quand une valeur d'un flux franchit un seuil, par appareil ou par client | Règle Activator sur un eventstream |
 | Alerte sur un visuel Power BI ou un tableau de bord en temps réel | Règle Activator créée depuis le visuel |
 | Réagir à un élément créé ou supprimé, à un fichier arrivé dans OneLake, à une tâche en échec | Événements Fabric dans Real-Time hub, avec une règle Activator |
 
-Les **e-mails d'échec planifié** ne couvrent que les exécutions planifiées. Les destinataires sont des utilisateurs ou des groupes du locataire Microsoft Entra (invités B2B compris), pas des adresses externes. Les configurer demande au moins le rôle Contributor sur l'espace de travail ou l'autorisation Write sur l'élément. Les modèles sémantiques ne sont pas encore pris en charge dans la page **Schedule failures**.
+Les **notifications d'échec** (Failure notifications) se définissent par élément, s'appliquent à toutes ses planifications et ne couvrent que les exécutions planifiées ; le hub de surveillance et le planificateur de tâches utilisent les mêmes paramètres. Les destinataires sont des utilisateurs ou des groupes du locataire Microsoft Entra (invités B2B compris), pas des adresses externes. Selon la page des alertes du hub de surveillance, les configurer demande au moins le rôle Contributor sur l'espace de travail ou l'autorisation Write sur l'élément. Les modèles sémantiques ne sont pas encore pris en charge dans la page **Schedule failures**.
 
-Les **alertes de tâche basées sur Activator** prennent en charge les pipelines, les tâches Spark, les notebooks, les fonctions de données utilisateur, les entrepôts, les lakehouses, les bases de données mises en miroir, les bases de données SQL et les bases de données KQL. Elles demandent l'activation de la supervision de l'espace de travail (**Workspace settings** > **Monitoring**), au moins le rôle Contributor pour créer les éléments de supervision et Activator, et elles sont facturées comme consommation de capacité Activator.
+Les **alertes de tâche basées sur Activator** (préversion) prennent en charge les pipelines, les tâches Spark, les notebooks, les fonctions de données utilisateur, les entrepôts, les lakehouses, les bases de données mises en miroir, les bases de données SQL et les bases de données KQL. Elles demandent l'activation de la supervision de l'espace de travail (**Workspace settings** > **Monitoring**), au moins le rôle Contributor pour créer les éléments de supervision et Activator, et elles sont facturées comme consommation de capacité Activator.
 
 **Fabric Activator** est un moteur de détection sans code alimenté par des eventstreams, des événements Fabric et Azure, des rapports Power BI et des tableaux de bord en temps réel. Les événements sont regroupés en **objets** par une colonne d'ID (`device_id`), chacun avec des **propriétés**. Les règles sont sans état (chaque événement seul, par exemple une valeur inférieure à 50) ou avec état par objet (`BECOMES`, `INCREASES`, `DECREASES`, `EXIT RANGE`, et absence de données pour les contrôles de pulsation). Une règle se déclenche quand l'objet entre dans le nouvel état, de sorte qu'une condition qui reste vraie ne répète pas l'alerte. Actions : e-mail, message Teams, flux Power Automate, ou exécution d'un élément Fabric (pipeline, notebook, définition de tâche Spark, dataflow, tâche de copie, fonction de données utilisateur).
 
@@ -140,5 +145,5 @@ Les **alertes de tâche basées sur Activator** prennent en charge les pipelines
 - Historique Dataflow Gen2 : 50 actualisations ou six mois à l'écran ; journaux détaillés conservés 28 jours.
 - `queryinsights` conserve 30 jours de requêtes terminées, avec jusqu'à 15 minutes de délai.
 - Modèle sémantique : 8 ou 48 actualisations planifiées par jour ; planification désactivée après quatre échecs consécutifs ; e-mails d'échec seulement pour les actualisations planifiées ; actualisation Direct Lake = framing.
-- Supervision de l'espace de travail : journaux dans un eventhouse, désactivée par défaut, sans rattrapage, rétention de 30 jours, Contributor pour l'interroger.
-- Alertes : e-mails d'échec planifié gratuits (exécutions planifiées seulement) contre règles Activator payantes (tout événement de tâche, toute action).
+- Supervision de l'espace de travail (préversion) : journaux dans un eventhouse, désactivée par défaut, sans rattrapage, rétention de 30 jours, Contributor pour l'interroger.
+- Alertes : notifications d'échec gratuites dans la planification de l'élément (exécutions planifiées seulement) contre règles Activator sur les événements de tâche (toute exécution, toute action) ; les pages d'alertes du hub de surveillance sont en préversion.

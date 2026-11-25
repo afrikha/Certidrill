@@ -55,7 +55,7 @@ A **Log Analytics workspace** stores logs in tables. It belongs to a region, but
 **Guest data** uses the **Azure Monitor Agent** (the old Log Analytics agent is retired):
 
 1. Create the workspace.
-2. Create a **data collection rule** (DCR): which data (Windows event logs and levels, Syslog facilities, performance counters, text logs), and where to send it.
+2. Create a **data collection rule** (DCR): which data (Windows event logs and levels, Syslog facilities, performance counters, text logs), and where to send it. The DCR must be in the **same region as every workspace** it sends data to; for workspaces in several regions, create several DCRs.
 3. **Associate** the DCR with the machines; the portal installs the agent extension automatically. A machine can have several DCRs, and a DCR many machines.
 
 Machines outside Azure are first connected with **Azure Arc**.
@@ -142,6 +142,7 @@ Types of alert rules:
 
 - Metric thresholds are **static** (a value) or **dynamic** (learned from the metric's history, with a sensitivity). A dynamic threshold needs history before it can fire (at least three days of data) and can't be used in a rule with several conditions.
 - Metric and log alerts can be **stateful**: they fire once, then are *Resolved* when the condition clears. Activity log alerts are **stateless**: they fire at each event.
+- A log search alert scoped to a workspace fires **one alert on the workspace** for the whole query result. To get **one alert per resource**, **split by dimensions**: up to six string or numeric columns of the result, for example the **Azure Resource ID** column (the alert then targets the resource) or `Computer`. Each combination is evaluated separately and fires its own alert; with *Automatically resolve alerts* each one is resolved when its own condition clears.
 - An activity log can't tell you that CPU is high, and a metric alert can't tell you who deleted a resource: match the signal to the need.
 
 **Action group** content:
@@ -167,12 +168,14 @@ Insights are ready-made monitoring views per resource type.
 
 | Insight | Shows | Prerequisite |
 | --- | --- | --- |
-| **VM insights** | Guest performance (CPU, memory, disks, network) of machines and scale sets, trends, and optionally the **Map** of processes and connections | Azure Monitor Agent + a data collection rule sending to a workspace (the onboarding creates them); Map needs the Dependency agent |
+| **VM insights** | Guest performance (CPU, memory, disks, network) of machines and scale sets, and trends | Azure Monitor Agent + a data collection rule (the onboarding creates them) |
 | **Storage insights** | Availability, latency, transactions, capacity of all storage accounts | **None**: built on platform metrics |
 | **Network insights** | Health and metrics of all network resources, topology, access to Connection Monitor, flow logs and traffic analytics | None for the overview |
 | Container insights, Application Insights | Kubernetes clusters; application performance | Enabled per cluster or application |
 
-With the classic VM insights experience, the performance data lands in the `InsightsMetrics` table. Non-Azure machines must first be connected through Azure Arc.
+When you enable VM insights in the portal, **OpenTelemetry metrics** are the default and the recommended path for new deployments: they go to an Azure Monitor workspace and are queried with PromQL. The classic **logs-based metrics** go to a Log Analytics workspace (table `InsightsMetrics`). Non-Azure machines must first be connected through Azure Arc.
+
+The **Map** feature of VM insights (processes and connections) and its **Dependency agent** are **deprecated**: new machines can't be onboarded from the portal since September 30, 2025, and both retire on June 30, 2028. Don't choose them for a new deployment.
 
 <!-- section: network-watcher | objectives: 5.1.6 -->
 ## Network Watcher and Connection Monitor

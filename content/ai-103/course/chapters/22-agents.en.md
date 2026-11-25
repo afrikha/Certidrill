@@ -28,7 +28,7 @@ Agent types:
 | Type | What you provide | Fits |
 | --- | --- | --- |
 | Prompt agent | Model, instructions, tools; Foundry runs it | Most business agents, no infrastructure to manage |
-| Hosted agent | Your code (Agent Framework, LangGraph, OpenAI Agents SDK or other) as a container image or a .zip package | Custom orchestration, multi-agent systems, custom protocols |
+| Hosted agent | Your code (Agent Framework, LangGraph, Semantic Kernel or custom code; Python or C#) as a container image or a .zip package | Custom orchestration, multi-agent systems, custom protocols (Responses, Invocations, Activity, A2A) |
 
 Each `create_version` call creates a new **version**: you can compare versions and roll back.
 
@@ -112,14 +112,16 @@ The service extracts, consolidates (merges duplicates, resolves conflicts) and r
 | Function calling | Your own code | Your application |
 | OpenAPI | A REST API described by an OpenAPI 3.0 or 3.1 spec | The service calls the API |
 | Model Context Protocol (MCP) | The tools of a remote MCP server | The MCP server |
-| Azure Functions | A function app as a tool | Azure Functions |
+| Azure Functions | A queue-triggered function: Storage input and output queues, matched by `CorrelationId` | Azure Functions |
 | Azure AI Search, file search, Foundry IQ | Knowledge stores and search | The service |
 | Web search, Grounding with Bing | Current public web information | The service |
 | Code interpreter | Python in a sandbox, for calculations, charts and file processing | The service |
 | Agent-to-agent (A2A) | Delegation to another agent | The remote agent |
 | Content Understanding Tool | Multimodal files turned into Markdown or schema fields | Content Understanding |
 
-OpenAPI tool rules: every operation needs an `operationId` (letters, `-` and `_`), request bodies are `application/json`, one API key scheme per tool. Authentication goes through a project connection: anonymous, API key, bearer token in a custom keys connection, or project managed identity with the **audience** of the target API (for example `https://storage.azure.com`).
+OpenAPI tool rules: every operation needs an `operationId` (letters, `-` and `_`), request bodies are `application/json` or `application/json-patch+json`, one API key scheme per tool. Authentication goes through a project connection: anonymous, API key, bearer token in a custom keys connection, or project managed identity with the **audience** of the target API (for example `https://storage.azure.com`). Account managed identity is a legacy option to migrate from.
+
+The Azure Functions tool needs the standard agent setup (basic setup isn't supported) and the Storage Queue Data Contributor role for the project's and the function app's managed identities. An HTTP-triggered function is integrated through the OpenAPI tool instead.
 
 ```text
 weather_tool = OpenApiTool(
@@ -132,9 +134,9 @@ weather_tool = OpenApiTool(
 )
 ```
 
-MCP: `server_label` (unique per agent), `server_url`, `project_connection_id` for credentials, `allowed_tools`, `require_approval`. Non-streaming MCP calls time out after 100 seconds. A private MCP server needs the standard agent setup with your own virtual network.
+MCP: `server_label` (unique per agent), `server_url`, `project_connection_id` for credentials, `allowed_tools` (omitted or `[]` = all the server's tools), `require_approval` (default `always`). Non-streaming MCP calls time out after 100 seconds. A private MCP server needs the standard agent setup with private networking (your own virtual network) and a subnet delegated to `Microsoft.App/environments`.
 
-Azure AI Search tool: targets one index through a connection; the Foundry account's managed identity needs Search Index Data Contributor and Search Service Contributor for keyless access. **Toolboxes** group tools behind one managed MCP endpoint so several agents reuse them and their credentials.
+Azure AI Search tool (Learn now titles it the Foundry IQ (Azure AI Search) tool): targets one index through a connection; the Foundry account's managed identity needs Search Index Data Contributor and Search Service Contributor for keyless access. **Toolboxes** group tools behind one managed MCP endpoint so several agents reuse them and their credentials.
 
 | Requirement | Tool |
 | --- | --- |
@@ -163,11 +165,11 @@ Ways to build them in Foundry:
 
 | Option | Use |
 | --- | --- |
-| **A2A tool** (A2A 1.0, generally available) | A Foundry agent calls one remote agent and keeps control of the conversation; the target needs incoming A2A enabled and the caller the Foundry Agent Consumer role on its project |
+| **A2A tool** (A2A 1.0, generally available) | A Foundry agent calls one remote agent and keeps control of the conversation; the target needs incoming A2A enabled and the caller the Foundry Agent Consumer role on its project; creating the A2A connection needs Foundry Project Manager; text only, no streaming |
 | **Microsoft Agent Framework** workflows, deployed as a hosted agent | Code or declarative YAML orchestration with the patterns above; the recommended path |
 | **Foundry workflows** (preview) | Visual designer with sequential, group chat and human in the loop templates; retires December 1, 2026 (export the YAML) |
 
-The classic **connected agents** tool isn't available in the new Foundry Agent Service: migrate to the A2A tool or to workflows.
+The classic **connected agents** tool isn't available in the new Foundry Agent Service: migrate to the A2A tool, or orchestrate with Agent Framework workflows (Foundry workflows retire December 1, 2026).
 
 > **Exam trap.** Multi-agent isn't the answer to "the agent needs one more data source": add a tool. Choose multi-agent for separation of responsibilities, permissions or models.
 
@@ -218,15 +220,15 @@ rule = project.evaluation_rules.create_or_update(
 )
 ```
 
-`max_hourly_runs` (default 100) caps evaluation runs per hour; runs beyond it are skipped. The project's managed identity needs the Foundry User role for continuous evaluation.
+`max_hourly_runs` (default 100) caps evaluation runs per hour; runs beyond it are skipped. The project's managed identity needs the Foundry User role for continuous evaluation. Log-based views also need the Log Analytics Reader role on the workspace (plus Privileged Monitoring Data Reader for protected tables).
 
 **Agent evaluators**:
 
 | Question | Evaluator |
 | --- | --- |
-| Did the agent understand what the user wanted? | Intent Resolution |
-| Did it follow its instructions and constraints? | Task Adherence |
-| Did it finish the task with a usable result? | Task Completion |
+| Did the agent understand what the user wanted? | Intent Resolution (preview) |
+| Did it follow its instructions and constraints? | Task Adherence (preview) |
+| Did it finish the task with a usable result? | Task Completion (preview) |
 | Right tools, right parameters, no redundant calls? | Tool Call Accuracy |
 | Necessary tools chosen, no unnecessary ones? | Tool Selection |
 | Arguments valid against the schema and grounded? | Tool Input Accuracy |
@@ -234,7 +236,7 @@ rule = project.evaluation_rules.create_or_update(
 | Tool calls ran without technical errors? | Tool Call Success |
 | Expected sequence of steps? | Task Navigation Efficiency |
 
-Tool and task evaluators read the agent's structured output (`{{sample.output_items}}`), which includes the tool calls. Learn advises avoiding the tool evaluators when the conversation calls Azure AI Search, Bing grounding, code interpreter or web search.
+Tool and task evaluators read the agent's structured output (`{{sample.output_items}}`), which includes the tool calls. Learn advises avoiding Tool Call Accuracy, Tool Input Accuracy, Tool Output Utilization, Tool Call Success and Groundedness when the conversation calls Foundry IQ (Azure AI Search), Grounding with Bing, Bing Custom Search, SharePoint grounding, code interpreter, Fabric data agent or web search.
 
 **Error analysis** reads the trace of a failed run: the `execute_tool` span shows the arguments and result of each call, and durations show where latency comes from.
 
@@ -257,6 +259,7 @@ Then cluster failures, change one thing, re-evaluate and compare versions.
 - Function calling: your app runs the function; OpenAPI and MCP: the service calls them. Runs expire after 10 minutes.
 - OpenAPI needs `operationId`; MCP calls time out at 100 seconds; Azure AI Search tool targets one index.
 - Multi-agent: A2A tool for delegation, Agent Framework for orchestration patterns; Foundry workflows designer retires December 1, 2026; connected agents aren't available.
+- MCP `require_approval` defaults to `always`; the Azure Functions tool is queue-based and needs the standard agent setup.
 - Guaranteed human approval comes from tool or workflow configuration, not instructions.
 - Monitor tab: tokens, latency, success rate, evaluations. Continuous evaluation rule: `max_hourly_runs` 100.
-- Agent evaluators: Intent Resolution, Task Adherence, Task Completion, Tool Call Accuracy and the other tool evaluators.
+- Agent evaluators: Intent Resolution, Task Adherence and Task Completion (all three preview), Tool Call Accuracy and the other tool evaluators.

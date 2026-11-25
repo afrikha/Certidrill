@@ -35,12 +35,12 @@ Distribution modes, set per rule (`loadDistribution`), can be changed without do
 | Portal: Session persistence | API value | Hash | Effect |
 | --- | --- | --- | --- |
 | None | `Default` | 5-tuple: source IP, source port, destination IP, destination port, protocol | A new connection from the same client can reach another instance |
-| Client IP | `SourceIP` | 2-tuple: source IP, destination IP | Same client IP, same instance |
-| Client IP and protocol | `SourceIPProtocol` | 3-tuple: adds the protocol | A TCP control channel and a UDP data flow from one client reach the same instance; fixes Remote Desktop Gateway |
+| Client IP | `SourceIP` | 2-tuple: source IP, destination IP | Same client IP, same instance, whatever the protocol: a TCP control channel and a UDP data flow from one client (media upload) reach the same instance |
+| Client IP and protocol | `SourceIPProtocol` | 3-tuple: adds the protocol | Same client IP and protocol, same instance: a client's TCP and UDP flows can reach different instances; fixes Remote Desktop Gateway |
 
-Admin state overrides the probe per backend pool instance: **Up** always eligible, **Down** no new connections (established TCP flows continue), **None** follows the probe. It requires a probed load-balancing rule and isn't supported with inbound NAT rules.
+Admin state overrides the probe per backend pool instance: **Up** always eligible, **Down** no new connections (established TCP flows continue, existing UDP flows move to another healthy instance), **None** follows the probe. A VM in two backend pools keeps its state in the other pool. It requires a probed load-balancing rule, isn't supported with inbound NAT rules and can't be set while you create a NIC-based backend pool.
 
-Limits that shape a design (Standard): 1,500 rules (load-balancing plus inbound NAT) per load balancer, 600 frontend IP configurations, 600 outbound rules, 5,000 instances per backend pool, 300 rules per NIC, one HA ports rule per internal frontend.
+Limits that shape a design (Standard): 1,500 rules (load-balancing plus inbound NAT) per load balancer, 600 frontend IP configurations, 600 outbound rules, 5,000 instances per backend pool, 300 rules per NIC, one HA ports rule per internal frontend. Several HA ports rules on one internal load balancer need a unique frontend IP address each and Floating IP enabled on all of them. Flow symmetry isn't supported for NVAs placed between a public and an internal load balancer: use Gateway Load Balancer for that case.
 
 > **Exam trap.** Load Balancer can't terminate TLS, route by URL path or host name, rewrite headers or host a WAF. Any requirement at layer 7 points to Application Gateway (regional) or Front Door (global). Load-balancing and inbound NAT rules carry only TCP and UDP; ICMP works only through an HA ports rule on an internal load balancer.
 
@@ -110,7 +110,7 @@ Start-AzBasicLoadBalancerUpgrade -ResourceGroupName RG1 -BasicLoadBalancerName l
 
 The **tier** is the second choice. **Regional** (default) serves backends in one region. **Global** is a public load balancer whose backend pool contains regional load balancers (see the last section).
 
-Zones are chosen on each frontend: **zone-redundant** (served from every zone, survives a zone failure), **zonal** (pinned to one zone, fails with it) or no zone in regions without zones. The public IP address decides it for a public frontend.
+Zones are chosen on each frontend: **zone-redundant** (served from every zone, survives a zone failure), **zonal** (pinned to one zone, fails with it) or no zone in regions without zones. The public IP address decides it for a public frontend. Learn recommends zone-redundant frontends for all workloads, even those deployed in a single zone. To change the zone configuration, create a new frontend IP configuration, move the rules to it and remove the old one: clients must use the new address.
 
 > **Exam trap.** VMs placed behind a new Standard load balancer don't answer until an NSG on their subnet or NIC allows the client traffic. The `AllowAzureLoadBalancerInBound` default rule lets the health probe in, not the clients.
 

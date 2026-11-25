@@ -25,7 +25,7 @@ Les RU d'écriture sont les mêmes à tous les niveaux. Minimums de l'obsolescen
 
 Les **jetons de session** sont propres à chaque partition. Un client qui n'a pas écrit dans une partition n'a pas de jeton pour elle, et ses lectures y sont de niveau éventuel. Quand plusieurs instances d'application servent le même utilisateur (ferme web), transmettez le jeton de la réponse d'écriture à la lecture suivante ; recréer le client vide son cache de jetons.
 
-Un client ou une requête peut **assouplir** la cohérence des lectures (jamais la rendre plus forte que celle du compte). Après avoir changé le niveau par défaut du compte, redémarrez les applications pour que les clients SDK soient recréés.
+Avec l'option `ConsistencyLevel`, un client ou une requête peut seulement **assouplir** la cohérence des lectures (jamais la rendre plus forte que celle du compte). L'exception est `ReadConsistencyStrategy` (préversion, SDK .NET 3.46+ et SDK Java 4.69+, mode Direct uniquement), qui peut imposer une lecture plus forte par requête. Après avoir changé le niveau par défaut du compte, redémarrez les applications pour que les clients SDK soient recréés.
 
 ```text
 // C#: relax reads for this client only
@@ -88,7 +88,7 @@ Pour estimer un budget, multipliez le coût mesuré de chaque opération par sa 
 
 La règle de Microsoft : faites la moyenne, sur le mois, de l'utilisation normalisée la plus élevée de chaque heure. En dessous de 66 %, l'autoscale est estimé moins cher ; au-dessus, restez en manuel. Avec des écritures multirégions, préférez l'autoscale (même tarif). Tarifs d'exemple de Learn (une seule région d'écriture) : manuel 0,008 $ et autoscale 0,012 $ pour 100 RU/s par heure.
 
-**Où se règle le débit.** Sur un **conteneur** (débit dédié, réservé à ce conteneur, couvert par le SLA ; recommandé) ou sur une **base de données** (débit partagé par 25 conteneurs au plus, sans garantie par conteneur ; un conteneur très sollicité peut limiter les autres). Les deux se combinent : un conteneur avec ses propres RU/s dans une base à débit partagé. Le choix partagé ou dédié se fait à la création et ne se convertit pas : déplacez les données vers un nouveau conteneur (tâches de copie de conteneur).
+**Où se règle le débit.** Sur un **conteneur** (débit dédié, réservé à ce conteneur, couvert par le SLA ; recommandé) ou sur une **base de données** (débit partagé par 25 conteneurs au plus, sans garantie par conteneur ; un conteneur très sollicité peut limiter les autres ; déconseillé pour la plupart des charges). Les deux se combinent : un conteneur avec ses propres RU/s dans une base à débit partagé. Le choix partagé ou dédié se fait à la création et ne se convertit pas : déplacez les données vers un nouveau conteneur (tâches de copie de conteneur).
 
 RU/s minimales jusqu'auxquelles vous pouvez descendre :
 
@@ -239,14 +239,14 @@ container = client.get_database_client("sales").get_container_client("orders")
 | Aucune clé dans la configuration | `DefaultAzureCredential` ou une identité managée, plus un rôle de plan de données Cosmos DB |
 | Trafic clairsemé, épuisement des ports éphémères | `PortReuseMode = PrivatePortPool`, `IdleTcpConnectionTimeout` de 20 minutes à 24 heures |
 
-Utilisez `async`/`await` partout : `.Result`, `.Wait()` et `GetAwaiter().GetResult()` bloquent des threads. Journalisez `response.Diagnostics` quand une requête dépasse votre seuil. Le SDK .NET exige une référence explicite au package `Newtonsoft.Json` 13.0.3 ou ultérieur, même quand vous sérialisez vos types avec `UseSystemTextJsonSerializerWithOptions`.
+Utilisez `async`/`await` partout : `.Result`, `.Wait()` et `GetAwaiter().GetResult()` bloquent des threads. Journalisez `response.Diagnostics` quand une requête dépasse votre seuil. Le SDK .NET exige une référence explicite au package `Newtonsoft.Json` 13.0.3 ou ultérieur (13.0.4 ou ultérieur avec le SDK 3.54.0+), même quand vous sérialisez vos types avec `UseSystemTextJsonSerializerWithOptions`.
 
 > **Piège d'examen.** En mode direct, si les ports 10000 à 20000 sont bloqués, les requêtes échouent avec 503 Service Unavailable : passez en mode passerelle (Gateway) ou ouvrez les ports.
 
 <!-- section: key-points -->
 ## Points clés
 
-- La cohérence par défaut est Session ; Strong et Bounded staleness doublent les RU de lecture, et Strong exclut les écritures multirégions. Les clients ne peuvent qu'assouplir les lectures.
+- La cohérence par défaut est Session ; Strong et Bounded staleness doublent les RU de lecture, et Strong exclut les écritures multirégions. `ConsistencyLevel` sur un client ou une requête ne peut qu'assouplir les lectures (`ReadConsistencyStrategy`, en préversion, peut les renforcer).
 - 1 RU = lecture ponctuelle d'un élément de 1 Ko ; les écritures croissent avec la taille et les propriétés indexées ; les RU/s s'appliquent dans chaque région.
 - Manuel pour une charge régulière, autoscale (0,1 × `Tmax` à `Tmax`, tarif × 1,5) pour une charge variable, serverless pour une charge intermittente monorégion.
 - Clé de partition, clés uniques, stratégie de conflits, mode de capacité et débit partagé ou dédié sont fixés à la création.

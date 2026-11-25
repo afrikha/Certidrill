@@ -8,13 +8,15 @@ The Foundry Models catalog lists models from Microsoft, OpenAI and other provide
 | Model category | Strength | Typical tasks | Examples on Learn |
 | --- | --- | --- | --- |
 | Large language model (LLM) | Broad knowledge, complex instructions, long context | Chat assistants, summarization, extraction with free-form prompts, agents | `gpt-4.1`, GPT-5 family |
-| Reasoning model | Plans and verifies before answering; slower and more tokens per answer | Multistep problems, math, code, complex planning | o-series (`o3`, `o4-mini`), GPT-5 family |
+| Reasoning model | Plans and verifies before answering; slower and more tokens per answer | Multistep problems, math, code, complex planning | GPT-5 and GPT-6 families |
 | Small language model (SLM) | Low latency, low cost, can run where resources are limited | Classification, routing, short extraction, high-volume simple tasks | `-mini` and `-nano` variants, Phi family |
 | Multimodal model | Text plus image (and for some, audio) as input | Describe an image, answer about a chart, read a screenshot | `gpt-4.1`, `gpt-4o` |
-| Audio and realtime model | Speech in and out with low latency | Voice assistants, call centers | `gpt-realtime`, `gpt-audio` |
+| Audio and realtime model | Speech in and out with low latency | Voice assistants, call centers | `gpt-realtime`, `gpt-audio`, `gpt-live-transcribe` |
 | Code model | Code generation and editing through the Responses API | Coding agents, code review | Codex models |
 | Embedding model | Turns text into vectors; generates no text | Vector search, RAG, similarity, clustering | `text-embedding-3-small`, `text-embedding-3-large` |
-| Image and video generation | Creates media from a prompt and reference media | Marketing visuals, product videos | `gpt-image-1`, `sora-2` (preview) |
+| Image and video generation | Creates media from a prompt and reference media | Marketing visuals, product videos | `gpt-image-1.5`, `gpt-image-2`, `sora-2` (preview) |
+
+The model retirement schedule gives `o3`, `o4-mini`, `o3-mini` and `o1` a retirement date of November 19, 2026, with GPT-5.6 models as replacements.
 
 **Foundry Tools** (formerly Azure AI services) are task-specific services: Azure Speech, Azure Language, Azure Translator, Azure Vision, Azure Content Understanding, Azure Document Intelligence and Azure Content Safety. They return a predictable, structured result for one task, with no prompt to write.
 
@@ -95,8 +97,10 @@ Then choose the retrieval pattern:
 
 | Pattern | How it works | Choose it when |
 | --- | --- | --- |
-| Classic RAG | Your code sends one query and passes the results to the LLM | Only GA features; simplicity and speed; existing orchestration code; fine control of the query |
-| Agentic retrieval (knowledge base) | An LLM plans several subqueries, runs them in parallel, and returns structured results with citations | Client is an agent or chatbot; complex or conversational questions; highest relevance |
+| Classic RAG | Your code sends one query and passes the results to the LLM | No knowledge-base orchestration needed; simplicity and speed; existing orchestration code; fine control of the query pipeline |
+| Agentic retrieval (knowledge base) | An LLM plans several subqueries, runs them in parallel, and returns structured results with citations | Client is an agent or chatbot; complex or conversational questions; highest relevance; new RAG implementations |
+
+Learn recommends starting new RAG implementations with agentic retrieval. Its planning and answer synthesis are generally available in REST API `2026-10-01`; other capabilities remain in preview.
 
 Finally choose how content gets into the index:
 
@@ -105,7 +109,7 @@ Finally choose how content gets into the index:
 | Indexer (pull) | Content sits in a supported Azure data source (Blob Storage, databases, SharePoint and others); scheduled, incremental indexing |
 | Push API | Content is preprocessed elsewhere or comes from an unsupported source |
 | Skillset | Chunk, vectorize, run OCR, analyze or verbalize images during indexing |
-| Integrated vectorization | Embeddings created during indexing (Azure OpenAI, Azure Vision or a custom vectorizer) and at query time |
+| Integrated vectorization | Embeddings created during indexing and at query time (Azure OpenAI or a Custom Web API vectorizer; the Azure Vision multimodal and Foundry model catalog options are preview) |
 | Chunking | Large documents: split them so that each part can be matched on its own |
 
 > **Exam trap.** If the stem says the model "invents answers" or "doesn't know our products", the fix is retrieval (grounding), not lowering the temperature. If it says users search with exact part numbers and also with natural-language questions, vector search alone isn't enough: choose hybrid.
@@ -132,12 +136,12 @@ An agent combines a model, instructions and tools. Foundry offers built-in tools
 | Function calling | The agent must call your code; the model returns the function name and arguments, your application runs it and returns the result |
 | OpenAPI | Call an existing REST API described by an OpenAPI specification |
 | MCP | Call tools exposed by a remote Model Context Protocol server |
-| Azure Functions | Run serverless code as a tool |
+| Azure Functions | Run serverless code as a tool, through Storage queues; standard agent setup only |
 | Code interpreter | Run Python in a sandbox: calculations, charts, file processing |
 | Browser automation, computer use | Operate web pages or a computer interface |
 | Agent-to-agent (A2A) | Delegate a task to another agent |
 
-A **toolbox** defines a curated set of tools once and exposes it through a single MCP-compatible endpoint shared by several agents, with central authentication and versioning. Function calling runs on the client side and can't go in a toolbox.
+A **toolbox** defines a curated set of tools once and exposes it through a single MCP-compatible endpoint shared by several agents, with central authentication and versioning. Seven tools can't go in a toolbox: function calling (it runs on the client side), Grounding with Bing, computer use, image generation, SharePoint, the Fabric data agent and Azure Functions.
 
 **Memory** keeps context:
 

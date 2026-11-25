@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { quizQuestions } from "@/lib/questions/usage";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { prisma } from "@/lib/db";
@@ -50,6 +51,7 @@ export default async function AdminCoursePreviewPage({ params, searchParams }: R
   if (!chapter) notFound();
   const t = await getTranslations("courseAdmin");
   const tCourse = await getTranslations("course");
+  const quizQuestionCount = await prisma.question.count({ where: quizQuestions({ status: { not: "retired" }, chapter: { code: chapter.code, certification: { code: certification } } }) });
   const shown: Locale[] = view === "both" ? [...locales] : [view];
   const html = Object.fromEntries(await Promise.all(shown.map(async (l) => [l, await renderIn(chapter, l)] as const))) as Partial<Record<Locale, Awaited<ReturnType<typeof renderIn>>>>;
   const columns = cn("grid gap-6", view === "both" && "lg:grid-cols-2");
@@ -75,6 +77,12 @@ export default async function AdminCoursePreviewPage({ params, searchParams }: R
           {chapter.fileStatus !== chapter.status && <span className="text-xs text-muted-foreground">{t("fileStatus", { status: tCourse(`status_${chapter.fileStatus}`) })}</span>}
           {chapter.status !== "retired" && (
             <Link href={`/course/${certification}/${chapter.code}`} className="text-sm text-primary underline">{t("asReaders")}</Link>
+          )}
+          {quizQuestionCount > 0 && (
+            <>
+              <Link href={`/admin/questions?${new URLSearchParams({ certification, usage: "quiz", chapter: chapter.code })}`} className="text-sm text-primary underline">{t("quizQuestions", { n: quizQuestionCount })}</Link>
+              <Link href={`/course/${certification}/${chapter.code}/quiz`} className="text-sm text-primary underline">{t("quizPreview")}</Link>
+            </>
           )}
         </div>
         <nav aria-label={t("view")} className="flex flex-wrap gap-2 text-sm">

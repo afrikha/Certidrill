@@ -15,17 +15,21 @@ Trois notions portent tout le service :
 
 Le schéma s'applique de façon **sémantique** : « Invoice No. », « Invoice # » ou un numéro sans libellé en haut de la page peuvent tous remplir le champ du numéro de facture, car l'analyseur cherche le sens, pas un libellé ou une position fixes.
 
+Chaque champ a aussi une méthode : `extract` reprend la valeur telle qu'elle figure dans le contenu (documents uniquement), `generate` laisse le modèle la produire, et `classify` la choisit dans une liste fixe de catégories. Un analyseur personnalisé hérite de l'analyseur de base de son type de contenu : `prebuilt-document`, `prebuilt-image`, `prebuilt-audio` ou `prebuilt-video`.
+
 | Analyseur | Renvoie | À utiliser pour |
 | --- | --- | --- |
 | `prebuilt-read` | Le texte : mots et paragraphes (OCR) | Lire du texte imprimé ou manuscrit |
 | `prebuilt-layout` | Le texte et sa structure : paragraphes, tableaux, sections | Conserver la disposition d'un document |
 | `prebuilt-invoice` | Les champs d'une facture : fournisseur, client, dates, articles, totaux | Les factures, sans définir de schéma |
 | `prebuilt-receipt` | Les champs d'un reçu | Tickets de caisse, notes de frais |
+| `prebuilt-idDocument` | Les champs des pièces d'identité | Passeports, permis de conduire, cartes d'identité |
+| `prebuilt-documentSearch` | Le contenu et la disposition, des descriptions des figures, un résumé, des segments prêts pour l'indexation vectorielle | L'ingestion de documents pour la génération augmentée de récupération (RAG) |
 | Analyseur personnalisé | Les champs de votre propre schéma | Un formulaire ou un type de document qu'aucun analyseur prédéfini ne couvre |
 
 Dans le portail Foundry, le terrain de jeu Content Understanding permet de choisir un analyseur, de l'exécuter sur un exemple ou sur votre propre fichier, et de lire le résultat : les champs extraits, la version Markdown du contenu et le JSON brut.
 
-> **Piège d'examen.** Les analyseurs d'OCR et de disposition renvoient ce qui est écrit, pas ce que cela signifie : le texte d'une facture, mais pas « le total est 1585.98 ». Pour obtenir des valeurs nommées, utilisez un analyseur doté d'un schéma, prédéfini (`prebuilt-invoice`) ou personnalisé. L'extraction de champs s'appuie sur un modèle génératif déployé dans la ressource Foundry ; les analyseurs read et layout n'en ont pas besoin.
+> **Piège d'examen.** Les analyseurs d'OCR et de disposition renvoient ce qui est écrit, pas ce que cela signifie : le texte d'une facture, mais pas « le total est 1585.98 ». Pour obtenir des valeurs nommées, utilisez un analyseur doté d'un schéma, prédéfini (`prebuilt-invoice`) ou personnalisé. L'extraction de champs s'appuie sur des modèles génératifs et d'embedding déployés dans la ressource Foundry et associés une fois par ressource comme ses déploiements de modèles par défaut ; les analyseurs read et layout n'en ont pas besoin.
 
 <!-- section: images | objectives: 2.4.2 -->
 ## Extraire des informations d'images
@@ -57,12 +61,14 @@ Un schéma pour des messages vocaux pourrait demander l'appelant, un résumé du
 
 Pour une réunion enregistrée, un schéma peut demander les participants, qui a parlé et ce qui a été dit, un résumé de la discussion et la liste des actions attribuées.
 
+La propriété `locales` d'un analyseur audio ou vidéo liste les langues attendues, surtout pour la transcription. Un analyseur vidéo échantillonne environ une image par seconde : un événement très bref peut donc être manqué.
+
 > **Conseil d'examen.** La reconnaissance vocale seule donne une transcription. Content Understanding donne la transcription et les champs d'un schéma. Si la question veut « le numéro de rappel » ou « un résumé de chaque appel » sous forme de données, la réponse est un analyseur audio de Content Understanding.
 
 <!-- section: client-app | objectives: 2.4.4 -->
 ## Une application légère avec Content Understanding
 
-Le SDK Python est le package `azure-ai-contentunderstanding`. Le client a besoin du point de terminaison de la ressource Foundry (`https://<resource>.services.ai.azure.com/`) et d'informations d'identification : une clé, ou Microsoft Entra ID avec `DefaultAzureCredential`.
+Le SDK Python est le package `azure-ai-contentunderstanding`. Le client a besoin du point de terminaison de la ressource Foundry (`https://<resource>.services.ai.azure.com/`) et d'informations d'identification : Microsoft Entra ID avec `DefaultAzureCredential`, ou une clé, que la documentation du SDK ne recommande que pour des tests avec des ressources de test. Pour définir les déploiements de modèles par défaut, votre compte a besoin du rôle Cognitive Services User sur la ressource, même s'il en est Owner.
 
 ```text
 from azure.ai.contentunderstanding import ContentUnderstandingClient
@@ -102,6 +108,7 @@ Le même code traite tous les types de contenu : pour analyser un enregistrement
 - Content Understanding : du contenu en entrée, du Markdown et du JSON structurés en sortie, pour les documents, les images, l'audio et la vidéo.
 - Analyseur : prédéfini ou personnalisé. Schéma : les champs voulus et leur structure, associés par le sens.
 - `prebuilt-read` et `prebuilt-layout` renvoient le texte et la structure ; `prebuilt-invoice` et `prebuilt-receipt` renvoient des champs.
+- Méthodes des champs : `extract` (documents uniquement), `generate`, `classify`.
 - Images : des champs générés d'après ce que montre l'image ; les images composées surtout de texte vont à un analyseur de documents.
 - Audio et vidéo : transcription et champs générés comme un résumé ; `prebuilt-audioSearch`, `prebuilt-callCenter`, `prebuilt-videoSearch`.
 - Client : `ContentUnderstandingClient`, `begin_analyze(analyzer_id=..., inputs=...)`, `poller.result()`, puis `contents`, `markdown` et `fields`.

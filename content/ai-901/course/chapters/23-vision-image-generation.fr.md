@@ -10,6 +10,8 @@ Un **modèle multimodal** comprend plusieurs types de données en même temps. L
 - dégager le sens de graphiques, diagrammes, captures d'écran, documents et photos ;
 - suivre une instruction en texte portant sur l'image, comme « list the visible defects in three bullet points ».
 
+GPT-4.1 et GPT-4.1-mini sont dépréciés : seuls les abonnements qui les ont déjà déployés peuvent créer de nouveaux déploiements, et leur mise hors service est prévue le 14 avril 2027.
+
 Pour le tester dans le portail Foundry :
 
 1. Déployez un modèle compatible avec la vision depuis le catalogue de modèles.
@@ -33,11 +35,15 @@ Les modèles de génération d'images font l'inverse de l'analyse d'images : ils
 
 | Modèle | Usage |
 | --- | --- |
-| **GPT-Image-1.5** | Le plus avancé de la famille : création haute fidélité et modification précise, pour l'image de marque, le marketing et le design |
-| **GPT-Image-1** | Génération à usage général : texte vers image, variantes et modification |
+| **GPT-Image-2.5** (Sunburst, Flare) | Disponibilité générale. Sunburst est le plus performant, pour la génération et la modification précise ; Flare est le plus rapide, optimisé pour la vitesse et le coût |
+| **GPT-Image-2** | Disponibilité générale. Génération en haute résolution, modification améliorée, préservation des visages ; latence et coût plus élevés |
+| **GPT-Image-1.5** | Création haute fidélité et modification précise, pour l'image de marque, le marketing et le design |
+| **GPT-Image-1** | Génération à usage général : texte vers image, variantes et modification. En préversion, avec une date de mise hors service au 28 octobre 2026 |
 | **GPT-Image-1-Mini** | Plus léger et moins cher : expérimentations, outils internes, gros volumes |
 | **FLUX** (Black Forest Labs) | Une famille partenaire pour des images photoréalistes et de styles variés |
-| **Sora** | Génération de vidéos à partir de texte, et à partir d'une image comme point de départ |
+| **Sora** | Génération de vidéos à partir de texte, et à partir d'une image comme point de départ. Sora 2, le modèle listé dans le catalogue, est en préversion |
+
+Les modèles GPT-Image-1 (1, 1.5 et Mini) sont disponibles en accès limité : vous demandez l'accès avant de les déployer. DALL-E 3 a été mis hors service le 4 mars 2026.
 
 Pour générer une image dans le portail, déployez un modèle de génération d'images : dans le catalogue de modèles, filtrez les tâches d'inférence sur **Text to image**. Le terrain de jeu d'images s'ouvre ; décrivez l'image voulue, avec son sujet, son style et ses couleurs, par exemple « A modern flat illustration of a robot holding a potted plant, pastel colors ». Une description précise donne un résultat plus proche de l'intention.
 
@@ -101,7 +107,7 @@ with open("output.png", "wb") as f:
 
 L'encodage base64 transforme des données binaires, comme une image, en texte qui peut voyager dans du JSON. C'est pourquoi une image locale est encodée en base64 avant d'être envoyée, et pourquoi une image générée doit être décodée avant d'être écrite dans un fichier.
 
-Une image peut aussi être générée via l'API Responses : la requête ajoute l'outil `{"type": "image_generation"}`, et l'image base64 revient dans un élément de sortie de type `image_generation_call`.
+Une image peut aussi être générée via l'API Responses : la requête ajoute l'outil `{"type": "image_generation"}`, et l'image base64 revient dans un élément de sortie de type `image_generation_call`. Dans ce cas, `model` est le déploiement d'un modèle de conversation ou de raisonnement compatible, et le déploiement du modèle de génération d'images est indiqué dans l'en-tête `x-ms-oai-image-generation-deployment`.
 
 > **Conseil d'examen.** Dans les deux extraits, `model` est le nom que vous avez donné au déploiement, pas le nom du modèle dans le catalogue. Un déploiement de GPT-4.1-mini nommé `my-vision-deployment` s'appelle avec `model="my-vision-deployment"`.
 
@@ -109,7 +115,7 @@ Une image peut aussi être générée via l'API Responses : la requête ajoute l
 ## Points clés
 
 - Image en entrée, texte en sortie : un modèle multimodal compatible avec la vision ; l'invite combine du texte et une ou plusieurs images.
-- Texte en entrée, image en sortie : un modèle de génération d'images (famille GPT-Image, FLUX) ; texte en entrée, vidéo en sortie : Sora, sous forme de travail asynchrone.
+- Texte en entrée, image en sortie : un modèle de génération d'images (famille GPT-Image, FLUX) ; texte en entrée, vidéo en sortie : Sora (préversion), sous forme de travail asynchrone.
 - Portail : chargez une image dans le terrain de jeu de modèles pour l'analyser ; utilisez le terrain de jeu d'images pour générer.
 - Code d'analyse : `responses.create` avec `input_text` et `input_image` ; résultat dans `output_text`.
 - Code de génération : `images.generate` avec `prompt` ; résultat en base64, décodé et enregistré dans un fichier.

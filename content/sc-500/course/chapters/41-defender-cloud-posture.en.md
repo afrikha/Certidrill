@@ -33,7 +33,7 @@ Defender CSPM components (extensions) are set in **Environment settings** > subs
 <!-- section: regulatory-compliance | objectives: 4.1.2 -->
 ## Evaluate compliance with security frameworks
 
-The **Regulatory compliance** dashboard shows each standard, its controls and the assessments behind each control. The **Microsoft cloud security benchmark (MCSB)** is assigned by default to every Azure subscription, AWS account and GCP project connected to Defender for Cloud. Adding other standards (for example NIST SP 800-53, PCI DSS, ISO 27001, CIS benchmarks, AWS and GCP standards) requires a paid plan; in **Environment settings** > scope > **Security policies**, enable the standard.
+The **Regulatory compliance** dashboard shows each standard, its controls and the assessments behind each control. The **Microsoft cloud security benchmark (MCSB)** is assigned by default to every Azure subscription, AWS account and GCP project connected to Defender for Cloud; AWS accounts also get **AWS Foundational Security Best Practices** and GCP projects **GCP Default**. Adding other standards (for example NIST SP 800-53, PCI DSS, ISO 27001, CIS benchmarks, AWS and GCP standards) requires a Defender plan other than Defender for Servers Plan 1 or Defender for APIs Plan 1; in **Environment settings** > scope > **Security policies**, enable the standard.
 
 | Assessment type | Behavior |
 | --- | --- |
@@ -81,7 +81,8 @@ Defender for Storage details that the exam uses:
 - Priced per storage account, plus per GB for malware scanning.
 - Malware scanning cap: **10,000 GB per storage account per month** by default, configurable for the subscription or per account; an alert fires at 75 % and when scanning pauses.
 - Enable at subscription level (covers existing and future accounts; exclude or override settings per account) or at storage account level.
-- Malicious blob results can drive Event Grid, Azure Functions or Logic Apps to delete or quarantine the blob.
+- Built-in remediation: **soft delete malicious blobs** (off by default, subscription or account level) soft-deletes each blob found malicious and turns on blob soft delete if it's off (retention 7 days by default, 1–365).
+- For a custom response (move to a quarantine container, notify), scan results drive Event Grid and Azure Functions, or a Logic Apps workflow automation on the malware alert.
 
 Enabling at scale: Azure Policy built-in definitions can enable plans on all subscriptions of a management group (DeployIfNotExists with a remediation task). Defender for Servers Plan 1 and Defender for Storage can also be set per resource; Plan 2 can only be disabled per resource.
 
@@ -99,7 +100,7 @@ Path: **Environment settings** > **Add environment** > **Amazon Web Services** o
 | Authentication | Federated trust with short-lived credentials (IAM roles), no stored keys | Workload identity federation and service account impersonation, no stored keys |
 | Permissions type | Default access or Least privilege access | Default access or Least privilege access |
 
-Azure-side prerequisites: **Contributor** on the subscription that hosts the connector; for CIEM (permissions management in Defender CSPM), also **Security Admin** and the `Application.ReadWrite.All` permission in the tenant. Check health in the **Connectivity status** column; recommendations appear within a few hours. When you enable a new plan on the connector, update and rerun the template or script.
+Azure-side prerequisites: **Contributor** on the subscription that hosts the connector; for CIEM (permissions management in Defender CSPM), also **Security Admin** and the `Application.ReadWrite.All` permission in the tenant. Check health in the **Connectivity status** column; recommendations appear within a few hours. When you enable a new plan on the connector, update and rerun the template or script. A management account (AWS) or organization (GCP) connector can exclude account IDs, or project numbers and folder IDs. An AWS account already connected to Microsoft Sentinel needs a dedicated procedure before it can be connected.
 
 With Defender for Servers on a connector, EC2 instances and GCP VMs are onboarded as **Azure Arc-enabled servers** automatically. On-premises machines are connected by installing the Azure Arc Connected Machine agent (see the servers chapter).
 
@@ -115,13 +116,15 @@ Vulnerability assessment for machines is built on **Microsoft Defender Vulnerabi
 | Agent-based | Defender for Servers Plan 1 or 2 + Defender for Endpoint integration | The Defender for Endpoint sensor on the machine |
 | Agentless | Defender for Servers Plan 2 or Defender CSPM + agentless scanning | Disk snapshots every 24 hours |
 
+Agentless scanning also checks secrets and EDR settings; agentless **malware** scanning (Microsoft Defender Antivirus) is only in Defender for Servers Plan 2.
+
 Settings: **Environment settings** > subscription > Servers > **Settings** > **Vulnerability assessment for machines** On > **Edit configuration** > select Microsoft Defender Vulnerability Management > **Apply** > **Save**. A single VM can also be enabled with the REST resource `Microsoft.Security/serverVulnerabilityAssessments/mdetvm`. Deploying the scanner requires Owner on the resource group; viewing findings requires Security Reader.
 
 Working with findings:
 
 - **Recommendations** > **Vulnerabilities**, group by resource, then open each recommendation: affected machine, CVEs, CVSS, fixed version and remediation.
 - Export at scale with Azure Resource Graph (`securityresources`, type `microsoft.security/assessments`).
-- To accept a risk, use a **recommendation exemption** (waiver or mitigated, with an expiration date). Disable rules on the recommendation **Machines should have vulnerability findings resolved** (by CVE, ID, category, CVSS score, minimum severity, patchable status) are being deprecated in favor of exemptions.
+- To accept a risk, use a **recommendation exemption** (waiver or mitigated, optionally with an expiration date in the Azure portal). Disable rules on the recommendation **Machines should have vulnerability findings resolved** (by CVE, ID, category, CVSS score, minimum severity, patchable status) are being deprecated in favor of exemptions.
 - With Plan 2, **Defender Vulnerability Management premium features** are available in the Microsoft Defender portal.
 
 ```kusto
@@ -164,7 +167,7 @@ Roles on the EASM resource: Owner and Contributor create and edit resources and 
 ## Key points
 
 - Foundational CSPM: secure score, recommendations, MCSB. Defender CSPM: attack paths, security explorer, agentless scanning, sensitive data, AI posture, EASM insights, governance.
-- MCSB is default; other standards need a paid plan; manual controls are attested; Security Reader can't read compliance data.
+- MCSB is default; other standards need a Defender plan other than Servers Plan 1 or APIs Plan 1; manual controls are attested; Security Reader can't read compliance data.
 - Plans are enabled per subscription, AWS account or GCP project; Storage malware scanning cap 10,000 GB per account per month.
 - AWS connector: CloudFormation, management account for organizations. GCP: `gcloud` script, workload identity federation. Contributor on the Azure subscription.
 - Vulnerability assessment = Defender Vulnerability Management, agent-based (Plan 1/2) or agentless (Plan 2/Defender CSPM); exemptions replace disable rules.

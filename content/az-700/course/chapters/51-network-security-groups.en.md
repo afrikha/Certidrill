@@ -29,7 +29,7 @@ az network nsg create \
 New-AzNetworkSecurityGroup -Name nsg-web -ResourceGroupName RG-Network -Location westeurope
 ```
 
-> **Exam trap.** The virtual IP address of the host, **168.63.129.16**, and 169.254.169.254 (DHCP, DNS, instance metadata, health monitoring) aren't filtered by your NSG rules unless you target them with the dedicated service tags (`AzurePlatformDNS`, `AzurePlatformIMDS`, `AzurePlatformLKM`). A "deny all" rule doesn't break DNS resolution through Azure DNS.
+> **Exam trap.** The virtual IP address of the host, **168.63.129.16**, and 169.254.169.254 (DHCP, DNS, instance metadata, health monitoring) aren't filtered by your NSG rules unless you target them with the dedicated service tags (`AzurePlatformDNS`, `AzurePlatformIMDS`, `AzurePlatformLKM`). A "deny all" rule doesn't break DNS resolution through Azure DNS. Azure Load Balancer health probes, which also come from 168.63.129.16, are the exception: NSGs must allow them (`AzureLoadBalancer` tag, default rule 65001), so a custom inbound deny-all rule marks the backend instances as down.
 
 <!-- section: nsg-rules | objectives: 5.1.5 -->
 ## Creating inbound and outbound security rules
@@ -100,7 +100,7 @@ Worked example. NSG1 on Subnet1 (10.1.1.0/24) contains: 100 Allow TCP 3389 from 
 <!-- section: associate-nsg | objectives: 5.1.2 -->
 ## Associating an NSG with a subnet or a network interface
 
-An NSG can be associated with **subnets** and with **network interfaces**. A subnet or a network interface has at most one NSG, but one NSG can be reused by many subnets and interfaces. The NSG must be in the same region (and, for a subnet, the same subscription) as the virtual network.
+An NSG can be associated with **subnets** and with **network interfaces**. A subnet or a network interface has at most one NSG, but one NSG can be reused by many subnets and interfaces. An NSG associated with a subnet must exist in the same subscription and region as the virtual network.
 
 When both levels have an NSG, traffic must be allowed by **both**:
 

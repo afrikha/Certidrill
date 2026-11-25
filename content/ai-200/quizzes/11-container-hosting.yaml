@@ -1,0 +1,513 @@
+chapter: 11-container-hosting
+questions:
+  # ------------------------------------------------------------------ 1
+  - id: ai200-qz-11-01
+    objective: "1.1.2"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        Adatum is writing a multi-step task file for ACR Tasks. After the step that builds the image `$Registry/rag/indexer:$ID`, the next step must start a container from this image and run `python -m pytest` in it.
+
+        Which step property should define this next step?
+      fr: |
+        Adatum rédige un fichier de tâche multiétape pour ACR Tasks. Après l'étape qui génère l'image `$Registry/rag/indexer:$ID`, l'étape suivante doit démarrer un conteneur à partir de cette image et y exécuter `python -m pytest`.
+
+        Quelle propriété d'étape doit définir cette étape suivante ?
+    body:
+      options:
+        - { id: a, text: "`build`" }
+        - { id: b, text: "`push`" }
+        - { id: c, text: "`cmd`" }
+        - { id: d, text: "`entryPoint`" }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          A `cmd` step runs a container from an image and passes the rest of the line to the image's entry point. Here it starts the image built by the previous step and runs the tests; a later `push` step can then depend on its result.
+        fr: |
+          Une étape `cmd` exécute un conteneur à partir d'une image et passe le reste de la ligne au point d'entrée de l'image. Ici, elle démarre l'image générée par l'étape précédente et exécute les tests ; une étape `push` ultérieure peut ensuite dépendre de son résultat.
+      options:
+        a: { en: "A `build` step builds an image with the `docker build` syntax; it doesn't run a container from the image.", fr: "Une étape `build` génère une image avec la syntaxe de `docker build` ; elle n'exécute pas de conteneur à partir de l'image." }
+        b: { en: "A `push` step sends built images to a registry; it doesn't run anything inside them.", fr: "Une étape `push` envoie des images générées vers un registre ; elle n'exécute rien à l'intérieur." }
+        d: { en: "`entryPoint` only overrides the entry point of the container that a step runs; it doesn't define a step by itself.", fr: "`entryPoint` remplace seulement le point d'entrée du conteneur qu'une étape exécute ; il ne définit pas une étape à lui seul." }
+    references:
+      - title: YAML Reference for Azure Container Registry (ACR) Tasks
+        url: https://learn.microsoft.com/en-us/azure/container-registry/container-registry-tasks-reference-yaml
+
+  # ------------------------------------------------------------------ 2
+  - id: ai200-qz-11-02
+    objective: "1.1.1"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        Proseware's pipeline pushes every build of its chatbot API to the tag `chat/api:dev` in the Azure container registry **crproseware**. A new build is pushed to `chat/api:dev`.
+
+        What happens to the image that `chat/api:dev` pointed to before this push?
+      fr: |
+        Le pipeline de Proseware envoie chaque build de son API de chatbot sur la balise `chat/api:dev` du registre de conteneurs Azure **crproseware**. Un nouveau build est envoyé sur `chat/api:dev`.
+
+        Que devient l'image vers laquelle pointait `chat/api:dev` avant cet envoi ?
+    body:
+      options:
+        - { id: a, text: { en: "It is deleted with its unique layers, and its storage is freed once the push completes.", fr: "Elle est supprimée avec ses couches uniques, et son stockage est libéré à la fin de l'envoi." } }
+        - { id: b, text: { en: "It stays in the registry as an untagged manifest, with its unique layers, until it is deleted.", fr: "Elle reste dans le registre comme manifeste non balisé, avec ses couches uniques, jusqu'à sa suppression." } }
+        - { id: c, text: { en: "It is updated in place: the new layers replace the old ones under the same manifest digest.", fr: "Elle est mise à jour sur place : les nouvelles couches remplacent les anciennes sous la même synthèse de manifeste." } }
+        - { id: d, text: { en: "It is locked with `write-enabled` set to false so that running deployments keep using it.", fr: "Elle est verrouillée avec `write-enabled` à false pour que les déploiements en cours continuent de l'utiliser." } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          Pushing again to a stable tag moves the tag to the new manifest and untags the previous image. Its manifest and the layer data it alone references remain in the registry and keep using storage until you delete the manifest by digest, purge it or let a retention policy remove it.
+        fr: |
+          Un nouvel envoi sur une balise stable déplace la balise vers le nouveau manifeste et retire la balise de l'image précédente. Son manifeste et les données de couches qu'il est seul à référencer restent dans le registre et continuent d'occuper du stockage, jusqu'à ce que vous supprimiez le manifeste par sa synthèse, que vous le purgiez ou qu'une stratégie de rétention le supprime.
+      options:
+        a: { en: "Nothing is deleted automatically: freeing the space requires deleting the manifest by digest or a cleanup feature.", fr: "Rien n'est supprimé automatiquement : libérer l'espace exige de supprimer le manifeste par sa synthèse ou une fonctionnalité de nettoyage." }
+        c: { en: "Images are immutable: a new build gets a new manifest with a new digest, and the old manifest is left untagged.", fr: "Les images sont immuables : un nouveau build obtient un nouveau manifeste avec une nouvelle synthèse, et l'ancien manifeste reste sans balise." }
+        d: { en: "ACR never locks images by itself; `write-enabled` false is set only by `az acr repository update`.", fr: "ACR ne verrouille jamais d'image de lui-même ; `write-enabled` à false n'est défini que par `az acr repository update`." }
+    references:
+      - title: Delete container images in Azure Container Registry
+        url: https://learn.microsoft.com/en-us/azure/container-registry/container-registry-delete
+      - title: Recommendations for tagging and versioning container images
+        url: https://learn.microsoft.com/en-us/azure/container-registry/container-registry-image-tag-version
+
+  # ------------------------------------------------------------------ 3
+  - id: ai200-qz-11-03
+    objective: "1.1.3"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Litware runs a Python OCR API as a Linux custom container in the App Service app **app-lit-ocr**. To reduce the attack surface, the image is built on a distroless base image: it contains the Python runtime and the application, but no shell and no SSH server.
+
+        A developer opens the SSH terminal of app-lit-ocr in the browser to inspect the running container, and the session can't be opened. What is the cause?
+      fr: |
+        Litware exécute une API OCR Python comme conteneur personnalisé Linux dans l'application App Service **app-lit-ocr**. Pour réduire la surface d'attaque, l'image est générée sur une image de base distroless : elle contient le runtime Python et l'application, mais ni shell ni serveur SSH.
+
+        Un développeur ouvre le terminal SSH d'app-lit-ocr dans le navigateur pour inspecter le conteneur en cours d'exécution, et la session ne peut pas s'ouvrir. Quelle est la cause ?
+    body:
+      options:
+        - { id: a, text: { en: "The image doesn't contain an SSH server started by the container's startup command.", fr: "L'image ne contient pas de serveur SSH démarré par la commande de démarrage du conteneur." } }
+        - { id: b, text: { en: "The image doesn't contain a shell that the browser terminal can start in the container.", fr: "L'image ne contient pas de shell que le terminal du navigateur puisse démarrer dans le conteneur." } }
+        - { id: c, text: { en: "The app setting `WEBSITES_ENABLE_APP_SERVICE_STORAGE` isn't set to `true` on the app.", fr: "Le paramètre d'application `WEBSITES_ENABLE_APP_SERVICE_STORAGE` n'est pas défini sur `true` dans l'application." } }
+        - { id: d, text: { en: "The app pulls its image with a managed identity instead of registry credentials.", fr: "L'application tire son image avec une identité managée au lieu d'informations d'identification du registre." } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          The browser terminal reaches the container through Kudu, which acts as an authenticated proxy, so the image needs no SSH server, SSH port or sshd startup command. It does need a shell (`/bin/bash` for the browser terminal): images without a shell, such as distroless images, can't open an interactive session.
+        fr: |
+          Le terminal du navigateur atteint le conteneur par Kudu, qui sert de proxy authentifié : l'image n'a besoin ni de serveur SSH, ni de port SSH, ni de commande de démarrage sshd. Elle a en revanche besoin d'un shell (`/bin/bash` pour le terminal du navigateur) : les images sans shell, comme les images distroless, ne peuvent pas ouvrir de session interactive.
+      options:
+        a: { en: "The browser terminal goes through Kudu and doesn't require an SSH server in the image; adding one wouldn't provide the missing shell.", fr: "Le terminal du navigateur passe par Kudu et n'exige pas de serveur SSH dans l'image ; en ajouter un n'apporterait pas le shell manquant." }
+        c: { en: "This setting controls whether `/home` persists and is shared across instances; it has no effect on terminal sessions.", fr: "Ce paramètre détermine si `/home` persiste et est partagé entre les instances ; il n'a aucun effet sur les sessions de terminal." }
+        d: { en: "The pull method only matters when the container starts; here the container is already running.", fr: "La méthode de tirage ne compte qu'au démarrage du conteneur ; ici, le conteneur est déjà en cours d'exécution." }
+    references:
+      - title: Configure a custom container for Azure App Service
+        url: https://learn.microsoft.com/en-us/azure/app-service/configure-custom-container
+
+  # ------------------------------------------------------------------ 4
+  - id: ai200-qz-11-04
+    objective: "1.1.1"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Woodgrove Bank builds a large GPU inference image on a self-hosted Azure virtual machine that runs Docker and the Azure CLI. The build job signs in with the VM's managed identity (`az login --identity`), runs `az acr login --name crwoodgrove` as its first step, compiles native libraries for about four hours, and then runs `docker push`.
+
+        The identity has the AcrPush role on the Azure container registry **crwoodgrove**, and shorter jobs push successfully. This job fails at `docker push` with an authentication error. The admin user of the registry must stay disabled.
+
+        What should you do?
+      fr: |
+        Woodgrove Bank génère une grande image d'inférence GPU sur une machine virtuelle Azure autohébergée qui exécute Docker et l'Azure CLI. Le travail de build se connecte avec l'identité managée de la machine virtuelle (`az login --identity`), exécute `az acr login --name crwoodgrove` comme première étape, compile des bibliothèques natives pendant environ quatre heures, puis exécute `docker push`.
+
+        L'identité dispose du rôle AcrPush sur le registre de conteneurs Azure **crwoodgrove**, et les travaux plus courts envoient leur image sans problème. Ce travail échoue à `docker push` avec une erreur d'authentification. L'utilisateur administrateur du registre doit rester désactivé.
+
+        Que devez-vous faire ?
+    body:
+      options:
+        - { id: a, text: { en: "Run `az acr login --name crwoodgrove` again just before the `docker push` step.", fr: "Exécuter de nouveau `az acr login --name crwoodgrove` juste avant l'étape `docker push`." } }
+        - { id: b, text: { en: "Add `--expose-token` to the first `az acr login` and pass the token to `docker login`.", fr: "Ajouter `--expose-token` au premier `az acr login` et passer le jeton à `docker login`." } }
+        - { id: c, text: { en: "Assign the Owner role on crwoodgrove to the identity instead of the AcrPush role.", fr: "Attribuer le rôle Owner sur crwoodgrove à l'identité au lieu du rôle AcrPush." } }
+        - { id: d, text: { en: "Replace the `docker push` step with an `az acr import` of the image built locally.", fr: "Remplacer l'étape `docker push` par un `az acr import` de l'image générée localement." } }
+    answer: { optionId: a }
+    explanation:
+      correct:
+        en: |
+          The registry token that `az acr login` obtains for a Microsoft Entra identity is valid for 3 hours. After four hours of compilation, Docker presents an expired token; signing in again right before the push gives Docker a fresh token for the same identity, without any password.
+        fr: |
+          Le jeton de registre qu'`az acr login` obtient pour une identité Microsoft Entra est valide 3 heures. Après quatre heures de compilation, Docker présente un jeton expiré ; se reconnecter juste avant l'envoi donne à Docker un nouveau jeton pour la même identité, sans aucun mot de passe.
+      options:
+        b: { en: "`--expose-token` returns the same kind of access token, also valid for 3 hours; obtained at the start, it would expire too.", fr: "`--expose-token` renvoie le même type de jeton d'accès, valide 3 heures lui aussi ; obtenu au début, il expirerait également." }
+        c: { en: "The permissions are already sufficient, since shorter jobs push; a broader role doesn't extend the token lifetime and breaks least privilege.", fr: "Les autorisations suffisent déjà, puisque les travaux plus courts envoient leur image ; un rôle plus large ne prolonge pas la durée du jeton et enfreint le moindre privilège." }
+        d: { en: "`az acr import` copies images from another registry; it can't upload an image that exists only in the local Docker engine.", fr: "`az acr import` copie des images depuis un autre registre ; il ne peut pas envoyer une image qui n'existe que dans le moteur Docker local." }
+    references:
+      - title: Authenticate with Azure Container Registry
+        url: https://learn.microsoft.com/en-us/azure/container-registry/container-registry-authentication
+
+  # ------------------------------------------------------------------ 5
+  - id: ai200-qz-11-05
+    objective: "1.1.2"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Contoso runs the following multi-step task file in the Azure container registry **crcontoso**. The QA team built the evaluation image `qa/eval-runner:3` and pushed it to crcontoso; the image doesn't exist on Docker Hub.
+
+        ```yaml
+        version: v1.1.0
+        steps:
+          - id: build
+            build: -t $Registry/rag/api:$ID .
+          - id: evaluate
+            cmd: qa/eval-runner:3 python run_evals.py
+          - id: push
+            push:
+              - $Registry/rag/api:$ID
+            when: ["evaluate"]
+        ```
+
+        Every run fails at the `evaluate` step because the image `qa/eval-runner:3` can't be found. What should you do?
+      fr: |
+        Contoso exécute le fichier de tâche multiétape suivant dans le registre de conteneurs Azure **crcontoso**. L'équipe QA a généré l'image d'évaluation `qa/eval-runner:3` et l'a envoyée dans crcontoso ; l'image n'existe pas sur Docker Hub.
+
+        ```yaml
+        version: v1.1.0
+        steps:
+          - id: build
+            build: -t $Registry/rag/api:$ID .
+          - id: evaluate
+            cmd: qa/eval-runner:3 python run_evals.py
+          - id: push
+            push:
+              - $Registry/rag/api:$ID
+            when: ["evaluate"]
+        ```
+
+        Chaque exécution échoue à l'étape `evaluate`, car l'image `qa/eval-runner:3` est introuvable. Que devez-vous faire ?
+    body:
+      options:
+        - { id: a, text: { en: "Change the `evaluate` step to `cmd: $Registry/qa/eval-runner:3 python run_evals.py`.", fr: "Remplacer l'étape `evaluate` par `cmd: $Registry/qa/eval-runner:3 python run_evals.py`." } }
+        - { id: b, text: { en: "Add `pull: true` to the `evaluate` step so that the image is pulled before the step runs.", fr: "Ajouter `pull: true` à l'étape `evaluate` pour que l'image soit tirée avant l'exécution de l'étape." } }
+        - { id: c, text: { en: "Add `when: [\"build\"]` to the `evaluate` step so that it waits for the end of the build step.", fr: "Ajouter `when: [\"build\"]` à l'étape `evaluate` pour qu'elle attende la fin de l'étape de build." } }
+        - { id: d, text: { en: "Add `entryPoint: python` to the `evaluate` step and remove `python` from its command.", fr: "Ajouter `entryPoint: python` à l'étape `evaluate` et retirer `python` de sa commande." } }
+    answer: { optionId: a }
+    explanation:
+      correct:
+        en: |
+          In a `cmd` step, an image name without a registry prefix is resolved on Docker Hub: `qa/eval-runner:3` means `docker.io/qa/eval-runner:3`, which doesn't exist. Prefixing the name with `$Registry`, the alias of the login server of the registry that runs the task, makes the step pull the image from crcontoso.
+        fr: |
+          Dans une étape `cmd`, un nom d'image sans préfixe de registre est résolu sur Docker Hub : `qa/eval-runner:3` signifie `docker.io/qa/eval-runner:3`, qui n'existe pas. Préfixer le nom par `$Registry`, l'alias du serveur de connexion du registre qui exécute la tâche, fait tirer l'image depuis crcontoso.
+      options:
+        b: { en: "`pull: true` only forces a fresh pull of the same reference, which still points to Docker Hub.", fr: "`pull: true` force seulement un nouveau tirage de la même référence, qui pointe toujours vers Docker Hub." }
+        c: { en: "Steps without `when` already run one after the other in file order; the failure comes from the image name, not from the order.", fr: "Les étapes sans `when` s'exécutent déjà l'une après l'autre dans l'ordre du fichier ; l'échec vient du nom de l'image, pas de l'ordre." }
+        d: { en: "Overriding the entry point changes the command run in the container, not the registry from which the image is pulled.", fr: "Remplacer le point d'entrée change la commande exécutée dans le conteneur, pas le registre depuis lequel l'image est tirée." }
+    references:
+      - title: YAML Reference for Azure Container Registry (ACR) Tasks
+        url: https://learn.microsoft.com/en-us/azure/container-registry/container-registry-tasks-reference-yaml
+
+  # ------------------------------------------------------------------ 6
+  - id: ai200-qz-11-06
+    objective: "1.1.1"
+    difficulty: 3
+    status: draft
+    type: dropdown
+    stem:
+      en: |
+        Fabrikam is creating one Azure container registry for each of four AI teams, in a region that supports availability zones. Each team stores less than 8 GiB of images. Each registry must meet the requirement of its team at the lowest cost:
+
+        - **crfabocr**: the images must remain available if one availability zone of the region fails.
+        - **crfabrag**: builds must pull their Docker Hub base images through a cache rule of the registry instead of directly from Docker Hub.
+        - **crfabfin**: the registry content must be encrypted with a customer-managed key stored in Azure Key Vault.
+        - **crfabedge**: only requests from the public IP address range of the edge build farm may reach the registry.
+
+        Which tier should you choose for each registry? Select the appropriate options in the answer area.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Fabrikam crée un registre de conteneurs Azure pour chacune de ses quatre équipes d'IA, dans une région qui prend en charge les zones de disponibilité. Chaque équipe stocke moins de 8 Gio d'images. Chaque registre doit satisfaire l'exigence de son équipe au coût le plus bas :
+
+        - **crfabocr** : les images doivent rester disponibles si une zone de disponibilité de la région tombe en panne.
+        - **crfabrag** : les builds doivent tirer leurs images de base Docker Hub par une règle de cache du registre plutôt que directement depuis Docker Hub.
+        - **crfabfin** : le contenu du registre doit être chiffré avec une clé gérée par le client stockée dans Azure Key Vault.
+        - **crfabedge** : seules les requêtes provenant de la plage d'adresses IP publiques de la ferme de build edge doivent atteindre le registre.
+
+        Quel niveau devez-vous choisir pour chaque registre ? Sélectionnez les options appropriées dans la zone de réponse.
+
+        Remarque : chaque sélection correcte vaut un point.
+    shuffle: false
+    body:
+      layout: text
+      template:
+        en: |
+          crfabocr: [[ocr]]
+          crfabrag: [[rag]]
+          crfabfin: [[fin]]
+          crfabedge: [[edge]]
+        fr: |
+          crfabocr : [[ocr]]
+          crfabrag : [[rag]]
+          crfabfin : [[fin]]
+          crfabedge : [[edge]]
+      slots:
+        - id: ocr
+          options:
+            - { id: basic, text: Basic }
+            - { id: standard, text: Standard }
+            - { id: premium, text: Premium }
+        - id: rag
+          options:
+            - { id: basic, text: Basic }
+            - { id: standard, text: Standard }
+            - { id: premium, text: Premium }
+        - id: fin
+          options:
+            - { id: basic, text: Basic }
+            - { id: standard, text: Standard }
+            - { id: premium, text: Premium }
+        - id: edge
+          options:
+            - { id: basic, text: Basic }
+            - { id: standard, text: Standard }
+            - { id: premium, text: Premium }
+    answer:
+      values: { ocr: basic, rag: standard, fin: premium, edge: premium }
+    explanation:
+      correct:
+        en: |
+          Zone redundancy is enabled by default in supported regions for every tier, so Basic already meets the crfabocr requirement. Artifact cache rules start at the Standard tier. Customer-managed keys and IP access rules are Premium-only features. The storage of each team fits in the 10 GiB included with every tier, so storage doesn't change the choice.
+        fr: |
+          La redondance de zone est activée par défaut dans les régions prises en charge pour tous les niveaux : Basic satisfait donc déjà l'exigence de crfabocr. Les règles de cache d'artefacts commencent au niveau Standard. Les clés gérées par le client et les règles d'accès IP sont des fonctionnalités réservées au niveau Premium. Le stockage de chaque équipe tient dans les 10 Gio inclus dans tous les niveaux : le stockage ne change pas le choix.
+      options:
+        standard: { en: "For crfabocr, Standard or Premium adds cost without adding zone redundancy, which Basic already has. For crfabfin and crfabedge, Standard has neither customer-managed keys nor IP access rules.", fr: "Pour crfabocr, Standard ou Premium ajoute du coût sans ajouter la redondance de zone, dont Basic dispose déjà. Pour crfabfin et crfabedge, Standard n'offre ni clés gérées par le client ni règles d'accès IP." }
+        basic: { en: "For crfabrag, Basic has no artifact cache rules; they start at Standard.", fr: "Pour crfabrag, Basic n'a pas de règles de cache d'artefacts ; elles commencent au niveau Standard." }
+    references:
+      - title: Azure Container Registry SKU features and limits
+        url: https://learn.microsoft.com/en-us/azure/container-registry/container-registry-skus
+
+  # ------------------------------------------------------------------ 7
+  - id: ai200-qz-11-07
+    objective: "1.1.2"
+    difficulty: 3
+    status: draft
+    type: single
+    stem:
+      en: |
+        Tailspin Toys keeps the source code of its document-summarization API in a GitHub Enterprise repository. The developers have no Docker engine. The image must be built in Azure and pushed to the Azure container registry **crtailspin** after every commit to the `main` branch, and no build may run when no commit was pushed.
+
+        The repository's CI system can sign in to Azure with a federated credential that has the required roles on crtailspin.
+
+        What should you do?
+      fr: |
+        Tailspin Toys conserve le code source de son API de résumé de documents dans un dépôt GitHub Enterprise. Les développeurs n'ont pas de moteur Docker. L'image doit être générée dans Azure et envoyée dans le registre de conteneurs Azure **crtailspin** après chaque commit sur la branche `main`, et aucun build ne doit s'exécuter si aucun commit n'a été envoyé.
+
+        Le système de CI du dépôt peut se connecter à Azure avec des informations d'identification fédérées qui disposent des rôles nécessaires sur crtailspin.
+
+        Que devez-vous faire ?
+    body:
+      options:
+        - { id: a, text: { en: "Create an ACR task whose context is the `main` branch of the repository, with a personal access token.", fr: "Créer une tâche ACR dont le contexte est la branche `main` du dépôt, avec un jeton d'accès personnel." } }
+        - { id: b, text: { en: "Create an ACR task with a timer trigger that builds the `main` branch of the repository every five minutes.", fr: "Créer une tâche ACR avec un déclencheur de minuteur qui génère la branche `main` du dépôt toutes les cinq minutes." } }
+        - { id: c, text: { en: "Create an ACR task with a base image update trigger on the image of the Dockerfile's `FROM` instruction.", fr: "Créer une tâche ACR avec un déclencheur de mise à jour de l'image de base sur l'image de l'instruction `FROM` du Dockerfile." } }
+        - { id: d, text: { en: "Add a CI workflow that runs `az acr build` with the checked-out code on every push to the `main` branch.", fr: "Ajouter un workflow de CI qui exécute `az acr build` avec le code extrait à chaque envoi sur la branche `main`." } }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          ACR Tasks doesn't support commit or pull request triggers for GitHub Enterprise repositories, so the repository's own CI must start the build on each push. `az acr build` is a quick task: it uploads the context and builds and pushes the image in Azure, so the CI runner needs only the Azure CLI, not a Docker engine.
+        fr: |
+          ACR Tasks ne prend pas en charge les déclencheurs de commit ni de pull request pour les dépôts GitHub Enterprise : c'est la CI du dépôt qui doit lancer le build à chaque envoi. `az acr build` est une tâche rapide : il envoie le contexte, puis génère et envoie l'image dans Azure ; l'exécuteur de CI n'a donc besoin que de l'Azure CLI, pas d'un moteur Docker.
+      options:
+        a: { en: "The commit trigger that such a task enables by default isn't supported for GitHub Enterprise repositories, so commits would never start it.", fr: "Le déclencheur de commit qu'une telle tâche active par défaut n'est pas pris en charge pour les dépôts GitHub Enterprise : les commits ne la lanceraient jamais." }
+        b: { en: "A timer runs on its schedule whether or not a commit was pushed, which breaks the requirement, and it can delay a build by up to five minutes.", fr: "Un minuteur s'exécute selon sa planification, qu'un commit ait été envoyé ou non, ce qui enfreint l'exigence, et il peut retarder un build de cinq minutes." }
+        c: { en: "A base image update trigger reacts to updates of the base image, not to commits of the application code.", fr: "Un déclencheur de mise à jour de l'image de base réagit aux mises à jour de l'image de base, pas aux commits du code de l'application." }
+    references:
+      - title: Automate container image builds and maintenance with Azure Container Registry tasks
+        url: https://learn.microsoft.com/en-us/azure/container-registry/container-registry-tasks-overview
+
+  # ------------------------------------------------------------------ 8
+  - id: ai200-qz-11-08
+    objective: "1.1.3"
+    difficulty: 3
+    status: draft
+    type: yesno_statements
+    stem:
+      en: |
+        Northwind Traders' App Service app **app-nw-rag** runs a Linux custom container. Its app settings include the following Key Vault references:
+
+        - `SEARCH_KEY`: `@Microsoft.KeyVault(VaultName=kv-nw;SecretName=search-key)`
+        - `OPENAI_KEY`: `@Microsoft.KeyVault(VaultName=kv-nw;SecretName=openai-key;SecretVersion=4f1c9e0b7d2a)`
+
+        The app's managed identity has the Key Vault Secrets User role on kv-nw, and both references resolve. On Monday at 09:00, the security team creates a new version of both secrets. Nobody calls the refresh endpoint of the app. At 11:00, a developer adds the unrelated app setting `LOG_LEVEL=debug` and saves the configuration.
+
+        For each of the following statements, select **Yes** if the statement is true. Otherwise, select **No**.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        L'application App Service **app-nw-rag** de Northwind Traders exécute un conteneur personnalisé Linux. Ses paramètres d'application comprennent les références Key Vault suivantes :
+
+        - `SEARCH_KEY` : `@Microsoft.KeyVault(VaultName=kv-nw;SecretName=search-key)`
+        - `OPENAI_KEY` : `@Microsoft.KeyVault(VaultName=kv-nw;SecretName=openai-key;SecretVersion=4f1c9e0b7d2a)`
+
+        L'identité managée de l'application dispose du rôle Key Vault Secrets User sur kv-nw, et les deux références sont résolues. Le lundi à 09:00, l'équipe de sécurité crée une nouvelle version des deux secrets. Personne n'appelle le point de terminaison d'actualisation de l'application. À 11:00, un développeur ajoute le paramètre d'application sans rapport `LOG_LEVEL=debug` et enregistre la configuration.
+
+        Pour chacune des affirmations suivantes, sélectionnez **Oui** si l'affirmation est vraie. Sinon, sélectionnez **Non**.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      statements:
+        - id: s1
+          text:
+            en: "After 11:00, the container receives the new version of `search-key` in `SEARCH_KEY`."
+            fr: "Après 11:00, le conteneur reçoit la nouvelle version de `search-key` dans `SEARCH_KEY`."
+        - id: s2
+          text:
+            en: "After 11:00, the container receives the new version of `openai-key` in `OPENAI_KEY`."
+            fr: "Après 11:00, le conteneur reçoit la nouvelle version d'`openai-key` dans `OPENAI_KEY`."
+        - id: s3
+          text:
+            en: "Without the 11:00 change, `SEARCH_KEY` could have kept the previous version for up to 24 hours after the rotation."
+            fr: "Sans la modification de 11:00, `SEARCH_KEY` aurait pu conserver la version précédente jusqu'à 24 heures après la rotation."
+    answer:
+      values: { s1: true, s2: false, s3: true }
+    explanation:
+      correct:
+        en: |
+          A reference without a version follows the latest version, but App Service caches the values and refetches them every 24 hours, so without any other event the new version can take up to 24 hours to arrive. Any change to the app configuration, even an unrelated app setting, restarts the app and refetches every reference immediately, so `SEARCH_KEY` gets the new version at 11:00. `OPENAI_KEY` names a version, so it keeps returning that version until the reference itself is changed.
+        fr: |
+          Une référence sans version suit la dernière version, mais App Service met les valeurs en cache et les relit toutes les 24 heures : sans autre événement, la nouvelle version peut donc mettre jusqu'à 24 heures pour arriver. Toute modification de la configuration de l'application, même un paramètre d'application sans rapport, redémarre l'application et relit immédiatement toutes les références : `SEARCH_KEY` obtient donc la nouvelle version à 11:00. `OPENAI_KEY` nomme une version : il continue de renvoyer cette version tant que la référence elle-même n'est pas modifiée.
+      options:
+        s2: { en: "The restart refetches the reference, but a reference with `SecretVersion` always resolves to that exact version.", fr: "Le redémarrage relit la référence, mais une référence avec `SecretVersion` se résout toujours vers cette version précise." }
+    references:
+      - title: Use Key Vault references as app settings in Azure App Service, Azure Functions, and Azure Logic Apps (Standard)
+        url: https://learn.microsoft.com/en-us/azure/app-service/app-service-key-vault-references
+
+  # ------------------------------------------------------------------ 9
+  - id: ai200-qz-11-09
+    objective: "1.1.3"
+    difficulty: 3
+    status: draft
+    type: multi
+    stem:
+      en: |
+        Adatum's App Service app **app-adt-qa** runs a Python question-answering API as a Linux custom container. The app setting `QA_KEY` is defined as `@Microsoft.KeyVault(VaultName=kv-adatum;SecretName=qa-key)`. The key vault **kv-adatum** uses the Azure RBAC permission model, and the system-assigned managed identity of the app has the Key Vault Secrets User role on kv-adatum.
+
+        The code fails because it receives the literal string `@Microsoft.KeyVault(VaultName=kv-adatum;SecretName=qa-key)` as the value of `QA_KEY`.
+
+        Which two issues could cause this behavior?
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        L'application App Service **app-adt-qa** d'Adatum exécute une API Python de questions-réponses comme conteneur personnalisé Linux. Le paramètre d'application `QA_KEY` est défini comme `@Microsoft.KeyVault(VaultName=kv-adatum;SecretName=qa-key)`. Le coffre de clés **kv-adatum** utilise le modèle d'autorisation Azure RBAC, et l'identité managée affectée par le système de l'application dispose du rôle Key Vault Secrets User sur kv-adatum.
+
+        Le code échoue, car il reçoit la chaîne littérale `@Microsoft.KeyVault(VaultName=kv-adatum;SecretName=qa-key)` comme valeur de `QA_KEY`.
+
+        Quels sont les deux problèmes qui pourraient provoquer ce comportement ?
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      choose: 2
+      options:
+        - { id: a, text: { en: "The secret `qa-key` was deleted from kv-adatum.", fr: "Le secret `qa-key` a été supprimé de kv-adatum." } }
+        - { id: b, text: { en: "A new version of `qa-key` was created after the app last started.", fr: "Une nouvelle version de `qa-key` a été créée après le dernier démarrage de l'application." } }
+        - { id: c, text: { en: "The reference specifies no `SecretVersion` for `qa-key`.", fr: "La référence ne précise aucune `SecretVersion` pour `qa-key`." } }
+        - { id: d, text: { en: "kv-adatum accepts traffic only from a private endpoint, and the app has no virtual network integration.", fr: "kv-adatum n'accepte le trafic que d'un point de terminaison privé, et l'application n'a pas d'intégration au réseau virtuel." } }
+        - { id: e, text: { en: "`QA_KEY` isn't marked as a deployment slot setting.", fr: "`QA_KEY` n'est pas marqué comme paramètre d'emplacement de déploiement." } }
+    answer: { optionIds: [a, d] }
+    explanation:
+      correct:
+        en: |
+          When App Service can't resolve a reference, it passes the reference string itself to the app. A deleted secret leaves nothing to resolve. A vault that only accepts its private endpoint can't be reached from the app's public outbound addresses: the app needs virtual network integration (and `vnetRouteAllEnabled` for a Linux app) to resolve the reference.
+        fr: |
+          Quand App Service ne peut pas résoudre une référence, il transmet à l'application la chaîne de la référence elle-même. Un secret supprimé ne laisse rien à résoudre. Un coffre qui n'accepte que son point de terminaison privé est injoignable depuis les adresses sortantes publiques de l'application : l'application a besoin de l'intégration au réseau virtuel (et de `vnetRouteAllEnabled` pour une application Linux) pour résoudre la référence.
+      options:
+        b: { en: "A new version doesn't break the reference: the app keeps the cached value and moves to the new version at the next refresh or restart.", fr: "Une nouvelle version ne casse pas la référence : l'application conserve la valeur en cache et passe à la nouvelle version au prochain rafraîchissement ou redémarrage." }
+        c: { en: "`SecretVersion` is optional; without it, the reference resolves to the latest version of the secret.", fr: "`SecretVersion` est facultatif ; sans lui, la référence se résout vers la dernière version du secret." }
+        e: { en: "A slot setting only stays with its slot during a swap; it doesn't affect how the reference is resolved.", fr: "Un paramètre d'emplacement reste seulement attaché à son emplacement lors d'un échange ; il n'a aucun effet sur la résolution de la référence." }
+    references:
+      - title: Use Key Vault references as app settings in Azure App Service, Azure Functions, and Azure Logic Apps (Standard)
+        url: https://learn.microsoft.com/en-us/azure/app-service/app-service-key-vault-references
+
+  # ------------------------------------------------------------------ 10
+  - id: ai200-qz-11-10
+    objective: "1.1.2"
+    difficulty: 3
+    status: draft
+    type: dropdown
+    stem:
+      en: |
+        Contoso publishes the image of its RAG sample client to the private Docker Hub repository `contoso/rag-client` with the ACR task **publish-client**, which runs in the Azure container registry **crcontoso**. The Docker Hub access token of the account `contosobot` is stored as the secret `hub-token` in the key vault **kv-contoso** and is rotated every week.
+
+        publish-client has a system-assigned identity, which has no access to kv-contoso, and the user-assigned managed identity **id-hub**, which has the Key Vault Secrets User role on kv-contoso. Each run must read the current token from kv-contoso with id-hub, and the token must never be passed as an argument of an Azure CLI command.
+
+        How should you complete the task file? Select the appropriate options in the answer area.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Contoso publie l'image de son client d'exemple RAG dans le dépôt Docker Hub privé `contoso/rag-client` avec la tâche ACR **publish-client**, qui s'exécute dans le registre de conteneurs Azure **crcontoso**. Le jeton d'accès Docker Hub du compte `contosobot` est stocké comme secret `hub-token` dans le coffre de clés **kv-contoso** et fait l'objet d'une rotation chaque semaine.
+
+        publish-client dispose d'une identité affectée par le système, qui n'a aucun accès à kv-contoso, et de l'identité managée affectée par l'utilisateur **id-hub**, qui dispose du rôle Key Vault Secrets User sur kv-contoso. Chaque exécution doit lire le jeton actuel dans kv-contoso avec id-hub, et le jeton ne doit jamais être passé comme argument d'une commande Azure CLI.
+
+        Comment devez-vous compléter le fichier de tâche ? Sélectionnez les options appropriées dans la zone de réponse.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      layout: code
+      language: yaml
+      template: |
+        version: v1.1.0
+        [[section]]:
+          - id: hubtoken
+            keyvault: https://kv-contoso.vault.azure.net/secrets/hub-token
+            clientID: [[ident]]
+        steps:
+          - cmd: bash echo '[[ref]]' | docker login --username contosobot --password-stdin
+          - build: -t contoso/rag-client:$ID .
+          - push:
+              - contoso/rag-client:$ID
+      slots:
+        - id: section
+          options:
+            - { id: secrets, text: secrets }
+            - { id: env, text: env }
+            - { id: volumes, text: volumes }
+            - { id: alias, text: alias }
+        - id: ident
+          options:
+            - { id: client, text: { en: "<client ID of id-hub>", fr: "<ID client d'id-hub>" } }
+            - { id: principal, text: { en: "<principal ID of id-hub>", fr: "<ID de principal d'id-hub>" } }
+            - { id: resource, text: { en: "<resource ID of id-hub>", fr: "<ID de ressource d'id-hub>" } }
+        - id: ref
+          options:
+            - { id: secretsref, text: "{{.Secrets.hubtoken}}" }
+            - { id: valuesref, text: "{{.Values.hubtoken}}" }
+            - { id: runref, text: "{{.Run.hubtoken}}" }
+            - { id: aliasref, text: "$hubtoken" }
+    answer:
+      values: { section: secrets, ident: client, ref: secretsref }
+    explanation:
+      correct:
+        en: |
+          The `secrets` section declares values that the task reads from Key Vault at run time: each entry has an `id`, the `keyvault` URL of the secret and, to use a user-assigned identity, the `clientID` of that identity. Steps then reference the value as `{{.Secrets.<id>}}`. The token goes from Key Vault into the run without ever appearing on an Azure CLI command line, where it could be captured by ACR diagnostic tracing.
+        fr: |
+          La section `secrets` déclare des valeurs que la tâche lit dans Key Vault au moment de l'exécution : chaque entrée a un `id`, l'URL `keyvault` du secret et, pour utiliser une identité affectée par l'utilisateur, le `clientID` de cette identité. Les étapes référencent ensuite la valeur sous la forme `{{.Secrets.<id>}}`. Le jeton passe de Key Vault à l'exécution sans jamais apparaître sur une ligne de commande Azure CLI, où il pourrait être capturé par les traces de diagnostic d'ACR.
+      options:
+        env: { en: "`env` sets plain environment variables for the steps; it can't fetch a value from Key Vault.", fr: "`env` définit des variables d'environnement en clair pour les étapes ; il ne peut pas lire une valeur dans Key Vault." }
+        volumes: { en: "`volumes` mounts files built from values such as secrets; the secrets themselves are still declared in `secrets`.", fr: "`volumes` monte des fichiers construits à partir de valeurs comme les secrets ; les secrets eux-mêmes restent déclarés dans `secrets`." }
+        alias: { en: "`alias` defines static text replacements written in the file; it can't read Key Vault.", fr: "`alias` définit des remplacements de texte statiques écrits dans le fichier ; il ne peut pas lire Key Vault." }
+        principal: { en: "The principal (object) ID is the one used in role assignments, such as the Key Vault Secrets User assignment; `clientID` expects the client ID.", fr: "L'ID de principal (objet) est celui des attributions de rôle, comme l'attribution Key Vault Secrets User ; `clientID` attend l'ID client." }
+        resource: { en: "The resource ID is what `az acr task create --assign-identity` takes to attach the identity; `clientID` expects the client ID.", fr: "L'ID de ressource est ce que prend `az acr task create --assign-identity` pour attacher l'identité ; `clientID` attend l'ID client." }
+        valuesref: { en: "`{{.Values.<name>}}` reads values supplied when the run starts, for example with `--set`, which would put the token on the command line; it doesn't read Key Vault.", fr: "`{{.Values.<name>}}` lit des valeurs fournies au lancement de l'exécution, par exemple avec `--set`, ce qui placerait le jeton sur la ligne de commande ; il ne lit pas Key Vault." }
+        runref: { en: "`{{.Run.<name>}}` gives only predefined run variables such as `ID`, `Registry` or `Date`.", fr: "`{{.Run.<name>}}` ne donne que des variables d'exécution prédéfinies comme `ID`, `Registry` ou `Date`." }
+        aliasref: { en: "`$name` is the syntax of aliases such as `$ID` or `$Registry`, not of Key Vault secrets.", fr: "`$name` est la syntaxe des alias comme `$ID` ou `$Registry`, pas des secrets Key Vault." }
+    references:
+      - title: YAML Reference for Azure Container Registry (ACR) Tasks
+        url: https://learn.microsoft.com/en-us/azure/container-registry/container-registry-tasks-reference-yaml
+      - title: External authentication in an ACR task using an Azure-managed identity
+        url: https://learn.microsoft.com/en-us/azure/container-registry/container-registry-tasks-authentication-key-vault

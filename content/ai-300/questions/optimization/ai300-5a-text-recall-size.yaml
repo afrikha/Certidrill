@@ -5,95 +5,104 @@ difficulty: 3
 status: draft
 stem:
   en: |
-    Proseware sends hybrid queries to an Azure AI Search index that contains millions of short chunks. Analysis with labeled queries shows that relevant keyword matches are often ranked beyond the default number of BM25 results that enter Reciprocal Rank Fusion (RRF). The user interface displays facet counts next to the results.
+    Proseware sends hybrid queries to an Azure AI Search index named **docs-idx**. The index has two HNSW vector fields, **titleVector** and **contentVector**, embedded with the same model, and each field has a vectorizer for that model.
 
-    You need to modify the query so that:
+    To measure the recall of HNSW, you need a hybrid query in which:
 
-    - 5,000 BM25-ranked results are provided to RRF;
-    - the counts and facets are computed only on the documents retrieved for ranking, not on every document that matches the text query.
+    - one vector query searches both vector fields;
+    - the vector side returns the exact nearest neighbors instead of approximate ones;
+    - the results stay ranked by relevance and return only the title and content fields.
 
     How should you complete the request? Select the appropriate options in the answer area.
 
     NOTE: Each correct selection is worth one point.
   fr: |
-    Proseware envoie des requêtes hybrides à un index Azure AI Search qui contient des millions de blocs courts. Une analyse avec des requêtes étiquetées montre que des correspondances pertinentes par mots clés sont souvent classées au-delà du nombre par défaut de résultats BM25 qui entrent dans Reciprocal Rank Fusion (RRF). L'interface utilisateur affiche des nombres de facettes à côté des résultats.
+    Proseware envoie des requêtes hybrides à un index Azure AI Search nommé **docs-idx**. L'index comporte deux champs vectoriels HNSW, **titleVector** et **contentVector**, incorporés avec le même modèle, et chaque champ dispose d'un vectoriseur pour ce modèle.
 
-    Vous devez modifier la requête de sorte que :
+    Pour mesurer le rappel de HNSW, vous avez besoin d'une requête hybride dans laquelle :
 
-    - 5 000 résultats classés par BM25 soient fournis à RRF ;
-    - les nombres et les facettes soient calculés uniquement sur les documents récupérés pour le classement, et non sur tous les documents qui correspondent à la requête texte.
+    - une seule requête vectorielle interroge les deux champs vectoriels ;
+    - la partie vectorielle renvoie les plus proches voisins exacts plutôt qu'approximatifs ;
+    - les résultats restent classés par pertinence et ne renvoient que les champs title et content.
 
     Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
 
     Remarque : chaque sélection correcte vaut un point.
 body:
   layout: code
-  language: text
+  language: json
   template: |
-    POST https://srch-proseware.search.windows.net/indexes/docs-idx/docs/search?api-version=2026-08-01-preview
     {
       "search": "invoice dispute escalation steps",
       "vectorQueries": [
-        { "kind": "text", "text": "invoice dispute escalation steps", "fields": "chunkVector", "k": 50 }
+        {
+          "kind": "text",
+          "text": "invoice dispute escalation steps",
+          "fields": [[fields]],
+          [[exh]],
+          "k": 50
+        }
       ],
-      "count": true,
-      "facets": [ "department" ],
-      [[obj]]: {
-        "maxTextRecallSize": [[size]],
-        "countAndFacetMode": [[mode]]
-      }
+      [[ret]],
+      "top": 10
     }
   slots:
-    - id: obj
+    - id: fields
       options:
-        - { id: hybrid, text: '"hybridSearch"' }
-        - { id: semantic, text: '"semanticConfiguration"' }
-        - { id: vectorsearch, text: '"vectorSearch"' }
-    - id: size
+        - { id: both, text: '"titleVector, contentVector"' }
+        - { id: title, text: '"titleVector"' }
+        - { id: content, text: '"contentVector"' }
+    - id: exh
       options:
-        - { id: s1000, text: "1000" }
-        - { id: s5000, text: "5000" }
-        - { id: s50000, text: "50000" }
-    - id: mode
+        - { id: exhtrue, text: '"exhaustive": true' }
+        - { id: exhfalse, text: '"exhaustive": false' }
+        - { id: weight0, text: '"weight": 0' }
+    - id: ret
       options:
-        - { id: all, text: '"countAllResults"' }
-        - { id: retrievable, text: '"countRetrievableResults"' }
+        - { id: select, text: '"select": "title, content"' }
+        - { id: searchfields, text: '"searchFields": "title, content"' }
+        - { id: orderby, text: '"orderby": "title asc"' }
 answer:
-  values: { obj: hybrid, size: s5000, mode: retrievable }
+  values: { fields: both, exh: exhtrue, ret: select }
 explanation:
   correct:
     en: |
-      The `hybridSearch` object (preview) of a query sets `maxTextRecallSize`, the number of BM25-ranked results provided to RRF (default 1,000, maximum 10,000), here 5,000. `countAndFacetMode` set to `countRetrievableResults` scopes the count and facets to the documents retrieved for ranking, which are the `maxTextRecallSize` BM25 results and the `k` vector matches.
+      `vectorQueries.fields` accepts a comma-separated list of up to 10 vector fields, and the vector query runs against each of them; all must contain embeddings from the same model. `exhaustive` set to `true` invokes exhaustive KNN at query time even on an HNSW field, which returns the exact nearest neighbors and can serve as ground truth for the recall of the approximate search. `select` limits the returned fields without changing the relevance ranking.
     fr: |
-      L'objet `hybridSearch` (préversion) d'une requête définit `maxTextRecallSize`, le nombre de résultats classés par BM25 fournis à RRF (1 000 par défaut, 10 000 au maximum), ici 5 000. `countAndFacetMode` défini sur `countRetrievableResults` limite le nombre et les facettes aux documents récupérés pour le classement, c'est-à-dire les `maxTextRecallSize` résultats BM25 et les `k` correspondances vectorielles.
+      `vectorQueries.fields` accepte une liste de 10 champs vectoriels au plus, séparés par des virgules, et la requête vectorielle s'exécute sur chacun d'eux ; tous doivent contenir des incorporations du même modèle. `exhaustive` défini sur `true` appelle le KNN exhaustif au moment de la requête, même sur un champ HNSW : il renvoie les plus proches voisins exacts et peut servir de référence pour mesurer le rappel de la recherche approximative. `select` limite les champs renvoyés sans changer le classement par pertinence.
   options:
-    semantic:
+    title:
       en: |
-        semanticConfiguration is a string that names the semantic configuration of the index; it doesn't hold hybrid recall settings.
+        A single field leaves contentVector out of the vector side.
       fr: |
-        semanticConfiguration est une chaîne qui nomme la configuration sémantique de l'index ; elle ne contient pas de paramètres de rappel hybride.
-    vectorsearch:
+        Un seul champ exclut contentVector de la partie vectorielle.
+    content:
       en: |
-        vectorSearch is a section of the index definition (algorithms, profiles), not a query parameter.
+        A single field leaves titleVector out of the vector side.
       fr: |
-        vectorSearch est une section de la définition de l'index (algorithmes, profils), pas un paramètre de requête.
-    s1000:
+        Un seul champ exclut titleVector de la partie vectorielle.
+    exhfalse:
       en: |
-        1,000 is the default, which is the value that is too small here.
+        With exhaustive set to false, the HNSW field is searched with the approximate algorithm.
       fr: |
-        1 000 est la valeur par défaut, justement trop faible ici.
-    s50000:
+        Avec exhaustive défini sur false, le champ HNSW est interrogé avec l'algorithme approximatif.
+    weight0:
       en: |
-        The maximum value of maxTextRecallSize is 10,000.
+        The weight of a vector query must be greater than zero, and weight changes the fusion, not the search algorithm.
       fr: |
-        La valeur maximale de maxTextRecallSize est 10 000.
-    all:
+        Le poids d'une requête vectorielle doit être supérieur à zéro, et il modifie la fusion, pas l'algorithme de recherche.
+    searchfields:
       en: |
-        countAllResults, the default, counts every document that matches the text query, even those outside the maxTextRecallSize window.
+        searchFields restricts the fields that the full-text query searches; it doesn't limit the fields returned.
       fr: |
-        countAllResults, la valeur par défaut, compte tous les documents qui correspondent à la requête texte, même ceux situés hors de la fenêtre maxTextRecallSize.
+        searchFields limite les champs qu'interroge la requête en texte intégral ; il ne limite pas les champs renvoyés.
+    orderby:
+      en: |
+        An explicit sort replaces the relevance ranking of the hybrid results.
+      fr: |
+        Un tri explicite remplace le classement par pertinence des résultats hybrides.
 references:
-  - title: Create a hybrid query in Azure AI Search
-    url: https://learn.microsoft.com/en-us/azure/search/hybrid-search-how-to-query
-  - title: Relevance scoring in hybrid search using Reciprocal Rank Fusion (RRF)
-    url: https://learn.microsoft.com/en-us/azure/search/hybrid-search-ranking
+  - title: Create a vector query in Azure AI Search
+    url: https://learn.microsoft.com/en-us/azure/search/vector-search-how-to-query
+  - title: Relevance in vector search
+    url: https://learn.microsoft.com/en-us/azure/search/vector-search-ranking

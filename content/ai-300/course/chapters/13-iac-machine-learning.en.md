@@ -55,7 +55,7 @@ Use GitHub **environment secrets** for production: when the environment requires
 <!-- section: bicep-cli | objectives: 1.3.2 -->
 ## Deploying workspaces and resources with Bicep and Azure CLI
 
-The workspace resource type is `Microsoft.MachineLearningServices/workspaces`; compute targets are its child `workspaces/computes`. The current stable API version is `2026-05-01`.
+The workspace resource type is `Microsoft.MachineLearningServices/workspaces`; compute targets are its child `workspaces/computes`. The latest GA API version of both is `2026-09-01`; the examples use `2026-05-01`, which is still valid.
 
 ```bicep
 param location string = resourceGroup().location
@@ -255,13 +255,13 @@ Rules of the managed virtual network:
 
 - Outbound rule types: `private_endpoint` (to an Azure resource), `service_tag` and `fqdn`. Service tag and FQDN rules are only valid in `allow_only_approved_outbound`.
 - FQDN rules are implemented with an Azure Firewall that is billed: Standard by default, Basic with `firewall_sku: basic`; Premium isn't supported. FQDN rules only allow ports 80 and 443, and can't be used to reach a storage account in approved-only mode: use a private endpoint rule.
-- Required private endpoints to the workspace's storage, key vault, container registry and workspace are created automatically (in internet outbound mode, only for resources whose public access is disabled).
-- The network is provisioned when the first compute is created (it can take about 30 minutes), or on demand with `az ml workspace provision-network` or `--provision-network-now` at creation. Provision it before creating an online deployment or a serverless Spark job.
-- Once enabled, managed network isolation can't be disabled. Existing compute isn't migrated: recreate clusters, instances and managed online endpoints.
+- Required private endpoints to the workspace's storage, key vault, container registry and workspace are created automatically when the network is provisioned, not before (in internet outbound mode, only for resources whose public access is disabled).
+- The network is provisioned when the first compute is created (it can take about 30 minutes), or on demand with `az ml workspace provision-network` or `--provision-network-now` at creation. Provision it before creating an online deployment. For serverless Spark jobs, provision it manually with `az ml workspace provision-network --include-spark`, after disabling public network access on the workspace.
+- Once enabled, managed network isolation can't be disabled, and the mode can't change in either direction: approved-only can't become internet outbound, and internet outbound can't become approved-only. Existing compute isn't migrated: recreate clusters, instances and managed online endpoints.
 - Inside a managed network, compute can't be placed in your own virtual network; Kubernetes and attached VMs aren't supported, and a cluster can't be created in another region.
 - Prerequisites: the `Microsoft.Network` resource provider registered, and the Azure AI Enterprise Network Connection Approver role for the workspace identity to approve private endpoint connections to your resources.
 
-Alternative without a managed network: keep `disabled` and place compute in your own subnet (`network_settings.subnet` in the compute YAML, `enableNodePublicIp: false` for clusters without public IPs). When the workspace and its container registry use private endpoints, set `image_build_compute` to a cluster, because registry tasks can't build the images.
+Alternative without a managed network: keep `disabled` and place compute in your own subnet (`network_settings.subnet` in the compute YAML, `enableNodePublicIp: false` for clusters without public IPs). When the storage account or the container registry uses private endpoints, the default serverless image build doesn't work: set `image_build_compute` to a CPU compute cluster in the virtual network.
 
 | Requirement | Answer |
 | --- | --- |
@@ -324,7 +324,7 @@ Branching practice: work on feature branches, open a pull request that triggers 
 
 - GitHub signs in with OIDC: federated credential (issuer `https://token.actions.githubusercontent.com`, audience `api://AzureADTokenExchange`, exact subject), `permissions: id-token: write`, `azure/login@v2` with client, tenant and subscription IDs.
 - The subject depends on the trigger context: environment, branch or tag; an `environment:` job uses the environment subject.
-- Bicep: `Microsoft.MachineLearningServices/workspaces@2026-05-01` and child `workspaces/computes`; PascalCase values in Bicep, snake_case in CLI YAML.
+- Bicep: `Microsoft.MachineLearningServices/workspaces` (latest GA API version `2026-09-01`) and child `workspaces/computes`; PascalCase values in Bicep, snake_case in CLI YAML.
 - Inbound protection: public network access disabled plus a private endpoint (`amlworkspace`); outbound protection: managed network `allow_only_approved_outbound`.
-- FQDN outbound rules add a billed Azure Firewall and only allow ports 80 and 443; managed network isolation can't be disabled once enabled.
+- FQDN outbound rules add a billed Azure Firewall and only allow ports 80 and 443; managed network isolation can't be disabled once enabled, and its mode can't be changed.
 - Jobs record the Git repository, branch, commit and dirty flag when submitted from a Git working folder.

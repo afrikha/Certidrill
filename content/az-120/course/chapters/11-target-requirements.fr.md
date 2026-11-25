@@ -62,12 +62,12 @@ Explicitement **non pris en charge** :
 | Données et journal d'un SGBD non HANA | SSD Premium, SSD Premium v2, Disque Ultra | HDD Standard dans tous les cas, SSD Standard en production |
 
 - Le SSD Premium pour `/hana/log` sur les séries M et Mv2 exige l'**Accélérateur d'écriture** (Write Accelerator) ; le SSD Premium v2 et le Disque Ultra atteignent les objectifs de latence de HANA sans lui et ne le prennent pas en charge.
-- Le SSD Premium v2 et le Disque Ultra ne s'utilisent pas avec des machines virtuelles en groupe à haute disponibilité.
+- Le Disque Ultra ne s'utilise pas avec des machines virtuelles en groupe à haute disponibilité. Le SSD Premium v2 le peut, mais seulement dans quelques régions sans zones de disponibilité et après l'inscription de l'abonnement à la fonctionnalité.
 - Les fichiers de base de données utilisent uniquement des disques managés **LRS** ; la redondance de zone ou géographique des disques n'est pas une méthode de résilience pour un SGBD.
 
 **Réseau.**
 
-- Machines virtuelles d'application et de base de données dans le **même réseau virtuel**, dans des sous-réseaux différents. Les séparer dans des réseaux virtuels appairés n'est pas pris en charge.
+- Machines virtuelles d'application et de base de données dans le **même réseau virtuel**, dans des sous-réseaux différents. Les séparer dans des réseaux virtuels reliés par peering n'est pas pris en charge.
 - Pas d'appliance virtuelle réseau entre l'application et la base de données : elle peut doubler la latence.
 - **Accelerated Networking** sur chaque carte réseau de chaque machine virtuelle SAP, partout où c'est techniquement possible.
 - Équilibreurs de charge de référence SKU Standard ; l'équilibreur de charge Basic ne doit pas être utilisé.

@@ -37,7 +37,7 @@ Design rules:
 - Application Gateway **v1** (Standard and WAF) retired on **April 28, 2026**: new designs use v2, and WAF policies can be associated only with **WAF_v2**. **Azure Front Door (classic)** retires on **March 31, 2027**.
 - A WAF policy is a separate resource: **Global WAF (Front Door)** policies for Front Door, **Regional WAF (Application Gateway)** policies for Application Gateway. A policy of one type can't be attached to the other platform.
 
-Limits that shape a design on Application Gateway WAF_v2 with CRS 3.2 or DRS: up to 100 sites (listeners), 100 custom rules per policy, 200 exclusions, maximum request body inspection 2 MB, file uploads up to 4 GB (default limit 100 MB). With CRS 3.1 or earlier, the request body limit is 128 KB and the site count drops to 40.
+Limits that shape a design on Application Gateway WAF_v2 with CRS 3.2 or DRS: up to 100 sites (listeners), 100 custom rules per policy, 200 exclusions, maximum request body inspection 2 MB, file uploads up to 4 GB (default limit 100 MB). With CRS 3.1 or earlier, the request body limit is 128 KB, file uploads are capped at 750 MB, and the site and exclusion counts drop to 40.
 
 > **Exam tip.** "Managed rule sets on Front Door" means **Premium**. A Front Door Standard profile with a requirement for OWASP protection must be upgraded to Premium (in place), or the protection placed on Application Gateway.
 
@@ -165,7 +165,7 @@ az network application-gateway http-listener update \
   --name lst-adatum --waf-policy WAFP-Adatum
 ```
 
-**Azure Front Door** (Standard or Premium): associate a policy with the **profile**, specific **domains** or specific **routes**. When several scopes apply, **route** wins over **domain**, which wins over **profile**. A domain can be associated with only one policy at a time: remove it from the existing association before adding it to another policy. The policy is replicated to all edge locations.
+**Azure Front Door**: associate a policy with specific **domains** (Standard or Premium). The Premium policy settings also document the **profile** and specific **routes** as scopes: when several scopes apply, **route** wins over **domain**, which wins over **profile**. A domain can be associated with only one policy at a time: remove it from the existing association before adding it to another policy. The policy is replicated to all edge locations.
 
 > **Exam trap.** On Application Gateway, a per-site policy needs a multi-site **listener** per site; a per-URI policy needs a **path-based** routing rule. A basic rule without a URL path map can't take a per-URI policy.
 
@@ -177,4 +177,4 @@ az network application-gateway http-listener update \
 - Detection logs, Prevention acts (403 by default); new policies start in Detection: tune, then switch.
 - Application Gateway: DRS 2.2 recommended, CRS 3.2 and later run the new engine (2 MB body inspection, 4 GB uploads, per-rule exclusions, rate limiting), no downgrade.
 - Front Door: `RemoteAddr` is the original client, `SocketAddr` the connecting IP; add `ZZ` to geo rules; rate limits count per edge location over 1 or 5 minutes.
-- Association: Application Gateway global, per-site (listener), per-URI (path rule), most specific wins; Front Door profile, domain, route, route wins.
+- Association: Application Gateway global, per-site (listener), per-URI (path rule), most specific wins; Front Door domains, plus profile and routes on Premium, route wins.

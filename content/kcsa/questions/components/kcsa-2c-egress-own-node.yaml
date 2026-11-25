@@ -1,0 +1,54 @@
+id: kcsa-2c-egress-own-node
+objective: "2.9.3"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    The node network is `10.0.0.0/16`. To stop Pods in `shop` from reaching node management ports, you apply the policy below on a cluster whose network plugin enforces NetworkPolicy. A test Pod can no longer reach the kubelet of other nodes, but it can still reach the kubelet API of the node it runs on. Why?
+
+    ```yaml
+    apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: block-node-network
+      namespace: shop
+    spec:
+      podSelector: {}
+      policyTypes:
+      - Egress
+      egress:
+      - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+            - 10.0.0.0/16
+    ```
+body:
+  options:
+    - id: a
+      text: { en: "Traffic between a Pod and its own node is always allowed by NetworkPolicy" }
+    - id: b
+      text: { en: "The `except` field of `ipBlock` is honored only in ingress rules" }
+    - id: c
+      text: { en: "The kubelet port is exempt from NetworkPolicy because it uses TLS" }
+    - id: d
+      text: { en: "Egress rules are enforced only when `policyTypes` also lists `Ingress`" }
+answer: { optionId: a }
+explanation:
+  correct:
+    en: |
+      The NetworkPolicy documentation states that traffic to and from the node where a Pod runs is always allowed, whatever the IP addresses involved, and that Pods cannot block access from their node. The policy therefore blocks the other nodes but not the local one. Protecting node services such as the kubelet needs node-level controls, such as host firewall rules, in addition to NetworkPolicy.
+  options:
+    b:
+      en: |
+        `ipBlock.except` works in egress rules; that is why the other nodes are no longer reachable.
+    c:
+      en: |
+        NetworkPolicy filters by IP addresses and ports at layers 3 and 4; whether a port uses TLS does not matter.
+    d:
+      en: |
+        Each direction is controlled by its own entry in `policyTypes`. Listing only `Egress` isolates the Pods for egress.
+references:
+  - title: "Network Policies"
+    url: https://kubernetes.io/docs/concepts/services-networking/network-policies/

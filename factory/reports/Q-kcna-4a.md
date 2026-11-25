@@ -1,0 +1,16 @@
+# Q-kcna-4a — KCNA questions, domain architecture (2026-11-23)
+
+## Result
+41 `single` questions in `content/kcna/questions/architecture/kcna-4a-*.yaml`: 4.1.1 ×6, 4.1.2–4.2.3 ×5 each. Difficulty 16 easy / 19 medium / 6 hard. Correct options a 10, b 10, c 11, d 10. `CERT=kcna npx tsx factory/validate.ts --prefix kcna-4a-` → 41 files, 0 problem(s). English only. No other KCNA architecture questions existed when I wrote them.
+
+## Sources fetched (WebFetch, 2026-11-23)
+kubernetes.io: Logging Architecture, Metrics For Kubernetes System Components, Resource metrics pipeline, Autoscaling Workloads, Horizontal Pod Autoscaling, Vertical Pod Autoscaling, Node Autoscaling, ConfigMaps, Labels and Selectors. prometheus.io: Overview, Pushgateway practices, Alertmanager, Exporters and integrations, Grafana support (not cited). opentelemetry.io: What is OpenTelemetry?, Collector, Signals, Traces, Metrics, Logs, Context propagation. keda.sh Concepts. knative.dev: Serving, Eventing, Traffic management, scale to zero (not cited). glossary.cncf.io: Serverless, FaaS (not cited), Observability, Immutable Infrastructure, Microservices Architecture, Stateless Apps, Horizontal Scaling, Loosely Coupled Architecture (not cited). cncf.io/projects: Jaeger, Fluentd, OpenCost, OpenTelemetry, Prometheus, Knative. github.com: cncf/toc DEFINITION.md, fluent/fluent-bit.
+
+## Doubts and decisions
+1. **HPA scale to zero is beta and enabled by default in v1.37** (HPA page, `HPAScaleToZero`, object and external metrics only, not resource metrics). The course chapter 42 says scale to zero belongs to KEDA and Knative only. The KEDA question (`kcna-4a-keda-queue`) is worded so that it stays correct: the HPA distractor uses a CPU target, and the explanation says scale to zero is not available for resource metrics. Chapter 42 could add one line about it.
+2. **VPA in-place**: the autoscaling page says VPA does not support in-place resize as of 1.37, but the VPA page lists `InPlaceOrRecreate` and an alpha `InPlace` mode (VPA 1.7.0), and `Auto` is deprecated. I tested only `Off` (recommendations only) and `Recreate` (evicts), which both pages agree on.
+3. Page titles: I could not read the `<title>` of the pages (curl blocked by the proxy, and WebFetch gave the H1 for some). Titles used: H1 or WebFetch-reported title ("Metrics For Kubernetes System Components", "Vertical Pod Autoscaling", "Knative Serving", "Knative Eventing" are H1-based or from memory and could differ slightly from the HTML title).
+4. The twelve-factor site (12factor.net) is not an accepted host. The twelve-factor questions cite the ConfigMaps page and the CNCF glossary (Stateless Apps, Horizontal Scaling) instead.
+5. Grafana, jaegertracing.io, fluentbit.io and opencost.io are not accepted hosts. Grafana appears only as a distractor. Jaeger, Fluentd and OpenCost cite their cncf.io project pages.
+6. `kcna-4a-log-rotation-latest-file` relies on the logging page statement that `kubectl logs` reads only the latest log file (example: 40 MiB written, 10 MiB rotation, at most 10 MiB returned).
+7. The Fluentd description ("collects logs from many sources, processes them and forwards them") comes from the course and general knowledge. The cncf.io page only says "data collector for unified logging layer", and the stem uses only that wording.

@@ -1,0 +1,46 @@
+id: aipc01-1e-validate-repair-loop
+objective: "1.6.4"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    An e-commerce company generates product comparison answers with Amazon Bedrock in an AWS Step Functions workflow. Some answers cite product SKUs that do not exist. The catalog of 2 million SKUs is stored in Amazon DynamoDB. The company wants invalid answers corrected automatically when possible, with at most one regeneration, and any answer that still fails must go to a review queue in Amazon SQS.
+
+    Which solution will meet these requirements?
+body:
+  options:
+    - id: a
+      text:
+        en: |-
+          Add a Retry field with MaxAttempts set to 1 for States.ALL on the Bedrock task state, and a Catch field that sends the request to the review queue.
+    - id: b
+      text:
+        en: |-
+          Attach a guardrail with a contextual grounding check to the model call, and pass the full SKU catalog from DynamoDB as the grounding source of each request.
+    - id: c
+      text:
+        en: |-
+          Add a Lambda task that checks the cited SKUs in DynamoDB, and a Choice state that regenerates once with the errors in the prompt, then queues any failure.
+    - id: d
+      text:
+        en: |-
+          Raise the temperature and generate five answers in parallel in a Map state, then keep the answer that cites the most SKUs that exist in DynamoDB.
+answer: { optionId: c }
+explanation:
+  correct:
+    en: |-
+      The SKUs can be checked deterministically against the catalog by a Lambda function. A Choice state uses the result to send one regeneration request that includes the validation errors, so the model can correct the answer, and routes an answer that fails again to SQS. This validate, repair, and escalate loop meets every stated limit.
+  options:
+    a:
+      en: |-
+        Retry and Catch act on task errors, but an answer with unknown SKUs is a successful task, so neither field fires.
+    b:
+      en: |-
+        The grounding source is limited in size and cannot hold a 2-million-item catalog, and grounding scores do not identify which SKUs are invalid.
+    d:
+      en: |-
+        Five generations break the limit of one regeneration, and the best of five answers can still contain invalid SKUs.
+references:
+  - title: "Invoke and customize Amazon Bedrock models with Step Functions - AWS Step Functions"
+    url: https://docs.aws.amazon.com/step-functions/latest/dg/connect-bedrock.html

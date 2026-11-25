@@ -42,7 +42,7 @@ Points the exam likes:
 | --- | --- | --- |
 | Hide alert | The alert is suppressed and no incident is created; it stays in `AlertInfo` and `AlertEvidence` | Defender for Endpoint alerts only |
 | Resolve alert | Matching alerts and their incidents are created already resolved | |
-| Set as behavior | Signals become behaviors, visible in `BehaviorInfo` and `BehaviorEntities` for hunting, never in the alert queue | Not for Defender for Cloud or Defender for Office 365 alerts |
+| Set as behavior | Signals become behaviors, visible in `BehaviorInfo` and `BehaviorEntities` (preview tables) for hunting, never in the alert queue | Not for Defender for Cloud or Defender for Office 365 alerts |
 
 Defender also ships **built-in tuning rules** for common benign activity. They don't affect automated investigations or email notifications, and an alert they suppressed is reactivated if an investigation finds malicious activity. You disable one from its details pane. Built-in rules don't apply to custom detection and custom threat intelligence alerts.
 
@@ -54,7 +54,7 @@ Defender also ships **built-in tuning rules** for common benign activity. They d
 - the merge would exceed the maximum number of entities;
 - they contain devices of different device groups, a condition that is off by default.
 
-You can merge up to five incidents manually, or move an alert to another incident. Only the **primary** Microsoft Sentinel workspace has its alerts correlated with Defender XDR alerts; secondary workspaces are correlated separately.
+You can merge up to five incidents manually, or move an alert to another incident. Manual merge candidates must have the same values, or null values, for **Assigned to**, **Classification** and **Determination**, and Defender decides which incident is the target. Only the **primary** Microsoft Sentinel workspace has its alerts correlated with Defender XDR alerts; secondary workspaces are correlated separately.
 
 > **Exam trap.** Tuning and suppression act on **alerts at creation** in Defender XDR. A Sentinel automation rule that closes incidents acts **after** the incident exists. When the question says "the alert must not create an incident", the answer is an alert tuning rule.
 
@@ -96,6 +96,8 @@ The **Settings > Endpoints > Rules** section groups the rules that apply to devi
 | Asset rule management | Rules that apply **dynamic tags** to devices |
 | Custom data collection | Extra telemetry rules, see the next section |
 
+Web content filtering uses SmartScreen in Microsoft Edge and needs **network protection in block mode** for Chrome, Firefox, Brave and Opera on Windows.
+
 **Indicators.** Up to 15,000 per tenant. Each has an action, an expiration and a scope (all devices or device groups).
 
 | Indicator type | Actions |
@@ -106,12 +108,12 @@ The **Settings > Endpoints > Rules** section groups the rules that apply to devi
 
 Rules to remember:
 
-- File indicators need Defender Antivirus in **active** mode, cloud-based protection and the **Allow or block file** advanced feature. On Windows, they apply to PE files (.exe, .dll). Indicators aren't supported in passive mode.
-- IP and URL indicators rely on network protection. A domain indicator also covers its subdomains; HTTPS paths are matched only in Microsoft Edge. IP ranges and wildcards aren't supported.
+- File indicators need Defender Antivirus in **active** mode, cloud-based protection, file hash computation (`EnableFileHashComputation`) and the **Allow or block file** advanced feature. On Windows, they apply to PE files (.exe, .dll). Indicators aren't supported in passive mode.
+- IP and URL indicators rely on SmartScreen in Microsoft Edge and on network protection in **block mode** in other browsers and processes. A domain indicator also covers its subdomains; HTTPS paths are matched only in Microsoft Edge. IP ranges and wildcards aren't supported.
 - With conflicting file indicators, the longer hash wins (SHA-256, then SHA-1, then MD5), and a device group indicator beats an all-devices indicator.
 - **Allow** creates no alert, **Audit** creates an alert with your severity, **Block** and **Warn** create informational alerts only.
 - Microsoft-signed files can't be blocked, and file indicators don't override Defender Antivirus exclusions.
-- An enforcement usually takes effect within 15 to 30 minutes, up to 2 hours.
+- A file indicator usually takes effect within 15 minutes (30 on average), up to 2 hours. An IP or URL indicator usually takes effect in under two hours, but can take up to 48 hours.
 
 **Automation folder exclusions** apply to every onboarded device and only to automated investigation: the excluded files are still scanned by the antivirus. Fields: folder (required, subfolders included, trailing wildcard allowed), extensions, file names, description (required).
 
@@ -195,7 +197,7 @@ Add-MpPreference -AttackSurfaceReductionRules_Ids d4f940ab-401b-4efc-aadc-ad5f3c
 Add-MpPreference -AttackSurfaceReductionOnlyExclusions "C:\Tools\Packager\pack.exe"
 ```
 
-`Set-MpPreference` replaces the whole list of rules; `Add-MpPreference` adds to it. Local settings have the lowest precedence. Group Policy wins over MDM unless `MDMWinsOverGP` is set to 1.
+`Set-MpPreference` replaces the whole list of rules; `Add-MpPreference` adds to it. Local settings have the lowest precedence. Group Policy wins over MDM unless `MDMWinsOverGP` is set to 1. With **configuration protection** (controlled configuration, in preview), only Intune and Defender for Endpoint policies apply, and Group Policy, scripts, Configuration Manager and local changes are ignored.
 
 Exclusions are either **global** (`AttackSurfaceReductionOnlyExclusions`, all rules) or **per rule** (the ASR only per rule exclusions section in Intune and the Defender portal). Several rules have limited exclusion support, including the LSASS rule.
 

@@ -5,7 +5,7 @@ Une question de résolution de noms comporte trois éléments : qui pose la ques
 
 | Option | Ce qu'elle apporte | Limites |
 | --- | --- | --- |
-| DNS fourni par Azure (par défaut) | Sans configuration, les machines virtuelles d'un même réseau virtuel se résolvent par leur nom d'hôte (suffixe `internal.cloudapp.net`) et résolvent les noms publics. Le service répond à l'adresse 168.63.129.16 | Limité à un seul réseau virtuel, même appairé. Ni suffixe personnalisé ni enregistrements personnalisés |
+| DNS fourni par Azure (par défaut) | Sans configuration, les machines virtuelles d'un même réseau virtuel se résolvent par leur nom d'hôte (suffixe `internal.cloudapp.net`) et résolvent les noms publics. Le service répond à l'adresse 168.63.129.16 | Limité à un seul réseau virtuel, même relié par peering. Ni suffixe personnalisé ni enregistrements personnalisés |
 | Zone DNS privée Azure | Votre propre nom de domaine, avec des enregistrements manuels ou inscrits automatiquement, partagé par tous les réseaux virtuels liés, quelle que soit la région, avec ou sans peering | Ne répond qu'aux réseaux virtuels liés ; les clients locaux ont besoin d'un chemin de transfert |
 | Serveurs DNS personnalisés | Maîtrise complète : domaines Active Directory, redirecteurs conditionnels | Des machines virtuelles à corriger et à maintenir hautement disponibles |
 | Azure DNS Private Resolver | Transfert conditionnel managé entre Azure, le réseau local et d'autres réseaux | Exige ses propres sous-réseaux délégués ; n'héberge lui-même aucune zone |
@@ -25,7 +25,7 @@ L'ordre de traitement d'une requête émise par une machine virtuelle explique l
 3. Si aucune zone liée ne correspond, l'ensemble de règles de transfert DNS lié au réseau virtuel est évalué.
 4. Si aucune règle ne correspond, Azure DNS résout le nom comme un nom public.
 
-> **Piège d'examen.** Le peering connecte des espaces d'adressage, pas la résolution de noms. Après l'appairage de deux réseaux virtuels, une machine virtuelle ne résout toujours pas le nom d'hôte d'une machine de l'autre réseau : liez une zone DNS privée aux deux, ou utilisez un serveur DNS commun.
+> **Piège d'examen.** Le peering connecte des espaces d'adressage, pas la résolution de noms. Après la création d'un peering entre deux réseaux virtuels, une machine virtuelle ne résout toujours pas le nom d'hôte d'une machine de l'autre réseau : liez une zone DNS privée aux deux, ou utilisez un serveur DNS commun.
 
 <!-- section: vnet-dns-settings | objectives: 1.2.2 -->
 ## Configurer les paramètres DNS d'un réseau virtuel
@@ -70,7 +70,7 @@ D'ici là, la zone ne répond qu'aux requêtes envoyées directement à ses serv
 
 | Besoin | Conception |
 | --- | --- |
-| L'apex de la zone (`contoso.com`) doit pointer vers un profil Traffic Manager, un point de terminaison Azure Front Door ou un point de terminaison CDN | Un **jeu d'enregistrements d'alias** à l'apex ; un CNAME ne peut pas exister à l'apex |
+| L'apex de la zone (`contoso.com`) doit pointer vers un profil Traffic Manager, un point de terminaison Azure Front Door ou un point de terminaison CDN | Un **jeu d'enregistrements d'alias** à l'apex ; un CNAME ne peut pas exister à l'apex. Pour une nouvelle configuration Traffic Manager, Learn recommande les Traffic Manager Linked Records, qui fonctionnent aussi à l'apex ; les enregistrements d'alias vers un profil restent pris en charge pour la compatibilité descendante |
 | Un enregistrement doit suivre l'adresse d'une ressource d'adresse IP publique Azure et ne jamais rester orphelin | Un jeu d'enregistrements d'alias A ou AAAA qui cible l'adresse IP publique Standard : il est mis à jour quand l'adresse change et devient vide quand la ressource est supprimée |
 | Des réponses différentes pour les clients internes et les clients internet | Split-horizon : une zone publique et une zone privée de même nom |
 | Protection contre les réponses falsifiées | Signature DNSSEC de la zone publique, puis un enregistrement DS dans la zone parente par l'intermédiaire du bureau d'enregistrement |
@@ -96,7 +96,7 @@ Une zone DNS privée est une ressource globale : elle n'appartient à aucun rés
 | Zones privées pour lesquelles un réseau virtuel est un réseau d'inscription | 1 |
 | Jeux d'enregistrements par zone privée | 25 000 |
 
-L'inscription automatique ne concerne que les machines virtuelles, que les enregistrements A, et que l'interface réseau principale. L'enregistrement est créé au démarrage de la machine virtuelle et supprimé quand elle est libérée ou supprimée. Les autres ressources, comme les équilibreurs de charge internes, demandent des enregistrements manuels. Désactiver l'inscription automatique sur un lien supprime immédiatement les enregistrements qu'il avait inscrits.
+L'inscription automatique ne concerne que les machines virtuelles, que les enregistrements A, et que l'interface réseau principale. L'enregistrement est créé au démarrage de la machine virtuelle et supprimé quand elle est arrêtée (libérée) ou supprimée. Un enregistrement manuel de même nom remplace l'enregistrement inscrit automatiquement ; si vous supprimez l'enregistrement manuel, l'inscription automatique recrée l'enregistrement. Les autres ressources, comme les équilibreurs de charge internes, demandent des enregistrements manuels. Désactiver l'inscription automatique sur un lien supprime immédiatement les enregistrements qu'il avait inscrits.
 
 Règles de conception :
 
@@ -161,7 +161,7 @@ DNS Private Resolver remplace les machines virtuelles de redirection DNS. Il est
 | --- | --- | --- |
 | Point de terminaison entrant | Une adresse IP privée (statique ou dynamique) qui reçoit les requêtes venant du réseau local ou d'autres réseaux et les résout avec Azure DNS, y compris les zones privées liées au réseau virtuel du résolveur | Son propre sous-réseau, de /28 à /24, délégué à `Microsoft.Network/dnsResolvers` ; jusqu'à 5 par résolveur |
 | Point de terminaison sortant | La sortie par laquelle les requêtes transférées partent vers d'autres serveurs DNS | Son propre sous-réseau délégué ; jusqu'à 5 par résolveur |
-| Ensemble de règles de transfert DNS | Jusqu'à 1 000 règles : un nom de domaine terminé par un point, et jusqu'à 6 serveurs cibles (adresse IP et port) | Rattaché à 2 points de terminaison sortants au plus, d'un même résolveur ; lié à 500 réseaux virtuels au plus, de la même région ; un seul ensemble de règles par réseau virtuel |
+| Ensemble de règles de transfert DNS | Jusqu'à 1 000 règles : un nom de domaine terminé par un point, et jusqu'à 6 serveurs cibles (adresse IP et port) | Rattaché à 2 points de terminaison sortants au plus, d'un même résolveur, et un point de terminaison sortant sert 2 ensembles de règles au plus ; lié à 500 réseaux virtuels au plus, de la même région ; un seul ensemble de règles par réseau virtuel |
 
 ```text
 On-premises client -> on-premises DNS, conditional forwarder for corp.contoso.com
@@ -171,7 +171,7 @@ Azure VM (default DNS) -> ruleset linked to its VNet, rule "onprem.contoso.com."
                        -> outbound endpoint -> on-premises DNS 192.168.1.10:53
 ```
 
-Les deux sens exigent une connectivité entre les sites (VPN ou ExpressRoute). Les règles sont sélectionnées par le **suffixe le plus long** ; la règle `.` est un caractère générique, et sa cible doit alors résoudre aussi les noms publics. 168.63.129.16 ne peut pas être une cible.
+Les deux sens exigent une connectivité entre les sites (VPN ou ExpressRoute). Les règles sont sélectionnées par le **suffixe le plus long** ; la règle `.` est un caractère générique, et sa cible doit alors résoudre aussi les noms publics. 168.63.129.16 ne peut pas être une cible, et le point de terminaison entrant ne doit pas être la cible de zones qui ne sont pas liées au réseau virtuel du résolveur. Autres limites : 15 résolveurs par abonnement et 10 000 requêtes par seconde par point de terminaison ; un ensemble de règles ne peut pas être lié à travers des locataires, et les réseaux virtuels dont le chiffrement est activé ne prennent pas en charge le résolveur.
 
 ```powershell
 New-AzDnsResolver -Name dnspr-hub -ResourceGroupName RG1 -Location westeurope `

@@ -29,6 +29,8 @@ Microsoft Foundry propose ces options de déploiement :
 | Global Batch / Data Zone Batch | `GlobalBatch` / `DataZoneBatch` | Global / zone de données | 50 % moins cher que Global Standard, objectif de 24 heures |
 | Developer | `DeveloperTier` | N'importe quelle région Azure | Par jeton ; évaluation de modèles ajustés uniquement, sans SLA, supprimé après 24 heures |
 
+Global Standard prend aussi en charge des niveaux de traitement par requête (`service_tier`) : le **traitement Flex** pour les requêtes moins chères qui tolèrent un délai et le **traitement prioritaire** (Priority processing) pour des réponses plus rapides, facturé à l'utilisation ; Data Zone Standard (US) prend en charge le traitement prioritaire.
+
 Le **calcul managé dans un projet Foundry** (préversion, sans SLA, déconseillé en production) utilise le SKU `GlobalManagedCompute`, un modèle de déploiement (deployment template) et un type d'accélérateur (par exemple `H100_80GB`). Vous mettez à l'échelle en changeant le nombre d'instances du modèle (`sku.capacity`), pas la taille des nœuds. L'approvisionnement prend environ 10 à 15 minutes ; la facturation s'arrête quand vous supprimez le déploiement. Créer, mettre à jour ou supprimer ces déploiements demande Cognitive Services Contributor, Foundry Account Owner ou Foundry Owner ; les appeler avec Microsoft Entra ID demande Foundry User. Le point de terminaison est le point de terminaison compatible OpenAI de la ressource (`https://<account>.services.ai.azure.com/openai/v1/`) et le champ `model` est le nom du déploiement.
 
 Les **projets basés sur un hub (Foundry classique)** exposent les deux mêmes idées par Azure Machine Learning :
@@ -92,7 +94,7 @@ Les **classements par scénario** regroupent les jeux de données par tâche (ra
 | Charge de travail mixte, invites faciles et difficiles | Routeur de modèles (model router) |
 | Qualité de récupération pour le RAG | Un modèle d'incorporation choisi dans le classement des incorporations, puis testé sur votre corpus |
 
-Le **routeur de modèles** (model router) est un modèle déployable qui envoie chaque invite au modèle sous-jacent le plus adapté. Modes de routage : **Balanced** (par défaut ; le modèle le moins cher dans une petite marge de qualité par rapport au meilleur), **Quality** (qualité maximale, coût ignoré) et **Cost** (marge de qualité plus large pour plus d'économies). Un **sous-ensemble de modèles** limite les modèles utilisables et sert d'ensemble de repli (choisissez-en au moins deux). Il se déploie en Global Standard ou Data Zone Standard ; sa fenêtre de contexte effective est celle du plus petit modèle du sous-ensemble, et il ne traite pas l'audio.
+Le **routeur de modèles** (model router) est un modèle déployable qui envoie chaque invite au modèle sous-jacent le plus adapté. Modes de routage : **Balanced** (par défaut ; le modèle le moins cher dans une petite marge de qualité par rapport au meilleur), **Quality** (qualité maximale, coût ignoré) et **Cost** (marge de qualité plus large pour plus d'économies). Un **sous-ensemble de modèles** limite les modèles utilisables ; si le modèle choisi renvoie une erreur pouvant faire l'objet d'une nouvelle tentative, le routeur bascule automatiquement vers le meilleur modèle suivant. Il se déploie en Global Standard ou Data Zone Standard ; sa fenêtre de contexte effective est celle du plus petit modèle du sous-ensemble ; il accepte du texte et des images mais route sur le texte seul, et il n'accepte pas l'audio. La version `2025-11-18` est en disponibilité générale et utilisée par défaut ; les versions en préversion `2025-08-07` et `2025-05-19` sont retirées le 27 janvier 2027. La facturation comprend des frais de routage par million de jetons d'entrée plus l'utilisation du modèle choisi (seulement les frais quand votre propre déploiement PTU sert la requête).
 
 > **Piège d'examen.** Un modèle en tête d'un classement public n'est pas automatiquement la bonne réponse. Quand l'énoncé demande comment confirmer qu'un modèle moins cher suffit pour votre application, la réponse est une évaluation sur votre propre jeu de données, pas un score de benchmark.
 
@@ -106,12 +108,12 @@ Un déploiement fige un nom et une version de modèle derrière un **nom de dép
 | Étape | Signification |
 | --- | --- |
 | Preview (préversion) | Date de retrait « pas avant » environ 90 jours après le lancement ; les déploiements sont mis à niveau de force ou retirés |
-| Généralement disponible | Date de retrait fixée à environ 18 mois |
+| Généralement disponible | Deprecated (clients existants uniquement) 12 mois après le lancement, retiré à 18 mois ; les modèles Anthropic, DeepSeek, Fireworks et Mistral AI suivent un cycle de vie GA de 12 mois |
 | Legacy (facultatif) | Des modèles plus récents existent ; planifiez la migration |
 | Deprecated (déprécié) | Les clients existants gardent leurs déploiements ; les nouveaux clients ne peuvent pas déployer |
 | Retired (retiré) | Supprimé ; chaque requête d'inférence renvoie `410 Gone` |
 
-Les notifications arrivent aux propriétaires d'abonnement qui ont des déploiements actifs au moins **60 jours** avant le retrait pour les modèles GA et **30 jours** pour les modèles en préversion, par e-mail et par Azure Service Health. Les dates de retrait ne peuvent pas être prolongées.
+Les notifications arrivent aux propriétaires d'abonnement qui ont des déploiements actifs au moins **60 jours** avant le retrait pour les modèles GA et **30 jours** pour les modèles en préversion, par e-mail et par Azure Service Health. Les dates de retrait des modèles GA ne peuvent pas être prolongées ; une date « pas avant » de préversion peut l'être jusqu'à ce qu'un remplaçant soit disponible.
 
 La propriété `versionUpgradeOption` d'un déploiement de type Standard décide de ce qui se passe :
 
@@ -121,7 +123,7 @@ La propriété `versionUpgradeOption` d'un déploiement de type Standard décide
 | `OnceCurrentVersionExpired` | Reste figé ; passe à la version par défaut courante au retrait. `null` se comporte de la même façon |
 | `NoAutoUpgrade` | Jamais de mise à niveau ; le déploiement **cesse de fonctionner** au retrait |
 
-Les mises à niveau automatiques ne s'appliquent qu'aux types de déploiement Standard. **Les déploiements approvisionnés ne sont jamais mis à niveau automatiquement** : migrez-les soit **sur place** (même nom et même taille de déploiement, nouvelle version du modèle ; le trafic bascule en 20 à 30 minutes, état « updating »), soit par une migration **multi-déploiement** (créer un nouveau déploiement approvisionné, déplacer le trafic, vérifier que l'ancien ne reçoit plus de requêtes pendant 5 à 10 minutes, le supprimer). Les migrations ne se font qu'entre déploiements du même type. Azure CLI peut lire `versionUpgradeOption` mais pas le définir : utilisez des modèles Bicep ou ARM, REST ou Azure PowerShell.
+Les mises à niveau automatiques ne s'appliquent qu'aux types de déploiement Standard. **Les déploiements approvisionnés ne sont jamais mis à niveau automatiquement** : migrez-les soit **sur place** (même nom et même taille de déploiement, nouvelle version ou nouvelle famille de modèle ; le trafic bascule en 20 à 30 minutes, état « updating » ; un changement de version se fait dans le portail Foundry, par REST ou avec Azure CLI, un changement de famille de modèle seulement par REST ou avec Azure CLI), soit par une migration **multi-déploiement** (créer un nouveau déploiement approvisionné, déplacer le trafic, vérifier que l'ancien ne reçoit plus de requêtes pendant 5 à 10 minutes, le supprimer). Les migrations ne se font qu'entre déploiements du même type. Azure CLI peut lire `versionUpgradeOption` mais pas le définir : utilisez des modèles Bicep ou ARM, REST ou Azure PowerShell.
 
 Un déploiement sûr d'une nouvelle version de modèle en production :
 
@@ -153,7 +155,7 @@ Une **unité de débit approvisionné (PTU)** est une quantité fixe de capacit�
 | Réservations Azure | Engagement d'un mois ou d'un an pour un tarif horaire réduit, par type de déploiement ; ne garantissent pas la capacité : créez d'abord le déploiement, puis achetez la réservation |
 | Mise à l'échelle | Changez le nombre de PTU à tout moment ; réduire libère une capacité qui peut ne plus être disponible, donc ne montez pas et ne descendez pas au gré du trafic |
 
-Chaque modèle a un minimum et un incrément. Pour les déploiements approvisionnés Global et Data Zone des modèles actuels, le minimum est de 15 PTU par incréments de 5 ; les minimums Regional sont plus élevés (25 ou 50 selon le modèle, avec des incréments identiques).
+Chaque modèle a un minimum et un incrément. Pour les déploiements approvisionnés Global et Data Zone des modèles actuels, le minimum est de 15 PTU par incréments de 5. Les minimums Regional sont en général plus élevés (25 ou 50 selon le modèle, avec des incréments identiques), mais certains modèles récents (famille gpt-5.6, gpt-6-sol, gpt-6-luna) sont aussi à 15 / 5 en Regional : lisez la ligne du modèle dans le tableau de dimensionnement.
 
 **Dimensionnement.** Le calculateur de capacité du portail Foundry calcule les PTU à partir des requêtes par minute en pointe, des jetons moyens d'entrée et de sortie et du taux de cache :
 
@@ -171,9 +173,11 @@ PTUs            = normalized TPM / input TPM per PTU, rounded up to the incremen
 | gpt-5 | 4 750 | 8 |
 | gpt-5-mini | 23 750 | 8 |
 
+Cette formule déduit entièrement les jetons en cache, ce qui vaut pour les modèles antérieurs à GPT-6 Astra. Pour GPT-6 Astra et les modèles suivants, les lectures en cache et les écritures dans le cache consomment de la capacité selon des pondérations propres au modèle, dans un calcul en jetons normalisés.
+
 Exemple : gpt-4.1, 600 requêtes par minute en pointe, 1 000 jetons d'entrée et 200 de sortie par requête, sans cache. TPM normalisé = 600 000 + 4 x 120 000 = 1 080 000, donc 360 PTU, une taille Global Provisioned valide (multiple de 5) ; un déploiement Regional arrondit à son incrément plus grand.
 
-**Utilisation.** Surveillez la métrique **Provisioned-managed utilization V2** dans Azure Monitor. À 100 % d'utilisation, le déploiement renvoie immédiatement **HTTP 429**, avec les en-têtes `retry-after` et `retry-after-ms` : c'est un signal de gestion du trafic, pas une erreur du service. Options : réessayer après le délai indiqué (les SDK OpenAI réessaient deux fois par défaut), envoyer la requête à un autre déploiement, ou configurer le **débordement** (spillover), qui envoie les requêtes qui seraient rejetées vers un déploiement standard de la même ressource Foundry, pour toutes les requêtes du déploiement ou par requête avec l'en-tête `x-ms-spillover-deployment`. Le débordement est pris en charge pour les modèles Azure OpenAI, pas pour les modèles d'autres fournisseurs.
+**Utilisation.** Surveillez la métrique **Provisioned-managed utilization V2** dans Azure Monitor. À 100 % d'utilisation, le déploiement renvoie immédiatement **HTTP 429**, avec les en-têtes `retry-after` et `retry-after-ms` : c'est un signal de gestion du trafic, pas une erreur du service. Options : réessayer après le délai indiqué (les SDK OpenAI réessaient deux fois par défaut), envoyer la requête à un autre déploiement, ou configurer le **débordement** (spillover), qui envoie les requêtes auxquelles le déploiement approvisionné répond par un code autre que 200 (429 à pleine utilisation, 400 pour une longueur de contexte non prise en charge, 500 ou 503) vers un déploiement standard du même modèle et de la même version dans la même ressource Foundry, pour toutes les requêtes du déploiement (`spilloverDeploymentName`) ou par requête avec l'en-tête `x-ms-spillover-deployment`. Quand les deux sont définis, la propriété du déploiement l'emporte. Les requêtes débordées sont facturées aux tarifs par jeton du déploiement standard et y apparaissent avec `IsSpillover = True` dans la métrique Azure OpenAI Requests. Le débordement est pris en charge pour les modèles Azure OpenAI, pas pour les modèles d'autres fournisseurs.
 
 ```bash
 az cognitiveservices account deployment create \

@@ -3,38 +3,30 @@ Generative AI workloads built in Microsoft Foundry need four kinds of controls t
 <!-- section: ai-gateway | objectives: 3.1.7 -->
 ## AI Gateway in API Management for Foundry
 
-**AI Gateway** routes model and tool traffic of a Foundry resource through an **Azure API Management** instance. The instance acts as a reverse proxy with a single inbound endpoint: it authenticates the caller, applies token limits, logs the request and only then forwards it to the model deployment.
+The **AI gateway** capabilities of **Azure API Management** put an API Management instance in front of the model deployments of a Foundry resource. The instance acts as a reverse proxy with a single inbound endpoint: it authenticates the caller, applies token limits, logs the request and only then forwards it to the model deployment. Every API Management tier, classic or v2, can act as the gateway; support for individual AI gateway features depends on the tier.
 
-Prerequisites and permissions:
+Foundry can consume models through two distinct resource types:
 
-| Task | Requirement |
-| --- | --- |
-| Create a new API Management instance from Foundry | Contributor or Owner on the target resource group |
-| Use an existing instance | API Management Service Contributor (or Owner) on that instance |
-| Manage the gateway in Foundry | For example Foundry Account Owner or Foundry Owner on the Foundry resource (renamed from Azure AI Account Owner and Azure AI Owner) |
-| Existing instance shown in the list | Same Microsoft Entra tenant **and** same subscription as the Foundry resource, and a **v2 tier** |
-| Foundry resource with public network access disabled | The API Management instance must be private too: Standard v2 or Premium v2 with a private endpoint, or Premium v2 injected into a virtual network |
+| Path | Configuration | How projects use it |
+| --- | --- | --- |
+| API Management | Backends, authentication, policy XML, token limits and networking are configured in API Management (Azure portal or code). In Foundry: **Connections** > **Add connection** > **Model** > **Gateway** source, with the gateway base URL and authentication | As connected models. A **resource-scope** connection can be used across the projects of the Foundry resource; a **project-scope** connection is limited to one project |
+| Azure AI Gateway | A separate product with its own portal and `az aigateway`; in Foundry, **Manage** > **Gateways** > **Azure AI Gateway** (Foundry UI integration still rolling out) | The aliases you select appear in projects as connected models |
 
-Steps in the Foundry portal (new Foundry experience): **Manage** > **AI Gateway** > **Add AI Gateway**, select the Foundry resource, choose **Create new** or **Use existing**, name the gateway, select **Add**, and wait until the status is **Enabled**. **Create new** deploys a **Basic v2** instance, meant for development and test; use an existing Standard v2 or Premium v2 instance for production.
+The earlier preview experience linked and managed an API Management instance from the Foundry portal; new API Management links can no longer be created from Foundry. Existing links, APIs and policies keep working; their token-limit settings stay visible in Foundry, but are changed in the API Management policy XML.
 
-Scope rules:
+> **Exam trap.** The gateway enforces its policies only on traffic sent to its endpoint. An application that calls the model deployment's own endpoint, or an MCP tool registered with its direct backend URL, bypasses the gateway: no token limits, no gateway logs. Code must use the gateway runtime endpoint, and agents the connected model. Management access to a gateway doesn't grant runtime access either.
 
-- The gateway is attached to the **Foundry resource** and shared by all its projects. Limits are set **per project**. Projects that need separate gateways go in separate Foundry resources.
-- New projects are enabled by default. **Existing projects aren't**: open the gateway, check the **Gateway status** column and select **Add project to gateway**. Until then, their requests bypass the gateway.
-
-> **Exam trap.** A project that existed before the gateway was added keeps calling models directly until you select **Add project to gateway**. "Token limits aren't applied" in a scenario usually means the project isn't enabled.
-
-Token limits are configured in **Manage** > **AI Gateway** > the gateway > **Token management** > **+ Set limit**, by project and deployment:
+Token limits are set with the `llm-token-limit` policy, per counter key (for example the API Management subscription of each team):
 
 | Limit | What it caps | Response when exceeded |
 | --- | --- | --- |
-| Tokens per minute (TPM) | Rate | `429 Too Many Requests` |
-| Total token quota | Volume over a period (for example hourly, daily, monthly) | `403 Forbidden` |
+| `tokens-per-minute` | Rate | `429 Too Many Requests` |
+| `token-quota` with `token-quota-period` | Volume over a period (Hourly, Daily, Weekly, Monthly, Yearly) | `403 Forbidden` |
 
 Authentication and network controls of the gateway:
 
 - Callers authenticate with **Microsoft Entra tokens** (each application uses its own managed identity) rather than one shared key, so a compromised application can't use another application's quota or identity.
-- The gateway itself uses a **system-assigned or user-assigned managed identity** to call the model deployments, with a role such as **Cognitive Services User** scoped to those deployments. No key to store or rotate.
+- The gateway itself uses a **system-assigned or user-assigned managed identity** to call the model deployments: assign it **Cognitive Services OpenAI User** on the Foundry resource, and get the token with `authentication-managed-identity` for the resource `https://cognitiveservices.azure.com`. No key to store or rotate. Caller validation (`validate-azure-ad-token`) comes before the back-end authentication policies.
 - Restrict the gateway endpoint with a **private endpoint** for callers inside Azure, or IP allowlisting for external callers, combined with Microsoft Entra token validation.
 
 Custom policies are managed in the API Management instance. The AI gateway policies to recognize:
@@ -43,7 +35,7 @@ Custom policies are managed in the API Management instance. The AI gateway polic
 | --- | --- |
 | `llm-token-limit` | TPM limit or token quota per counter key (subscription, IP address...); can estimate prompt tokens and reject before calling the backend |
 | `llm-emit-token-metric` | Sends token consumption metrics with custom dimensions to Azure Monitor |
-| `llm-content-safety-policy` | Moderates prompts with Azure AI Content Safety |
+| `llm-content-safety` | Sends prompts or completions to Azure AI Content Safety and returns `403` when content is flagged; `shield-prompt="true"` also checks for prompt attacks. Also covers MCP tool and A2A agent APIs |
 
 ```text
 <llm-token-limit counter-key="@(context.Subscription.Id)"
@@ -51,7 +43,7 @@ Custom policies are managed in the API Management instance. The AI gateway polic
     remaining-tokens-variable-name="remainingTokens" />
 ```
 
-To audit traffic, add a diagnostic setting on the API Management instance with **Logs related to ApiManagement Gateway**, sent to a Log Analytics workspace with **Resource specific** tables. Diagnostic logs capture request metadata (time, caller, tokens, response code, latency), **not prompt or completion content** by default. Then alert on anomalies such as a caller close to its token limit or an agent suddenly making far more model calls than usual.
+To audit traffic, add a diagnostic setting on the API Management instance with **Logs related to ApiManagement Gateway**, sent to a Log Analytics workspace with **Resource specific** tables. Diagnostic logs capture request metadata (time, caller, response code, latency), **not request or response bodies** by default; bodies enabled per API are capped at 8,192 bytes each. For LLM APIs, also select **Logs related to generative AI gateway**: it records token usage and models and, if you enable message logging on the LLM API, the prompts and completions (split into 32 KB chunks, up to 2 MB per message). Then alert on anomalies such as a caller close to its token limit or an agent suddenly making far more model calls than usual.
 
 ```kusto
 ApiManagementGatewayLogs
@@ -64,12 +56,12 @@ ApiManagementGatewayLogs
 
 **Threat protection for AI services** is a Defender for Cloud workload protection plan. It detects threats to generative AI applications in real time, such as jailbreak attempts, data leakage, data poisoning and credential theft, using Azure AI Content Safety **Prompt Shields** and Microsoft threat intelligence. Alerts can be correlated into incidents in the Microsoft Defender portal (Defender XDR).
 
-Enable it: **Microsoft Defender for Cloud** > **Environment settings** > select the subscription > on the **Defender plans** page, set **AI services** to **On**. Enabling the plan at subscription scope requires **Owner** (or roles with the corresponding permissions). Then open **Settings** for the plan to configure its components:
+Enable it: **Microsoft Defender for Cloud** > **Environment settings** > select the subscription > on the **Defender plans** page, set **AI services** to **On**. Enabling the plan requires **Owner** or **Contributor** level. Then open **Settings** for the plan to configure its components:
 
 | Component | Effect | Notes |
 | --- | --- | --- |
 | Suspicious prompt evidence (**Enable user prompt evidence**) | Alerts include the suspicious segments of the prompt and model response, with sensitive data redacted | Off: prompts are still analyzed, but their content is masked in alerts |
-| Data security for AI interactions | Lets Microsoft Purview analyze prompts and responses (classification, audit, insider risk, communication compliance, eDiscovery) | Paid Purview feature, requires a Purview license; not included in the plan |
+| Data security for AI interactions | Lets Microsoft Purview analyze prompts and responses (classification, audit, insider risk, communication compliance, eDiscovery) | Paid Purview feature, requires a Purview license; not included in the plan. Doesn't include Foundry agent data; full data security policy support needs Entra ID calls with a user-context token |
 | AI model security | Scans models in Azure Machine Learning registries for issues such as malware and serialization vulnerabilities | |
 
 Coverage facts:
@@ -103,6 +95,8 @@ A **guardrail** is a named collection of **controls**. Each control defines a **
 | Task adherence (preview) | Yes | Yes |
 | Groundedness (preview), Spotlighting (preview) | Yes | No |
 
+Groundedness detection (preview) in Azure OpenAI retires on April 30, 2027. Hosted agents also get network egress controls (generally available, except Transform rules, in preview).
+
 Intervention points:
 
 | Point | Scans | Applies to |
@@ -112,7 +106,7 @@ Intervention points:
 | Tool response (preview) | Content returned by the tool, before it reaches the agent's memory or the user | Agents |
 | Output | The final completion returned to the user | Models and agents |
 
-Actions: **Annotate** (models only) or **Annotate and block** (models and agents). For the four harm categories, the blocking level is **Low** (blocks high severity only), **Medium** (medium and high) or **High** (low, medium and high, most restrictive). Tool call and tool response controls only work with tools that support moderation, such as Azure AI Search, Azure Functions, OpenAPI, SharePoint grounding, Bing grounding and Browser Automation.
+Actions: **Annotate** (models only) or **Annotate and block** (models and agents). For the four harm categories, the blocking level is **Low** (blocks high severity only), **Medium** (medium and high) or **High** (low, medium and high, most restrictive); **Off** blocks nothing for that risk, and turning content harms off for outputs is only available to approved customers. Tool call and tool response controls only work with tools that support moderation, such as Azure AI Search, Azure Functions, OpenAPI, SharePoint grounding, Bing grounding and Browser Automation.
 
 Assignment and inheritance:
 
@@ -152,8 +146,8 @@ From the dashboard, **Manage Sensitivity Settings** opens the tenant-level data 
 <!-- section: key-points -->
 ## Key points
 
-- AI Gateway = API Management in front of Foundry models: Entra authentication, per-project TPM (`429`) and quota (`403`) limits, metadata logging.
-- An existing API Management instance must be v2, in the same tenant and subscription; existing projects must be added to the gateway.
+- AI Gateway = API Management in front of Foundry models: Entra authentication, `llm-token-limit` TPM (`429`) and quota (`403`) per counter key, logging (generative AI gateway category for prompts and completions).
+- API Management is configured in Azure, then consumed in Foundry through a Gateway connection (resource or project scope); new API Management links can't be created from Foundry, and traffic that skips the gateway endpoint isn't controlled.
 - Defender for AI services detects (jailbreak, data leakage) and alerts; prompt evidence only adds prompt text to alerts; Purview integration needs a Purview licence.
 - AI posture (AI BOM, attack paths) comes from Defender CSPM, not from the AI services plan.
 - Guardrail = controls (risk + intervention point + action); agent guardrail overrides the model's; tool call and tool response points are agent-only.

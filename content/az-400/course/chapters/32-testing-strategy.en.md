@@ -18,7 +18,7 @@ In YAML Azure Pipelines, deployment gates are **checks** configured on a protect
 | Query Azure Monitor alerts | Proceed only if no Azure Monitor alert is active |
 | Exclusive lock | One run at a time on the resource (`lockBehavior: sequential` or `runLatest`) |
 
-Evaluation order: static checks (branch control, required template, evaluate artifact), pre-check approvals, dynamic checks, post-check approvals, then exclusive lock. When an approval times out, the stage is skipped; when business hours or Azure Monitor alerts time out, it fails.
+Evaluation order: static checks (branch control, required template, evaluate artifact), pre-check approvals, dynamic checks, post-check approvals, then exclusive lock. When an approval times out, the stage is skipped; when an Invoke Azure Function or Invoke REST API check times out, the stage and the stages that depend on it are skipped; when business hours or Azure Monitor alerts time out, the stage fails.
 
 **Classic release pipelines** use **pre-deployment and post-deployment gates**: Invoke Azure Function, Query Azure Monitor alerts, Invoke REST API, **Query work items** (no more than n open bugs), **Check Azure Policy compliance**. Gates are re-evaluated at an interval (after a delay before evaluation) until all succeed in the same sampling interval or the timeout fails the deployment. Post-deployment gates on Azure Monitor alerts are the classic "stop the release if the new version raises errors" control.
 
@@ -45,7 +45,7 @@ jobs:
 
 Security and governance gates: code scanning results, secret scanning alerts and license compliance as **ruleset** rules in GitHub; Required template and Branch control checks, and Azure Policy compliance, in Azure DevOps; failing the pipeline on high-severity findings from dependency or container scanning.
 
-> **Exam trap.** In YAML pipelines, approvals and gates are **checks on the environment**, not a keyword in the stage. "Prevent teams from deploying with a pipeline that skips the security scan" is the **Required template** check on the environment or service connection.
+> **Exam trap.** In YAML pipelines, approvals and gates are **checks on the environment**, not a keyword in the stage. "Prevent teams from deploying with a pipeline that skips the security scan" is the **Required template** check on the service connection that the deployment uses.
 
 <!-- section: testing-strategy | objectives: 3.2.2 -->
 ## Designing a comprehensive testing strategy
@@ -61,7 +61,7 @@ Shift testing left: run most tests early, fast and in isolation, and keep fewer,
 | Load tests | Behavior under expected and peak traffic: response time, errors, throughput | Before production, on a production-like environment, often scheduled | **Azure Load Testing** (JMeter, Locust or URL-based tests) |
 | Smoke tests | A few critical paths after each deployment | Right after deployment, before traffic shift | Script or REST calls |
 
-Microsoft's test taxonomy expresses the same idea: L0 and L1 are unit tests with no deployment, L2 are functional tests against a lightweight deployment, L3 run against production. Push tests down to the lowest level that can catch the defect, and make every test reliable: a flaky test that fails randomly gets ignored and blocks nothing.
+Microsoft's test taxonomy expresses the same idea: L0 and L1 are unit tests that depend only on the assembly under test, L2 are functional tests that may also need dependencies such as SQL or the file system, L3 are functional tests against a testable service deployment, and L4 are a restricted class of integration tests against production. Push tests down to the lowest level that can catch the defect, and make every test reliable: a flaky test that fails randomly gets ignored and blocks nothing.
 
 Azure Load Testing describes a test in a YAML configuration with **fail criteria**, so that a pipeline run fails when the application gets slower:
 
@@ -136,7 +136,7 @@ jobs:
           rerunMaxAttempts: '2'
 ```
 
-**Integration of results.** Published results appear in the run's **Tests** tab (failures, duration, attachments, history) and in test analytics and reports; results link to the pipeline run, the commit and bugs that can be created from a failure. Azure DevOps also offers **flaky test** detection. With build validation, failed tests block the pull request.
+**Integration of results.** Published results appear in the run's **Tests** tab (failures, duration, attachments, history) and in test analytics and reports; results link to the pipeline run, the commit and bugs that can be created from a failure. Azure DevOps Services (not Azure DevOps Server) also manages **flaky tests**: system detection marks a test flaky, for its branch, when it fails and then passes on a rerun (`VSTest@3` reruns or Rerun failed jobs); excluding flaky tests from the test summary keeps their failures from failing the run, for the Visual Studio Test and Publish Test Results tasks only. With build validation, failed tests block the pull request.
 
 **GitHub Actions** has no built-in test results tab: tests run as steps, a non-zero exit code fails the job (and the required status check), results files are kept with `actions/upload-artifact@v7`, and a summary can be written to `$GITHUB_STEP_SUMMARY`. The `azure/load-testing@v1` action runs Azure Load Testing tests after `azure/login`.
 
@@ -156,7 +156,7 @@ Collecting coverage:
 | Java | JaCoCo (Maven or Gradle plugin) | JaCoCo XML |
 | JavaScript | Jest or Istanbul (`--coverage`) | Cobertura or LCOV |
 
-Publishing in Azure Pipelines: `PublishCodeCoverageResults@2` accepts the common formats (`.coverage`, Cobertura and JaCoCo XML, LCOV and others), merges several summary files, and produces the **Code Coverage** tab with an HTML report. Set `failIfCoverageEmpty: true` to catch a broken collection.
+Publishing in Azure Pipelines: `PublishCodeCoverageResults@2` accepts the common formats (`.coverage`, Cobertura and JaCoCo XML, LCOV and others), merges several summary files, and produces the **Code Coverage** tab with an HTML report. Set `failIfCoverageEmpty: true` to catch a broken collection. Learn lists the Use .NET Core task (`UseDotNet@2`) as a prerequisite, earlier in the pipeline.
 
 ```yaml
 steps:
@@ -171,7 +171,7 @@ steps:
       failIfCoverageEmpty: true
 ```
 
-**Coverage as a pull request gate in Azure Repos.** When the pipeline run by build validation publishes coverage, Azure DevOps posts a **diff coverage** status: the share of **changed lines** covered by tests, 70% by default. It works for Azure Repos only, and Learn lists the Visual Studio `.coverage` format (from `VSTest@3` or `dotnet test --collect "Code coverage"`) as the supported input. Configure it in `azurepipelines-coverage.yml` at the repository root, and make it blocking with a branch policy **status check** on `<pipeline name>/codecoverage`. Without that policy, the status is advisory.
+**Coverage as a pull request gate in Azure Repos.** When the pipeline run by build validation publishes coverage, Azure DevOps posts a **diff coverage** status: the share of **changed lines** covered by tests, 70% by default. It works for Azure Repos only, and Learn's FAQ lists the Visual Studio `.coverage` format (from `VSTest@3` or `dotnet test --collect "Code coverage"`) as the supported input. Configure it in `azurepipelines-coverage.yml` at the repository root, and make it blocking with a branch policy **status check** on `<pipeline name>/codecoverage`. Without that policy, the status is advisory. The policy gets stuck with PublishCodeCoverageResults v1, with more than 100 files in the pull request or with several coverage policies, and in a multi-stage pipeline coverage results are available only after the whole run completes.
 
 ```yaml
 # azurepipelines-coverage.yml

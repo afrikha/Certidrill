@@ -1,0 +1,48 @@
+id: dopc02-4c-s3-fifo-eventbridge
+objective: "4.3.1"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    A media company uploads video manifests to an Amazon S3 bucket under the prefix manifests/. An S3 event notification already invokes an AWS Lambda function for s3:ObjectCreated:* events on that prefix. A new transcoding service must receive an event for every manifest created under the same prefix through an Amazon SQS FIFO queue, because it must process the manifests in order. The existing Lambda function must keep receiving its events. The company wants the LEAST operational overhead and no additional custom code.
+
+    Which solution will meet these requirements?
+body:
+  options:
+    - id: a
+      text:
+        en: |-
+          Add a second queue configuration to the bucket's event notifications for s3:ObjectCreated:* events on the manifests/ prefix, with the FIFO queue as the destination.
+    - id: b
+      text:
+        en: |-
+          Update the existing Lambda function so that it also sends a message to the FIFO queue for each new object, with a fixed message group ID.
+    - id: c
+      text:
+        en: |-
+          Turn on Amazon EventBridge for the bucket, and create a rule that matches Object Created events for keys that start with manifests/ and targets the FIFO queue.
+    - id: d
+      text:
+        en: |-
+          Replicate the manifests/ prefix to a second bucket with S3 Replication, and add a queue configuration on the second bucket that targets the FIFO queue.
+answer: { optionId: c }
+explanation:
+  correct:
+    en: |-
+      SQS FIFO queues aren't supported as a destination of S3 event notifications; the S3 documentation recommends Amazon EventBridge to send S3 events to a FIFO queue. Once EventBridge is turned on for the bucket, a rule can filter Object Created events on the key prefix and target the FIFO queue, while the existing Lambda notification keeps working.
+  options:
+    a:
+      en: |-
+        S3 can't send event notifications to a FIFO queue, and a second configuration for the same event type with the same prefix overlaps the existing one, so S3 rejects it.
+    b:
+      en: |-
+        This adds custom code to the function and couples the transcoding pipeline to it, which the company wants to avoid.
+    d:
+      en: |-
+        The second bucket has the same limitation: S3 event notifications can't target a FIFO queue. Replication also adds storage cost and delay.
+references:
+  - title: "Amazon S3 Event Notifications - Amazon Simple Storage Service"
+    url: https://docs.aws.amazon.com/AmazonS3/latest/userguide/EventNotifications.html
+  - title: "Configuring event notifications using object key name filtering - Amazon Simple Storage Service"
+    url: https://docs.aws.amazon.com/AmazonS3/latest/userguide/notification-how-to-filtering.html

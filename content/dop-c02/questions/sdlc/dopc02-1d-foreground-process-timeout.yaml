@@ -1,0 +1,48 @@
+id: dopc02-1d-foreground-process-timeout
+objective: "1.4.7"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    An application is deployed to Amazon Linux instances with AWS CodeDeploy. The ApplicationStart hook runs scripts/start_server.sh with a timeout of 300 seconds, and the script starts the application server with the command java -jar /opt/app/app.jar. Deployments fail with the message "Script at specified location: scripts/start_server.sh failed to complete in 300 seconds", although the application is healthy. A developer then appended an ampersand (&) to the java command, and deployments now stay in progress for an hour before they fail.
+
+    How should the script start the application server so that deployments succeed?
+body:
+  options:
+    - id: a
+      text:
+        en: |-
+          Keep the java command in the foreground, and set the timeout of the ApplicationStart hook to 3,600 seconds in the AppSpec file.
+    - id: b
+      text:
+        en: |-
+          Move the java command from the ApplicationStart hook to the ValidateService hook, and keep the timeout of 300 seconds.
+    - id: c
+      text:
+        en: |-
+          Keep the ampersand, and add runas: root to the ApplicationStart hook so that the agent can detach the process.
+    - id: d
+      text:
+        en: |-
+          Run the java command in the background with standard output, standard error, and standard input redirected, for example to and from /dev/null.
+answer: { optionId: d }
+explanation:
+  correct:
+    en: |-
+      The agent waits for the hook script to finish within its timeout. A long-running process must be fully detached: started in the background with stdout, stderr and stdin redirected, so that the script exits while the server keeps running.
+  options:
+    a:
+      en: |-
+        A foreground server never exits, so the script still fails, only after one hour, which is also the maximum timeout of a lifecycle event.
+    b:
+      en: |-
+        Moving the command to another hook does not change the behavior: any hook script that keeps a foreground process running fails at its timeout.
+    c:
+      en: |-
+        runas only changes the user that runs the script; with an ampersand alone the open streams keep the deployment pending until the default one-hour timeout.
+references:
+  - title: Troubleshoot EC2/On-Premises deployment issues - AWS CodeDeploy
+    url: https://docs.aws.amazon.com/codedeploy/latest/userguide/troubleshooting-deployments.html
+  - title: AppSpec 'hooks' section - AWS CodeDeploy
+    url: https://docs.aws.amazon.com/codedeploy/latest/userguide/reference-appspec-file-structure-hooks.html

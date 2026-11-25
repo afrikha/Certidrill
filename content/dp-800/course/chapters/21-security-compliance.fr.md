@@ -190,7 +190,7 @@ L'**audit d'Azure SQL Database** écrit les journaux d'audit dans un compte Stoc
 | Stratégie au niveau de la base | Pour une seule base ; activer les deux crée deux audits distincts |
 | Groupes d'actions par défaut | `BATCH_COMPLETED_GROUP`, `SUCCESSFUL_DATABASE_AUTHENTICATION_GROUP`, `FAILED_DATABASE_AUTHENTICATION_GROUP` |
 | Lecture des journaux | Stockage : `sys.fn_get_audit_file` ou le portail ; Log Analytics : KQL sur `AzureDiagnostics`, catégorie `SQLSecurityAuditEvents` |
-| Protection | Stocker les journaux hors de la base auditée, utiliser un stockage blob immuable, fixer la rétention à la durée réglementaire |
+| Protection | Stocker les journaux hors de la base auditée, utiliser un stockage blob immuable, fixer la rétention à la durée réglementaire. Avec un stockage immuable : **Allow protected append writes** défini sur Append blobs ou Block and append blobs (pas None), un intervalle de rétention du stockage plus court que la rétention de l'audit, et une rétention de l'audit différente de 0 |
 
 ```kusto
 AzureDiagnostics

@@ -54,9 +54,9 @@ Microsoft recommande un espace de travail par projet, un accès par groupes Micr
 
 | Récupéré avec l'espace de travail | Perdu définitivement |
 | --- | --- |
-| Historique des exécutions, modèles, données, environnements, composants, notebooks, pipelines, travaux AutoML, projets d'étiquetage, magasins de données | Travaux en file d'attente ou en cours, instances et clusters de calcul, points de terminaison d'inférence, attributions de rôles que vous aviez ajoutées, cache interne |
+| Historique des exécutions, modèles, données, environnements, composants, notebooks, pipelines, travaux AutoML, projets d'étiquetage, magasins de données, attributions de rôles de l'identité de l'espace de travail (recréation tentée, non garantie) | Travaux en file d'attente ou en cours, instances et clusters de calcul, points de terminaison d'inférence, attributions de rôles que vous aviez ajoutées, cache interne |
 
-La récupération exige que le coffre de clés et le compte de stockage soient récupérés d'abord. Pour éviter la suppression réversible, choisissez **Delete the workspace permanently** dans le portail ou passez `permanently_delete=True` dans le SDK :
+Récupérez d'abord les dépendances : le coffre de clés et le compte de stockage ; pour un Application Insights supprimé, récupérez son espace de travail Log Analytics, puis recréez Application Insights avec son nom d'origine. Le registre de conteneurs n'est pas exigé : les images des environnements personnalisés sont reconstruites. Pour éviter la suppression réversible, choisissez **Delete the workspace permanently** dans le portail ou passez `permanently_delete=True` dans le SDK :
 
 ```text
 ml_client.workspaces.begin_delete(
@@ -132,7 +132,7 @@ Quelle identité lit les données d'un magasin basé sur l'identité :
 | Studio, notebooks sur une instance de calcul | Le jeton Microsoft Entra de l'utilisateur connecté |
 | Travail avec `identity: type: user_identity` | L'utilisateur qui a soumis le travail |
 | Travail sans paramètre `identity` | L'identité managée du calcul |
-| Aperçu des données dans le studio quand le pare-feu du stockage n'autorise que les services Azure approuvés | L'identité managée de l'espace de travail |
+| Aperçu des données dans le studio quand le pare-feu du stockage n'autorise que les services Azure approuvés | L'identité managée de l'espace de travail, une fois activé le paramètre du magasin de données **Use workspace managed identity for data preview and profiling in Azure Machine Learning studio**. Elle a besoin de Storage Blob Data Reader, plus Reader sur le point de terminaison privé du stockage s'il en utilise un |
 
 L'identité qui lit a besoin au minimum de **Storage Blob Data Reader** sur le compte de stockage. Pour ne pas attribuer un rôle de stockage à chaque data scientist, attribuez-le à l'identité managée du cluster de calcul et laissez les travaux s'exécuter avec elle.
 
@@ -184,12 +184,12 @@ az ml compute create -n gpu-cluster --type AmlCompute --min-instances 0 --max-in
 az ml compute list --output table
 ```
 
-Le quota est compté par région et par famille de VM et partagé entre clusters et instances. Ne placez pas de verrou Suppression ou Lecture seule sur le groupe de ressources de l'espace de travail : ils bloquent la mise à l'échelle.
+Un cluster peut être créé dans une autre région que l'espace de travail (latence et coûts de transfert de données accrus ; non pris en charge avec un réseau virtuel managé) ; une instance de calcul ne le peut pas. Le quota est compté par région et par famille de VM et partagé entre clusters et instances. Ne placez pas de verrou Suppression ou Lecture seule sur le groupe de ressources de l'espace de travail : ils bloquent la mise à l'échelle.
 
 **Instance de calcul.** Les faits qui reviennent dans les questions :
 
 - Le nom doit être unique dans la région. La taille de VM ne peut pas être changée après la création.
-- **Arrêt en cas d'inactivité** : l'instance s'arrête après une période d'inactivité comprise entre 15 minutes et 3 jours (aucun noyau, terminal, travail ni session VS Code). Jusqu'à quatre **planifications** de démarrage et d'arrêt par instance.
+- **Arrêt en cas d'inactivité** : l'instance s'arrête après une période d'inactivité comprise entre 15 minutes et 3 jours (aucun noyau, terminal, travail ni session VS Code). Une instance dotée d'une identité managée ne s'arrête pas pour inactivité tant que cette identité n'a pas Contributor sur l'espace de travail. Jusqu'à quatre **planifications** de démarrage et d'arrêt par instance.
 - L'arrêt stoppe la facturation du calcul, mais vous payez toujours le disque, l'IP publique et l'équilibreur de charge, et le quota n'est pas libéré.
 - **Créer pour le compte** d'un utilisateur (`create_on_behalf_of` avec le locataire et l'ID d'objet de l'utilisateur) : un administrateur prépare l'instance ; seul l'utilisateur affecté l'utilise.
 - L'accès SSH est désactivé par défaut et ne peut être ni activé ni désactivé après la création.
@@ -289,10 +289,10 @@ az role assignment create --assignee-object-id <group-object-id> \
 
 | Option | Attributions de rôles sur les ressources associées | Remarques |
 | --- | --- | --- |
-| Affectée par le système | Créées par Microsoft | Le plus simple ; cycle de vie lié à l'espace de travail |
+| Affectée par le système | Créées automatiquement : Azure AI Administrator pour les espaces de travail créés après le 19 novembre 2024 (avant : Contributor sur le groupe de ressources) | Le plus simple ; cycle de vie lié à l'espace de travail |
 | Affectée par l'utilisateur (avec `primary_user_assigned_identity`) | Créées par vous | Cycle de vie indépendant, réutilisable, contrôle du privilège minimum |
 
-Vous pouvez passer d'une identité affectée par le système à système plus utilisateur, pas revenir en arrière. Avec une identité affectée par l'utilisateur, attribuez-lui Contributor sur l'espace de travail et sur chaque ressource associée, plus Storage Blob Data Contributor (aperçu des données dans le studio) et, pour un coffre de clés qui utilise le modèle Azure RBAC, Key Vault Administrator.
+Vous pouvez passer d'une identité affectée par le système à système plus utilisateur, pas revenir en arrière. Avec une identité affectée par l'utilisateur, attribuez-lui Contributor sur l'espace de travail et sur chaque ressource associée, plus, en option, Storage Blob Data Contributor (nécessaire seulement pour l'aperçu des données dans le studio) et, pour un coffre de clés qui utilise le modèle Azure RBAC, Key Vault Administrator.
 
 ```yaml
 location: westeurope

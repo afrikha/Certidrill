@@ -120,7 +120,7 @@ A **vector index** (`CREATE VECTOR INDEX`) builds an approximate nearest neighbo
 | Data | At least 100 rows with a non-NULL vector, otherwise error 42266 |
 | Metric | One per index: `cosine`, `euclidean` or `dot` |
 | DML | Latest index version: `INSERT`, `UPDATE`, `DELETE`, `MERGE` maintained automatically |
-| Not supported | Partitioning the index, replication to subscribers, `TRUNCATE TABLE` on the table, deployment in a DACPAC |
+| Not supported | Partitioning the index, replication to subscribers, `TRUNCATE TABLE` on the table, deployment in a DACPAC (a BACPAC that contains vector indexes can be deployed from DacFx 170.5.96) |
 | Status | GA in Azure SQL Database, SQL database in Fabric and Managed Instance (Always-up-to-date); preview in SQL Server 2025 |
 
 Design pattern: keep vectors in a **dedicated embeddings table** (key of the source row, chunk text, vector). It isolates the space they use, and embeddings can be rebuilt without touching the source rows.

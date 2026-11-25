@@ -16,6 +16,7 @@ Ce que montre le portail :
 - Une **page d'accueil** avec des **cartes de solution** : uniquement les solutions auxquelles vos autorisations et votre abonnement donnent accès. **Afficher toutes les solutions** liste les autres.
 - Un résumé de la **posture de conformité**, tiré du Gestionnaire de conformité.
 - Une **recherche** globale et des **Paramètres** centralisés, dont les rôles et les étendues.
+- Une page **Solutions** en quatre sections : **Core** (pour installer et configurer des expériences dans tout Microsoft Purview), puis **Risk & Compliance**, **Data Governance** et **Data Security**.
 
 Le portail remplace le portail de conformité Microsoft Purview, mis hors service, et le portail de gouvernance classique.
 
@@ -43,7 +44,7 @@ Les contrôles sont de trois types, qui reflètent le modèle de responsabilité
 | **Vos contrôles** (gérés par le client) | Votre organisation |
 | **Contrôles partagés** | Les deux : votre organisation et Microsoft partagent la responsabilité |
 
-Le Gestionnaire de conformité collecte en continu les signaux de votre environnement Microsoft 365 et met à jour automatiquement l'état des actions techniques.
+Le Gestionnaire de conformité collecte en continu les signaux de votre environnement Microsoft 365 et met à jour automatiquement l'état des actions techniques ; un changement apparaît sur le tableau de bord sous 24 heures.
 
 <!-- section: compliance-score | objectives: 4.2.3 -->
 ## Utilisation et avantages du score de conformité
@@ -52,7 +53,7 @@ Le **score de conformité** mesure votre avancement dans la réalisation des act
 
 - Les points d'une action dépendent du **risque** qu'elle traite : plus le risque est grand, plus il y a de points.
 - Le score additionne **vos points** (les actions réalisées par votre organisation) et les **points gérés par Microsoft** (les actions que Microsoft a réalisées en tant que fournisseur de cloud).
-- Une nouvelle organisation démarre avec un **score initial** fondé sur la **base de référence de protection des données Microsoft 365**, un ensemble de contrôles qui couvre les principales réglementations et normes de protection des données et de gouvernance générale des données.
+- Une nouvelle organisation démarre avec un **score initial** fondé sur la **base de référence de protection des données Microsoft 365**, un ensemble de contrôles qui couvre les principales réglementations et normes de protection des données et de gouvernance générale des données, tirés principalement du NIST CSF et de l'ISO, ainsi que de FedRAMP et du RGPD.
 
 | Type d'action | Obligatoire | Discrétionnaire |
 | --- | --- | --- |

@@ -82,7 +82,7 @@ ADD FILTER PREDICATE Security.fn_region(Region) ON dbo.FactSales
 WITH (STATE = ON);
 ```
 
-- One security policy can carry predicates for several tables; each table needs its own `ADD FILTER PREDICATE`.
+- One security policy can carry predicates for several tables; each table needs its own `ADD FILTER PREDICATE`. Adding a second filter predicate to a table that already has one fails, even if the existing one is disabled.
 - To change the function, drop or alter the policy first, because the function is schema-bound.
 - Users check their own rights with `sys.fn_my_permissions`.
 

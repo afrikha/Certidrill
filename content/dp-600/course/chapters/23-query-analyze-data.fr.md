@@ -35,6 +35,7 @@ Limites à retenir :
 - **Visualiser les résultats** ne prend pas en charge le SQL avec `ORDER BY`.
 - Si une étape ne peut pas être traduite en SQL, une bannière indique que la requête n'est pas prise en charge en tant que vue d'entrepôt.
 - Pour des requêtes fusionnées, seule la table avec **Activer le chargement** apparaît dans le script SQL.
+- Les entrepôts de plus de 750 000 objets au total (tables, vues et colonnes) ne sont pas pris en charge pour la modélisation.
 - Les requêtes s'enregistrent automatiquement dans **Mes requêtes** ; les utilisateurs du rôle d'espace de travail Viewer et ceux avec qui l'entrepôt a été partagé ne peuvent pas les déplacer dans **Requêtes partagées**.
 
 > **Piège d'examen.** L'éditeur de requête visuel n'écrit jamais de données, sauf via Enregistrer en tant que table. Insérer, mettre à jour ou supprimer des lignes exige l'éditeur de requête SQL dans un entrepôt, ni l'éditeur visuel ni un point de terminaison d'analytique SQL.
@@ -91,6 +92,8 @@ SELECT OrderDate, StoreID, SalesAmount,
        LAG(SalesAmount) OVER (PARTITION BY StoreID ORDER BY OrderDate) AS PreviousDay
 FROM dbo.DailyStoreSales;
 ```
+
+Une fonction de fenêtre n'est pas autorisée dans `WHERE`. Dans un entrepôt ou un point de terminaison d'analytique SQL Fabric, `QUALIFY` filtre sur son résultat après `HAVING`, sans CTE ni sous-requête : `QUALIFY ROW_NUMBER() OVER (PARTITION BY CustomerKey ORDER BY OrderDate DESC) = 1` garde une ligne par clé.
 
 > **Piège d'examen.** `COUNT(*)` compte les lignes, `COUNT(col)` ignore les Null et `COUNT(DISTINCT col)` compte les valeurs uniques non Null. « Nombre de clients ayant commandé » s'écrit `COUNT(DISTINCT CustomerKey)`, pas `COUNT(CustomerKey)`.
 
@@ -195,15 +198,16 @@ EVALUATE
 
 Fonctionnalités utiles :
 
-- **Requêtes rapides** depuis le volet Données : Afficher les 100 premières lignes, Afficher les statistiques de colonne, Définir toutes les mesures du modèle, Évaluer une mesure.
+- **Requêtes rapides** depuis le volet Données : Définir toutes les mesures du modèle et Définir une nouvelle mesure ; sur une table, Afficher les 100 premières lignes, Afficher les statistiques de colonne et Définir toutes les mesures de cette table ; sur une colonne, Afficher l'aperçu des données et Afficher les statistiques de colonne ; sur une mesure, Évaluer, Définir et évaluer, et Définir avec des références et évaluer. Définir toutes les mesures n'est pas disponible au-delà de 500 mesures.
 - **CodeLens** au-dessus d'un `DEFINE MEASURE` : Mettre à jour le modèle : ajouter une nouvelle mesure, ou Mettre à jour le modèle : remplacer la mesure ; **Mettre à jour le modèle avec les modifications** les applique toutes. Un commentaire `///` devient la description de la mesure.
 - L'Analyseur de performances copie la requête DAX d'un visuel, ou **Exécuter** l'ouvre dans la vue de requête DAX.
 
 | Limite ou prérequis | Valeur |
 | --- | --- |
-| Desktop | 15 Mo de données et 1 000 000 de valeurs par requête |
-| Web | 99 999 lignes par requête |
-| Autorisation sur le web | Autorisation d'écriture (Write) sur le modèle sémantique, et le paramètre d'espace de travail qui permet de modifier les modèles de données dans le service |
+| Toute requête | 15 Mo de données et 1 000 000 de valeurs par requête |
+| Web, en plus | 99 999 lignes par requête ; les requêtes ne sont pas conservées après la fermeture du navigateur |
+| Autorisation sur le web | Autorisation d'écriture (Write) sur le modèle sémantique, et le paramètre d'espace de travail **User can edit data models in the Power BI service (preview)** |
+| Web, modèle sémantique par défaut | Non disponible : se connecter en direct depuis Power BI Desktop |
 | Viewer avec l'autorisation Build | Utiliser plutôt Power BI Desktop avec une connexion active |
 
 > **Piège d'examen.** `SUMMARIZECOLUMNS` regroupe et agrège en un seul appel, et ses arguments de filtre (comme `TREATAS`) restreignent le résultat. `SUMMARIZE` avec des colonnes d'extension est l'ancien modèle ; `FILTER` sur une table de faits entière est le modèle lent.
@@ -213,7 +217,7 @@ Fonctionnalités utiles :
 
 - Éditeur de requête visuel : diagramme Power Query sur un entrepôt ou un point de terminaison d'analytique SQL, étapes repliables seulement, lecture seule ; Enregistrer en tant que vue ou en tant que table (CTAS).
 - T-SQL : `WHERE` avant le regroupement, `HAVING` après ; alias utilisables seulement dans `ORDER BY` ; noms en trois parties pour les requêtes entre bases dans l'espace de travail actif.
-- `ROW_NUMBER`, `RANK` et `DENSE_RANK` ne diffèrent que sur les ex aequo.
+- `ROW_NUMBER`, `RANK` et `DENSE_RANK` ne diffèrent que sur les ex aequo ; filtrez sur eux avec une CTE ou, dans Fabric, `QUALIFY`, jamais dans `WHERE`.
 - KQL : `where`, `project`, `extend`, `summarize ... by bin()`, `top n by` ; `take` est sans ordre ; `has` est plus rapide que `contains` ; `=~` ignore la casse.
 - Requête DAX : `EVALUATE` renvoie une table, `DEFINE MEASURE` ajoute des mesures temporaires, `SUMMARIZECOLUMNS` regroupe et agrège.
 - Les requêtes DAX utilisent les mesures et la sécurité du modèle ; le SQL sur le point de terminaison, non.

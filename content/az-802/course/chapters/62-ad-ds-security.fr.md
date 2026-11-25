@@ -98,7 +98,7 @@ Trois outils, du plus simple au plus fort :
 | Élément | Détail |
 | --- | --- |
 | Prérequis | Niveau fonctionnel de domaine **Windows Server 2012 R2** ; **KDC support for claims, compound authentication and Kerberos armoring** dans la Default Domain Controllers Policy (et le paramètre client Kerberos sur les appareils) |
-| Stratégie d'authentification | Durée de vie du TGT (minutes) et conditions de contrôle d'accès comme « membre du silo » ; **appliquée** par défaut, ou *Only audit policy restrictions* |
+| Stratégie d'authentification | Durée de vie du TGT (minutes) et conditions de contrôle d'accès comme « membre du silo » ; en **mode audit** sauf si elle est créée avec `-Enforce` |
 | Silo | Regroupe des utilisateurs, des ordinateurs et des comptes de service ; un compte appartient à un seul silo ; **audit seul** par défaut sauf avec `-Enforce` |
 | Exception | L'Administrator intégré (RID 500) en est toujours exempté |
 
@@ -110,7 +110,7 @@ Grant-ADAuthenticationPolicySiloAccess -Identity "Tier0-Silo" -Account "adm-anna
 Set-ADAccountAuthenticationPolicySilo -Identity "adm-anna" -AuthenticationPolicySilo "Tier0-Silo"
 ```
 
-> **Piège d'examen.** Un silo créé sans `-Enforce` ne restreint rien : il se contente de journaliser ce qu'il bloquerait. Consultez le journal **Authentication Policy Failures - Domain Controller** pendant la phase d'audit.
+> **Piège d'examen.** Une stratégie ou un silo créé sans `-Enforce` ne restreint rien : il se contente de journaliser ce qu'il bloquerait. Consultez le journal **Authentication Policy Failures - Domain Controller** pendant la phase d'audit.
 
 <!-- section: user-account-options | objectives: 6.2.6 -->
 ## Options de sécurité des comptes d'utilisateur
@@ -142,7 +142,7 @@ Set-ADAccountControl -Identity adm-anna -AccountNotDelegated $true
 | Groupe | État recommandé |
 | --- | --- |
 | Enterprise Admins, Schema Admins | **Vides** ; n'y ajoutez un compte que pendant une modification à l'échelle de la forêt ou du schéma |
-| Domain Admins | Peu de membres, utilisés uniquement sur les contrôleurs de domaine et les systèmes du niveau 0 |
+| Domain Admins | **Aucun membre au quotidien** (sauf le compte Administrator intégré sécurisé) ; ajoutez un compte temporairement pour la construction ou la reprise après sinistre, utilisé uniquement sur les contrôleurs de domaine et les systèmes du niveau 0 |
 | Administrators (domaine) | Conserve Enterprise Admins et Domain Admins comme membres (nécessaire à la récupération de la forêt) |
 | Account Operators, Server Operators, Print Operators, Backup Operators | **Vides** : ils peuvent ouvrir une session sur les contrôleurs de domaine et agir dessus (Backup Operators peut sauvegarder et restaurer tous les fichiers) |
 | Administrator intégré (RID 500) | Construction et reprise après sinistre uniquement ; **sensitive and cannot be delegated**, **smart card required**, droits de refus sur les serveurs membres et les postes de travail |
@@ -199,6 +199,6 @@ Méthodes plus fortes : **cartes à puce** ou Windows Hello Entreprise (Kerberos
 - Protected Users : pas de NTLM, pas de délégation, TGT de 4 heures, pas de session en cache ; jamais pour des comptes de service ou d'ordinateur.
 - Durcir les contrôleurs de domaine : Server Core, BitLocker, pas de navigation, mises à jour séparées, RODC là où la sécurité physique est faible.
 - Restreindre l'accès aux contrôleurs de domaine par les droits utilisateur, les droits de refus sur les niveaux inférieurs et des silos de stratégies d'authentification appliqués.
-- Enterprise Admins, Schema Admins et groupes d'opérateurs vides ; AdminSDHolder écrase les autorisations déléguées.
+- Enterprise Admins, Schema Admins et groupes d'opérateurs vides, aucun membre au quotidien dans Domain Admins ; AdminSDHolder écrase les autorisations déléguées.
 - Déléguer à des groupes avec l'Assistant ; révoquer en modifiant les ACL.
 - Auditer NTLM avant de le bloquer ; Kerberos en AES uniquement ; signature et liaison de canal LDAP.

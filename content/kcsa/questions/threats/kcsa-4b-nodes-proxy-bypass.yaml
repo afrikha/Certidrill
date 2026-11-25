@@ -1,0 +1,40 @@
+id: kcsa-4b-nodes-proxy-bypass
+objective: "4.5.2"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    A monitoring ServiceAccount was granted `get` on `nodes/proxy` to read kubelet data through the API server. An attacker steals its token and runs commands in production containers through that proxy. The cluster enforces the Restricted Pod Security Standard and audits `pods/exec` at `RequestResponse` level, yet no `pods/exec` event or admission decision exists for these commands.
+
+    Why?
+body:
+  options:
+    - id: a
+      text: { en: "Pod Security Admission and auditing apply only to Pods created by workload controllers" }
+    - id: b
+      text: { en: "The commands failed, because `get` is a read-only verb that cannot execute commands" }
+    - id: c
+      text: { en: "Requests through `nodes/proxy` bypass audit logging and admission control" }
+    - id: d
+      text: { en: "The `RequestResponse` level records request bodies only for `create` and `update` verbs" }
+answer: { optionId: c }
+explanation:
+  correct:
+    en: |
+      `nodes/proxy` gives access to the kubelet API, which can execute commands in every Pod of the node. Requests sent this way bypass audit logging and admission control, and because some kubelet endpoints accept WebSocket upgrades over HTTP `GET`, even `get` on `nodes/proxy` is not read-only. Grant `nodes/metrics` or `nodes/stats` for monitoring instead.
+  options:
+    a:
+      en: |
+        Pod Security Admission and auditing apply to all API requests on Pods, whoever creates them. The commands simply never went through `pods/exec`.
+    b:
+      en: |
+        Some kubelet endpoints accept WebSocket connections over HTTP `GET`, authorized with the `get` verb, so `get` on `nodes/proxy` allows command execution.
+    d:
+      en: |
+        Audit levels do not depend on the verb that way. No `pods/exec` request was made, so there was nothing to record under that resource.
+references:
+  - title: Role Based Access Control Good Practices
+    url: https://kubernetes.io/docs/concepts/security/rbac-good-practices/
+  - title: Kubelet authentication/authorization
+    url: https://kubernetes.io/docs/reference/access-authn-authz/kubelet-authn-authz/

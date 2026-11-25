@@ -26,7 +26,7 @@ Which score answers which question:
 | Requirement | Metric |
 | --- | --- |
 | Posture of Microsoft 365 workloads and identities | Microsoft Secure Score |
-| Posture of Azure, AWS and GCP resources | **Secure score** of Microsoft Defender for Cloud |
+| Posture of Azure, AWS and GCP resources | **Secure score** of Microsoft Defender for Cloud (risk-based Cloud Secure Score in the Defender portal, classic secure score in the Azure portal) |
 | Progress toward a regulation (GDPR, ISO 27001, NIST) | **Compliance score** of Microsoft Purview Compliance Manager |
 | Configuration of endpoints only | Microsoft Secure Score for Devices (Defender Vulnerability Management) |
 | Misconfigurations of a third-party SaaS app | SaaS security posture management of Defender for Cloud Apps, surfaced in Secure Score |
@@ -47,7 +47,7 @@ Every cloud mailbox has **Exchange Online Protection (EOP)**. Defender for Offic
 | **Automated investigation and response (AIR)** | No | No | Yes |
 | **Attack simulation training**, priority account protection | No | No | Yes |
 
-Plan 1 is included in Microsoft 365 Business Premium; Plan 2 in Microsoft 365 E5 (and A5, G5); both are sold as add-ons. Deploy protection with the **Standard** or **Strict** **preset security policies** rather than hand-built policies: Microsoft maintains their settings as threats change.
+Plan 1 is included in Microsoft 365 E3/G3 and Microsoft 365 Business Premium; Plan 2 in Microsoft 365 E5 (and A5, G5); both are sold as add-ons. Deploy protection with the **Standard** or **Strict** **preset security policies** rather than hand-built policies: Microsoft maintains their settings as threats change.
 
 **Defender for Cloud Apps** is Microsoft's cloud access security broker (CASB) and more:
 
@@ -58,7 +58,7 @@ Plan 1 is included in Microsoft 365 Business Premium; Plan 2 in Microsoft 365 E5
 | Block downloads from unmanaged devices during a session | **Conditional Access app control** (session policies, started from a Microsoft Entra Conditional Access policy) |
 | Detect over-privileged or unused OAuth apps and their credentials | **App governance** |
 | Find misconfigurations of Salesforce, ServiceNow or GitHub | **SaaS security posture management (SSPM)**, reported in Secure Score |
-| Apply sensitivity labels or remove external collaborators on confidential files in SaaS apps | Information protection policies, integrated with Microsoft Purview |
+| Apply sensitivity labels or remove external collaborators on confidential files in SaaS apps | File policies with governance actions, integrated with Microsoft Purview; file policies retire on January 6, 2027, so new designs use Purview DLP or auto-labeling policies |
 | Detect impossible travel, mass download, ransomware activity in SaaS apps | Threat protection with user and entity behavior analytics, in Defender XDR incidents |
 
 > **Exam trap.** Phishing and malicious attachments are Defender for Office 365; malicious OAuth consent and risky SaaS usage are Defender for Cloud Apps. "Investigate a campaign and remediate automatically" requires **Plan 2**, because Threat Explorer and AIR aren't in Plan 1.
@@ -125,11 +125,11 @@ Microsoft 365 Copilot grounds answers through Microsoft Graph and the semantic i
 | Overshared sites (Everyone except external users, broad links) | SharePoint Advanced Management: data access governance reports, site access reviews, **restricted access control**; Purview DSPM **data risk assessments** |
 | Keep a site out of Copilot and organization-wide search while owners fix permissions | **Restricted content discovery** (doesn't change who can open the site) |
 | Copilot must not return content of encrypted files to unauthorized users | Sensitivity labels with encryption: the user needs the **VIEW** and **EXTRACT** usage rights |
-| Copilot must not summarize files or emails with a given label | **DLP policy for the Microsoft 365 Copilot location**: condition on sensitivity labels |
+| Copilot must not summarize files or emails with a given label | **DLP policy for the Copilot location** (named Microsoft Copilot, Copilot Chat, and Copilot Cowork): condition on sensitivity labels |
 | Copilot must not answer prompts that contain sensitive information types, or use web search for them | Same DLP location: **processing prompts** and **performing web searches** actions (prompt blocking in preview) |
 | Detect prompt injection or access to protected materials by an insider | Insider Risk Management, **Risky AI usage** policy template |
 | Detect inappropriate content in prompts and responses | Communication Compliance |
-| Record and investigate Copilot interactions | **Audit** (prompts and responses in the unified audit log) and DSPM activity explorer |
+| Record and investigate Copilot interactions | **Audit** (one record per interaction: message IDs, prompt or response flag, resources accessed and their sensitivity labels, not the text) and DSPM activity explorer |
 | Preserve or delete interactions, find them for a legal case | Retention policies for AI apps; **eDiscovery** (interactions are stored in the user's mailbox) |
 | Assess AI regulations | Compliance Manager templates for generative AI |
 | Control which agents users can run | Microsoft 365 admin center, **Integrated apps** |

@@ -149,7 +149,7 @@ REFRESH MATERIALIZED VIEW prod_finance.gold.revenue_by_region;
 REFRESH MATERIALIZED VIEW prod_finance.gold.revenue_by_region FULL ASYNC;
 ```
 
-- Created only with a **pro or serverless SQL warehouse** or within a pipeline. The creator needs `SELECT` on the base tables, `USE CATALOG`, `USE SCHEMA` and `CREATE MATERIALIZED VIEW` on the schema, and becomes the owner.
+- Created only with a **pro or serverless SQL warehouse**, a notebook on serverless compute, or within a pipeline. The creator needs `SELECT` on the base tables, `USE CATALOG`, `USE SCHEMA` and `CREATE MATERIALIZED VIEW` on the schema, and becomes the owner.
 - Schedules: `SCHEDULE EVERY n HOURS` (1 to 72), `DAYS` (1 to 31) or `WEEKS` (1 to 8), or `SCHEDULE CRON` with six fields and `AT TIME ZONE`. `TRIGGER ON UPDATE` refreshes when a source changes, at most once a minute, up to 10 sources.
 - `REFRESH` is synchronous by default; `ASYNC` returns at once; `FULL` reprocesses all source data. The owner and principals with the `REFRESH` privilege can refresh.
 - Incremental refresh needs Delta sources with row tracking enabled; Databricks also recommends deletion vectors.
@@ -166,7 +166,7 @@ REFRESH MATERIALIZED VIEW prod_finance.gold.revenue_by_region FULL ASYNC;
 <!-- section: foreign-catalogs | objectives: 1.2.6 -->
 ## Foreign catalogs and connections
 
-**Lakehouse Federation** queries external systems without copying data. With **query federation**, Unity Catalog pushes queries down over JDBC to sources such as SQL Server, PostgreSQL, MySQL, Oracle, Snowflake, Amazon Redshift, Google BigQuery or another Databricks workspace. With **catalog federation**, Databricks reads the foreign tables directly in object storage (for example a legacy Hive metastore), which is cheaper and faster. Both are **read-only**.
+**Lakehouse Federation** queries external systems without copying data. With **query federation**, Unity Catalog pushes queries down over JDBC to sources such as SQL Server, PostgreSQL, MySQL, Oracle, Snowflake, Amazon Redshift, Google BigQuery or another Databricks workspace. With **catalog federation**, Databricks reads the foreign tables directly in object storage (for example a legacy Hive metastore), which is cheaper and faster. Both are **read-only**, with one exception: a federated internal (legacy workspace) Hive metastore allows reads and writes, and updates both the Hive metastore and Unity Catalog metadata; an external Hive metastore stays read-only.
 
 Steps: create a **connection** (host, port, credentials), create a **foreign catalog** from it, grant privileges on its objects, run queries.
 
@@ -193,7 +193,7 @@ GRANT USE CATALOG ON CATALOG erp_live TO `finance-analysts`;
 
 Store credentials in a secret scope and reference them with `secret()` rather than in plain text. MySQL uses a two-level namespace, so its foreign catalog needs no `database` option. When a source supports both federation and **Lakeflow Connect**, Databricks recommends Lakeflow Connect for high volumes and low latency: federation suits ad hoc reporting, proofs of concept and live access with minimal data movement.
 
-> **Exam trap.** A foreign catalog can't be written to. "Load the data every hour into Delta tables" is an ingestion requirement (Lakeflow Connect, notebook, Azure Data Factory), not federation.
+> **Exam trap.** A foreign catalog on an external database can't be written to. "Load the data every hour into Delta tables" is an ingestion requirement (Lakeflow Connect, notebook, Azure Data Factory), not federation.
 
 <!-- section: ddl-managed-external | objectives: 1.2.7 -->
 ## DDL on managed and external tables
@@ -222,7 +222,7 @@ ALTER TABLE prod_finance.bronze.erp_orders UNSET MANAGED;
 ```
 
 - `ADD COLUMN` requires `MODIFY`; a `DEFAULT` can't be set when adding a column to a Delta table (existing rows get `NULL`).
-- `RENAME COLUMN` and `DROP COLUMN` require **column mapping** on the Delta table. `SET NOT NULL` validates existing data. `ALTER COLUMN ... TYPE` performs type widening (DBR 15.2+).
+- `RENAME COLUMN` and `DROP COLUMN` require **column mapping** on the Delta table. `SET NOT NULL` validates existing data. `ALTER COLUMN ... TYPE` performs type widening (DBR 15.4 LTS+; such tables can then be read only by DBR 15.4 LTS and above).
 - Dropping or undropping requires ownership or `MANAGE`. `UNDROP` restores privileges, columns and properties, but not primary and foreign key constraints. If a table with the same name exists, rename it first; if several dropped tables share a name, use `WITH ID` from `SHOW TABLES DROPPED`.
 - The recovery period can be set at catalog or schema level (0 hours, or 7 to 30 days); the schema setting wins.
 - `SET MANAGED` copies data with no downtime, then blocks writes for a few minutes during the switch. Old files are kept 14 days so that `UNSET MANAGED` can roll back. Requires ownership or `MANAGE`; don't add `MOVE` or `COPY` for an external table.
@@ -236,7 +236,7 @@ AI/BI Genie lets business users ask questions about data in natural language. Th
 
 - Data must be registered in Unity Catalog: up to **50** tables, views or metric views.
 - Compute: a **pro or serverless SQL warehouse**. The author needs the Databricks SQL entitlement, CAN USE on the warehouse, `SELECT` on the data and at least CAN EDIT on the agent; creators get CAN MANAGE.
-- End users need CAN VIEW or CAN RUN on the agent. Warehouse access uses the author's embedded credentials, but **data access is always evaluated with the end user's Unity Catalog identity**.
+- End users need the consumer access or Databricks SQL entitlement and CAN VIEW or CAN RUN on the agent. Warehouse access uses the author's embedded credentials, but **data access is always evaluated with the end user's Unity Catalog identity**.
 
 | Configuration | Use it for |
 | --- | --- |
@@ -258,7 +258,7 @@ Limits: 100 instructions per agent (each example query, each function and the wh
 - One metastore per region; isolate with catalogs per environment or unit, catalog-level storage and workspace-catalog binding.
 - `CREATE CATALOG` needs the metastore privilege; `MANAGED LOCATION` needs `CREATE MANAGED STORAGE` on the external location.
 - Managed volumes and tables are deleted with their object (after a recovery period); external ones keep their files.
-- Volumes hold files, not tables. Views store queries; materialized views store results and need a pro or serverless warehouse.
-- Federation is read-only: connection, then foreign catalog, then grants.
+- Volumes hold files, not tables. Views store queries; materialized views store results and need a pro or serverless warehouse (or serverless compute).
+- Federation is read-only (except a federated internal Hive metastore): connection, then foreign catalog, then grants.
 - `RENAME COLUMN` and `DROP COLUMN` need column mapping; `UNDROP` works for 7 days by default; `SET MANAGED` converts external to managed.
 - Genie Agents: up to 50 data objects, pro or serverless warehouse, SQL over text instructions, end users' own privileges.

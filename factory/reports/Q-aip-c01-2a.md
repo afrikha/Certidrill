@@ -1,0 +1,28 @@
+# Q-aip-c01-2a — QUESTIONS AIP-C01, domain implementation, 2.1.1–2.1.6 (EN only, 2026-11-23)
+
+## Result
+- 53 files in `content/aip-c01/questions/implementation/`, prefix `aipc01-2a-`: 2.1.1–2.1.5 nine each, 2.1.6 eight.
+- Types: single 44, multi 9 (all "Choose two.", 5 options). Difficulty: 8 easy / 27 medium / 18 hard.
+- Single-answer positions: a 11, b 12, c 10, d 11. Option lengths balanced (correct option at most ~10 % longer than the longest distractor).
+- `CERT=aip-c01 npx tsx factory/validate.ts --prefix aipc01-2a-` → 53 files, 0 problem(s).
+- No other question existed in `implementation/` when I started. 2.1.7 (MCP hosting on Lambda vs ECS, MCP client libraries) belongs to 2b, so my MCP question (2.1.1) only tests "why MCP" (runtime tool discovery), not the hosting choice.
+
+## Verified (WebFetch, 2026-11-23) — every reference was fetched
+- AgentCore: Runtime sessions (microVM per session, 15 min idle default, 8 h max lifetime per lifecycle on microVMs, `runtimeSessionId` ≥ 33 chars, ephemeral memory/disk, session storage persists across stop/resume, AgentCore Memory for structured data); Memory overview, memory types (CreateEvent, sessionId, ListEvents, event metadata **not encrypted with the CMK**, long-term extraction asynchronous), strategies (built-in / overrides / self-managed; none → no long-term records), built-in strategies (semantic, user preference, summary, episodic) and their namespaces; CreateMemory API (`encryptionKeyArn`, `eventExpiryDuration` 3–365); A2A servers on Runtime (port 9000, Agent Cards, SigV4 / OAuth 2.0); Policy in AgentCore (policy engine on gateway, Cedar, input-parameter and session-aware conditions, CloudWatch audit).
+- Strands (strandsagents.com, used to check facts only): conversation managers (sliding window default, summarizing, null), agent loop stop reasons incl. `limit_turns`, `limit_total_tokens`, no default limits, history stays valid; multi-agent patterns (agents as tools, workflow, graph with conditional edges/cycles/timeouts, swarm, A2A); hooks (before/after tool call, `cancel_tool`, "limit tool counts" example); session managers.
+- Step Functions: integration patterns (callback only in Standard, one-year wait, same-account tokens, HeartbeatSeconds, TimeoutSeconds enforced by Step Functions and not passed to the API call); Bedrock optimized integration (Body 256 KiB, Input/Output S3Uri); quotas (Standard 1 year, Express 5 min, 25,000 events, 256 KiB payload, Distributed Map 10,000 children); error handling (Retry defaults, catcher ResultPath defaults to `$` and overwrites input, States.Timeout); Parallel (one failing branch fails the state and stops the others; Lambda keeps running); Map (Inline ≤ 40 concurrent, Distributed for > 40, > 25,000 events, > 256 KiB, S3 input).
+- Lambda quotas: timeout max **1,800 s**; execution role page. IAM permissions boundaries. Prescriptive Guidance circuit breaker (Step Functions + DynamoDB `CircuitStatus` with expiry and TTL).
+- Bedrock: tool use overview (model never calls the tool), ToolChoice (`tool` only Claude 3 and Nova), ToolResultBlock (`status` only Nova and Claude 3/4), ToolSpecification (`strict`), structured outputs (strict tool use, `additionalProperties: false`, **no minimum/maximum/minLength/maxLength support**), Converse (`requestMetadata` for filtering invocation logs, 16 entries; stopReason values), intelligent prompt routing (same family, exactly two models, English-optimized, fallback, response quality difference), prompt caching (input-token billing only), batch inference (asynchronous), LLM-as-a-judge page, Design a prompt (step by step, XML output tags), Models at a glance.
+- AppConfig what-is (no redeploy, validators, gradual deployment, alarm rollback, AppConfig Agent). API Gateway request validation (400 before integration) and Cognito user pool authorizer.
+
+## Not fetched / doubts
+- Strands-specific questions (summarizing-conversation, graph-validation-loop, agents-as-tools, strands-invocation-limits, strands-tool-decorator, strands-hooks-tool-limit) reference only the AWS Prescriptive Guidance "Strands Agents" page, the only AWS-hosted Strands page found; it does not describe conversation managers, limits, hooks or `@tool`. Facts were checked on strandsagents.com, which I did not cite (AWS-only reference rule). A reviewer may accept strandsagents.com as a second reference.
+- `@tool` turning docstring and type hints into description and schema: from the course chapter and general knowledge; the Strands tools page was not fetched.
+- EC2 `aws:ResourceTag/env` condition on `ec2:RebootInstances` (remediation-agent-bounds): stable knowledge, not fetched.
+- API Gateway JSON schema model with minimum/maximum for the rating (feedback-api-controls): stable knowledge (draft-4 models).
+- "Continue as new execution" (react-continue-new-execution): derived from the 25,000-event quota; no dedicated AWS page fetched.
+- Distractor wording from peer reports (not re-fetched): batch inference priced lower than on-demand, Provisioned Throughput hourly pricing, closures of A2I / Ground Truth / Q Business / Agents Classic on July 30, 2026 (also in the task brief).
+- Agent Squad (named in 2.1.1) is not used: the project moved out of awslabs (peer reports); Strands patterns and A2A cover the objective.
+- Bedrock human-based evaluation jobs not used. Closed services appear only as distractors explained as closed.
+- Several references are general rather than exact for pattern questions with no AWS page (sampling audit, cascade, planner/worker, specialized models).
+- The WebFetch hourly budget ran out twice during the task; all planned facts were eventually fetched except those listed above.

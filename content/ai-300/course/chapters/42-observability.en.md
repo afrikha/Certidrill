@@ -13,7 +13,7 @@ After deployment, Foundry monitors an application at four levels:
 | **Scheduled red teaming** (red team scans, preview) | Recurring adversarial scans for safety and security weaknesses | Generated attacks |
 | **Alerts** (preview) | Notify when latency, token usage, evaluation scores or red team findings cross a threshold | All of the above |
 
-The **Monitor** tab of an agent (Build, Agents, select the agent, Monitor) is the dashboard. It shows summary cards and charts for the selected time range:
+The **Monitor** tab of an agent (Build, Agents, select the agent, Monitor) is the dashboard. It shows summary cards and charts for the selected time range (the agent metrics view is in preview):
 
 | Metric | Investigate when |
 | --- | --- |
@@ -90,7 +90,7 @@ Deployment metrics are collected automatically in Azure Monitor (time grain one 
 | Provisioned-managed Utilization V2 | `AzureOpenAIProvisionedManagedUtilizationV2` | PTUs consumed divided by PTUs deployed; at 100 % calls return **HTTP 429** |
 | Model Availability Rate | `ModelAvailabilityRate` | (calls minus server errors) divided by calls; server errors are HTTP 500 and above |
 
-Useful dimensions are `ModelDeploymentName`, `ModelName`, `ModelVersion`, `StatusCode` and `StreamType`. Time Between Tokens and Tokens Per Second aren't available for Standard deployments. Don't use the legacy **Latency** metric of the Cognitive Services HTTP Requests category for Azure OpenAI.
+Useful dimensions are `ModelDeploymentName`, `ModelName`, `ModelVersion`, `StatusCode` and `StreamType`. Time to Response, Time Between Tokens and Tokens Per Second aren't currently available for Standard deployments. Don't use the legacy **Latency** metric of the Cognitive Services HTTP Requests category for Azure OpenAI.
 
 Diagnosis order:
 
@@ -139,16 +139,16 @@ Every response also returns a `usage` object, the per-request source for chargeb
 Cost analysis in **Cost Management**:
 
 - Scope to the **resource group** of the Foundry resource (partner and community model meters appear under the resource group), then group by **Meter** (which model series cost most) or by **Resource**.
-- Azure OpenAI usage is classified under the **Cognitive Services** service. Segment with deployment or custom tags; supported Models sold by Azure are tagged automatically with `project` (preview) for per-project allocation.
-- Roles: **Cost Management Reader** to view costs; a custom role with `Microsoft.Consumption/*/read` and `Microsoft.CostManagement/*/read` for a cost-only reader.
-- Costs appear in cost analysis about five hours after usage. Create **budgets and alerts** on the subscription or resource group: Azure OpenAI has **no hard spending limit**, and action groups only automate a response.
+- Azure OpenAI usage is classified under the **Cognitive Services** service: to isolate it, filter on **Service tier** = Azure OpenAI. Segment with deployment or custom tags; supported Models sold by Azure are tagged automatically with `project` (preview, not for Azure Marketplace or Claude models) for per-project allocation, and Foundry adds an `agent.name` tag when an agent calls a model.
+- Roles: **Cost Management Reader** or **Reader** on the resource group or subscription to view costs (no Foundry role shows cost); Cost Management Contributor or Contributor to create budgets and exports; a custom role with `Microsoft.Consumption/*/read` and `Microsoft.CostManagement/*/read` for a cost-only reader.
+- Costs appear in cost analysis 8 to 24 hours after usage (token usage appears within minutes). Create **budgets and alerts** on the subscription or resource group: budgets **don't block requests**, and action groups only automate a response. Foundry **cost controls** (preview, Manage, Cost) can alert or block requests when spending or tokens reach a budget, and **AI gateway token limits** (Manage, Gateways) cap the tokens a project can use on a deployment.
 
-To meter **per consumer** when several applications share one deployment, put **Azure API Management** in front: `llm-emit-token-metric` emits token metrics with custom dimensions (subscription, user ID, API) to Application Insights, and `llm-token-limit` caps tokens per minute or per period per counter key.
+To meter **per consumer** when several applications share one deployment, put **Azure API Management** in front: `llm-emit-token-metric` emits token metrics to Application Insights with default dimensions (such as API ID, Subscription ID and User ID) and up to five custom dimensions (for example an end-user ID taken from the request), and `llm-token-limit` caps tokens per minute or per period per counter key.
 
 | Lever | Effect |
 | --- | --- |
-| Prompt caching | On by default for supported models; needs prompts of at least 1,024 tokens with an identical start. Put stable content (instructions, tool definitions) first and variable content last; cached input tokens are billed at a discount |
-| Global Batch or Data Zone Batch | 50 % less than Global Standard for jobs that can wait (24-hour target) |
+| Prompt caching | On by default for supported models; needs prompts of at least 1,024 tokens with an identical start. Put stable content (instructions, tool definitions) first and variable content last; cached input tokens are billed at a discount; on GPT-5.6 and later models, cache writes can also be billed |
+| Global Batch or Data Zone Batch | 50 % less than Global Standard for jobs that can wait (24-hour target); fine-tuned models aren't supported |
 | Smaller model, shorter prompts, lower `max_tokens` | Fewer and cheaper tokens |
 | Semantic caching in API Management | `llm-semantic-cache-lookup` and `llm-semantic-cache-store` reuse answers to similar prompts |
 | Provisioned throughput | Fixed hourly price: cost-effective only with high, steady use |
@@ -168,6 +168,7 @@ To meter **per consumer** when several applications share one deployment, put **
 | `Trace` | Detailed logs for debugging inference calls |
 | `Audit` | Administrative operations: deployments, configuration changes, access events |
 | `AzureOpenAIRequestUsage` | Usage and token logs (export is billed) |
+| `ManagedNetworkEvent` | Managed network events (export is billed) |
 
 Logs land in **AzureDiagnostics**, exported metrics in **AzureMetrics**; allow up to 15 minutes for data:
 
@@ -182,7 +183,7 @@ AzureMetrics
 
 | Option | How | Notes |
 | --- | --- | --- |
-| Server-side | Automatic for prompt agents, hosted agents and workflows once Application Insights is connected | No code; traces in the **Traces** tab for the **past 90 days**; GA for prompt and hosted agents |
+| Server-side | Automatic for prompt agents, hosted agents and workflows once Application Insights is connected | No code; traces in the **Traces** tab for the **past 90 days**; GA for prompt and hosted agents, preview for workflows |
 | Client-side | Foundry SDK and OpenTelemetry in your code | Your own spans and functions; preview |
 | Local | Foundry Toolkit for Visual Studio Code collector | No Application Insights needed |
 
@@ -240,6 +241,6 @@ with tracer.start_as_current_span("support-request"):
 - Readers need Log Analytics Reader, plus Privileged Monitoring Data Reader for protected tables.
 - TTLT = TTFT + TBT x tokens: pair latency metrics with token metrics. Time to Response for streaming, Time to Last Byte for non-streaming.
 - Provisioned-managed Utilization V2 at 100 % means 429s; streaming shortens time to first token only.
-- Cost: token metrics and `usage`, Cost Management by meter, tags and `project` tag, budgets (no hard limit), API Management token metrics per consumer, prompt caching and batch for savings.
+- Cost: token metrics and `usage`, Cost Management by meter, tags and `project` tag, budgets (alerts only; cost controls, in preview, can block), API Management token metrics per consumer, prompt caching and batch for savings.
 - Diagnostic settings send `RequestResponse`, `Trace`, `Audit` and `AzureOpenAIRequestUsage` logs to AzureDiagnostics.
 - Client-side tracing: set `AZURE_EXPERIMENTAL_ENABLE_GENAI_TRACING` before `instrument()`; content recording off by default.

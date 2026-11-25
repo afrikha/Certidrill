@@ -149,7 +149,7 @@ REFRESH MATERIALIZED VIEW prod_finance.gold.revenue_by_region;
 REFRESH MATERIALIZED VIEW prod_finance.gold.revenue_by_region FULL ASYNC;
 ```
 
-- Créées uniquement avec un **entrepôt SQL pro ou serverless** ou dans un pipeline. Le créateur a besoin de `SELECT` sur les tables de base, de `USE CATALOG`, de `USE SCHEMA` et de `CREATE MATERIALIZED VIEW` sur le schéma, et en devient le propriétaire.
+- Créées uniquement avec un **entrepôt SQL pro ou serverless**, un notebook sur un calcul serverless ou dans un pipeline. Le créateur a besoin de `SELECT` sur les tables de base, de `USE CATALOG`, de `USE SCHEMA` et de `CREATE MATERIALIZED VIEW` sur le schéma, et en devient le propriétaire.
 - Planifications : `SCHEDULE EVERY n HOURS` (1 à 72), `DAYS` (1 à 31) ou `WEEKS` (1 à 8), ou `SCHEDULE CRON` à six champs avec `AT TIME ZONE`. `TRIGGER ON UPDATE` actualise quand une source change, au plus une fois par minute, avec 10 sources au maximum.
 - `REFRESH` est synchrone par défaut ; `ASYNC` rend la main immédiatement ; `FULL` retraite toutes les données sources. Le propriétaire et les principaux qui ont le privilège `REFRESH` peuvent actualiser.
 - L'actualisation incrémentielle exige des sources Delta avec le suivi des lignes (row tracking) activé ; Databricks recommande aussi les vecteurs de suppression.
@@ -166,7 +166,7 @@ REFRESH MATERIALIZED VIEW prod_finance.gold.revenue_by_region FULL ASYNC;
 <!-- section: foreign-catalogs | objectives: 1.2.6 -->
 ## Les catalogues étrangers et les connexions
 
-**Lakehouse Federation** interroge des systèmes externes sans copier les données. Avec la **fédération de requêtes**, Unity Catalog pousse les requêtes par JDBC vers des sources comme SQL Server, PostgreSQL, MySQL, Oracle, Snowflake, Amazon Redshift, Google BigQuery ou un autre espace de travail Databricks. Avec la **fédération de catalogues**, Databricks lit directement les tables étrangères dans le stockage d'objets (par exemple un metastore Hive hérité), ce qui est moins coûteux et plus rapide. Les deux sont en **lecture seule**.
+**Lakehouse Federation** interroge des systèmes externes sans copier les données. Avec la **fédération de requêtes**, Unity Catalog pousse les requêtes par JDBC vers des sources comme SQL Server, PostgreSQL, MySQL, Oracle, Snowflake, Amazon Redshift, Google BigQuery ou un autre espace de travail Databricks. Avec la **fédération de catalogues**, Databricks lit directement les tables étrangères dans le stockage d'objets (par exemple un metastore Hive hérité), ce qui est moins coûteux et plus rapide. Les deux sont en **lecture seule**, à une exception près : un metastore Hive interne (hérité de l'espace de travail) fédéré autorise les lectures et les écritures, et met à jour les métadonnées du metastore Hive et d'Unity Catalog ; un metastore Hive externe reste en lecture seule.
 
 Étapes : créez une **connexion** (hôte, port, informations d'identification), créez à partir d'elle un **catalogue étranger**, accordez des privilèges sur ses objets, exécutez les requêtes.
 
@@ -193,7 +193,7 @@ GRANT USE CATALOG ON CATALOG erp_live TO `finance-analysts`;
 
 Stockez les informations d'identification dans une étendue de secrets et référencez-les avec `secret()` plutôt qu'en texte clair. MySQL utilise un espace de noms à deux niveaux : son catalogue étranger n'a pas besoin de l'option `database`. Quand une source prend en charge à la fois la fédération et **Lakeflow Connect**, Databricks recommande Lakeflow Connect pour les gros volumes et la faible latence : la fédération convient aux rapports ad hoc, aux preuves de concept et à l'accès en direct avec un minimum de déplacement de données.
 
-> **Piège d'examen.** On ne peut pas écrire dans un catalogue étranger. « Charger les données toutes les heures dans des tables Delta » est une exigence d'ingestion (Lakeflow Connect, notebook, Azure Data Factory), pas de fédération.
+> **Piège d'examen.** On ne peut pas écrire dans un catalogue étranger qui reflète une base de données externe. « Charger les données toutes les heures dans des tables Delta » est une exigence d'ingestion (Lakeflow Connect, notebook, Azure Data Factory), pas de fédération.
 
 <!-- section: ddl-managed-external | objectives: 1.2.7 -->
 ## Le DDL sur les tables managées et externes
@@ -222,7 +222,7 @@ ALTER TABLE prod_finance.bronze.erp_orders UNSET MANAGED;
 ```
 
 - `ADD COLUMN` exige `MODIFY` ; on ne peut pas définir de `DEFAULT` en ajoutant une colonne à une table Delta (les lignes existantes reçoivent `NULL`).
-- `RENAME COLUMN` et `DROP COLUMN` exigent le **mappage de colonnes** (column mapping) sur la table Delta. `SET NOT NULL` valide les données existantes. `ALTER COLUMN ... TYPE` élargit le type (DBR 15.2+).
+- `RENAME COLUMN` et `DROP COLUMN` exigent le **mappage de colonnes** (column mapping) sur la table Delta. `SET NOT NULL` valide les données existantes. `ALTER COLUMN ... TYPE` élargit le type (DBR 15.4 LTS+ ; ces tables ne peuvent ensuite être lues que par DBR 15.4 LTS et versions ultérieures).
 - Supprimer ou restaurer une table exige d'en être propriétaire ou d'avoir `MANAGE`. `UNDROP` restaure les privilèges, les colonnes et les propriétés, mais pas les contraintes de clé primaire et étrangère. Si une table du même nom existe, renommez-la d'abord ; si plusieurs tables supprimées portent le même nom, utilisez `WITH ID` avec l'ID donné par `SHOW TABLES DROPPED`.
 - La période de récupération se définit au niveau du catalogue ou du schéma (0 heure, ou 7 à 30 jours) ; le paramètre du schéma l'emporte.
 - `SET MANAGED` copie les données sans interruption, puis bloque les écritures quelques minutes pendant la bascule. Les anciens fichiers sont conservés 14 jours pour que `UNSET MANAGED` puisse revenir en arrière. Exige la propriété ou `MANAGE` ; n'ajoutez pas `MOVE` ni `COPY` pour une table externe.
@@ -236,7 +236,7 @@ AI/BI Genie permet aux utilisateurs métier de poser des questions sur les donn�
 
 - Les données doivent être inscrites dans Unity Catalog : jusqu'à **50** tables, vues ou vues de métriques.
 - Calcul : un **entrepôt SQL pro ou serverless**. L'auteur a besoin du droit Databricks SQL, de CAN USE sur l'entrepôt, de `SELECT` sur les données et d'au moins CAN EDIT sur l'agent ; les créateurs reçoivent CAN MANAGE.
-- Les utilisateurs finaux ont besoin de CAN VIEW ou CAN RUN sur l'agent. L'accès à l'entrepôt utilise les informations d'identification intégrées de l'auteur, mais **l'accès aux données est toujours évalué avec l'identité Unity Catalog de l'utilisateur final**.
+- Les utilisateurs finaux ont besoin du droit consumer access ou Databricks SQL et de CAN VIEW ou CAN RUN sur l'agent. L'accès à l'entrepôt utilise les informations d'identification intégrées de l'auteur, mais **l'accès aux données est toujours évalué avec l'identité Unity Catalog de l'utilisateur final**.
 
 | Configuration | À utiliser pour |
 | --- | --- |
@@ -258,7 +258,7 @@ Limites : 100 instructions par agent (chaque exemple de requête, chaque fonctio
 - Un metastore par région ; isolez avec des catalogues par environnement ou par unité, du stockage au niveau du catalogue et la liaison espace de travail-catalogue.
 - `CREATE CATALOG` exige le privilège sur le metastore ; `MANAGED LOCATION` exige `CREATE MANAGED STORAGE` sur l'emplacement externe.
 - Les volumes et tables managés sont supprimés avec leur objet (après une période de récupération) ; les externes conservent leurs fichiers.
-- Les volumes contiennent des fichiers, pas des tables. Les vues stockent des requêtes ; les vues matérialisées stockent des résultats et exigent un entrepôt pro ou serverless.
-- La fédération est en lecture seule : connexion, puis catalogue étranger, puis privilèges.
+- Les volumes contiennent des fichiers, pas des tables. Les vues stockent des requêtes ; les vues matérialisées stockent des résultats et exigent un entrepôt pro ou serverless (ou un calcul serverless).
+- La fédération est en lecture seule (sauf un metastore Hive interne fédéré) : connexion, puis catalogue étranger, puis privilèges.
 - `RENAME COLUMN` et `DROP COLUMN` exigent le mappage de colonnes ; `UNDROP` fonctionne 7 jours par défaut ; `SET MANAGED` convertit une table externe en table managée.
 - Genie Agents : jusqu'à 50 objets de données, entrepôt pro ou serverless, SQL plutôt qu'instructions texte, privilèges propres aux utilisateurs finaux.

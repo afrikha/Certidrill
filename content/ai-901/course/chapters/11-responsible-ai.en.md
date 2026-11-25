@@ -9,7 +9,7 @@ What to consider:
 
 - **Bias in data.** Bias can enter when data is collected, when the model is built or when the system operates. Check where a dataset comes from and whether every group is adequately represented.
 - **Outcomes by group.** Compare the results for sensitive groups such as gender, ethnicity or age, not only the overall accuracy.
-- **Evaluation.** In Foundry, safety evaluators scan the output of a model or an agent for bias and unfairness. Evaluators detect and score problems; they don't fix them.
+- **Evaluation.** In Foundry, the Hateful and unfairness risk and safety evaluator gives the output of a model or an agent a severity score (0 to 7) for hateful language and unfair representations of social groups. It judges the content of each answer, not whether comparable people get comparable outcomes, so outcomes by group are still compared. Evaluators detect and score problems; they don't fix them.
 
 <!-- section: reliability-safety | objectives: 1.1.2 -->
 ## Reliability and safety
@@ -22,7 +22,7 @@ What to consider:
 - **Unintended circumstances.** Design for accidental misuse, malicious data and attacks.
 - **Monitoring and feedback.** Track performance after release and give users a way to report problems.
 - **Human input.** Decide when the system must hand a decision over to a person.
-- **Generated content.** A generative model can produce wrong or harmful text. Foundry models apply content safety filters (guardrails) by default, which block harmful prompts and answers, and grounding the prompt in trusted data makes answers more reliable.
+- **Generated content.** A generative model can produce wrong or harmful text. Foundry models apply content safety filters (guardrails) by default, which block harmful prompts and answers. For Azure OpenAI models, every model except transcription models gets a default policy; on text it filters hate and fairness, violence, sexual and self-harm content at a Medium threshold in prompts and completions, and detects user prompt attacks (jailbreaks). Grounding the prompt in trusted data makes answers more reliable.
 
 <!-- section: privacy-security | objectives: 1.1.3 -->
 ## Privacy and security

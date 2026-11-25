@@ -46,7 +46,7 @@ Sondes d'intégrité :
 | Délai d'expiration HTTP/HTTPS | 30 secondes |
 | Source | `168.63.129.16` (IPv4), étiquette de service `AzureLoadBalancer` |
 
-Quand une instance échoue à sa sonde, les flux TCP établis vers elle continuent et ses flux UDP sont déplacés. Quand toutes les instances échouent, Standard n'envoie plus de nouveaux flux mais laisse continuer les flux TCP établis. Une VM arrêtée n'est pas sondée. Les sondes HTTP ne peuvent pas utiliser les ports 19, 21, 25, 70, 110, 119, 143, 220 et 993.
+Quand une instance échoue à sa sonde, les flux TCP établis vers elle continuent et ses flux UDP sont déplacés. Quand toutes les instances échouent, Standard n'envoie plus de nouveaux flux mais laisse continuer les flux TCP établis, à condition que le pool principal compte plus d'une instance. Une VM arrêtée n'est pas sondée. Les sondes HTTP ne peuvent pas utiliser les ports 19, 21, 25, 70, 110, 119, 143, 220 et 993.
 
 > **Piège d'examen.** Une règle NSG personnalisée qui refuse `AzureLoadBalancer` (ou un pare-feu invité qui bloque `168.63.129.16`) marque toutes les instances comme défaillantes. Pour sortir volontairement une instance, passez son état administratif à Down plutôt que de bloquer la sonde.
 
@@ -213,7 +213,7 @@ az network traffic-manager endpoint create --resource-group RG-Global --profile-
   --name ep-onprem --type externalEndpoints --target app.fabrikam.com --priority 2
 ```
 
-Un point de terminaison désactivé n'est ni sondé ni renvoyé ; un profil désactivé, ou dont tous les points de terminaison sont désactivés, renvoie NXDOMAIN. Si tous les points de terminaison sont Degraded, Traffic Manager les renvoie tous. Associez un nom personnalisé au profil par un CNAME ; pour l'apex de la zone, utilisez un enregistrement lié Traffic Manager (Traffic Manager Linked Record) ou un enregistrement d'alias Azure DNS. Limites : 200 profils par abonnement, 200 points de terminaison par profil.
+Un point de terminaison désactivé n'est ni sondé ni renvoyé ; un profil désactivé, ou dont tous les points de terminaison sont désactivés, renvoie NXDOMAIN. Si tous les points de terminaison sont Degraded, Traffic Manager les renvoie tous. Associez un nom personnalisé au profil par un CNAME ; pour l'apex de la zone, utilisez un enregistrement lié Traffic Manager (Traffic Manager Linked Record), recommandé pour les nouvelles configurations, ou un enregistrement d'alias Azure DNS, toujours pris en charge pour la compatibilité descendante. Limites : 200 profils par abonnement, 200 points de terminaison par profil.
 
 > **Piège d'examen.** Après une panne, les clients continuent d'utiliser la réponse en cache jusqu'à l'expiration du TTL : réduisez le TTL et l'intervalle de sondage pour un basculement plus rapide. Traffic Manager route aussi selon l'adresse IP du résolveur (ou l'EDNS Client Subnet), pas forcément celle de l'utilisateur.
 

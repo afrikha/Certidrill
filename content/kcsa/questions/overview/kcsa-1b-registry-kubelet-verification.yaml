@@ -1,0 +1,38 @@
+id: kcsa-1b-registry-kubelet-verification
+objective: "1.5.4"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    A Kubernetes v1.37 cluster runs its kubelets with the default settings of image pull credential verification. Tenant A's Pod pulled a private image onto `node-4` with tenant A's pull Secret. A Pod of tenant B, with no credentials for that registry, then references the same image and is scheduled on `node-4`.
+
+    What happens?
+body:
+  options:
+    - id: a
+      text: { en: "The kubelet won't let tenant B's Pod use the cached image without valid credentials" }
+    - id: b
+      text: { en: "Tenant B's Pod starts with the cached image, because the image is already present on the node" }
+    - id: c
+      text: { en: "The API server rejects tenant B's Pod because the AlwaysPullImages plugin is enabled by default" }
+    - id: d
+      text: { en: "The kubelet copies tenant A's pull Secret into tenant B's namespace to pull the image" }
+answer: { optionId: a }
+explanation:
+  correct:
+    en: |
+      Image pull credential verification (the `KubeletEnsureSecretPulledImages` feature, beta and enabled by default since v1.35) makes the kubelet check credentials for images that required them, even when the image is already on the node. With the default policy, only images that were pulled outside the kubelet are exempt, so tenant B's Pod must pull with its own credentials, which it doesn't have. Before this feature, the AlwaysPullImages admission plugin was the main protection.
+  options:
+    b:
+      en: |
+        That was the behavior without credential verification. With the v1.37 defaults, a cached image that needed credentials isn't handed to a Pod without them.
+    c:
+      en: |
+        AlwaysPullImages isn't enabled by default, and it works by forcing pulls, not by rejecting Pods.
+    d:
+      en: |
+        The kubelet never copies Secrets between namespaces; a Pod can only use pull Secrets from its own namespace.
+references:
+  - title: "Images"
+    url: https://kubernetes.io/docs/concepts/containers/images/

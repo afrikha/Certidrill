@@ -234,7 +234,7 @@ Measure-VMReplication -VMName VM1
 | Planifié | Machine principale, puis réplica | Arrêter la machine virtuelle principale, `Start-VMFailover -Prepare` sur l'hôte principal, `Start-VMFailover` sur le réplica, `Set-VMReplication -Reverse`, `Start-VM` | Aucune |
 | Non planifié | Hôte de réplica | `Start-VMFailover`, `Start-VM`, puis `Complete-VMFailover` (fusionne les points de récupération). Ensuite, `Set-VMReplication -AsReplica` sur l'ancienne machine principale et réplication inverse | Possible |
 
-Pour donner une autre adresse IP à la machine virtuelle sur le site de reprise, configurez l'**injection d'adresse IP statique** sur la machine virtuelle de réplica (`Set-VMNetworkAdapterFailoverConfiguration`), appliquée par le service d'intégration Échange de paires clé-valeur (KVP).
+Pour donner une autre adresse IP à la machine virtuelle sur le site de reprise, configurez l'**injection d'adresse IP statique** sur la machine virtuelle de réplica une fois la réplication activée (`Set-VMNetworkAdapterFailoverConfiguration`, exécutée sur l'hôte de réplica), appliquée par le service d'intégration Échange de paires clé-valeur (KVP). Elle exige des cartes réseau synthétiques (pas des cartes réseau héritées) et des services d'intégration à jour dans l'invité.
 
 > **Piège d'examen.** Hyper-V Réplica n'est pas de la haute disponibilité : rien ne bascule automatiquement. Un cluster redémarre automatiquement les machines virtuelles sur le même site ; le réplica exige une action de basculement que vous lancez.
 

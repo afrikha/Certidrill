@@ -1,0 +1,54 @@
+id: kcsa-4b-restricted-init-containers
+objective: "4.7.3"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    The `shop` namespace enforces the Restricted Pod Security Standard. A developer submits this Pod:
+
+    ```yaml
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile: {type: RuntimeDefault}
+      initContainers:
+      - name: migrate
+        image: registry.example.com/shop/migrate:1.2
+      containers:
+      - name: web
+        image: registry.example.com/shop/web:3.0
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities: {drop: ["ALL"]}
+    ```
+
+    What happens?
+body:
+  options:
+    - id: a
+      text: { en: "It is admitted, because init containers stop before the application starts" }
+    - id: b
+      text: { en: "It is admitted, because Pod-level settings cover the init container" }
+    - id: c
+      text: { en: "It is rejected, because `migrate` must also block escalation and drop `ALL`" }
+    - id: d
+      text: { en: "It is rejected, because the Restricted level forbids init containers" }
+answer: { optionId: c }
+explanation:
+  correct:
+    en: |
+      The Restricted controls for privilege escalation and capabilities apply to containers, init containers and ephemeral containers alike. `migrate` sets neither `allowPrivilegeEscalation: false` nor `capabilities.drop: ["ALL"]`, so the Pod is rejected. The Pod-level `runAsNonRoot` and seccomp settings do cover it.
+  options:
+    a:
+      en: |
+        Init containers run with the same kernel access as any container, so the standard checks them too.
+    b:
+      en: |
+        `allowPrivilegeEscalation` and `capabilities` exist only at container level; no Pod-level field can satisfy them.
+    d:
+      en: |
+        Init containers are allowed at every level, provided that they meet its controls.
+references:
+  - title: Pod Security Standards
+    url: https://kubernetes.io/docs/concepts/security/pod-security-standards/

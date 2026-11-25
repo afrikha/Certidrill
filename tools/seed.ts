@@ -4,9 +4,10 @@
  */
 import { PrismaClient } from "@prisma/client";
 import { listCertificationDirs, loadCertification } from "../lib/content/loader";
-import { seedBank, seedCourse, seedReferential } from "../lib/content/seed";
+import { seedBank, seedCourse, seedQuizzes, seedReferential } from "../lib/content/seed";
 import { loadBank } from "../lib/content/bank";
 import { loadCourse } from "../lib/content/course";
+import { loadQuizzes } from "../lib/content/quiz";
 
 async function main() {
   const db = new PrismaClient();
@@ -19,10 +20,21 @@ async function main() {
     const loaded = await Promise.all(
       dirs.map(async (dir) => {
         const content = await loadCertification(dir);
-        return { content, bank: await loadBank(content), course: await loadCourse(content) };
+        const bank = await loadBank(content);
+        const course = await loadCourse(content);
+        return { content, bank, course, quizzes: await loadQuizzes(content, course, bank) };
       }),
     );
-    for (const { content, bank, course } of loaded) {
+    // One id space for the whole repository (the question table): a quiz or bank id used twice would overwrite the other.
+    const seen = new Map<string, string>();
+    for (const { content, bank, quizzes } of loaded) {
+      const code = content.blueprint.certification.code;
+      for (const id of [...bank.questions.map((q) => q.id), ...quizzes.flatMap((q) => q.questions.map((x) => x.id))]) {
+        if (seen.has(id)) throw new Error(`question id ${id} is used by ${seen.get(id)} and ${code}`);
+        seen.set(id, code);
+      }
+    }
+    for (const { content, bank, course, quizzes } of loaded) {
       const report = await seedReferential(db, content); // NOSONAR: database writes, in order
       console.log(
         `✔ ${report.certification} — blueprint ${report.blueprintVersion}: ${report.domains} domains, ${report.objectives} objectives`,
@@ -37,6 +49,8 @@ async function main() {
         : "";
       const kept = r.statusKept ? `; ${r.statusKept} chapters keep the status set in the back-office` : "";
       if (course || gone) console.log(`  course: ${r.chapters} chapters, ${r.sections} sections (${r.changed.chapters} chapters and ${r.changed.sections} sections new or changed${gone})${kept}`);
+      const z = await seedQuizzes(db, content, quizzes); // NOSONAR: database writes, in order
+      if (z.quizzes || z.retired) console.log(`  quizzes: ${z.quizzes} chapters, ${z.questions} questions (${z.written} new or changed${z.retired ? ", " + z.retired + " retired" : ""})`);
     }
   } finally {
     await db.$disconnect();

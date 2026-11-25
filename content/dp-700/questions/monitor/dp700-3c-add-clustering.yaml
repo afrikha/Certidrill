@@ -5,50 +5,50 @@ difficulty: 2
 status: draft
 stem:
   en: |
-    You have a Fabric warehouse named DW_Logistics that contains a table named dbo.Deliveries. dbo.Deliveries has 3 billion rows and was created without data clustering.
+    You have a Fabric warehouse named DW_Logistics that contains a fact table named dbo.Deliveries and a dimension table named dbo.DimDate. dbo.Deliveries has 3 billion rows.
 
-    Most queries on dbo.Deliveries filter on a range of DeliveryDate values, and they scan almost all the files of the table.
+    dbo.Deliveries stores the delivery date key as varchar(8) values such as 20261124, and dbo.DimDate stores DateKey as int. Most queries join the two tables with the condition `CAST(f.DeliveryDateKey AS int) = d.DateKey`.
 
-    You need to store the rows of dbo.Deliveries clustered on DeliveryDate.
+    You need to improve the performance of these queries.
 
     What should you do?
   fr: |
-    Vous disposez d'un entrepôt Fabric nommé DW_Logistics qui contient une table nommée dbo.Deliveries. dbo.Deliveries contient 3 milliards de lignes et a été créée sans clustering des données.
+    Vous disposez d'un entrepôt Fabric nommé DW_Logistics qui contient une table de faits nommée dbo.Deliveries et une table de dimension nommée dbo.DimDate. dbo.Deliveries contient 3 milliards de lignes.
 
-    La plupart des requêtes sur dbo.Deliveries filtrent sur une plage de valeurs de DeliveryDate, et elles analysent presque tous les fichiers de la table.
+    dbo.Deliveries stocke la clé de date de livraison sous forme de valeurs varchar(8) comme 20261124, et dbo.DimDate stocke DateKey en int. La plupart des requêtes joignent les deux tables avec la condition `CAST(f.DeliveryDateKey AS int) = d.DateKey`.
 
-    Les lignes de dbo.Deliveries doivent être stockées avec un clustering sur DeliveryDate.
+    Vous devez améliorer les performances de ces requêtes.
 
     Que devez-vous faire ?
 body:
   options:
-    - { id: a, text: { en: "Run ALTER TABLE dbo.Deliveries with a CLUSTER BY (DeliveryDate) option.", fr: "Exécuter ALTER TABLE dbo.Deliveries avec une option CLUSTER BY (DeliveryDate)." } }
-    - { id: b, text: { en: "Run SELECT ... INTO a new table with the CLUSTER BY (DeliveryDate) option.", fr: "Exécuter SELECT ... INTO vers une nouvelle table avec l'option CLUSTER BY (DeliveryDate)." } }
-    - { id: c, text: { en: "Create a new table with CTAS and WITH (CLUSTER BY (DeliveryDate)), and use it instead of dbo.Deliveries.", fr: "Créer une nouvelle table par CTAS avec WITH (CLUSTER BY (DeliveryDate)), et l'utiliser à la place de dbo.Deliveries." } }
-    - { id: d, text: { en: "Run OPTIMIZE dbo.Deliveries ZORDER BY (DeliveryDate) from a notebook.", fr: "Exécuter OPTIMIZE dbo.Deliveries ZORDER BY (DeliveryDate) depuis un notebook." } }
+    - { id: a, text: { en: "Run CREATE STATISTICS on the DeliveryDateKey column of dbo.Deliveries.", fr: "Exécuter CREATE STATISTICS sur la colonne DeliveryDateKey de dbo.Deliveries." } }
+    - { id: b, text: { en: "Disable V-Order on DW_Logistics so that the table is read without decoding.", fr: "Désactiver V-Order sur DW_Logistics pour que la table soit lue sans décodage." } }
+    - { id: c, text: { en: "Recreate dbo.Deliveries with CTAS, casting DeliveryDateKey to int, and use it instead.", fr: "Recréer dbo.Deliveries par CTAS en convertissant DeliveryDateKey en int, et l'utiliser à la place." } }
+    - { id: d, text: { en: "Run OPTIMIZE dbo.Deliveries ZORDER BY (DeliveryDateKey) from a notebook.", fr: "Exécuter OPTIMIZE dbo.Deliveries ZORDER BY (DeliveryDateKey) depuis un notebook." } }
 answer: { optionId: c }
 explanation:
   correct:
     en: |
-      Data clustering is defined when a table is created, with CREATE TABLE or CTAS and the WITH (CLUSTER BY (...)) option. It cannot be added to an existing table or changed later, so you create a clustered copy of the table with CTAS; the rows are clustered during ingestion, and range filters on DeliveryDate can then skip files.
+      Columns used in joins should have the same data type, and explicit conversions should be avoided; a whole-number key is best stored in an integer type. Recreating the table with CTAS stores DeliveryDateKey as int once, so the join compares int values without converting 3 billion rows in every query.
     fr: |
-      Le clustering des données est défini à la création d'une table, avec CREATE TABLE ou CTAS et l'option WITH (CLUSTER BY (...)). Il ne peut pas être ajouté à une table existante ni modifié ensuite : vous créez donc une copie clusterisée de la table par CTAS ; les lignes sont regroupées pendant l'ingestion, et les filtres de plage sur DeliveryDate peuvent alors ignorer des fichiers.
+      Les colonnes utilisées dans les jointures doivent avoir le même type de données, et les conversions explicites doivent être évitées ; une clé numérique entière se stocke de préférence dans un type entier. Recréer la table par CTAS stocke DeliveryDateKey en int une fois pour toutes : la jointure compare des valeurs int sans convertir 3 milliards de lignes à chaque requête.
   options:
     a:
       en: |
-        An existing table cannot be converted to a clustered table, and its clustering columns cannot be modified.
+        Statistics help the optimizer estimate row counts, but the query still converts every DeliveryDateKey value before the join.
       fr: |
-        Une table existante ne peut pas être convertie en table clusterisée, et ses colonnes de clustering ne peuvent pas être modifiées.
+        Les statistiques aident l'optimiseur à estimer le nombre de lignes, mais la requête convertit toujours chaque valeur de DeliveryDateKey avant la jointure.
     b:
       en: |
-        SELECT INTO is not supported for creating clustered tables.
+        V-Order speeds up reads; disabling it is irreversible and suits only write-heavy staging warehouses.
       fr: |
-        SELECT INTO n'est pas pris en charge pour créer des tables clusterisées.
+        V-Order accélère les lectures ; le désactiver est irréversible et ne convient qu'aux entrepôts de transit très sollicités en écriture.
     d:
       en: |
-        OPTIMIZE and Z-Order apply to lakehouse Delta tables written by Spark, not to warehouse tables.
+        OPTIMIZE and Z-Order apply to lakehouse Delta tables written by Spark, not to warehouse tables, and they don't change the column type.
       fr: |
-        OPTIMIZE et le Z-Order s'appliquent aux tables Delta de lakehouse écrites par Spark, pas aux tables d'entrepôt.
+        OPTIMIZE et le Z-Order s'appliquent aux tables Delta de lakehouse écrites par Spark, pas aux tables d'entrepôt, et ils ne changent pas le type de la colonne.
 references:
-  - title: Data clustering in Fabric Data Warehouse
-    url: https://learn.microsoft.com/en-us/fabric/data-warehouse/data-clustering
+  - title: Performance guidelines in Fabric Data Warehouse
+    url: https://learn.microsoft.com/en-us/fabric/data-warehouse/guidelines-warehouse-performance

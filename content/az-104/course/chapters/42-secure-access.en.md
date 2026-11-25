@@ -85,7 +85,7 @@ Requirements of a dedicated deployment (Basic and above):
 
 - A subnet named exactly **`AzureBastionSubnet`**, **/26 or larger**, in the virtual network.
 - A **Standard, static public IP address** for the bastion host (except for a private-only Premium deployment).
-- One Bastion serves the machines of its virtual network and of **peered** virtual networks.
+- One Bastion serves the machines of its virtual network and of **directly peered** virtual networks, including peerings across subscriptions of the **same Microsoft Entra tenant** (not across two tenants). Peering isn't transitive: a network peered only with a peer of the bastion's network isn't reached.
 
 | SKU | What it adds |
 | --- | --- |
@@ -98,7 +98,7 @@ An SKU can be upgraded in place, not downgraded.
 
 If an NSG is associated with `AzureBastionSubnet`, it must allow inbound 443 from `Internet` and `GatewayManager` and from `AzureLoadBalancer`, plus the Bastion internal ports and the required outbound rules. On the target subnets, allow 3389 and 22 **from the AzureBastionSubnet range**.
 
-To connect, a user needs the Reader role on the virtual machine, on its network interface and on the Bastion resource.
+To connect, a user needs the Reader role on the virtual machine, on its network interface (the one with the private IP address) and on the Bastion resource, plus **Reader on the virtual network of the target machine when the bastion is in a peered virtual network**.
 
 > **Exam trap.** A jump box with a public IP address, a public load balancer NAT rule or an NSG rule limited to an office IP all expose a port to the internet. When the requirement says "no public IP address on the virtual machines" and "from the Azure portal", the answer is Azure Bastion.
 
@@ -118,7 +118,7 @@ What a service endpoint is and isn't:
 - The source address seen by the service becomes the **private** address of the machine: existing IP rules based on the old public address stop matching.
 - It works only from the subnet: **not from on-premises**, not from peered networks (enable it on their subnets too).
 - **No additional cost.**
-- For Azure SQL Database (`Microsoft.Sql`), the virtual network must be in the same region as the server; most other services accept subnets of any region.
+- For Azure SQL Database (`Microsoft.Sql`), every subnet referenced by a virtual network rule must be in the same region as the server. The subnet can be in **another subscription** only if both subscriptions are in the **same Microsoft Entra tenant** and both have the `Microsoft.Sql` resource provider registered.
 - A **service endpoint policy** (Azure Storage) restricts the subnet to listed storage accounts only, to prevent data exfiltration to other accounts.
 
 ```bash
@@ -143,11 +143,11 @@ A **private endpoint** is a network interface with a **private IP address from y
 Points tested:
 
 - One private endpoint per **sub-resource**: `blob`, `file`, `dfs`, `web` for storage; `vault` for Key Vault; `sqlServer` for Azure SQL; `sites` for App Service.
-- **DNS.** The public name becomes a CNAME to a `privatelink` name: `stor1.blob.core.windows.net` → `stor1.privatelink.blob.core.windows.net`. A **private DNS zone** `privatelink.blob.core.windows.net`, **linked to every virtual network that must resolve the name**, returns the private IP address. Clients keep the same URL and connection string. From on-premises, the local DNS must forward these names to Azure (DNS forwarder or Azure DNS Private Resolver).
+- **DNS.** The public name becomes a CNAME to a `privatelink` name: `stor1.blob.core.windows.net` → `stor1.privatelink.blob.core.windows.net`. A **private DNS zone** `privatelink.blob.core.windows.net`, **linked to every virtual network that must resolve the name**, returns the private IP address. Clients keep the same URL and connection string. From on-premises, the local DNS server needs a **conditional forwarder** for these names that targets the IP address of the **inbound endpoint** of an Azure DNS Private Resolver (or a DNS forwarder virtual machine in Azure); the zone must also be linked to the virtual network where the resolver is deployed.
 - Common zones: `privatelink.blob.core.windows.net`, `privatelink.file.core.windows.net`, `privatelink.vaultcore.azure.net`, `privatelink.database.windows.net`, `privatelink.azurewebsites.net`, `privatelink.azurecr.io`.
 - **Approval.** *Automatic* when you have permissions on the resource; otherwise *manual*: the connection stays **Pending** until the resource owner approves it.
 - NSGs and route tables apply to private endpoints only if **network policies** are enabled on the subnet.
-- A private endpoint doesn't close the public endpoint by itself: also set public network access to Disabled.
+- A private endpoint doesn't close the public endpoint by itself: also disable public network access (option **Disable** in the networking settings of a storage account).
 - Your own service behind a Standard load balancer can be published with a **Private Link service**.
 
 ```bash

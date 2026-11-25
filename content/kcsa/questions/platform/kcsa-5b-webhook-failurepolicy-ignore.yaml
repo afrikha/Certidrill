@@ -1,0 +1,51 @@
+id: kcsa-5b-webhook-failurepolicy-ignore
+objective: "5.7.4"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    A validating webhook rejects privileged Pods. Its configuration is below (rules and clientConfig omitted).
+
+    ```yaml
+    apiVersion: admissionregistration.k8s.io/v1
+    kind: ValidatingWebhookConfiguration
+    metadata:
+      name: deny-privileged
+    webhooks:
+    - name: deny-privileged.example.com
+      failurePolicy: Ignore
+      timeoutSeconds: 5
+      sideEffects: None
+      admissionReviewVersions: ["v1"]
+    ```
+
+    An attacker who can delete Pods in the webhook's namespace deletes all its replicas, then creates a privileged Pod. What happens?
+body:
+  options:
+    - id: a
+      text: { en: "The Pod is rejected, because the API server rejects requests when a webhook cannot be reached" }
+    - id: b
+      text: { en: "The Pod creation waits until a webhook replica is running again" }
+    - id: c
+      text: { en: "The Pod is rejected after 5 seconds, because a timeout counts as a denial" }
+    - id: d
+      text: { en: "The Pod is created, because errors calling the webhook are ignored and the request continues" }
+answer: { optionId: d }
+explanation:
+  correct:
+    en: |
+      With `failurePolicy: Ignore`, an error calling the webhook (unreachable service, timeout) is ignored and the API request is allowed: the policy fails open. Making the webhook unavailable is enough to bypass it. Security webhooks should keep the default `Fail` and be made highly available instead.
+  options:
+    a:
+      en: |
+        That is the behavior of `Fail`, the default. This configuration explicitly sets `Ignore`.
+    b:
+      en: |
+        The API server does not queue requests until a webhook returns. The webhook call fails, and `failurePolicy` decides the outcome.
+    c:
+      en: |
+        When the timeout expires, `failurePolicy` decides: with `Ignore`, the request is allowed.
+references:
+  - title: "Dynamic Admission Control"
+    url: https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/

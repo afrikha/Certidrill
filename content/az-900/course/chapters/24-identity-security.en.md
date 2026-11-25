@@ -27,7 +27,7 @@ Active Directory on Windows Server is the on-premises directory; Microsoft Entra
 | **Multifactor authentication** (MFA) | An additional proof at sign-in, from at least two categories: something you **know** (password), something you **have** (phone, hardware key), something you **are** (fingerprint, face) | A stolen password is no longer enough |
 | **Passwordless** | The password is replaced by something you have plus something you are or know | More convenient and more secure than a password |
 
-Passwordless options in Microsoft Entra ID: **Windows Hello for Business** (biometrics or PIN tied to a device), the **Microsoft Authenticator app**, and **FIDO2 security keys** or passkeys.
+Passwordless options in Microsoft Entra ID: **Windows Hello for Business** (biometrics or PIN tied to a device), the **Microsoft Authenticator app**, and **FIDO2 security keys** or passkeys. Passkeys are either **device-bound** (a FIDO2 security key or Microsoft Authenticator), recommended for highly regulated industries and privileged users, or **synced** (Apple iCloud Keychain, Google Password Manager), for most other users.
 
 <!-- section: external-identities | objectives: 2.4.3 -->
 ## External identities

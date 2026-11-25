@@ -1,0 +1,48 @@
+id: aipc01-2a-approval-timeout-escalation
+objective: "2.1.5"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    A procurement company uses an AWS Step Functions Standard workflow in which an agent proposes purchase orders and a Task state with .waitForTaskToken asks the requester's team lead for approval. If the team lead does not answer within 4 hours, the request must go to the department manager. If the manager does not answer within 24 hours, the purchase order must be rejected automatically and the requester notified. Approvals that arrive in time must continue without delay.
+
+    Which solution will meet these requirements?
+body:
+  options:
+    - id: a
+      text:
+        en: |-
+          Set TimeoutSeconds of the team lead's Task state to 14400, and add a Retry on States.Timeout with MaxAttempts set to 1 so that the same request is sent again after 4 hours.
+    - id: b
+      text:
+        en: |-
+          Set TimeoutSeconds of the state machine to 14400 so that the execution ends after 4 hours, and start a new execution for the manager from an Amazon EventBridge rule on the failure.
+    - id: c
+      text:
+        en: |-
+          Add a Wait state of 4 hours before the team lead's Task state, followed by a Choice state that sends the request to the manager when no decision has been recorded in the meantime.
+    - id: d
+      text:
+        en: |-
+          Set TimeoutSeconds to 14400 on the team lead's Task state with a Catch on States.Timeout to a manager callback Task state that has a timeout of 86400 and a Catch to a rejection state.
+answer: { optionId: d }
+explanation:
+  correct:
+    en: |-
+      A callback Task state that does not receive its token within TimeoutSeconds fails with States.Timeout, and a catcher can route that error to the next step. Chaining a manager callback task with its own timeout and a catcher that rejects the order implements both escalation levels, while decisions that arrive in time resume the workflow at once.
+  options:
+    a:
+      en: |-
+        A retry sends a new request to the same team lead instead of escalating to the manager, and the 24-hour rejection rule is not implemented.
+    b:
+      en: |-
+        A state machine timeout fails the whole execution with States.Timeout; rebuilding the process in a new execution from an event rule adds complexity and loses the workflow's state.
+    c:
+      en: |-
+        A Wait state before the request delays every approval by 4 hours, which breaks the requirement that timely approvals continue without delay.
+references:
+  - title: Discover service integration patterns in Step Functions - AWS Step Functions
+    url: https://docs.aws.amazon.com/step-functions/latest/dg/connect-to-resource.html
+  - title: Handling errors in Step Functions workflows - AWS Step Functions
+    url: https://docs.aws.amazon.com/step-functions/latest/dg/concepts-error-handling.html

@@ -1,0 +1,44 @@
+id: dopc02-4b-kinesis-poison-record
+objective: "4.2.9"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    An AWS Lambda function analyzes security log records from an Amazon Kinesis data stream in near real time through an event source mapping with default settings. Last week, one malformed record made the function throw an exception. The IteratorAge metric of the function climbed for days on one shard, and the alerts for that shard were delayed until the record expired. The security team requires that a bad record never block a shard for more than a few minutes, that valid records in the same batch still be processed, and that bad records be kept for later analysis. Which solution will meet these requirements?
+body:
+  options:
+    - id: a
+      text:
+        en: |-
+          Increase the function timeout to the maximum and raise its memory, so that the function has enough time to process every record of a batch.
+    - id: b
+      text:
+        en: |-
+          Reduce the stream's data retention period to 24 hours so that a bad record expires from the stream sooner and stops blocking the shard.
+    - id: c
+      text:
+        en: |-
+          Set ParallelizationFactor to 10 on the event source mapping so that the other batches of the shard are processed while the bad batch is retried.
+    - id: d
+      text:
+        en: |-
+          Enable BisectBatchOnFunctionError, set MaximumRetryAttempts and MaximumRecordAgeInSeconds to low values, and configure an Amazon SQS queue as the on-failure destination.
+answer: { optionId: d }
+explanation:
+  correct:
+    en: |-
+      By default, Lambda retries a failed batch until the records expire, so one bad record can block its shard for up to the retention period. Splitting failed batches isolates the bad record while the valid records are processed, low retry and age limits make Lambda discard the failing record quickly, and the on-failure destination keeps details about the discarded records for analysis.
+  options:
+    a:
+      en: |-
+        The record fails because it is malformed, not because of a timeout, so the function keeps failing on it with any timeout or memory size.
+    b:
+      en: |-
+        The record would still block the shard for up to 24 hours, it would be lost instead of kept, and every other record would also have a shorter retention.
+    c:
+      en: |-
+        Lambda keeps processing in order for each partition key, so the records that share the bad record's key stay blocked, and nothing keeps the bad record.
+references:
+  - title: Retain discarded batch records for a Kinesis Data Streams event source in Lambda - AWS Lambda
+    url: https://docs.aws.amazon.com/lambda/latest/dg/kinesis-on-failure-destination.html

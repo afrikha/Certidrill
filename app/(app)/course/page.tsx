@@ -7,6 +7,7 @@ import { coursesFor } from "@/lib/course/read";
 import { Card } from "@/components/ui/card";
 import { VendorGroups } from "@/components/vendor-groups";
 import { groupByVendor } from "@/lib/vendors";
+import { EnglishOnlyBadge } from "@/components/english-only";
 
 export const metadata = { title: "Course" };
 export const dynamic = "force-dynamic";
@@ -33,7 +34,7 @@ export default async function CoursesPage() {
                 <li key={c.code}>
                   <Card>
                     <Link href={`/course/${c.code}`} className="font-semibold text-primary underline">{t("title", { code: c.code.toUpperCase() })}</Link>
-                    <p className="mt-1 text-sm text-muted-foreground">{c.title}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">{c.title}<EnglishOnlyBadge languages={c.languages} /></p>
                   </Card>
                 </li>
               ))}

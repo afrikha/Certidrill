@@ -61,7 +61,7 @@ Configure clients with **one** upstream-enabled feed only, so every request goes
 | Feed Publisher (Contributor) | Also publish, promote, deprecate, unlist, yank |
 | Feed Owner | Also delete, manage upstream sources, permissions and settings |
 
-A pipeline publishes with its job identity: give **Feed Publisher (Contributor)** to `<Project> Build Service (<organization>)` (project-scoped job authorization) or `Project Collection Build Service (<organization>)`.
+A pipeline publishes with its job identity: give **Feed Publisher (Contributor)** to `<Project> Build Service (<organization>)` (project-scoped job authorization) or `Project Collection Build Service (<organization>)`; the feed permissions page advises giving the role to both. A project-level Build Service identity that uses a feed in another project also needs at least **Edit project-level information** in that project.
 
 ```yaml
 steps:
@@ -70,7 +70,7 @@ steps:
   - script: dotnet nuget push $(Build.ArtifactStagingDirectory)/*.nupkg --source https://pkgs.dev.azure.com/contoso/Platform/_packaging/contoso-core/nuget/v3/index.json --api-key az
 ```
 
-Package versions are **immutable**: once `2.1.0` has been published, that version number is reserved forever, even after deletion (deleted packages stay 30 days in the Recycle Bin). You also can't publish a version that already exists in an enabled upstream. **Retention policies** delete old versions when both the maximum number of versions per package is reached and the version hasn't been downloaded for the configured days.
+Package versions are **immutable**: once `2.1.0` has been published, that version number is reserved forever, even after deletion (deleted packages stay 30 days in the Recycle Bin). You also can't publish a version that already exists in an enabled upstream. **Retention policies** delete old versions when both the maximum number of versions per package is reached and the version hasn't been downloaded for the configured days. Versions promoted to a view are exempt from retention policies: promoting a version is the way to keep it indefinitely.
 
 > **Exam trap.** "Developers must get only packages that passed integration tests" is a **view** (promote to `@Release`, consumers use `feed@Release`), not a second feed with copied packages. "A pipeline gets 403 when pushing" is a missing **Feed Publisher (Contributor)** role for the Build Service identity.
 

@@ -28,7 +28,7 @@ Ce qui rend les invites efficaces :
 
 Une **ressource Foundry** est la ressource Azure qui héberge les modèles et les services. Un **projet Foundry** est un espace de travail à l'intérieur, où vous déployez des modèles et créez des agents. Une ressource peut contenir de nombreux projets.
 
-1. Connectez-vous au portail Foundry à l'adresse `https://ai.azure.com` et créez un projet. Vous nommez la ressource Foundry et choisissez l'abonnement, le groupe de ressources et la région.
+1. Connectez-vous au portail Foundry à l'adresse `https://ai.azure.com` avec le bouton bascule **New Foundry** activé. Sélectionnez le nom du projet actuel, puis **Create new project**, et saisissez un nom de projet. Le portail crée la ressource Foundry pour vous ; les **Advanced options** permettent de choisir le groupe de ressources et l'emplacement. Le premier projet d'une ressource est son projet par défaut.
 2. Dans la page **Discover**, ouvrez le catalogue de modèles (**Models**), sélectionnez un modèle et lisez sa page.
 3. Sélectionnez **Deploy**. Avec les paramètres par défaut, le déploiement prend le nom du modèle.
 4. Le terrain de jeu de modèles s'ouvre. Écrivez l'invite système dans **Instructions**, saisissez les invites utilisateur dans le volet de conversation, et réglez les paramètres comme la température et le nombre maximal de jetons de sortie.
@@ -99,7 +99,7 @@ L'agent enregistré garde ensemble son modèle, ses instructions et ses outils :
 <!-- section: agent-client | objectives: 2.1.5 -->
 ## Un client léger pour un agent
 
-Le client se connecte au projet avec le même `AIProjectClient`, récupère l'agent par son nom et le référence dans la requête. L'exemple de code est disponible dans la vue du code du terrain de jeu des agents.
+Le client se connecte au projet avec le même `AIProjectClient`, récupère l'agent par son nom et le référence dans la requête. L'exemple de code est disponible dans la vue du code du terrain de jeu des agents. Le code ci-dessous suit le module de formation Learn.
 
 ```text
 agent = project.agents.get(agent_name="support-agent")
@@ -114,11 +114,13 @@ print(response.output_text)
 
 | | Client de conversation | Client d'un agent |
 | --- | --- | --- |
-| Cible | Un déploiement de modèle : `model="..."` | Un agent : `extra_body` avec un `agent_reference` |
+| Cible | Un déploiement de modèle : `model="..."` | Un agent : `extra_body` avec un `agent_reference`, ou un client lié à l'agent |
 | Instructions | Envoyées par le client dans la requête | Stockées dans l'agent |
 | Outils et connaissances | Aucun, sauf si le client en ajoute | Ceux qui sont configurés dans l'agent |
 
-> **Conseil d'examen.** Dans une question de code, cherchez ce que la requête nomme. Un argument `model` avec un nom de déploiement désigne un client de conversation. Un nom d'agent et `agent_reference` désignent le client d'un agent ; il ne répète pas l'invite système, car l'agent la détient déjà.
+La documentation actuelle du SDK (`azure-ai-projects` 2.3.0 ou version ultérieure) lie aussi le client à l'agent : `project.get_openai_client(agent_name="support-agent")` renvoie un client dont les appels `responses.create(input=...)` vont à cet agent, sans `model` ni `extra_body`.
+
+> **Conseil d'examen.** Dans une question de code, cherchez ce que la requête nomme. Un argument `model` avec un nom de déploiement désigne un client de conversation. Un nom d'agent, dans un `agent_reference` ou dans `get_openai_client(agent_name=...)`, désigne le client d'un agent ; il ne répète pas l'invite système, car l'agent la détient déjà.
 
 <!-- section: key-points -->
 ## Points clés
@@ -127,4 +129,4 @@ print(response.output_text)
 - Chemin dans le portail : créer un projet, choisir un modèle dans le catalogue, **Deploy**, tester dans le terrain de jeu, afficher le code.
 - Client de conversation : `AIProjectClient` avec le point de terminaison du projet, `get_openai_client()`, `responses.create(model=..., input=...)`, `output_text`.
 - Agent : modèle, instructions et outils ; les connaissances ancrent les réponses. **Save as agent**, puis test dans le terrain de jeu des agents.
-- Client d'un agent : `agents.get(agent_name=...)`, puis `responses.create` avec un `agent_reference`.
+- Client d'un agent : `agents.get(agent_name=...)`, puis `responses.create` avec un `agent_reference` ; ou `get_openai_client(agent_name=...)`, puis `responses.create(input=...)`.

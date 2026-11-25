@@ -15,7 +15,7 @@ Typical scenarios:
 <!-- section: paas | objectives: 1.3.2 -->
 ## Platform as a service (PaaS)
 
-PaaS is the middle ground. The provider maintains the physical infrastructure **and** the operating systems, middleware, development tools and business intelligence services. **You supply the application and its data**, without worrying about licenses or patches for the platform.
+PaaS is the middle ground. The provider maintains the physical infrastructure **and** the operating systems, middleware, development tools and business intelligence services. **You supply the application and its data**, and you manage access controls, without worrying about licenses or patches for the platform. Depending on the service configuration, some networking and application security settings are shared.
 
 Azure examples: Azure App Service, Azure SQL Database, Azure Functions, Azure Container Apps.
 

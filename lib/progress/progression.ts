@@ -110,12 +110,14 @@ function badgesOf(history: readonly ProgressExam[], i: number, best: number, con
 /**
  * Progression after the given exams (chronological, finished exams of one
  * certification). Domain mastery averages the last `recent` exams.
+ * `baseXp`: XP earned outside the exams (chapter quizzes mastered,
+ * lib/course/quiz-rules.ts), counted before them.
  */
-export function computeProgression(history: readonly ProgressExam[], config: ProgressionConfig, recent: number): Progression {
+export function computeProgression(history: readonly ProgressExam[], config: ProgressionConfig, recent: number, baseXp = 0): Progression {
   const seen = new Set<string>();
   const badges = new Map<BadgeCode, Badge>();
   const gains: XpGain[] = [];
-  let xp = 0;
+  let xp = baseXp;
   let best = Number.NEGATIVE_INFINITY;
   history.forEach((exam, i) => {
     const gain = gainOf(exam, history[i - 1], best, seen, config);

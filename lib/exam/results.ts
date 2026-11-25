@@ -17,6 +17,8 @@ import { computeProgression, type Badge, type Progression, type XpGain } from "@
 import { breakdownBy, scoringRules, type Breakdown } from "./scoring";
 import { getAccess, type AccessLevel } from "@/lib/access";
 import { SessionError, finalizeIfExpired } from "./session";
+import { QUIZ_RULES } from "@/lib/course/quiz-rules";
+import { QUIZ_USAGE } from "@/lib/questions/usage";
 
 type L = { en: string; fr: string };
 
@@ -46,7 +48,8 @@ export interface AttemptResults {
   status: "submitted" | "expired";
   locale: Locale;
   /** vendor: certification.vendor (the score note and the documentation named, lib/vendors.ts). */
-  certification: { code: string; title: string; vendor: string };
+  /** languages: those of the official exam; without the result's locale, its content is in English (docs/SPECS-AWS.md §3.7). */
+  certification: { code: string; title: string; vendor: string; languages: string[] };
   scaledScore: number;
   passed: boolean;
   passScore: number;
@@ -144,6 +147,39 @@ function explainedElements(type: QuestionTypeCode, body: unknown): Choice[] {
   }
 }
 
+/** What a correction shows under a question: the answer key, the explanation, why the wrong options are wrong (with `options`), the references. */
+export interface QuestionExplanation {
+  correctAnswer: AnswerLine[];
+  explanationHtml: string;
+  optionExplanations: { label: string; html: string }[];
+  references: { title: string; url: string }[];
+}
+
+/** The correction of a question, in one locale (mock exam review and chapter quizzes). */
+export async function explainQuestion(
+  q: { type: QuestionTypeCode; body: unknown; answer: unknown; explanation: unknown; references: unknown },
+  locale: Locale,
+  { options }: { options: boolean },
+): Promise<QuestionExplanation> {
+  const yesNo: [string, string] = locale === "fr" ? ["Oui", "Non"] : ["Yes", "No"];
+  const explanation = q.explanation as { correct: L; options?: Record<string, L> };
+  const elements = explainedElements(q.type, q.body);
+  const optionExplanations = options
+    ? await Promise.all(
+        Object.entries(explanation.options ?? {}).map(async ([id, e]) => {
+          const el = elements.find((x) => x.id === id);
+          return { label: el ? await renderInline(text(el.text, locale)) : id, html: await renderInline(pick(e, locale)) };
+        }),
+      )
+    : [];
+  return {
+    correctAnswer: await describeAnswer(q.type, q.body, q.answer, locale, yesNo),
+    explanationHtml: await renderMarkdown(pick(explanation.correct, locale)),
+    optionExplanations,
+    references: q.references as { title: string; url: string }[],
+  };
+}
+
 export async function getAttemptResults(
   db: PrismaClient,
   { attemptId, userId, locale: requested }: { attemptId: string; userId: string; locale?: Locale },
@@ -161,7 +197,6 @@ export async function getAttemptResults(
   if (!attempt) throw new SessionError("not_found");
   if (attempt.status === "in_progress") throw new SessionError("not_started");
   const locale: Locale = requested ?? (attempt.locale === "fr" ? "fr" : "en");
-  const yesNo: [string, string] = locale === "fr" ? ["Oui", "Non"] : ["Yes", "No"];
   const domainTitle = new Map(attempt.blueprint.domains.map((d) => [d.code, pick(d.title as L, locale)]));
   const domainOrder = new Map(attempt.blueprint.domains.map((d) => [d.code, d.order]));
   const rules = scoringRules(attempt.blueprint.scoring);
@@ -185,17 +220,8 @@ export async function getAttemptResults(
     shown.map(async (it) => {
       const q = it.question;
       const section = attempt.sections.find((s) => s.id === it.sectionId)!;
-      const explanation = q.explanation as { correct: L; options?: Record<string, L> };
-      const elements = explainedElements(q.type, q.body);
       // Why each wrong option is wrong: full access only.
-      const optionExplanations = full
-        ? await Promise.all(
-            Object.entries(explanation.options ?? {}).map(async ([id, e]) => {
-              const el = elements.find((x) => x.id === id);
-              return { label: el ? await renderInline(text(el.text, locale)) : id, html: await renderInline(pick(e, locale)) };
-            }),
-          )
-        : [];
+      const explained = await explainQuestion(q, locale, { options: full });
       return {
         id: it.id,
         order: it.order,
@@ -209,10 +235,7 @@ export async function getAttemptResults(
         seriesStemHtml: section.series ? await renderMarkdown(pick(section.series.stem as L, locale)) : undefined,
         caseStudyTitle: section.caseStudy ? pick(section.caseStudy.title as L, locale) : undefined,
         response: it.response,
-        correctAnswer: await describeAnswer(q.type, q.body, q.answer, locale, yesNo),
-        explanationHtml: await renderMarkdown(pick(explanation.correct, locale)),
-        optionExplanations,
-        references: q.references as { title: string; url: string }[],
+        ...explained,
       };
     }),
   );
@@ -234,7 +257,7 @@ export async function getAttemptResults(
     id: attempt.id,
     status: attempt.status as "submitted" | "expired",
     locale,
-    certification: { code: attempt.certification.code, title: attempt.certification.title, vendor: attempt.certification.vendor },
+    certification: { code: attempt.certification.code, title: attempt.certification.title, vendor: attempt.certification.vendor, languages: attempt.certification.languages },
     scaledScore: attempt.scaledScore ?? 0,
     passed: attempt.passed ?? false,
     passScore: attempt.blueprint.passScore,
@@ -338,13 +361,28 @@ export async function certificationSettings(db: PrismaClient, history: readonly 
   return settings;
 }
 
-function certificationProgression(code: string, history: readonly HistoryEntry[], rules: ProgressionConfig, recent: number, locale: Locale): CertificationProgression {
-  const p = computeProgression(history, rules, recent);
+function certificationProgression(code: string, history: readonly HistoryEntry[], rules: ProgressionConfig, recent: number, locale: Locale, baseXp: number): CertificationProgression {
+  const p = computeProgression(history, rules, recent, baseXp);
   const next = rules.levels[p.level.n];
   // Domains in the blueprint's order, like the other domain charts.
   const order = new Map(history.at(-1)!.blueprint.domains.map((d) => [d.code, d.order]));
   p.mastery.sort((a, b) => (order.get(a.code) ?? 0) - (order.get(b.code) ?? 0));
   return { certification: code, config: rules, ...p, title: pick(rules.levels[p.level.n - 1]!.title, locale), nextTitle: next ? pick(next.title, locale) : null };
+}
+
+/**
+ * Progression XP of the chapter quizzes of a certification (its code)
+ * mastered up to `before` when given: once per chapter, however many times
+ * it is passed (docs/SPECS-QUIZ-CHAPITRE.md §8).
+ */
+export async function quizXp(db: PrismaClient, userId: string, certification: string, before?: Date): Promise<number> {
+  if (QUIZ_RULES.xpPerChapter === 0) return 0;
+  const chapters = await db.quizAttempt.findMany({
+    where: { userId, passed: true, chapter: { certification: { code: certification } }, ...(before && { completedAt: { lte: before } }) },
+    distinct: ["chapterId"],
+    select: { chapterId: true },
+  });
+  return QUIZ_RULES.xpPerChapter * chapters.length;
 }
 
 export async function getProgress(db: PrismaClient, userId: string, locale: Locale, now: Date = new Date()): Promise<Progress> {
@@ -366,7 +404,7 @@ export async function getProgress(db: PrismaClient, userId: string, locale: Loca
     }
     const r = config ? computeReadiness(mine, config, now) : null;
     if (config && r) readiness.push({ certification: code, config, ...r });
-    if (rules) progression.push(certificationProgression(code, mine, rules, config?.recent ?? DEFAULT_RECENT, locale));
+    if (rules) progression.push(certificationProgression(code, mine, rules, config?.recent ?? DEFAULT_RECENT, locale, await quizXp(db, userId, code)));
   }
   return {
     attempts: list.map((a) => ({ id: a.id, certification: a.certification, submittedAt: a.submittedAt.toISOString(), scaledScore: a.scaledScore, passed: a.passed, domains: [...a.domains] })),
@@ -426,7 +464,7 @@ export async function getAttemptProgress(db: PrismaClient, { attemptId, userId, 
 
   let progression: ProgressionGain | null = null;
   if (rules) {
-    const p = computeProgression(upTo, rules, config?.recent ?? DEFAULT_RECENT);
+    const p = computeProgression(upTo, rules, config?.recent ?? DEFAULT_RECENT, await quizXp(db, userId, attempt.certification, attempt.submittedAt));
     const gain = p.gains.at(-1)!;
     const title = (n: number) => pick(rules.levels[n - 1]!.title, locale);
     progression = {
@@ -460,13 +498,29 @@ export type ReportReason = (typeof REPORT_REASONS)[number];
 export const REPORTS_BEFORE_REVIEW = 3;
 
 /**
+ * Whether a chapter quiz question was answered (validated) in one of the
+ * user's attempts: a question of the chapter's bank that the user has not
+ * reached yet cannot be reported.
+ */
+async function answeredInQuiz(db: PrismaClient, userId: string, questionId: string): Promise<boolean> {
+  const attempts = await db.quizAttempt.findMany({
+    where: { userId, chapter: { quizQuestions: { some: { id: questionId, usage: QUIZ_USAGE } } } },
+    select: { results: true },
+  });
+  return attempts.some((a) => Object.values((a.results ?? {}) as Record<string, { questionId?: string } | undefined>).some((r) => r?.questionId === questionId));
+}
+
+/**
  * Records a report; only for a question the user has seen in a finished
  * attempt. A user has at most one open report per question (a new report
  * replaces their reason and comment), and the review threshold counts distinct
  * users, so a single account cannot take a question out of the exams.
  */
 export async function reportQuestion(db: PrismaClient, { questionId, userId, reason, comment }: { questionId: string; userId: string; reason: ReportReason; comment?: string }) {
-  const seen = await db.attemptItem.count({ where: { questionId, attempt: { userId, status: { in: ["submitted", "expired"] } } } });
+  // Seen in a finished mock exam, or answered in one of the user's attempts at its chapter quiz.
+  const seen =
+    (await db.attemptItem.count({ where: { questionId, attempt: { userId, status: { in: ["submitted", "expired"] } } } })) > 0 ||
+    (await answeredInQuiz(db, userId, questionId));
   if (!seen) throw new SessionError("not_found");
   const data = { reason, comment: comment?.trim() || null };
   const existing = await db.questionReport.findFirst({ where: { questionId, userId, status: "open" }, select: { id: true } });

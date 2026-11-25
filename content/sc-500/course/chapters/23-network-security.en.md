@@ -37,7 +37,7 @@ Azure Virtual Network Manager is created with a **scope** (management groups or 
 | Deny | Blocks the traffic; NSGs are not evaluated |
 | Always Allow | Allows the traffic whatever the NSGs say; evaluation stops |
 
-Security admin rules (priority **1 to 4096**) apply at the virtual network level and are evaluated **before** NSGs, so application teams can't override them. By default they don't apply to virtual networks containing Azure SQL Managed Instance or Azure Databricks (option `AllowRulesOnly` applies only the Allow rules there), nor to the subnets of gateways, Azure Bastion, Azure Firewall or Azure Route Server.
+Security admin rules (priority **1 to 4096**) apply at the virtual network level and are evaluated **before** NSGs, so application teams can't override them. By default they don't apply to virtual networks containing Azure SQL Managed Instance or Azure Databricks (option `AllowRulesOnly` applies only the Allow rules there), nor to the subnets of Azure Application Gateway (unless every gateway in the subnet uses network isolation), Azure Bastion, Azure Firewall, Azure Route Server, VPN Gateway, Virtual WAN or ExpressRoute gateways; the other subnets of the virtual network still get them. They also don't apply to private endpoints in a managed virtual network.
 
 > **Exam trap.** "Block RDP from the internet on every current and future virtual network, and local admins must not be able to reopen it" is a security admin **Deny** rule on a dynamic network group, not an NSG or Azure Policy on NSGs.
 

@@ -46,6 +46,7 @@ Règles du schéma en mode strict :
 - Non pris en charge : `minLength`, `maxLength`, `pattern`, `format`, `minimum`, `maximum`, `minItems`, `maxItems` et contraintes similaires. Validez-les dans le code.
 - Incompatible avec les appels de fonction parallèles (réglez `parallel_tool_calls` sur `false`).
 - Vérifiez le champ `refusal` : un modèle qui refuse renvoie un refus au lieu du schéma.
+- Non pris en charge avec les scénarios « bring your own data », les Assistants ou Foundry Agent Service, ni avec `gpt-audio` et `gpt-audio-mini`.
 
 **Azure Language dans Foundry Tools** range ses fonctionnalités en deux groupes :
 
@@ -109,7 +110,7 @@ for entity in pii.entities:
     print(entity.category, entity.confidence_score)
 ```
 
-La détection des PII dans le texte (GA) prend aussi en charge un seuil de confiance, des valeurs exclues, des synonymes d'entités et la stratégie de masquage `syntheticReplacement`, qui remplace les valeurs détectées par de fausses valeurs réalistes. Sur un déploiement de modèle, les garde-fous comprennent un filtre **PII** sur les sorties, à côté des contrôles de contenu protégé et d'ancrage.
+La détection des PII dans le texte (GA) prend aussi en charge un seuil de confiance, des valeurs exclues, des synonymes d'entités et la stratégie de masquage `syntheticReplacement`, qui remplace les valeurs détectées par de fausses valeurs réalistes. Sur un déploiement de modèle, les garde-fous comprennent un contrôle **Personally identifiable information** (préversion) qui analyse les sorties du modèle, à côté des contrôles de contenu protégé (texte et code) et d'ancrage (Groundedness, préversion). La détection d'ancrage d'Azure OpenAI sera mise hors service le 30 avril 2027.
 
 > **Piège d'examen.** Content Safety détecte les **préjudices** ; il ne détecte pas les données personnelles. Pour trouver et masquer des numéros de téléphone ou de compte, utilisez la **détection des PII** d'Azure Language.
 
@@ -162,7 +163,8 @@ Autres faits :
 - Un moteur LLM exige une **ressource Microsoft Foundry**, et n'est pas disponible quand la ressource Translator utilise un **point de terminaison privé**.
 - Limites par requête : NMT 1 000 éléments de tableau de 50 000 au plus chacun ; LLM 50 éléments de 5 000 au plus chacun.
 - Facturation : NMT par caractère source ; LLM par jeton d'entrée et de sortie, au tarif Azure OpenAI.
-- La traduction personnalisée adaptative construit un index bilingue en quelques minutes à partir de 5 à 10 000 paires de segments préalignées (500 caractères au plus par paire).
+- La traduction personnalisée adaptative construit un index bilingue en quelques minutes à partir de 5 à 10 000 paires de segments préalignées (250 caractères au plus par segment ; les segments plus longs sont rejetés). Son terrain de jeu (playground) est en GA ; son API de jeux de données (v1.0) est en préversion.
+- La version `2026-06-06` a supprimé les opérations Detect, BreakSentence, Dictionary Lookup et Dictionary Examples : détectez une langue avec la détection de langue d'Azure Language, ou omettez `language` dans la requête translate.
 
 Un **flux de traduction alimenté par LLM** sans Translator est une invite : langue cible, glossaire, ton et « conserver tels quels les noms de produits, les codes et les espaces réservés » dans les instructions, et une sortie structurée quand plusieurs langues reviennent ensemble.
 

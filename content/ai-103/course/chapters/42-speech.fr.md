@@ -17,10 +17,12 @@ Les fonctionnalités qui décident de nombreuses réponses :
 
 | Besoin | Fonctionnalité |
 | --- | --- |
-| Qui a dit quoi dans un enregistrement à plusieurs interlocuteurs | **Diarisation**, jusqu'à 35 interlocuteurs (au-delà, une erreur est renvoyée) |
+| Qui a dit quoi dans un enregistrement à plusieurs interlocuteurs | **Diarisation**, jusqu'à 35 interlocuteurs (au-delà, une erreur est renvoyée) ; en transcription par lots, audio mono uniquement |
 | Noms de produits ou jargon mal reconnus, sans vouloir entraîner de modèle | **Liste d'expressions** : mots et expressions probables envoyés avec la requête |
 | Langue parlée inconnue ou mélangée | **Identification de la langue** |
 | Les deux côtés d'un appel au support enregistrés sur deux canaux | **Transcription multicanal** (préversion), jusqu'à deux canaux |
+
+En transcription par lots, les canaux 0 et 1 sont transcrits par défaut (propriété `channels`), et l'identification de la langue ne fonctionne qu'avec les modèles de base : si la requête indique aussi un modèle personnalisé, le service se rabat sur les modèles de base. Quand vous avez besoin des deux, utilisez la reconnaissance vocale en temps réel.
 
 Dans une application, le SDK Speech (`azure-cognitiveservices-speech`) fait les deux moitiés :
 
@@ -51,9 +53,9 @@ if spoken.reason == speechsdk.ResultReason.SynthesizingAudioCompleted:
 
 - `recognize_once_async()` rend la main après un seul énoncé. Pour une conversation, utilisez `start_continuous_recognition()` avec les événements `recognizing` (texte intermédiaire), `recognized` (texte définitif d'une phrase), `canceled` et `session_stopped`, puis `stop_continuous_recognition()`.
 - La langue source est un paramètre régional (`en-US`, `de-DE`) dans `speech_recognition_language`.
-- La voix se choisit par son nom. Les voix neuronales parlent aussi anglais, et les voix multilingues parlent la langue du texte d'entrée. Le contrôle fin (style, débit, hauteur, pauses) s'écrit en SSML. Les textes longs passent par la synthèse par lots.
+- La voix se choisit par son nom. Les voix neuronales parlent aussi anglais, et les voix multilingues parlent la langue du texte d'entrée. Le contrôle fin (style, débit, hauteur, pauses) s'écrit en SSML. Les textes longs passent par l'API de synthèse par lots (GA, asynchrone, audio de plus de 10 minutes) ; l'API Long Audio sera mise hors service le 1er avril 2027.
 
-> **Piège d'examen.** Les démarrages rapides placent une clé dans des variables d'environnement « pour l'apprentissage uniquement ». Pour un agent en production, Microsoft recommande l'authentification Microsoft Entra ID avec une identité managée ; quand une clé est inévitable, conservez-la dans Azure Key Vault et faites-la tourner.
+> **Piège d'examen.** Les démarrages rapides placent une clé dans des variables d'environnement et demandent une méthode plus sûre en production. Microsoft recommande l'authentification Microsoft Entra ID avec une identité managée ; quand une clé est inévitable, conservez-la dans Azure Key Vault et faites-la tourner. Pour le SDK Speech, l'authentification Entra exige un **nom de domaine personnalisé** sur la ressource Speech (irréversible), le rôle Cognitive Services Speech User ou Cognitive Services Speech Contributor, et `SpeechConfig(token_credential=..., endpoint=...)` avec le point de terminaison du domaine personnalisé.
 
 <!-- section: voice-agents | objectives: 4.2.2 -->
 ## La voix comme modalité d'agent et les modèles vocaux personnalisés
@@ -89,7 +91,7 @@ Les événements sont compatibles avec l'API Realtime d'Azure OpenAI : le client
 | Paramètre | Valeurs à connaître |
 | --- | --- |
 | `turn_detection.type` | `server_vad` (par défaut, volume audio) ; `semantic_vad` (uniquement `gpt-realtime` et `gpt-realtime-mini`) ; `azure_semantic_vad` (surtout l'anglais) et `azure_semantic_vad_multilingual`, utilisables avec tous les modèles |
-| `input_audio_transcription.model` | `azure-speech` (fonctionne avec les modèles non multimodaux et les agents ; prend en charge les listes d'expressions et la reconnaissance vocale personnalisée) ; `gpt-4o-transcribe`, `gpt-4o-mini-transcribe`, `whisper-1` (uniquement avec les modèles `gpt-realtime` ; pas de liste d'expressions) |
+| `input_audio_transcription.model` | `azure-speech` (fonctionne avec les modèles non multimodaux, les agents et les modèles temps réel comme `gpt-realtime` ; prend en charge les listes d'expressions et la reconnaissance vocale personnalisée) ; `gpt-4o-transcribe`, `gpt-4o-mini-transcribe`, `gpt-4o-transcribe-diarize`, `whisper-1` (uniquement avec `gpt-realtime` et `gpt-realtime-mini` ; pas de liste d'expressions) |
 | `voice.type` | `azure-standard` ou `azure-custom` (voix personnalisée : accès limité, demande l'`endpoint_id` du déploiement) |
 
 **La voix d'un agent Foundry.** Voice Live peut se placer devant un agent de Foundry Agent Service au lieu d'un modèle nu : le client Python (`azure-ai-voicelive`) se connecte avec le nom de l'agent et le nom du projet, et l'agent conserve ses instructions et ses outils.
@@ -108,7 +110,7 @@ async with connect(
     ...
 ```
 
-Seuls `agent_name` et `project_name` sont obligatoires ; `agent_version` fige une version (sinon la plus récente est utilisée) et `conversation_id` reprend une conversation. Les paramètres vocaux peuvent être stockés dans les métadonnées de l'agent au lieu d'être envoyés par le client.
+Seuls `agent_name` et `project_name` sont obligatoires ; `agent_version` fige une version (sinon la plus récente est utilisée) et `conversation_id` reprend une conversation. Les paramètres vocaux peuvent être stockés dans les métadonnées de l'agent au lieu d'être envoyés par le client. L'appelant a besoin du rôle Foundry User (anciennement Azure AI User).
 
 > **Piège d'examen.** L'authentification par clé n'est pas prise en charge quand Voice Live se connecte à un agent : le mode agent exige Microsoft Entra ID.
 
@@ -160,7 +162,7 @@ completion = client.chat.completions.create(
 print(completion.choices[0].message.content)
 ```
 
-L'audio voyage en base64 avec son format. `modalities=["text", "audio"]` avec un paramètre `audio` (voix, format) demande une réponse parlée, renvoyée dans `message.audio.data`, avec son texte dans `message.audio.transcript`.
+L'audio voyage en base64 avec son format. `modalities=["text", "audio"]` avec un paramètre `audio` (voix, format) demande une réponse parlée, renvoyée dans `message.audio.data`, avec son texte dans `message.audio.transcript`. Les sorties structurées ne sont pas prises en charge avec `gpt-audio` et `gpt-audio-mini` : quand les champs doivent suivre un schéma JSON, envoyez la réponse du modèle (ou une transcription) à un modèle de texte avec sorties structurées dans une seconde étape.
 
 > **Piège d'examen.** « Détecter la frustration dans la voix de l'appelant » ne se résout pas avec une transcription seule : l'audio doit atteindre un modèle qui accepte l'audio. À l'inverse, « conserver une transcription consultable de chaque appel au coût le plus bas » ne demande pas de modèle audio : la transcription par lots suffit.
 
@@ -173,6 +175,7 @@ L'audio voyage en base64 avec son format. `modalities=["text", "audio"]` avec un
 | Des fichiers stockés transcrits et traduits avec le contexte et une invite personnalisée | La transcription rapide avec **Azure LLM Speech** |
 | Un texte déjà transcrit, traduit par un service dédié au résultat prévisible | **Azure Translator** dans Foundry Tools |
 | Une traduction adaptée au ton ou au registre, ou combinée à un résumé | Un modèle de langage interrogé sur la transcription |
+| Une conversation en direct en plusieurs langues, sans langue d'entrée à définir, de parole à parole avec une voix naturelle | **Live Interpreter** dans la traduction vocale |
 
 ```text
 translation_config = speechsdk.translation.SpeechTranslationConfig(
@@ -193,6 +196,7 @@ if result.reason == speechsdk.ResultReason.TranslatedSpeech:
 - La source est un paramètre régional (`en-US`) ; les cibles sont des codes de langue (`fr`, `de`, `zh-Hans`), et `result.translations` est un dictionnaire indexé par ces codes.
 - `voice_name` ajoute une traduction parlée, livrée sous forme audio par l'événement `synthesizing`. Cette synthèse par événement fonctionne avec une seule langue cible, dont la voix doit correspondre. Pour faire parler plusieurs traductions, ajoutez plusieurs cibles et synthétisez vous-même chaque texte avec un `SpeechSynthesizer` et une voix par langue.
 - Les modèles de reconnaissance vocale personnalisée fonctionnent aussi avec la traduction vocale, pour la partie reconnaissance.
+- **Live Interpreter** identifie en continu la langue parlée (changements de langue dans une même session) et conserve le style et le ton de l'interlocuteur. En Python, il utilise le même `TranslationRecognizer`, avec un `AutoDetectSourceLanguageConfig()` vide (détection en plage ouverte) et le point de terminaison universel v2 ; `voice_name = "personal-voice"` exige l'accès à la voix personnelle.
 
 > **Piège d'examen.** Ni `SpeechRecognizer` ni `SpeechConfig` ne traduisent, et `SpeechConfig` n'a pas de langue cible : la traduction demande `SpeechTranslationConfig` et `TranslationRecognizer`. Envoyer la transcription à Azure Translator est un second appel, justifié seulement quand le texte a besoin des fonctionnalités de Translator.
 

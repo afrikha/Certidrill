@@ -1,0 +1,48 @@
+id: kcsa-3b-rbac-apigroup-mismatch
+objective: "3.4.2"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    A user is bound to the following Role in the namespace `shop`. They run `kubectl get deployments -n shop` and receive a Forbidden error. What is the cause?
+
+    ```yaml
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: Role
+    metadata:
+      name: deploy-viewer
+      namespace: shop
+    rules:
+    - apiGroups: [""]
+      resources: ["deployments"]
+      verbs: ["get", "list", "watch"]
+    ```
+body:
+  options:
+    - id: a
+      text: { en: "Deployments belong to the `apps` API group, but the rule only matches the core group" }
+    - id: b
+      text: { en: "An empty string in `apiGroups` is invalid, so the API server ignores the rule" }
+    - id: c
+      text: { en: "The `list` verb also requires `resourceNames` that name each Deployment" }
+    - id: d
+      text: { en: "A Role cannot cover workload resources; a ClusterRole is required for them" }
+answer: { optionId: a }
+explanation:
+  correct:
+    en: |
+      In an RBAC rule, the empty string in `apiGroups` is the core API group (Pods, Secrets, ConfigMaps...). Deployments are served by the `apps` group, so the rule never matches a Deployment request, RBAC has no opinion and the request is denied. The fix is `apiGroups: ["apps"]`.
+  options:
+    b:
+      en: |
+        The empty string is the valid name of the core API group; the rule is accepted but does not match Deployments.
+    c:
+      en: |
+        `resourceNames` is optional and restricts a rule to named objects; without it, `list` applies to all objects of the resource.
+    d:
+      en: |
+        A Role can grant access to any namespaced resource of its namespace, Deployments included.
+references:
+  - title: "Using RBAC Authorization"
+    url: https://kubernetes.io/docs/reference/access-authn-authz/rbac/

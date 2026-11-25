@@ -15,6 +15,8 @@ Both run YAML pipelines on hosted or self-hosted machines and deploy to any clou
 | On-premises Azure DevOps Server | Azure Pipelines with self-hosted agents |
 | Code on GitHub but the organization standardizes on Azure DevOps | Azure Pipelines with the Azure Pipelines GitHub App |
 
+Only classic build pipelines have **Export to YAML**: classic release pipelines have no YAML export, so their tasks are exported one by one. After a migration, review cron schedules: YAML schedules use UTC, classic schedules the organization's time zone.
+
 Vocabulary maps one to one:
 
 | Azure Pipelines | GitHub Actions |
@@ -49,11 +51,11 @@ Microsoft-hosted agents run on Standard_DS2_v2 (2 cores, 7 GB RAM) for Windows a
 | Item | Value |
 | --- | --- |
 | Free Microsoft-hosted grant (private projects) | 1 parallel job, 60 minutes per run, 1,800 minutes per month |
-| Paid Microsoft-hosted parallel job | No monthly limit, 360 minutes per job |
-| Free self-hosted grant | 1 parallel job, unlimited minutes |
+| Paid Microsoft-hosted parallel job | No monthly limit, 360 minutes per job; the first purchase only removes the free job's time limits, so two concurrent jobs need two purchases |
+| Free self-hosted grant | 1 parallel job, unlimited minutes; purchased self-hosted jobs add to it (5 concurrent jobs = 4 purchases) |
 | Default cap for new organizations | 25 Microsoft-hosted parallel jobs (support request to raise) |
 | Who buys | Project Collection Administrators, Organization settings > Parallel jobs, billing set up through an Azure subscription |
-| Not consuming a parallel job | Runs waiting for approval, server (agentless) jobs |
+| Not consuming a parallel job | Runs waiting for an approval or a manual intervention, server (agentless) jobs, releases that deploy to a deployment group; a run consumes one only while it actively runs on an agent |
 
 Managed DevOps Pools costs Azure compute, storage and egress **plus** self-hosted parallel jobs: a pool with Maximum agents set to 5 and only the free parallel job runs one job at a time.
 
@@ -162,7 +164,7 @@ Secret variables aren't mapped to environment variables automatically: map them 
 | Stages | Run in sequence, each depends on the previous | `dependsOn: []` (parallel), `dependsOn: [A, B]` (fan-in) |
 | Jobs in a stage | Run in parallel | `dependsOn` |
 | Condition | Run if all dependencies succeeded | `condition: failed()`, `always()`, `and(succeeded(), eq(...))` |
-| Job timeout | 60 minutes | `timeoutInMinutes` (0 = maximum allowed) |
+| Job timeout | 60 minutes | `timeoutInMinutes` (0 = maximum allowed: forever on self-hosted agents, 360 minutes on Microsoft-hosted agents for a public project, 60 minutes for a private project unless extra capacity is paid for) |
 
 ```yaml
 stages:
@@ -200,7 +202,7 @@ GitHub Actions: jobs run in parallel unless `needs` is set; `strategy.matrix` wi
 | Target servers registered once, deployed with rolling batches | Environment with virtual machine resources (agent installed on each VM) |
 | Identical, versioned build machines | Build a VM image with Azure VM Image Builder (based on HashiCorp Packer) or Packer, publish it to an Azure Compute Gallery, use it in Managed DevOps Pools or a scale set |
 | Scale set custom image | Generalize the VM (`sysprep` or `waagent -deprovision+user`), create the image, update the scale set; existing VMs keep the old image |
-| Build tools without maintaining a machine image | Container job (`container:` on the job) on any agent |
+| Build tools without maintaining a machine image | Container job (`container:` on the job) on a Windows or Ubuntu agent (macOS agents don't support containers) |
 | Job longer than 6 hours | Self-hosted agent or runner (Managed DevOps Pools: up to two days per job) |
 | Agentless wait, REST call or manual validation | Server job (`pool: server`) with Delay, Invoke REST API or Manual Validation |
 
@@ -253,7 +255,7 @@ An environment is referenced by a **deployment job** (`environment: prod`); appr
 | Evaluate artifact | Policy on a container image |
 | Exclusive lock | One run at a time on the resource (`lockBehavior: sequential` or `runLatest`) |
 
-Order: static checks (branch control, required template, evaluate artifact), pre-check approvals, dynamic checks, post-check approvals, exclusive lock. Security roles on an environment: Creator, Reader, User, Administrator.
+Order: static checks (branch control, required template, evaluate artifact), pre-check approvals, dynamic checks, post-check approvals, exclusive lock. Security roles on an environment: Creator, Reader, User, Administrator; Creator, User and Administrator (not Reader) can manage approvals and checks, and only the creator of an environment gets the Administrator role. A manual or CI run that references an environment that doesn't exist fails: the environment is created automatically only from the pipeline creation wizard or the web editor.
 
 In GitHub, a job with `environment: production` waits for its **deployment protection rules**: up to six required reviewers (one approval is enough, optional prevent self-review), a wait timer of up to 43,200 minutes, and allowed deployment branches and tags. Environment secrets are only readable after the rules pass. On Free, Pro and Team plans, required reviewers and wait timers apply only to public repositories.
 
@@ -263,7 +265,7 @@ In GitHub, a job with `environment: production` waits for its **deployment prote
 ## Key points
 
 - Microsoft-hosted: least effort, no private network; self-hosted, scale set or Managed DevOps Pools: network access and custom tools.
-- One free Microsoft-hosted parallel job (60 minutes, 1,800 minutes a month) and one free self-hosted job; parallelism needs purchased parallel jobs.
+- One free Microsoft-hosted parallel job (60 minutes, 1,800 minutes a month) and one free self-hosted job; parallelism needs purchased parallel jobs (the first Microsoft-hosted purchase adds no concurrency).
 - Use the Azure Pipelines GitHub App for GitHub repositories; fork builds get no secrets.
 - `trigger: none`, `pr: none`, path filters, schedules in UTC, `resources.pipelines` for chaining; Azure Repos PR builds come from branch policies.
 - `${{ }}` compile time, `$[ ]` runtime, `$( )` macro.

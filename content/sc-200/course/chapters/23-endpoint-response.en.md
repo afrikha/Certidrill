@@ -54,6 +54,7 @@ Points that decide answers:
 - On Linux, adding or changing an `iptables` rule on an isolated device removes the isolation.
 - Restrict app execution needs Microsoft Defender Antivirus and works through an App Control (WDAC) code integrity policy.
 - Isolating a device requires a role with the **Active remediation actions** permission, and the device must be in a device group the user can access.
+- Isolation is lifted automatically after seven days. If the device is offline when isolation is submitted, Defender for Endpoint retries for up to three days; after that, isolate it again once it is active.
 
 The **investigation package** is a one-shot collection of forensic artifacts. On Windows it contains, among others:
 
@@ -81,7 +82,7 @@ Live response gives a remote shell to a device for forensics and remediation. Pr
 
 - **Settings > Endpoints > Advanced features**: turn on **Live response**; **Live response for servers** for Windows Server; **Live response unsigned script execution** only if unsigned PowerShell scripts must run. Only an administrator or a user with the permission to manage portal settings changes these settings.
 - The user needs a role with the **Live response capabilities** permission: **Basic** gives read-only commands, **Advanced** adds the commands that change the device or upload files.
-- Uploading a file to the library from the console requires the **Manage security settings** permission.
+- Uploading a file to the library from the console requires the **Manage security settings** permission; uploading from the **Library management** page doesn't.
 
 | Limit | Value |
 | --- | --- |
@@ -92,11 +93,11 @@ Live response gives a remote shell to a device for forensics and remediation. Pr
 | Command timeout | 10 minutes (30 minutes for `getfile`, `findfile` and `run`) |
 | `getfile` file size | 3 GB |
 | Library file size | 250 MB |
-| `putfile` file size | 300 MB on Windows |
+| `putfile` file size | 300 MB on Windows, 10 MB on other platforms |
 
 | Basic commands (read) | Advanced commands (change) |
 | --- | --- |
-| `cd`, `dir`, `processes`, `services`, `connections`, `drivers`, `registry`, `scheduledtasks`, `persistence`, `startupfolders`, `fileinfo`, `findfile`, `getfile`, `jobs`, `fg`, `status` | `library`, `putfile`, `run`, `remediate`, `undo`, `analyze` (Windows); `scan`, `collect`, `isolate`, `release` (macOS or Linux) |
+| `cd`, `dir`, `processes`, `services`, `connections`, `drivers`, `registry`, `scheduledtasks`, `persistence`, `startupfolders`, `fileinfo`, `findfile`, `getfile`, `jobs`, `fg`, `status` | `library`, `putfile`, `run`, `remediate`, `undo`, `analyze` (Windows); `scan`, `collect` (macOS or Linux); `isolate`, `release` (macOS only) |
 
 ```text
 getfile "C:\Users\ana\AppData\Local\Temp\invoice.js" &
@@ -117,7 +118,7 @@ processes -output json
 <!-- section: evidence-entities | objectives: 2.2.3 -->
 ## Evidence and entity investigation
 
-In an incident, the **Evidence and Response** tab lists the entities found in its alerts (files, processes, services, IP addresses, URLs, emails), each with a **verdict** (Malicious, Suspicious, Clean) and a **remediation status**. Remediation actions waiting for approval (**Pending approval**) are approved or rejected there or in the **Action center**. The **Assets** tab groups devices, users, mailboxes, apps and cloud resources.
+In an incident, the **Evidence and Response** tab lists the entities found in its alerts (files, processes, services, IP addresses, URLs, emails), each with a **verdict** (Malicious, Suspicious, Clean) and a **remediation status**. Remediation actions waiting for approval (**Pending approval**) are approved or rejected there or in the **Action center**. The **Assets** tab groups devices, users, mailboxes and apps.
 
 Each entity has its own page:
 
@@ -163,20 +164,23 @@ Actions it can take:
 | Disable user (Active Directory, and Microsoft Entra ID when synchronized) | Defender for Identity |
 | Revoke user session, suspend user | Microsoft Entra ID |
 | Act on a compromised OAuth app | Defender for Cloud Apps |
+| Safeboot hardening, GPO hardening, proactive user containment (predictive shielding) | Defender for Endpoint |
 
-**Contain user** blocks attack-related inbound protocols (network logons, RPC, SMB, RDP) for that account on onboarded devices, ends its remote sessions and doesn't disable the account; it is lifted automatically. **Contain IP** applies to the addresses of undiscovered or non-onboarded devices.
+Suspending a user in Okta and attaching a deny policy to an AWS user, through the Microsoft Sentinel connectors, are in preview.
+
+**Contain user** blocks attack-related inbound protocols (network logons, RPC, SMB, RDP) for that account on onboarded devices, ends its remote sessions and doesn't disable the account; it is lifted automatically within five days, and undoing it earlier (**Undo** in the Action center or on the user) requires Global Administrator. **Contain IP** applies to the addresses of undiscovered or non-onboarded devices.
 
 Remediation workflow:
 
 1. Open the incident and read the summary card and the incident graph.
-2. In the **Activities** tab, filter **Performed by: AttackDisruption** and read the **Policy status** column (**Active**, **Inactive**, **Not applicable**, **No status**) to see what is still enforced.
+2. In the **Activities** tab (action tracking there is in preview), filter **Performed by: AttackDisruption** and read the **Policy status** column (preview: **Active**, **Inactive**, **Not applicable**, **No status**) to see what is still enforced.
 3. Investigate and remediate the root cause (reset the credentials, remove persistence, clean the devices).
 4. Release the assets: on the incident graph select the asset and **Release from containment** (device) or **Enable user** (account), or use the action details pane in the **Action center**.
 
 ```kusto
 DisruptionAndResponseEvents
 | where Timestamp > ago(30d)
-| project Timestamp, ActionType, AttackDisruptionCategory, DeviceName, AccountUpn, RemoteIP
+| project Timestamp, ActionType, DeviceName, SourceUserName, SourceIpAddress, PolicyName
 | order by Timestamp desc
 ```
 
@@ -185,7 +189,7 @@ DeviceEvents
 | where ActionType contains "ContainedUser"
 ```
 
-The first query lists the automatic actions across the organization; the second finds the sign-ins or accesses blocked because a user was contained (`ContainedDevice` for a contained device).
+The first query (`DisruptionAndResponseEvents` is a preview table) lists attack disruption events across the organization (blocks and policy applications of the triggered disruption policies, and the automatic actions taken); the second finds the sign-ins or accesses blocked because a user was contained (`ContainedDevice` for a contained device).
 
 > **Exam trap.** Releasing the asset is the last step, not the first: releasing before the investigation ends lets the attacker resume. And assets that must never be contained automatically (a critical server, a service account) are **excluded** from automated response actions beforehand, not released after each incident.
 
@@ -197,4 +201,4 @@ The first query lists the automatic actions across the organization; the second 
 - Investigation package = fixed forensic collection; live response = interactive shell, scripts from the library, Basic or Advanced permission.
 - Live response: 1 session per device, 30-minute idle timeout, `getfile` up to 3 GB.
 - Stop and quarantine acts where the file was seen (1,000 devices); an indicator blocks everywhere and in the future.
-- Attack disruption incidents: tag, banner, summary card; check the Activities tab, remediate, then release from the incident graph or the Action center.
+- Attack disruption incidents: tag, banner, summary card; check the Activities tab (preview), remediate, then release from the incident graph or the Action center.

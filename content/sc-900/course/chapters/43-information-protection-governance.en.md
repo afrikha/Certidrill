@@ -11,7 +11,7 @@ Classification identifies sensitive content so that labels, DLP and retention ca
 | **Trainable classifiers** | By **what the content is**, using machine learning trained on examples | Contracts, invoices, resumes, harassment |
 
 - Sensitive information types are **built-in**, **named entity** (person names, physical addresses, medical terms), **custom** (your employee IDs) or **exact data match (EDM)**, which looks for exact values taken from a database of your sensitive data.
-- Trainable classifiers are **pre-trained** by Microsoft and ready to use, or **custom**: you supply samples of the content to recognize.
+- Trainable classifiers are **pre-trained** by Microsoft and ready to use, or **custom**: you supply samples of the content to recognize. Custom classifiers support English content only.
 
 > **Exam tip.** A fixed format such as a number: sensitive information type. A category of document that no pattern describes: trainable classifier.
 
@@ -27,7 +27,7 @@ Both tools are under **Information Protection** in the Microsoft Purview portal,
 | Benefit | See how much sensitive data exists and where, down to the item itself | Check that the controls in place are effective |
 | Access | Highly restricted, because it can show the content of files: specific role groups (Content Explorer List viewer, Content Explorer Content viewer) | The data comes from the Microsoft 365 audit log |
 
-The portal also names the newer version of content explorer **Data explorer**.
+Under Explorers, **Data explorer** is now the main, consolidated view of these items; **Content explorer (classic)** remains available with its older, location-based interface.
 
 <!-- section: sensitivity-labels | objectives: 4.3.3 -->
 ## Sensitivity labels and label policies
@@ -43,7 +43,7 @@ A **sensitivity label** is a tag applied to content to classify it and, optional
 | **Encrypt** | Emails, meeting invites and documents: only the users or groups you choose can open them |
 | **Mark the content** | Headers, footers and watermarks in Office apps |
 | **Protect containers** | Control the privacy and the external sharing of Teams, Microsoft 365 Groups and SharePoint sites |
-| **Be applied automatically** | Or be recommended to the user, when sensitive information types are detected |
+| **Be applied automatically** | In Office apps, applied or recommended when sensitive information types or trainable classifiers are detected (the user can reject the label); an auto-labeling policy labels content already in SharePoint, OneDrive or Exchange, with no recommendation |
 | **Classify only** | No protection at all, just a tag for reporting |
 
 Labels do nothing until they are published. A **sensitivity label policy** publishes labels to chosen users and groups, and can also:

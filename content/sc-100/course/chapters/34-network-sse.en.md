@@ -42,7 +42,7 @@ Capabilities to evaluate:
 | --- | --- |
 | Web content filtering | Allow or block by **web category**, **FQDN** or URL; HTTP is matched on the URL, HTTPS on the SNI unless TLS inspection is on |
 | TLS inspection | Decrypts HTTPS for higher-fidelity categorization and rules on HTTP methods |
-| Threat intelligence filtering | Blocks known malicious destinations |
+| Threat intelligence filtering | Blocks known malicious destinations; evaluated after TLS inspection and web content filtering, and URL indicators apply to HTTPS only with TLS inspection |
 | Universal Conditional Access | Conditional Access for all internet destinations, even apps not federated with Microsoft Entra ID |
 | Prompt injection protection, DLP, shadow AI discovery | Controls on generative AI and data leaving through the web |
 | Network controls for agents | Same filtering for AI agent traffic (needs a Microsoft Agent 365 license) |
@@ -69,7 +69,7 @@ Versus other filters: Defender for Endpoint web content filtering works per devi
 | Feature | Requirement it meets |
 | --- | --- |
 | Direct connectivity to Microsoft services | Optimized, logged path to Microsoft 365 from anywhere |
-| **Compliant network check** | Conditional Access requires that access comes through Global Secure Access, which helps against stolen-token replay from other networks, without maintaining IP lists |
+| **Compliant network check** | Conditional Access requires that access comes through Global Secure Access, which helps against stolen-token replay from other networks, without maintaining IP lists; the check is specific to the tenant that configures it (a user of another tenant can't pass it) |
 | **Universal tenant restrictions** | Users can sign in only to tenants and apps allowed by your tenant restrictions policy: blocks data exfiltration to foreign tenants and personal accounts |
 | **Source IP restoration** | The user's original public IP appears in Entra ID sign-in logs and risk detections, instead of the edge IP |
 | Microsoft 365 enriched logs | Detailed traffic logs for Microsoft 365 |
@@ -86,7 +86,7 @@ Tenant restrictions v2 (TRv2) needs Entra ID P1 and a client-side enforcement:
 
 | Enforcement | Coverage |
 | --- | --- |
-| Universal tenant restrictions (Global Secure Access client or remote network) | Authentication plane on all platforms and browsers, no corporate proxy; data plane for Microsoft Graph |
+| Universal tenant restrictions (Global Secure Access client or remote network) | Authentication plane on all platforms and browsers, no corporate proxy; data plane for Microsoft Graph (data plane protection is in preview) |
 | Corporate proxy injecting the `sec-Restrict-Tenant-Access-Policy` header | Authentication plane only, requires TLS decryption of sign-in traffic |
 | Windows Group Policy (preview) | Authentication and data plane (SharePoint, OneDrive, Exchange, Teams) on Windows devices |
 
@@ -108,6 +108,8 @@ TRv2 isn't applied when users access their own tenant, nor to guest accounts in 
 | Kerberos SSO | Single sign-on to AD DS-integrated apps with Microsoft Entra credentials |
 
 Licensing: the **Microsoft Entra Private Access** license (standalone or in Microsoft Entra Suite), with Microsoft Entra ID P1. Private Access can run side by side with a third-party SSE that handles internet traffic.
+
+Segments can't overlap between two Private Access apps, only between a per-app app and Quick Access. Users must be assigned to the app directly or through a group assigned to it: nested groups aren't supported.
 
 | Requirement | Recommend |
 | --- | --- |

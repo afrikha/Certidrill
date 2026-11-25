@@ -66,7 +66,7 @@ Destinations apply only to tabular queries, not to functions or lists.
 
 Look at the cell error first, then the Spark application detail page: **Logs** (Livy, Prelaunch, Driver) and **Diagnostics** (Spark advisor error analysis). Logs may be missing if the job stayed queued or the cluster couldn't be created.
 
-**Capacity limits.** One capacity unit gives two Spark VCores, with bursting up to three times (an F64 reaches 384 VCores). When the capacity is fully used, an interactive notebook fails with:
+**Capacity limits.** One capacity unit gives two Spark VCores, with bursting up to three times (an F64 reaches 384 VCores). Exceptions: an F2 bursts to 20 VCores, and a trial capacity has no burst (128 VCores) and no queue. A capacity admin can turn on **Disable job-level bursting**, which caps a single job at the base VCores (128 on an F64). When the capacity is fully used, an interactive notebook fails with:
 
 ```text
 [TooManyRequestsForCapacity] HTTP Response code 430: This Spark job can't be run because you have hit a Spark compute or API rate limit. To run this Spark job, cancel an active Spark job through the Monitoring hub, or choose a larger capacity SKU or try again later.
@@ -136,7 +136,7 @@ The default `run()` timeout is 90 seconds: a long child notebook fails unless yo
 | Timeout | Default 4 minutes for queries, 10 for management commands, maximum 1 hour | Optimize, or set `servertimeout` |
 | Query complexity error | Very long `or` chains, huge `union *`, deep nesting | Rewrite with `in()`, reduce the tables and columns |
 
-A shortcut in a KQL database is queried with `external_table('MyShortcut')`; a database shortcut works only within the same tenant and region, and the user needs permissions on both databases.
+A shortcut in a KQL database is queried with `external_table('MyShortcut')`; a database shortcut must be in the same region as its source database (the tenants can differ), and creating one from a cluster URI needs at least contributor permissions on the source data.
 
 <!-- section: eventstream-errors | objectives: 3.2.5 -->
 ## Eventstream errors
@@ -158,7 +158,7 @@ Schema-enabled sources (schemas from the schema registry) can only feed eventhou
 <!-- section: tsql-errors | objectives: 3.2.6 -->
 ## T-SQL errors
 
-**Write-write conflicts.** A warehouse uses snapshot isolation only (a `SET TRANSACTION ISOLATION LEVEL` is ignored) and table-level locking. Two transactions that `UPDATE`, `DELETE` or `MERGE` the same table conflict even when they touch different rows: the first to commit wins, the other fails with error **24556** or **24706** ("Snapshot isolation transaction aborted due to update conflict"). Fix: retry with exponential backoff, avoid concurrent updates on the same table, keep transactions short. `INSERT` creates new files and rarely conflicts; a `MERGE` conflicts even when it only appends.
+**Write-write conflicts.** A warehouse uses snapshot isolation only (a change of isolation level in T-SQL is ignored at execution time, and `SET TRANSACTION ISOLATION LEVEL` is on the list of unsupported commands) and table-level locking. Two transactions that `UPDATE`, `DELETE` or `MERGE` the same table conflict even when they touch different rows: the first to commit wins, the other fails with error **24556** or **24706** ("Snapshot isolation transaction aborted due to update conflict"). Fix: retry with exponential backoff, avoid concurrent updates on the same table, keep transactions short. `INSERT` creates new files and rarely conflicts; a `MERGE` conflicts even when it only appends.
 
 **Statements that fail:**
 
@@ -166,7 +166,7 @@ Schema-enabled sources (schemas from the schema registry) can only feed eventhou
 | --- | --- |
 | `INSERT`, `UPDATE` or `CREATE TABLE` fails on the SQL analytics endpoint | The endpoint is read-only for tables; write in a warehouse or with Spark (views, functions and procedures can be created) |
 | `CREATE TABLE` with `datetime`, `money`, `nvarchar`, `tinyint` fails | Unsupported in tables: use `datetime2` (up to 6 fractional digits), `decimal`, `varchar` (UTF-8 collation), `smallint` |
-| `ALTER TABLE` fails | Only adding nullable columns, dropping columns and adding or dropping `NOT ENFORCED` primary, unique and foreign keys are supported; rename with `sp_rename` |
+| `ALTER TABLE` fails | Only adding nullable columns, dropping columns and adding or dropping `NOT ENFORCED` primary, unique and foreign keys are supported (`ALTER COLUMN` is in preview); rename with `sp_rename` |
 | Trigger, materialized view, recursive query, `SET ROWCOUNT`, synonym | Not supported in Fabric Warehouse |
 | Savepoint, named or distributed transaction | Not supported |
 | A new lakehouse table isn't visible from the endpoint | Metadata sync lag (usually under a minute); refresh the endpoint metadata |

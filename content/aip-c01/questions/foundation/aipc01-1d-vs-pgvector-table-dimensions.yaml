@@ -1,0 +1,48 @@
+id: aipc01-1d-vs-pgvector-table-dimensions
+objective: "1.5.3"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    A company is preparing an Aurora PostgreSQL cluster as the vector store for a customer-managed Amazon Bedrock knowledge base. To cut storage, the knowledge base will use Amazon Titan Text Embeddings V2 with 512 dimensions. The company also wants Knowledge Bases to be able to run hybrid searches later. An old runbook creates the table with an embedding column of type vector(1536) and only an HNSW index on that column.
+
+    How should the team create the table and indexes before it creates the knowledge base?
+body:
+  options:
+    - id: a
+      text:
+        en: |-
+          Keep the vector(1536) column from the runbook, because Knowledge Bases pads 512-dimension embeddings to the column size, and add a GIN index on the chunks text.
+    - id: b
+      text:
+        en: |-
+          Create the embedding column as vector(512), add an HNSW index on it with vector_cosine_ops, and add a GIN index on to_tsvector of the chunks column.
+    - id: c
+      text:
+        en: |-
+          Create the embedding column as vector(1024), because Titan Text Embeddings V2 always stores 1,024 dimensions, and add an HNSW index on that column with vector_cosine_ops.
+    - id: d
+      text:
+        en: |-
+          Create the embedding column as vector(512), and add only an HNSW index on that column with vector_cosine_ops.
+answer: { optionId: b }
+explanation:
+  correct:
+    en: |-
+      The n in vector(n) must equal the dimension of the embedding model configuration, here 512. Knowledge Bases requires indexes on both the vector column and the text column: an HNSW index with the cosine operator on the embeddings, and a GIN full-text index on the chunks column, which is also what makes hybrid search possible.
+  options:
+    a:
+      en: |-
+        Knowledge Bases does not pad vectors: the column dimension must match the embedding model's output, so a 1,536 column fails with 512-dimension embeddings.
+    c:
+      en: |-
+        Titan Text Embeddings V2 returns the dimension that you choose (1,024, 512, or 256); the column must be vector(512) for this configuration.
+    d:
+      en: |-
+        The dimension is right, but an index on the chunks text column is also required, and without it hybrid search is not possible.
+references:
+  - title: "Using Aurora PostgreSQL as a Knowledge Base for Amazon Bedrock - Amazon Aurora"
+    url: https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/AuroraPostgreSQL.VectorDB.html
+  - title: "Prerequisites for using a vector store you created for a knowledge base - Amazon Bedrock"
+    url: https://docs.aws.amazon.com/bedrock/latest/userguide/knowledge-base-setup.html

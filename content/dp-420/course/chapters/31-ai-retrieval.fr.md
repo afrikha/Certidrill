@@ -54,12 +54,7 @@ Langues : `en-US` ; `de-DE`, `es-ES`, `fr-FR`, `it-IT`, `pt-PT` et `pt-BR` sont 
 <!-- section: vector-design | objectives: 3.1.2 -->
 ## Concevoir pour les données vectorielles
 
-Activez une fois la recherche vectorielle sur le compte (cela peut prendre jusqu'à 15 minutes) :
-
-```bash
-az cosmosdb update --resource-group rg-ai --name cosmos-contoso \
-  --capabilities EnableNoSQLVectorSearch
-```
+L'indexation et la recherche vectorielles sont activées par défaut : aucune inscription à une fonctionnalité ni aucune fonctionnalité de compte n'est nécessaire. D'anciennes pages Learn demandent encore d'activer la fonctionnalité `EnableNoSQLVectorSearch` (Paramètres > Fonctionnalités), dont les comptes actuels n'ont pas besoin.
 
 La **stratégie d'incorporation vectorielle** du conteneur décrit chaque chemin vectoriel :
 
@@ -196,7 +191,7 @@ La recherche vectorielle se combine avec n'importe quel filtre `WHERE` (prix, da
 <!-- section: hybrid-search | objectives: 3.1.5 -->
 ## Recherche hybride
 
-La recherche hybride fusionne un classement vectoriel et un classement BM25 avec la **fusion de rangs réciproques** (Reciprocal Rank Fusion, `RRF`). Prérequis : recherche vectorielle et recherche en texte intégral activées, et un conteneur doté d'une stratégie vectorielle, d'une stratégie de texte intégral, d'un index vectoriel et d'un index de texte intégral.
+La recherche hybride fusionne un classement vectoriel et un classement BM25 avec la **fusion de rangs réciproques** (Reciprocal Rank Fusion, `RRF`). Prérequis : recherche en texte intégral activée sur le compte (la recherche vectorielle l'est par défaut), et un conteneur doté d'une stratégie vectorielle, d'une stratégie de texte intégral, d'un index vectoriel et d'un index de texte intégral.
 
 ```text
 SELECT TOP 10 c.id, c.name
@@ -280,7 +275,7 @@ Points de conception :
 ## Points clés
 
 - Texte intégral : stratégie de texte intégral + `fullTextIndexes` ; `FullTextContains`/`All`/`Any` dans `WHERE`, `FullTextScore` uniquement dans `ORDER BY RANK` ; distance approximative jusqu'à 2.
-- Vecteur : activer `EnableNoSQLVectorSearch` ; stratégie d'incorporation (chemin, `dataType`, `dimensions`, `distanceFunction`) ; `flat` jusqu'à 505 dimensions, `quantizedFlat` et `diskANN` jusqu'à 4 096 ; au moins 1 000 vecteurs ; pas de débit partagé.
+- Vecteur : activé par défaut, sans fonctionnalité de compte ; stratégie d'incorporation (chemin, `dataType`, `dimensions`, `distanceFunction`) ; `flat` jusqu'à 505 dimensions, `quantizedFlat` et `diskANN` jusqu'à 4 096 ; au moins 1 000 vecteurs ; pas de débit partagé.
 - `diskANN` au-delà d'environ 50 000 vecteurs par partition physique ; `vectorIndexShardKey` construit un index DiskANN par valeur de propriété.
 - Toujours `TOP N` avec `ORDER BY VectorDistance` ; exclure le chemin vectoriel de l'index de plage.
 - Hybride : `ORDER BY RANK RRF(...)`, tableau de pondérations facultatif en dernier.

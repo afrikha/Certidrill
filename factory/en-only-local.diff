@@ -1,0 +1,134 @@
+# Correctif local de l'atelier de contenu (référence pour Claude Code, pas à appliquer tel quel).
+# 1-3 : certification.languages et contenu anglais seul (fr facultatif). 4 : éditeur CNCF (Kubernetes).
+# Non couvert ici : la règle « fr obligatoire si languages contient fr », et les textes vendors.cncf de messages/en.json et fr.json (voir docs/SPECS-KUBERNETES.md).
+--- a/lib/content/course.ts
++++ b/lib/content/course.ts
+@@ -440,7 +440,7 @@
+   }
+ 
+   const problems = manifestProblems(manifestFile, manifest, content);
+-  const read = await readChapters(dir, manifest);
++  const read = await readChapters(dir, manifest, content.blueprint.certification.languages as Locale[]);
+   problems.push(...read.problems);
+   const english = new Map(read.chapters.flatMap((c) => (c.byLocale.en ? [[c.id, c.byLocale.en] as const] : [])));
+   problems.push(...objectiveProblems(manifest, english, content, manifestFile));
+@@ -453,7 +453,7 @@
+ type ChapterFiles = { id: string; byLocale: Partial<Record<Locale, ParsedChapter>> };
+ 
+ /** Reads and parses the chapter files of the manifest, in both languages, and compares the languages. */
+-async function readChapters(dir: string, manifest: CourseFile): Promise<{ files: string[]; chapters: ChapterFiles[]; problems: CourseProblem[] }> {
++async function readChapters(dir: string, manifest: CourseFile, langs: Locale[]): Promise<{ files: string[]; chapters: ChapterFiles[]; problems: CourseProblem[] }> {
+   const problems: CourseProblem[] = [];
+   const reads = await Promise.all(
+     manifest.chapters.flatMap((c) => locales.map(async (locale) => {
+@@ -465,7 +465,7 @@
+     const byLocale: ChapterFiles["byLocale"] = {};
+     for (const r of reads.filter((x) => x.id === c.id)) {
+       if (r.text === null) {
+-        problems.push({ file: r.file, message: `missing: chapter "${c.id}" has no ${r.locale} file` });
++        if (langs.includes(r.locale)) problems.push({ file: r.file, message: `missing: chapter "${c.id}" has no ${r.locale} file` });
+         continue;
+       }
+       const chapter = parseChapter(r.file, r.text, r.locale);
+@@ -475,7 +475,7 @@
+     if (byLocale.en && byLocale.fr) problems.push(...parityProblems(byLocale.en, byLocale.fr));
+     return { id: c.id, byLocale };
+   });
+-  return { files: reads.map((r) => r.file), chapters, problems };
++  return { files: reads.filter((r) => r.text !== null).map((r) => r.file), chapters, problems };
+ }
+ 
+ /** The course, once every check passed (both languages of every chapter are there). */
+@@ -484,7 +484,8 @@
+     dir,
+     modules: manifest.modules,
+     chapters: manifest.chapters.map((c, i) => {
+-      const { en, fr } = chapters[i]!.byLocale as Record<Locale, ParsedChapter>;
++      const { en, fr: frOrUndef } = chapters[i]!.byLocale as Record<Locale, ParsedChapter>;
++      const fr = frOrUndef ?? en;
+       return {
+         ...c,
+         summary: { en: en.summary, fr: fr.summary },
+--- a/lib/content/schema.ts
++++ b/lib/content/schema.ts
+@@ -3,7 +3,7 @@
+ /** Text available in every supported locale. */
+ export const localizedSchema = z.strictObject({
+   en: z.string().min(1),
+-  fr: z.string().min(1),
++  fr: z.string().min(1).optional(),
+ });
+ 
+ const share = z.number().min(0).max(1);
+@@ -166,6 +166,7 @@
+       title: z.string().min(1),
+       vendor: z.string().min(1),
+       active: z.boolean().default(true),
++      languages: z.array(z.enum(["en", "fr"])).min(1).default(["en", "fr"]),
+     }),
+     blueprint: z.object({
+       version: z.string().min(1),
+@@ -204,7 +205,7 @@
+ export const objectiveFileSchema = z.object({
+   code: z.string().regex(/^\d+(\.\d+)*$/),
+   en: z.string().min(1),
+-  fr: z.string().min(1),
++  fr: z.string().min(1).optional(),
+   learnUrl: z.url().optional(),
+ });
+ 
+--- a/lib/questions/schema.ts
++++ b/lib/questions/schema.ts
+@@ -63,7 +63,7 @@
+   .superRefine((b, ctx) => {
+     uniqueIds(b.slots, ctx, "slots");
+     for (const s of b.slots) uniqueIds(s.options, ctx, "slots");
+-    const templates = typeof b.template === "string" ? [b.template] : [b.template.en, b.template.fr];
++    const templates = typeof b.template === "string" ? [b.template] : [b.template.en, b.template.fr].filter((s): s is string => typeof s === "string");
+     for (const t of templates) {
+       const markers = [...t.matchAll(/\[\[([a-zA-Z0-9_-]+)\]\]/g)].map((m) => m[1]);
+       const slotIds = b.slots.map((s) => s.id);
+--- a/lib/vendors.ts
++++ b/lib/vendors.ts
+@@ -6,7 +6,7 @@
+  */
+ import type { BlueprintFile, ScoringRules } from "@/lib/content/schema";
+ 
+-export type VendorKey = "microsoft" | "aws";
++export type VendorKey = "microsoft" | "aws" | "cncf";
+ type DocsLocale = "en" | "fr";
+ 
+ export interface Vendor {
+@@ -59,9 +59,31 @@
+     scoring: { multi: "all_or_nothing", dragdrop: "all_or_nothing" },
+     glossary: "_shared/glossary-aws.yaml",
+   },
++  cncf: {
++    key: "cncf",
++    name: "CNCF",
++    docsName: "Kubernetes Documentation",
++    // The Kubernetes docs, the CNCF and Linux Foundation pages of the exams, the CNCF projects' own documentation,
++    // and the security frameworks the KCSA curriculum names (NIST, MITRE ATT&CK, SLSA, OWASP).
++    docsHosts: [
++      "kubernetes.io", "www.cncf.io", "cncf.io", "glossary.cncf.io", "landscape.cncf.io", "tag-security.cncf.io",
++      "training.linuxfoundation.org", "docs.linuxfoundation.org", "github.com",
++      "helm.sh", "prometheus.io", "opentelemetry.io", "falco.org", "istio.io", "linkerd.io", "argo-cd.readthedocs.io",
++      "argoproj.github.io", "fluxcd.io", "etcd.io", "containerd.io", "opencontainers.org", "cilium.io", "docs.cilium.io",
++      "coredns.io", "www.openpolicyagent.org", "openpolicyagent.org", "kyverno.io", "docs.sigstore.dev", "www.sigstore.dev",
++      "in-toto.io", "spiffe.io", "cert-manager.io", "www.envoyproxy.io", "keda.sh", "knative.dev", "cri-o.io", "gateway-api.sigs.k8s.io",
++      "goharbor.io", "gvisor.dev", "katacontainers.io", "kubescape.io", "trivy.dev", "kubewarden.io",
++      "slsa.dev", "csrc.nist.gov", "nvlpubs.nist.gov", "attack.mitre.org", "owasp.org", "community.owasp.org",
++    ],
++    // English only: the Kubernetes certifications are not offered in French.
++    localizeDocsUrl: (url) => url,
++    docsPage: (url) => url,
++    scoring: { multi: "all_or_nothing", dragdrop: "all_or_nothing" },
++    glossary: null,
++  },
+ };
+ 
+-const ALIASES: Record<string, VendorKey> = { microsoft: "microsoft", aws: "aws", "amazon web services": "aws" };
++const ALIASES: Record<string, VendorKey> = { microsoft: "microsoft", aws: "aws", "amazon web services": "aws", cncf: "cncf", "linux foundation": "cncf" };
+ 
+ /** The vendor named in blueprint.yaml (any case), or null when it has no entry here. */
+ export function knownVendor(vendor: string): Vendor | null {

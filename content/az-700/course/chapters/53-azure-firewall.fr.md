@@ -42,12 +42,12 @@ La stratégie de pare-feu a un niveau correspondant : une stratégie **Basic** p
 <!-- section: firewall-design | objectives: 5.2.3 -->
 ## Concevoir un déploiement de Pare-feu Azure
 
-Conception type : un pare-feu par région dans le réseau virtuel **hub** d'une topologie hub-and-spoke. Les spokes sont appairés au hub, et chaque sous-réseau de spoke reçoit une table de routage avec `0.0.0.0/0` (et les préfixes des autres spokes si besoin) vers **Appliance virtuelle** = l'IP privée du pare-feu.
+Conception type : un pare-feu par région dans le réseau virtuel **hub** d'une topologie hub-and-spoke. Les spokes sont reliés au hub par peering, et chaque sous-réseau de spoke reçoit une table de routage avec `0.0.0.0/0` (et les préfixes des autres spokes si besoin) vers **Appliance virtuelle** = l'IP privée du pare-feu.
 
 | Élément de conception | Règle |
 | --- | --- |
 | Sous-réseau de données | **AzureFirewallSubnet**, **/26** |
-| Sous-réseau de gestion | **AzureFirewallManagementSubnet**, **/26**, avec sa propre IP publique ; nécessaire au tunneling forcé ; toujours présent pour les pare-feu Basic et ceux des hubs sécurisés |
+| Sous-réseau de gestion | **AzureFirewallManagementSubnet**, **/26**, avec sa propre IP publique ; nécessaire au tunneling forcé ; toujours présent pour les pare-feu Basic et ceux des hubs sécurisés. La seule route autorisée sur ce sous-réseau est une route par défaut vers Internet, avec **Propager les routes de passerelle** désactivé |
 | Pare-feu par réseau virtuel | Un |
 | Zones de disponibilité | Pour un nouveau déploiement, ne spécifiez pas de zones : Azure répartit les instances entre les zones dans les régions compatibles avec la redondance de zone, sans surcoût |
 | Adresses IP publiques | Référence SKU Standard, jusqu'à **250** par pare-feu dans un réseau virtuel (80 dans un hub sécurisé) ; un préfixe d'IP publique ne peut pas être attaché en tant que tel, mais les adresses créées à partir de lui le peuvent |
@@ -99,7 +99,7 @@ Avec une stratégie de pare-feu, les règles s'organisent en **groupes de collec
 Ordre de traitement :
 
 1. Le **renseignement sur les menaces** (s'il est activé) avant toute règle.
-2. Les règles **DNAT**, puis les règles de **réseau**, puis les règles d'**application**, quelles que soient les priorités des groupes ou des collections. Pour chaque type : les groupes de collections de règles par priorité, puis les collections par priorité. Les règles héritées d'une **stratégie parente** passent toujours avant celles de l'enfant.
+2. Les règles **DNAT**, puis les règles de **réseau**, puis les règles d'**application**, quelles que soient les priorités des groupes ou des collections. Pour chaque type : les groupes de collections de règles par priorité, puis les collections par priorité. Les collections de règles de réseau et d'application héritées d'une **stratégie parente** passent toujours avant celles de l'enfant.
 3. Si aucune règle d'application ne correspond, la **collection de règles d'infrastructure** intégrée (FQDN de la plateforme), puis le refus.
 4. L'**IDPS** (Premium) : en mode Alerte, il s'exécute en parallèle ; en mode Alerte et refus, il s'exécute après le traitement des règles et peut abandonner un flux qu'une règle a autorisé.
 
@@ -111,7 +111,7 @@ Ordre de traitement :
 
 Exemple : une règle de réseau autorise TCP 443 vers `*` dans une collection de priorité 200, et une collection de règles d'application refuse `*.games.example` en priorité 100. Un utilisateur ouvre `https://play.games.example` : la **règle de réseau correspond en premier** (réseau avant application), donc la connexion est autorisée.
 
-Dans les FQDN cibles, les caractères génériques ne fonctionnent qu'à gauche (`*.contoso.com`) ; `*contoso.com` correspond aussi à des noms indésirables comme `badcontoso.com`.
+Dans les FQDN cibles, les caractères génériques ne fonctionnent qu'à gauche. `*.contoso.com` ne correspond pas au domaine `contoso.com` lui-même : ajoutez-le séparément à la règle. `*contoso.com` correspond à `contoso.com` lui-même, mais aussi à des noms indésirables comme `badcontoso.com`.
 
 ```bash
 az network firewall policy rule-collection-group create -g RG-Hub \
@@ -141,7 +141,7 @@ Le pare-feu est avec état : le trafic de retour d'une connexion autorisée pass
 | Protège | Réseaux virtuels et hubs Virtual WAN | Réseaux virtuels uniquement |
 | Coût | Gratuite avec zéro ou une association de pare-feu, tarif fixe avec plusieurs | Gratuites |
 
-**Hiérarchie.** Une stratégie enfant (locale) se crée avec une **stratégie parente** (de base) : elle hérite de toutes ses collections de règles. La stratégie parente et la stratégie enfant doivent être dans la **même région**, mais la stratégie peut être associée à des pare-feu de n'importe quelle région. Les collections de règles de la stratégie parente sont toujours traitées avant celles de l'enfant, quelles que soient les priorités ; les modifications de la stratégie parente se propagent automatiquement. Le mode du renseignement sur les menaces est hérité et ne peut être que durci dans l'enfant (Alerte seulement peut devenir Alerte et refus, jamais Désactivé) ; la liste d'autorisation ne peut qu'être étendue.
+**Hiérarchie.** Une stratégie enfant (locale) se crée avec une **stratégie parente** (de base) : elle hérite de ses collections de règles de réseau et d'application. **Les collections de règles NAT ne sont pas héritées**, car elles sont propres à chaque pare-feu : définissez les règles DNAT dans la stratégie enfant. La stratégie parente et la stratégie enfant doivent être dans la **même région**, mais la stratégie peut être associée à des pare-feu de n'importe quelle région. Les collections de règles de réseau et d'application héritées sont toujours traitées avant celles de l'enfant, quelles que soient les priorités ; les modifications de la stratégie parente se propagent automatiquement. Le mode du renseignement sur les menaces est hérité et ne peut être que durci dans l'enfant (Alerte seulement peut devenir Alerte et refus, jamais Désactivé) ; la liste d'autorisation ne peut qu'être étendue.
 
 > **Conseil d'examen.** « L'équipe informatique centrale doit imposer des règles que les équipes d'application ne peuvent pas contourner, tandis que les équipes gèrent leurs propres règles » se traite par une stratégie parente et des stratégies enfants, pas par deux pare-feu ni par le seul RBAC.
 
@@ -176,4 +176,4 @@ L'**intention de routage** (routing intent) définit au plus une stratégie de *
 - Les sous-réseaux de charge de travail ont besoin d'un itinéraire défini par l'utilisateur `0.0.0.0/0` vers l'IP privée du pare-feu ; sans lui, rien n'est filtré.
 - Traitement : renseignement sur les menaces, DNAT, réseau, application, collection d'infrastructure, refus ; stratégie parente avant l'enfant ; priorités de 100 à 65 000.
 - Le DNAT autorise implicitement ; les règles d'application ne valent que pour le sortant et l'est-ouest et appliquent toujours le SNAT ; les FQDN dans les règles de réseau exigent le proxy DNS ; les ports SNAT augmentent avec des IP publiques ou une passerelle NAT.
-- Les stratégies Firewall Manager sont globales, réutilisables et hiérarchiques (parente et enfant dans la même région) ; les hubs sécurisés utilisent l'intention de routage pour le trafic Internet, privé et inter-hub.
+- Les stratégies Firewall Manager sont globales, réutilisables et hiérarchiques (parente et enfant dans la même région ; les collections de règles NAT ne sont pas héritées) ; les hubs sécurisés utilisent l'intention de routage pour le trafic Internet, privé et inter-hub.

@@ -1,0 +1,48 @@
+id: dopc02-2a-custom-resource-timeout
+objective: "2.1.4"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    A DevOps team uses a Lambda-backed custom resource in an AWS CloudFormation template to register each new environment with an internal inventory API. When the inventory API returns an error, the Lambda function throws an unhandled exception. The stack then stays in CREATE_IN_PROGRESS for about an hour before it fails, and the stack events show no useful reason. The team wants such stacks to fail within a few minutes with the error message from the inventory API. A failed registration must also never block the deletion of a stack.
+
+    Which solution will meet these requirements?
+body:
+  options:
+    - id: a
+      text:
+        en: |-
+          Increase the timeout of the Lambda function to 15 minutes, and configure an on-failure destination that sends the error to an Amazon SNS topic.
+    - id: b
+      text:
+        en: |-
+          Add a CreationPolicy with a ResourceSignal timeout of PT5M to the custom resource, and send cfn-signal from the function when registration succeeds.
+    - id: c
+      text:
+        en: |-
+          Catch all errors in the function and send a FAILED response with a Reason to the ResponseURL for every request type, and set a short ServiceTimeout on the custom resource.
+    - id: d
+      text:
+        en: |-
+          Configure the Lambda function to retry asynchronous invocations two times, and add a dead-letter queue for the events that still fail after the retries.
+answer: { optionId: c }
+explanation:
+  correct:
+    en: |-
+      CloudFormation waits for the provider to send a response to the presigned S3 URL in ResponseURL, up to the ServiceTimeout, which defaults to 3,600 seconds. Sending FAILED with a Reason on every error, including Delete requests, ends the operation at once with a useful message, and a short ServiceTimeout bounds the wait if the function never responds.
+  options:
+    a:
+      en: |-
+        A longer function timeout and an SNS destination do not send any response to CloudFormation, so the stack still waits for the full timeout.
+    b:
+      en: |-
+        CreationPolicy is supported only for Auto Scaling groups, EC2 instances, wait conditions, and AppStream fleets, not for custom resources.
+    d:
+      en: |-
+        Retries and a dead-letter queue do not send a response to CloudFormation, so the stack still waits for the full timeout without a reason.
+references:
+  - title: CloudFormation custom resource request and response reference - AWS CloudFormation
+    url: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/crpg-ref-responses.html
+  - title: CreationPolicy attribute - AWS CloudFormation
+    url: https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-attribute-creationpolicy.html

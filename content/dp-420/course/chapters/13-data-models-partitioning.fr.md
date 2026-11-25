@@ -23,7 +23,7 @@ Techniques :
 | **Agrégats précalculés** (compteurs, totaux) | Une lecture fréquente devrait sinon parcourir de nombreux éléments |
 | **Plusieurs types d'entités dans un conteneur**, avec une propriété `type` | Des éléments liés sont lus ensemble et peuvent partager la clé de partition (une commande et ses expéditions) |
 | **Conteneurs distincts** | Les entités exigent des clés de partition, un débit, une TTL ou une indexation différents |
-| **Vue matérialisée** alimentée par le flux de modification | Les mêmes données doivent être interrogées par une seconde clé (commandes par produit en plus de par client) |
+| **Vue matérialisée** alimentée par le flux de modification, ou **index secondaire global** (GSI) | Les mêmes données doivent être interrogées par une seconde clé (commandes par produit en plus de par client) |
 
 Les exigences opérationnelles façonnent aussi le modèle : un élément ne peut pas dépasser 2 Mo ni une partition logique 20 Go ; l'imbrication est limitée à 128 niveaux ; la rétention (TTL), le débit et l'indexation se règlent par conteneur, donc des données de rétention ou de charge différentes vont dans des conteneurs différents.
 
@@ -89,7 +89,7 @@ Une bonne clé de partition :
 | `/sensorType` (5 valeurs) | Faible cardinalité : 5 partitions logiques, 20 Go chacune au plus |
 | `/readingId` (GUID) | Écritures réparties, mais chaque requête par appareil touche toutes les partitions |
 
-Changer de clé plus tard impose un nouveau conteneur et un déplacement des données : tâches de copie de conteneur, ou flux de modification pour une migration à chaud.
+Changer de clé plus tard impose un nouveau conteneur et un déplacement des données : tâches de copie de conteneur, ou flux de modification pour une migration à chaud. Quand l'ancienne clé doit rester mais qu'un autre modèle de requête exige une autre clé, ajoutez un **index secondaire global** (GSI) : un conteneur en lecture seule doté de sa propre clé de partition, synchronisé automatiquement par le flux de modification (cohérence éventuelle, débit autoscale uniquement ; les remplacements et suppressions sur la source coûtent 50 à 100 % de RU en plus).
 
 > **Piège d'examen.** Augmenter les RU/s du conteneur ne corrige pas une partition logique chaude : une valeur de clé ne peut jamais obtenir plus de 10 000 RU/s. Corrigez la clé (ou ajoutez un suffixe), pas le débit.
 
@@ -104,7 +104,7 @@ Les **clés de partition hiérarchiques** (sous-partitionnement) définissent **
 | `tenantId`, ou `tenantId` + `userId` | Uniquement les partitions physiques qui contiennent ce préfixe |
 | `userId` ou `sessionId` seul | Toutes les partitions physiques |
 
-Règles de conception : chaque niveau doit avoir une forte cardinalité ; avec peu de valeurs au premier niveau (cinq locataires), l'ingestion reste sur une seule partition physique jusqu'à son fractionnement à 50 Go ; utilisez une valeur unique comme l'`id` de l'élément au **dernier niveau** pour qu'un préfixe puisse dépasser 20 Go. Les clés hiérarchiques se définissent **à la création du conteneur uniquement** (migration par tâches de copie de conteneur ou flux de modification), exigent un SDK récent (.NET 3.33.0, Java 4.42.0, Python 4.6.0 ou ultérieur), et les autorisations ne peuvent pas cibler un préfixe partiel.
+Règles de conception : chaque niveau doit avoir une forte cardinalité (au moins des milliers de valeurs, plus que le nombre de partitions physiques) ; avec peu de valeurs au premier niveau (cinq locataires), l'ingestion reste sur une seule partition physique jusqu'à son fractionnement à 50 Go (un fractionnement prend 4 à 6 heures), et si une telle clé atteint déjà la limite de 20 Go, Learn conseille plutôt une clé synthétique ; utilisez une valeur unique comme l'`id` de l'élément au **dernier niveau** pour qu'un préfixe puisse dépasser 20 Go. Les clés hiérarchiques se définissent **à la création du conteneur uniquement** (migration par tâches de copie de conteneur ou flux de modification), exigent un SDK récent (.NET 3.33.0, Java 4.42.0, Python 4.6.0 ou ultérieur), et les autorisations ne peuvent pas cibler un préfixe partiel.
 
 ```text
 // C#: create the container, then point read with the full key
@@ -145,10 +145,12 @@ partitionKey: {
 | Organisation | Isolation | Coût et limites | Adaptée à |
 | --- | --- | --- | --- |
 | Clé de partition par locataire (`/tenantId`) | Logique seulement ; les voisins bruyants partagent les RU/s | La moins chère ; un locataire est plafonné à 20 Go | Beaucoup de petits locataires de taille comparable |
-| Clé hiérarchique `/tenantId` > ... | Logique | Peu chère ; les gros locataires dépassent 20 Go | Beaucoup de locataires, dont quelques très gros |
-| Conteneur par locataire | Débit (RU/s dédiées) et paramètres | RU/s dédiées pour chacun (400 minimum en mode manuel) ; 500 conteneurs et bases de données par compte | Moins de locataires, qui exigent une isolation des performances |
-| Base de données par locataire (débit partagé) | Regroupement de conteneurs | Jusqu'à 25 conteneurs partageant les RU/s | Locataires ayant chacun plusieurs conteneurs |
-| Compte par locataire | La plus forte : clés, réseau, régions, sauvegarde | La plus chère ; 250 comptes par abonnement par défaut | Locataires réglementés ou premium |
+| Clé hiérarchique `/tenantId` > ... | Logique | Peu chère ; les gros locataires dépassent 20 Go | Beaucoup de locataires (des centaines ou plus) à l'usage comparable, charge surtout en lecture |
+| Conteneur par locataire | Débit (RU/s dédiées) et paramètres | RU/s dédiées pour chacun (400 minimum en mode manuel) ; 500 conteneurs et bases de données par compte | Déconseillée par le Centre des architectures (limites du compte sur les conteneurs et les opérations de métadonnées) |
+| Base de données par locataire (débit partagé) | Regroupement de conteneurs | Jusqu'à 25 conteneurs partageant les RU/s | Déconseillée, pour les mêmes raisons |
+| Compte par locataire | La plus forte : clés, réseau, régions, sauvegarde | La plus chère ; 250 comptes par abonnement par défaut | Locataires réglementés ou premium, quelques très gros locataires (le pool de débit d'une flotte, en préversion, peut partager des RU/s entre comptes) |
+
+Le Centre des architectures recommande la clé de partition par locataire et le compte par locataire pour la plupart des scénarios multilocataires. Pour les charges optimisées pour l'écriture, ou quand le niveau locataire manque de cardinalité, il recommande une clé synthétique ou `/id` plutôt qu'une clé hiérarchique.
 
 > **Piège d'examen.** Filtrer sur `userId` seul dans un conteneur `/tenantId` > `/userId` provoque une requête sur toutes les partitions. Et passer les valeurs par `PartitionKeyBuilder` ne garantit pas un routage efficace : les niveaux de tête doivent figurer dans la clause `WHERE`.
 
@@ -199,8 +201,8 @@ reading["partitionKey"] = f"{reading['date']}.{bucket(reading['vin'])}"
 | Clé sur une propriété qui change (`status`) | Pas de mise à jour sur place ; suppression plus création non atomique | Propriété immuable |
 | Un locataire proche de 20 Go sur `/tenantId` | Les écritures de ce locataire vont échouer | Clé hiérarchique avec un dernier niveau unique |
 | Tableau incorporé non borné | L'élément grossit vers 2 Mo, les RU d'écriture ne cessent d'augmenter | Référencer : un élément par enfant |
-| Requête entre partitions fréquente sur le chemin critique | RU et latence augmentent avec le nombre de partitions | Ajouter la clé au filtre, dénormaliser, ou une vue matérialisée |
-| Débit de base de données partagé avec un conteneur très sollicité | Les autres sont limités | Débit dédié pour ce conteneur |
+| Requête entre partitions fréquente sur le chemin critique | RU et latence augmentent avec le nombre de partitions | Ajouter la clé au filtre, dénormaliser, ou une vue matérialisée ou un index secondaire global |
+| Débit de base de données partagé avec un conteneur très sollicité | Les autres sont limités (le débit partagé est déconseillé pour la plupart des charges) | Un nouveau conteneur à débit dédié et un déplacement des données : aucune conversion sur place |
 
 **Repérer une partition chaude** : Insights > Throughput > **Normalized RU Consumption (%) By PartitionKeyRangeID**. La métrique est l'utilisation maximale parmi les plages de clés de partition, chaque minute ; une plage à 100 % alors que les autres restent à 30 % ou moins signale une partition chaude. Un 100 % constant sur plusieurs plages avec plus de 5 % de 429 signifie que le conteneur a besoin de plus de RU/s. Avec les journaux de diagnostic, les RU par seconde et par plage de clés de partition :
 
@@ -242,7 +244,7 @@ L'**Azure Cosmos DB Cost Estimator** (`https://cosmos.azure.com/costestimator/`,
 <!-- section: key-points -->
 ## Points clés
 
-- Modélisez à partir des opérations les plus fréquentes : faites-en des lectures ponctuelles ou des requêtes sur une seule partition ; dénormalisez, précalculez, regroupez les types, ou alimentez des vues par le flux de modification.
+- Modélisez à partir des opérations les plus fréquentes : faites-en des lectures ponctuelles ou des requêtes sur une seule partition ; dénormalisez, précalculez, regroupez les types, ou alimentez des vues par le flux de modification (ou un index secondaire global).
 - Incorporez ce qui est borné, lu ensemble et stable ; référencez ce qui est non borné, plusieurs-à-plusieurs ou volatil ; placez les références du côté qui ne grossit pas.
 - Clé de partition : immuable, forte cardinalité, répartition uniforme, utilisée dans les filtres. Partition logique 20 Go et 10 000 RU/s ; physique 50 Go et 10 000 RU/s.
 - Clés hiérarchiques : jusqu'à 3 niveaux, routage par préfixe, définies à la création, dernier niveau unique pour dépasser 20 Go.

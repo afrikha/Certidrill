@@ -49,9 +49,9 @@ Les niveaux d'accès des objets blob permettent de payer moins cher les données
 | **Froid (Cold)** | Rarement consultées | 90 jours | Encore plus bas | Encore plus élevé |
 | **Archive** | Rarement consultées, avec des exigences de latence souples | 180 jours | Le plus bas | Le plus élevé |
 
-- Hot, Cool et Cold sont des niveaux **en ligne** : les données sont disponibles immédiatement.
-- Archive est **hors connexion** : les données doivent être **réhydratées** vers un niveau en ligne avant d'être lues, ce qui prend des heures.
-- Un niveau par défaut (Hot, Cool ou Cold) se règle sur le compte ; l'archive se règle **objet blob par objet blob**, jamais au niveau du compte.
+- Les niveaux chaud (Hot), froid (Cool) et froid (Cold) sont des niveaux **en ligne** : les données sont disponibles immédiatement.
+- Le niveau archive (Archive) est **hors connexion** : les données doivent être **réhydratées** vers un niveau en ligne avant d'être lues, ce qui prend des heures.
+- Un niveau par défaut, chaud (Hot), froid (Cool) ou froid (Cold), se règle sur le compte ; le niveau archive (Archive) se règle **objet blob par objet blob**, jamais au niveau du compte.
 
 <!-- section: redundancy | objectives: 2.3.3 -->
 ## Options de redondance
@@ -92,7 +92,7 @@ Azure File Sync est la réponse quand les utilisateurs doivent continuer d'accé
 | Assistant de migration App Service | Évaluer et migrer des applications web vers Azure App Service |
 | Azure Data Box | Déplacer de grandes quantités de données hors connexion |
 
-**Azure Data Box** est un appareil physique que Microsoft vous expédie. Vous y copiez les données et vous le renvoyez ; Microsoft les charge dans votre compte de stockage, puis efface l'appareil. Il contient environ 80 téraoctets.
+**Azure Data Box** est un appareil physique que Microsoft vous expédie. Vous y copiez les données et vous le renvoyez ; Microsoft les charge dans votre compte de stockage, puis efface l'appareil. Les appareils de nouvelle génération contiennent jusqu'à 120 ou 525 téraoctets de données utiles ; l'ancien appareil de 80 téraoctets est retiré région par région.
 
 | Choisissez Data Box quand | Exemples |
 | --- | --- |
@@ -104,7 +104,7 @@ Azure File Sync est la réponse quand les utilisateurs doivent continuer d'accé
 
 - Objets blob : objets non structurés. Files : partages de fichiers managés. Files d'attente : messages. Disques : volumes de machines virtuelles. Tables : données NoSQL clé-attribut.
 - Usage général v2 Standard est le type de compte par défaut ; les comptes Premium sont seulement LRS ou ZRS.
-- Hot, Cool (30 jours), Cold (90 jours), Archive (180 jours, hors connexion, par objet blob).
+- Niveaux chaud (Hot), froid (Cool, 30 jours), froid (Cold, 90 jours), archive (Archive, 180 jours, hors connexion, par objet blob).
 - LRS : un centre de données. ZRS : trois zones. GRS : région jumelée. GZRS : zones plus région. RA- : secondaire lisible.
 - AzCopy : ligne de commande. Explorateur Stockage : graphique. File Sync : serveur Windows local synchronisé avec Azure Files.
 - Azure Migrate : découvrir, évaluer, migrer. Data Box : expédier les données sur un appareil quand le réseau ne suffit pas.

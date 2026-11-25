@@ -78,6 +78,8 @@ azcmagent config set config.mode monitor                # allow only monitoring 
 azcmagent config list
 ```
 
+En mode monitor, Microsoft tient à jour la liste des extensions autorisées (surveillance et sécurité, comme Azure Monitor Agent et Defender for Cloud), et vous ne pouvez pas modifier la liste d'autorisation ni la liste de blocage : pour définir vos propres listes, revenez au mode complet avec `azcmagent config set config.mode full`.
+
 <!-- section: vm-extensions | objectives: 2.2.3 -->
 ## Extensions de machine virtuelle sur des machines non Azure
 
@@ -131,7 +133,7 @@ Orchestration des correctifs (paramètres de mise à jour) :
 
 | Option | Effet |
 | --- | --- |
-| Customer Managed Schedules | Nécessaire pour les correctifs planifiés ; règle le mode de correctif sur Azure-orchestrated avec `BypassPlatformSafetyChecksOnUserSchedule` = TRUE |
+| Customer Managed Schedules | Nécessaire pour les correctifs planifiés des machines virtuelles Azure (les serveurs activés pour Arc n'ont aucun prérequis d'orchestration des correctifs, seulement l'association à la planification) ; règle le mode de correctif sur Azure-orchestrated avec `BypassPlatformSafetyChecksOnUserSchedule` = TRUE |
 | Azure Managed - Safe Deployment | Mise à jour corrective automatique de l'invité de machine virtuelle (`AutomaticByPlatform`), machines virtuelles Azure uniquement, pas les serveurs activés pour Arc |
 | Windows Automatic Updates | `AutomaticByOS` : le système installe lui-même les mises à jour |
 | Manual updates | Mises à jour automatiques Windows désactivées ; correctifs uniquement quand ils sont déclenchés |
@@ -156,7 +158,7 @@ Un **compte Automation** contient des runbooks, des planifications, des webhooks
 
 Étapes : créer le runbook (ou l'importer), le modifier, le tester dans le **volet Test**, le **Publier** (seuls les runbooks publiés peuvent être démarrés par une planification ou un webhook), puis le démarrer manuellement, depuis une **planification**, un **webhook**, une alerte ou un autre runbook.
 
-Authentification : les comptes d'identification (Run As) ont disparu ; les runbooks utilisent l'**identité managée** du compte Automation, qui a besoin de rôles Azure sur les ressources cibles.
+Authentification : les comptes d'identification (Run As) ont disparu ; les runbooks utilisent l'**identité managée** du compte Automation, qui a besoin de rôles Azure sur les ressources cibles. Sur un Runbook Worker hybride, utilisez l'identité **affectée par le système** du compte Automation (son identité affectée par l'utilisateur n'y est pas prise en charge) ; une fois celle-ci activée, les runbooks ne peuvent plus utiliser l'identité managée de la machine virtuelle ou du serveur activé pour Arc.
 
 ```powershell
 # Inside a runbook: authenticate with the Automation account's system-assigned managed identity
@@ -172,7 +174,8 @@ Get-AzVM -ResourceGroupName "RG-App" -Status | Where-Object PowerState -eq "VM r
 | --- | --- |
 | Déploiement | **Basé sur une extension** (extension Hybrid Worker), le seul modèle pris en charge : le modèle basé sur un agent (agent Log Analytics) a été mis hors service le 31 août 2024 et ses travaux sont arrêtés depuis avril 2025 |
 | Groupes | Les workers appartiennent à un **groupe Runbook Worker hybride** ; vous démarrez un runbook sur un groupe, et n'importe quel worker du groupe prend le travail. Plusieurs workers = haute disponibilité |
-| Identité | Les travaux s'exécutent en tant que **Système local** sous Windows (`nxautomation` sous Linux), sauf si des informations d'identification Run As sont définies sur le groupe ; pour atteindre Azure, utilisez une identité managée |
+| Prérequis | Windows Server jusqu'à 2022 (la liste prise en charge sur Learn n'inclut pas Windows Server 2025), Windows PowerShell 5.1 (PowerShell Core n'est pas pris en charge), .NET Framework 4.6.2 ou version ultérieure ; l'identité managée affectée par le système de la machine est activée lors de son ajout |
+| Identité | Les travaux s'exécutent en tant que **Système local** sous Windows (`nxautomation` sous Linux), sauf si des **informations d'identification Hybrid Worker** personnalisées (une ressource d'informations d'identification) sont définies sur le groupe, sous Windows uniquement ; pour atteindre Azure, utilisez une identité managée |
 | Limites | Aucune limite du bac à sable (répartition équitable, limite de trois heures des travaux cloud, mémoire, sockets) ; seulement les ressources de la machine |
 | Une machine | Un worker qui rend compte à un seul compte Automation |
 
@@ -189,5 +192,5 @@ Start-AzAutomationRunbook -AutomationAccountName "AA-Ops" -ResourceGroupName "RG
 - Arc : agent Connected Machine, sortant 443 uniquement ; intégration avec Azure Connected Machine Onboarding (principal de service à grande échelle) ; gestion avec Azure Connected Machine Resource Administrator ; pas pour les machines virtuelles Azure.
 - La configuration de machine est intégrée à l'agent Arc ; Audit, ApplyAndMonitor, ApplyAndAutoCorrect ; l'extension DSC n'est pas disponible sur Arc.
 - Extensions : Azure Monitor Agent, script personnalisé, Key Vault, MDE, Hybrid Worker, AdminCenter ; verrouillage local avec les listes d'autorisation de `azcmagent config`.
-- Update Manager : évaluation périodique toutes les 24 heures, configurations de maintenance avec étendues dynamiques, Customer Managed Schedules pour les correctifs planifiés ; les serveurs Arc sont facturés sauf si Windows Server Management enabled by Azure Arc s'applique.
+- Update Manager : évaluation périodique toutes les 24 heures, configurations de maintenance avec étendues dynamiques, Customer Managed Schedules pour les correctifs planifiés des machines virtuelles Azure ; les serveurs Arc sont facturés sauf si Windows Server Management enabled by Azure Arc s'applique.
 - Runbooks : PowerShell 7.6/7.4/5.1 ou Python 3.10, publier avant de planifier, identité managée ; groupes Runbook Worker hybride (basés sur une extension) pour les ressources locales et les travaux longs.

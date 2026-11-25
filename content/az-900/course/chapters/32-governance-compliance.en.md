@@ -55,7 +55,9 @@ A **resource lock** prevents resources from being accidentally deleted or change
 | **Delete** (`CanNotDelete`) | Read and modify the resource | Delete it |
 | **Read-only** (`ReadOnly`) | Read the resource | Modify or delete it |
 
-- A lock is applied to a **subscription**, a **resource group** or a **resource**, and is **inherited**: a lock on a resource group applies to every resource in it.
+- A lock is applied to a **subscription**, a **resource group** or a **resource**, never to a management group, and is **inherited**: a lock on a resource group applies to every resource in it, even resources added later. The most restrictive lock in the inheritance chain takes precedence.
+- A Delete lock on a single resource blocks the deletion of its whole resource group: nothing is deleted, not even the unlocked resources.
+- Locks apply only to **control plane** operations (managing the resource), not to the data: a lock on a storage account doesn't protect the data in its blobs, queues, tables or files.
 - Locks are managed from the portal, Azure PowerShell, the Azure CLI or an ARM template.
 - To delete or change a locked resource, you must **first remove the lock**, then perform the operation. Two steps, on purpose.
 
@@ -66,4 +68,4 @@ A **resource lock** prevents resources from being accidentally deleted or change
 
 - Microsoft Purview: unified governance of **data** (discovery, classification, lineage) and risk and compliance, across on-premises, multicloud and SaaS.
 - Azure Policy: rules on **resources**; definitions, initiatives (groups of policies), assignments at a scope, inheritance, evaluation of existing resources, optional remediation.
-- Resource locks: Delete or Read-only; on subscriptions, resource groups, resources; inherited; apply regardless of RBAC; remove the lock before changing the resource.
+- Resource locks: Delete or Read-only; on subscriptions, resource groups, resources (not management groups); inherited, the most restrictive wins; control plane only; apply regardless of RBAC; remove the lock before changing the resource.

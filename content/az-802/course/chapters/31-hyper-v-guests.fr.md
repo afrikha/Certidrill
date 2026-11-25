@@ -105,7 +105,7 @@ Ce qui peut changer pendant que la machine virtuelle s'exécute :
 | --- | --- |
 | Activer ou désactiver la mémoire dynamique | Non, arrêtez la machine virtuelle |
 | Taille de la mémoire statique (redimensionnement de la mémoire à chaud) | Oui, pour les machines virtuelles de génération 1 et 2 sous Windows Server 2016 / Windows 10 ou ultérieur |
-| Maximum de mémoire dynamique à la hausse, minimum à la baisse, tampon, poids | Oui |
+| Mémoire dynamique : augmenter le maximum, diminuer le minimum | Oui |
 
 Autres règles :
 
@@ -180,7 +180,7 @@ Le partitionnement GPU (GPU-P) partage un GPU physique entre plusieurs machines 
 | Mode du GPU | DDA | Partitionnable (un GPU est l'un ou l'autre, pas les deux) |
 | Système de l'hôte | Windows Server 2016 à 2025 | **Windows Server 2025** |
 | Migration dynamique | Non | Oui sur Windows Server 2025 avec des processeurs IOMMU à suivi des bits DMA (elle bascule sur TCP/IP avec compression) |
-| GPU pris en charge | Davantage de modèles | Une courte liste de GPU de centre de données NVIDIA (séries A, L) et AMD (Radeon PRO V710) |
+| GPU pris en charge | Davantage de modèles | Une courte liste de GPU de centre de données : NVIDIA séries A et L, NVIDIA RTX Pro 6000 Blackwell Server Edition, AMD Radeon PRO V710 |
 
 Prérequis : SR-IOV et la virtualisation activés dans le BIOS, IOMMU (Intel VT-d ou AMD-Vi), le pilote hôte du fabricant du GPU (logiciel NVIDIA vGPU), le pilote invité dans chaque machine virtuelle. Invités : Windows 10 ou ultérieur, Windows Server 2019 ou ultérieur, Ubuntu 18.04/20.04/22.04 LTS. Les clusters (basculement pour les arrêts non planifiés) demandent **Windows Server 2025 Datacenter** et des GPU identiques (marque, modèle, taille, nombre de partitions) sur chaque nœud.
 

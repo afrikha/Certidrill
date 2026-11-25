@@ -9,7 +9,7 @@ In the cloud you pay for what you use, so understanding what drives the bill, es
 | **Consumption** | Pay-as-you-go follows usage. A **reservation** (commit for one or three years) can save up to 72 % on stable workloads |
 | **Maintenance** | Resources left behind keep costing: disks or networks of deleted virtual machines, forgotten test environments |
 | **Geography** | The same resource has different prices in different regions, because energy, labor, taxes and fees differ |
-| **Network traffic** | Inbound data is generally free; **outbound data is billed**, with rates that depend on the billing zone. Traffic inside a region costs less than traffic between regions |
+| **Network traffic** | Inbound data is generally free; **outbound data is billed**, with rates that depend on the billing zone. Moving data within Europe, for example, costs less than moving it from Europe to Asia or South America |
 | **Subscription type** | Some subscriptions include usage allowances: the free trial gives a credit for the first 30 days and some services free for twelve months |
 | **Azure Marketplace** | Third-party solutions are billed with their own conditions, in addition to the Azure resources they use |
 
@@ -32,7 +32,7 @@ The **pricing calculator** gives an **estimated cost for resources you plan to d
 | Capability | Use |
 | --- | --- |
 | **Cost analysis** | Explore and visualize costs: by billing cycle, region, resource, resource group or tag; shows trends and a forecast |
-| **Budgets** | Set a spending limit for a subscription, a resource group, a service type...; alerts fire at thresholds of the budget. Advanced setups can trigger automation that suspends or modifies resources |
+| **Budgets** | Set a spending limit for a subscription, a resource group, a service type...; alerts fire at thresholds of the budget. Cost data arrives within 8 to 24 hours and budgets are evaluated every 24 hours, so alerts aren't immediate. Advanced setups can trigger automation that suspends or modifies resources |
 | **Cost alerts** | **Budget alerts** (spending reaches a threshold of a budget), **credit alerts** (prepaid credits are being consumed, for organizations with an enterprise agreement), **department spending quota alerts** |
 | Recommendations | Suggestions from Azure Advisor to reduce spending |
 
@@ -54,7 +54,7 @@ A **tag** is a name and a value attached to a resource, such as `Department = Fi
 
 - Tags are managed with the portal, Azure PowerShell, the Azure CLI, ARM templates or the REST API.
 - **Azure Policy** can require tags on new resources or add them automatically.
-- Resources **don't inherit** the tags of their resource group or subscription, unless a policy applies them.
+- Resources **don't inherit** the tags of their resource group or subscription, unless a policy applies them. For cost reporting only, the **tag inheritance** setting of Cost Management applies subscription and resource group tags to the usage records of child resources, not to the resources themselves.
 - A resource can carry several tags; don't put sensitive values in them.
 
 <!-- section: key-points -->

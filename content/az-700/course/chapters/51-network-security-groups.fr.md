@@ -14,7 +14,7 @@ Un NSG est une ressource régionale. Outre vos propres règles, il contient six 
 | Sortant | AllowInternetOutBound | 65001 | Any | Internet | Allow |
 | Sortant | DenyAllOutBound | 65500 | Any | Any | Deny |
 
-Conséquences : sans règle personnalisée, tout ce qui se trouve dans le réseau virtuel (y compris les réseaux appairés et les plages locales connectées, qui font partie de l'étiquette **VirtualNetwork**) peut communiquer, les sondes d'intégrité d'Azure Load Balancer entrent, tout autre trafic entrant est refusé et le trafic sortant vers internet est autorisé.
+Conséquences : sans règle personnalisée, tout ce qui se trouve dans le réseau virtuel (y compris les réseaux reliés par peering et les plages locales connectées, qui font partie de l'étiquette **VirtualNetwork**) peut communiquer, les sondes d'intégrité d'Azure Load Balancer entrent, tout autre trafic entrant est refusé et le trafic sortant vers internet est autorisé.
 
 Un NSG est **avec état** : un enregistrement de flux est conservé pour chaque connexion, de sorte que le trafic de retour d'un flux autorisé passe sans règle dans l'autre sens. Les règles ne s'appliquent qu'aux **nouvelles** connexions : supprimer la règle qui autorisait une session SSH ne coupe pas la session ouverte.
 
@@ -29,7 +29,7 @@ az network nsg create \
 New-AzNetworkSecurityGroup -Name nsg-web -ResourceGroupName RG-Network -Location westeurope
 ```
 
-> **Piège d'examen.** L'adresse IP virtuelle de l'hôte, **168.63.129.16**, et 169.254.169.254 (DHCP, DNS, métadonnées d'instance, supervision de l'intégrité) ne sont pas filtrées par vos règles NSG, sauf si vous les ciblez avec les étiquettes de service dédiées (`AzurePlatformDNS`, `AzurePlatformIMDS`, `AzurePlatformLKM`). Une règle « tout refuser » ne casse pas la résolution DNS par Azure DNS.
+> **Piège d'examen.** L'adresse IP virtuelle de l'hôte, **168.63.129.16**, et 169.254.169.254 (DHCP, DNS, métadonnées d'instance, supervision de l'intégrité) ne sont pas filtrées par vos règles NSG, sauf si vous les ciblez avec les étiquettes de service dédiées (`AzurePlatformDNS`, `AzurePlatformIMDS`, `AzurePlatformLKM`). Une règle « tout refuser » ne casse pas la résolution DNS par Azure DNS. Les sondes d'intégrité d'Azure Load Balancer, qui viennent aussi de 168.63.129.16, font exception : les NSG doivent les autoriser (étiquette `AzureLoadBalancer`, règle par défaut 65001), si bien qu'avec une règle personnalisée qui refuse tout le trafic entrant, les instances du pool principal sont marquées comme indisponibles.
 
 <!-- section: nsg-rules | objectives: 5.1.5 -->
 ## Créer des règles de sécurité entrantes et sortantes
@@ -54,7 +54,7 @@ Ce que l'examen vérifie :
 
 | Étiquette de service | Représente |
 | --- | --- |
-| `VirtualNetwork` | L'espace d'adressage du réseau virtuel, les réseaux appairés, les plages locales connectées par une passerelle, et 168.63.129.16 |
+| `VirtualNetwork` | L'espace d'adressage du réseau virtuel, les réseaux reliés par peering, les plages locales connectées par une passerelle, et 168.63.129.16 |
 | `Internet` | Les adresses hors du réseau virtuel joignables sur internet, adresses publiques d'Azure comprises |
 | `AzureLoadBalancer` | Les sondes d'intégrité de l'infrastructure Azure (168.63.129.16), pas le trafic des clients |
 | `Storage`, `Sql`, `AzureCloud` | Les adresses publiques d'un service ; des variantes régionales comme `Storage.WestEurope` existent |
@@ -90,7 +90,7 @@ Exemple. NSG1 sur Subnet1 (10.1.1.0/24) contient : 100 Allow TCP 3389 depuis 203
 | Flux vers VM1 (10.1.1.4) | Résultat | Règle décisive |
 | --- | --- | --- |
 | RDP depuis 203.0.113.10 | Autorisé | 100 |
-| RDP depuis VM2 dans un réseau virtuel appairé | Refusé | 200 (évaluée avant AllowVNetInBound à 65000) |
+| RDP depuis VM2 dans un réseau virtuel relié par peering | Refusé | 200 (évaluée avant AllowVNetInBound à 65000) |
 | HTTPS depuis un client sur internet | Autorisé | 300 |
 | HTTP (80) depuis un client sur internet | Refusé | DenyAllInbound |
 | SQL (1433) depuis VM3 dans le même réseau virtuel | Autorisé | AllowVNetInBound |
@@ -100,7 +100,7 @@ Exemple. NSG1 sur Subnet1 (10.1.1.0/24) contient : 100 Allow TCP 3389 depuis 203
 <!-- section: associate-nsg | objectives: 5.1.2 -->
 ## Associer un NSG à un sous-réseau ou à une interface réseau
 
-Un NSG peut être associé à des **sous-réseaux** et à des **interfaces réseau**. Un sous-réseau ou une interface réseau a au plus un NSG, mais un même NSG peut être réutilisé par de nombreux sous-réseaux et interfaces. Le NSG doit se trouver dans la même région (et, pour un sous-réseau, dans le même abonnement) que le réseau virtuel.
+Un NSG peut être associé à des **sous-réseaux** et à des **interfaces réseau**. Un sous-réseau ou une interface réseau a au plus un NSG, mais un même NSG peut être réutilisé par de nombreux sous-réseaux et interfaces. Un NSG associé à un sous-réseau doit se trouver dans le même abonnement et la même région que le réseau virtuel.
 
 Quand les deux niveaux ont un NSG, le trafic doit être autorisé par **les deux** :
 
@@ -192,7 +192,7 @@ Exemple de stratégie à trois niveaux dans un seul NSG associé aux deux sous-r
 
 La règle 120 est nécessaire, car **AllowVNetInBound** laisserait sinon toute machine virtuelle du réseau virtuel atteindre les serveurs de base de données.
 
-> **Piège d'examen.** Les ASG ne s'étendent pas sur plusieurs réseaux virtuels. Si les serveurs web sont dans VNet1 et les serveurs de base de données dans un VNet2 appairé, une règle de `asg-web` vers `asg-db` est impossible : utilisez des plages IP ou des étiquettes de service pour la règle entre réseaux.
+> **Piège d'examen.** Les ASG ne s'étendent pas sur plusieurs réseaux virtuels. Si les serveurs web sont dans VNet1 et les serveurs de base de données dans un VNet2 relié par peering, une règle de `asg-web` vers `asg-db` est impossible : utilisez des plages IP ou des étiquettes de service pour la règle entre réseaux.
 
 <!-- section: key-points -->
 ## Points clés

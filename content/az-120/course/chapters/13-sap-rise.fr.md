@@ -30,7 +30,7 @@ Documentez chaque point de transfert (espaces d'adressage, pare-feu et routage, 
 
 - L'ExpressRoute ou le VPN dédié que SAP peut fournir n'atteint que le réseau géré par SAP ; il ne permet pas d'atteindre les réseaux virtuels Azure du client.
 - Concevez ExpressRoute pour la résilience (modèles de résilience élevée ou maximale).
-- Pour un paysage mondial, construisez un réseau multirégion dans votre propre environnement et appairez RISE localement dans chaque zone géographique au hub régional.
+- Pour un paysage mondial, construisez un réseau multirégion dans votre propre environnement et reliez RISE par peering, localement dans chaque zone géographique, au hub régional.
 - Dimensionnez la connectivité aussi pour les phases de migration et de réplication de base de données, pas seulement pour le trafic de production.
 
 **Internet et SAP BTP.**
@@ -80,7 +80,7 @@ Par la connexion privée, les ports ouverts couvrent RFC (BAPI, IDoc), HTTPS (OD
 <!-- section: azure-services | objectives: 1.3.3 -->
 ## Les services Azure de calcul, de réseau et de stockage avec RISE
 
-Chaque service Azure qui s'intègre à RISE s'exécute dans l'abonnement du client, généralement sur un calcul que vous déployez dans un réseau virtuel appairé à RISE :
+Chaque service Azure qui s'intègre à RISE s'exécute dans l'abonnement du client, généralement sur un calcul que vous déployez dans un réseau virtuel relié par peering à RISE :
 
 | Composant du client | S'exécute sur | Atteint SAP par |
 | --- | --- | --- |
@@ -88,12 +88,12 @@ Chaque service Azure qui s'intègre à RISE s'exécute dans l'abonnement du clie
 | **Runtime d'intégration Azure** d'Azure Data Factory | Géré par Microsoft | HTTPS vers une adresse IP publique que RISE expose par sa passerelle d'application |
 | **Passerelle de données locale** (Power BI, Power Apps, Logic Apps) | Machine virtuelle du client dans Azure ou en local | Le connecteur SAP .NET en RFC, BAPI et IDoc, par peering ou VPN site à site ; ou REST par la passerelle d'application RISE |
 | **SAP Cloud Connector** pour vos propres intégrations vers BTP | Machines virtuelles du client (quand la connectivité de réseau virtuel existe) | Connexion privée vers SAP ; sortie vers BTP |
-| Agent du connecteur de données Microsoft Sentinel | Machine virtuelle ou conteneur du client | Connexion privée vers la couche application SAP |
+| **Connecteur de données sans agent** Microsoft Sentinel (l'agent conteneurisé a été retiré le 14 septembre 2026) | SAP Integration Suite, qui envoie à l'espace de travail Sentinel du client | SAP Cloud Connector, hébergé par SAP dans RISE, ou par le client quand la connectivité de réseau virtuel existe |
 | Azure API Management | Abonnement du client | Gouverne les appels de Power Apps, Power BI, Functions et App Service vers SAP, avec limitation, quotas et propagation du principal SAP |
 
 Les services réseau restent aussi du côté du client : Pare-feu Azure ou NVA dans le hub, passerelle NAT pour le trafic sortant, NSG sur vos sous-réseaux. Dans SAP, l'ABAP SDK for Azure et le Microsoft AI SDK for SAP ABAP permettent au code ABAP d'appeler directement des services Azure ; leur installation exige abapGit.
 
-> **Piège d'examen.** Un runtime d'intégration auto-hébergé ne peut pas s'installer sur les serveurs d'applications RISE : vous n'y avez pas accès. Déployez-le sur une machine virtuelle de votre propre réseau virtuel, appairé à RISE.
+> **Piège d'examen.** Un runtime d'intégration auto-hébergé ne peut pas s'installer sur les serveurs d'applications RISE : vous n'y avez pas accès. Déployez-le sur une machine virtuelle de votre propre réseau virtuel, relié par peering à RISE.
 
 <!-- section: data-management | objectives: 1.3.4 -->
 ## Intégrer les services de gestion des données et l'archivage
@@ -103,12 +103,12 @@ Les services réseau restent aussi du côté du client : Pare-feu Azure ou NVA d
 | Connecteur | Runtime | Remarques |
 | --- | --- | --- |
 | SAP ECC | Runtime d'intégration Azure ou auto-hébergé | L'un ou l'autre chemin |
-| SAP table, SAP BW, SAP Open Hub | Runtime d'intégration auto-hébergé | Connecteur SAP .NET et modules fonction en RFC |
+| SAP table, SAP BW, SAP Open Hub | Runtime d'intégration auto-hébergé | Connecteur SAP .NET et modules fonction en RFC ; le connecteur Open Hub ne prend pas en charge SAP BW/4HANA |
 | SAP HANA (ODBC/JDBC) | Runtime d'intégration auto-hébergé | Uniquement si SAP a accepté l'accès direct à la base de données et ouvert l'utilisateur et le chemin |
 
-La capture des changements de données de SAP vers Microsoft Fabric (OneLake) avec Azure Data Factory, et les analyses Microsoft Purview des sources SAP ECC, utilisent les mêmes runtimes. Contactez SAP pour les chemins de communication à ouvrir et leurs implications de licence.
+La capture des changements de données de SAP vers Microsoft Fabric (OneLake) avec Azure Data Factory utilise les mêmes runtimes. Les analyses Microsoft Purview de SAP ECC exigent un runtime d'intégration auto-hébergé (standard ou sur Kubernetes) avec JDK 11, le connecteur SAP .NET et SAP JCo ; au moins 128 Go de RAM sont recommandés. Contactez SAP pour les chemins de communication à ouvrir et leurs implications de licence.
 
-**Archivage.** SAP Information Lifecycle Management (ILM) gère les volumes de données, la rétention et la mise hors service des systèmes anciens. Son **ILM Store** peut conserver les fichiers d'archive et les pièces jointes de S/4HANA dans le **Stockage Blob Azure**, via WebDAV, en appliquant les règles de rétention ILM :
+**Archivage.** SAP Information Lifecycle Management (ILM) gère les volumes de données, la rétention et la mise hors service des systèmes anciens. Son **ILM Store** peut conserver les fichiers d'archive et les pièces jointes de S/4HANA dans le **Stockage Blob Azure**, en appliquant les règles de rétention ILM :
 
 1. Inscrivez une application dans Microsoft Entra ID avec un secret client ; SAP ILM s'authentifie comme ce principal de service.
 2. Créez un compte de Stockage Blob (manuellement ou avec le modèle de démarrage rapide `sap-ilm-store`).
@@ -138,7 +138,7 @@ L'authentification unique fonctionne comme pour un système SAP autogéré, avec
 **Solution Microsoft Sentinel pour les applications SAP.**
 
 - Déployée et gérée entièrement par le client dans son propre abonnement Azure, pas par SAP.
-- Couvre uniquement la **couche application SAP** (par exemple journal d'audit, connexions, transactions sensibles). La collecte utilise un agent de connecteur de données sur une machine virtuelle ou un conteneur de votre abonnement, ou le connecteur sans agent via SAP Integration Suite.
+- Couvre uniquement la **couche application SAP** (par exemple journal d'audit, connexions, transactions sensibles). La collecte utilise le connecteur de données sans agent, via SAP Cloud Connector et SAP Integration Suite ; l'agent conteneurisé du connecteur de données a été retiré le 14 septembre 2026.
 - Les journaux d'infrastructure et d'OS de RISE ne sont disponibles que par le service facultatif **SAP LogServ**, qui s'intègre à Microsoft Sentinel.
 - La solution Microsoft Sentinel pour SAP BTP ajoute BTP par les API du journal d'audit.
 - Des playbooks peuvent, par exemple, bloquer un utilisateur suspect dans SAP, BTP ou Microsoft Entra ID ; Microsoft Defender XDR et Security Copilot utilisent les mêmes données.
@@ -152,6 +152,6 @@ L'authentification unique fonctionne comme pour un système SAP autogéré, avec
 - Le peering de réseaux virtuels (entre locataires, même région de préférence) est le choix par défaut ; le VPN de réseau virtuel à réseau virtuel quand un point d'entrée unique est exigé.
 - L'accès local passe par le hub du client avec transit par passerelle ; l'ExpressRoute propre à SAP n'atteint que le réseau SAP.
 - DNS : déléguez un sous-domaine à SAP et recevez-le par transfert de zone sur des serveurs DNS hébergés sur des machines virtuelles ; les zones DNS privées Azure ne font pas de transfert de zone.
-- Runtimes d'intégration, passerelles de données, Cloud Connector et collecteurs Sentinel s'exécutent sur des machines virtuelles du client dans des réseaux appairés.
+- Runtimes d'intégration et passerelles de données s'exécutent sur des machines virtuelles du client dans des réseaux reliés par peering ; le connecteur de données sans agent de Sentinel atteint SAP via SAP Cloud Connector et SAP Integration Suite.
 - Archivez avec l'ILM Store SAP sur le Stockage Blob Azure, accédé par une application Microsoft Entra avec Storage Blob Data Contributor et clé partagée désactivée.
 - Le Centre Azure pour les solutions SAP et Azure Monitor pour solutions SAP ne s'appliquent pas à RISE.

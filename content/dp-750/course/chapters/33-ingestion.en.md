@@ -13,7 +13,7 @@ A Lakeflow Connect ingestion pipeline has three parts:
 
 For **database connectors** (SQL Server, MySQL, PostgreSQL), creating the pipeline also creates an **ingestion gateway** that extracts changes continuously and writes them to staging storage; the ingestion pipeline then applies them on its schedule. **SaaS connectors** (Salesforce, Workday, ServiceNow...) and **query-based connectors** call the source directly, without a gateway. Pipelines run on serverless compute and write **streaming tables**.
 
-In the UI: **Data Ingestion**, pick the source, create or select the connection (and, for a database, the gateway), choose the objects, then the destination catalog and schema. Pipelines can also be defined in Databricks Asset Bundles, notebooks or the CLI:
+In the UI: **Data Ingestion**, pick the source, create or select the connection (and, for a database, the gateway), choose the objects, then the destination catalog and schema. Pipelines can also be defined in Databricks Asset Bundles (now named Declarative Automation Bundles on Learn), notebooks or the CLI:
 
 ```yaml
 resources:
@@ -44,7 +44,7 @@ resources:
 | Later runs | Incremental: only changed rows (CDC or change tracking for SQL Server, a cursor column for query-based and some SaaS connectors) |
 | `scd_type` | `SCD_TYPE_1` (overwrite, current state) or `SCD_TYPE_2` (history with `__START_AT` and `__END_AT`) |
 | `include_columns` / `exclude_columns` | With `include_columns`, new source columns don't appear; with `exclude_columns`, they do |
-| Full refresh | Reloads a table from scratch (after an unrecoverable schema change); existing data stays readable until the new snapshot completes; a full refresh window can confine it to off-peak hours |
+| Full refresh | Reloads a table from scratch (after an unrecoverable schema change); for database connectors, existing data stays queryable until the new snapshot completes, a full refresh window (`start_hour`, `days_of_week`, `time_zone_id`) can confine it to off-peak hours, and an auto full refresh policy (off by default; `min_interval_hours` 24 by default) triggers it after a truncate, an incompatible schema change, a column rename or a column added with a default |
 | Failures | Automatic retries with exponential backoff; resumes from the last cursor |
 
 Batch or streaming: each scheduled run of the ingestion pipeline loads the changes since the previous run (incremental batches). For databases, the gateway captures changes continuously, so a frequent schedule gives near real-time tables. Streaming connectors (message buses such as RabbitMQ) ingest event streams into streaming tables.
@@ -253,7 +253,7 @@ orders = (events.select(from_json(col("value").cast("string"),
 | `subscribe` | The event hub name |
 | JAAS class prefix on Databricks | `kafkashaded.` |
 
-Store the connection string in a secret scope. Event Hubs recommends Microsoft Entra ID (OAuth) over shared access keys, because it allows Azure RBAC. In a Lakeflow pipeline, the same options go in a `@dp.table` function, with non-secret values such as the namespace passed as pipeline parameters.
+Store the connection string in a secret scope. Event Hubs recommends Microsoft Entra ID (OAuth) over shared access keys, because it allows Azure RBAC. On Databricks Runtime 16.1 and above, Databricks recommends a Unity Catalog **service credential** when Kafka streaming runs on standard access mode or serverless compute: set `databricks.serviceCredential` to its name and don't set `kafka.security.protocol` or the `kafka.sasl.*` options; the access connector behind the credential needs permissions on Event Hubs. Entra ID with a client ID and secret (`OAUTHBEARER`) isn't supported in Lakeflow pipelines configured with Unity Catalog. In a Lakeflow pipeline, the Kafka options go in a `@dp.table` function, with non-secret values such as the namespace passed as pipeline parameters.
 
 > **Exam trap.** Port 9093, not 9092: the Event Hubs Kafka endpoint accepts only `SASL_SSL` on port 9093. A Basic tier namespace has no Kafka endpoint at all.
 
@@ -302,6 +302,8 @@ Outside a pipeline, Auto Loader also needs `cloudFiles.schemaLocation` (where th
 | `failOnNewColumns` | Stream fails until the schema is updated or the file removed |
 | `none` (default with a schema) | New columns ignored |
 
+`addNewColumns` can't be combined with a provided schema (`.schema(...)`); give known types as schema hints instead, which Auto Loader applies only when no schema is provided.
+
 File discovery: **directory listing** (default, no setup) or **file notification**; Databricks recommends file notification with **file events** enabled on the Unity Catalog external location for production, to cut latency and listing costs. `cloud_files_state('<checkpoint>')` shows discovered files.
 
 Several sources can feed one streaming table through **flows** (`CREATE FLOW ... AS INSERT INTO ... BY NAME`, or `@dp.append_flow(target=...)` in Python). Kafka and Event Hubs are read with `read_kafka(...)` in SQL or the Kafka options in Python.
@@ -316,5 +318,5 @@ Several sources can feed one streaming table through **flows** (`CREATE FLOW ...
 - CTAS creates, `CREATE OR REPLACE` replaces but keeps grants and history, `COPY INTO` appends new files idempotently to an existing table.
 - AUTO CDC needs keys, `SEQUENCE BY` and a delete condition; SCD type 1 or 2; snapshots use AUTO CDC FROM SNAPSHOT.
 - Structured Streaming: one checkpoint per query, `availableNow` for scheduled incremental runs, `append` for ingestion.
-- Event Hubs: Kafka endpoint on port 9093, `SASL_SSL`, `$ConnectionString`, Standard tier or above.
+- Event Hubs: Kafka endpoint on port 9093, `SASL_SSL`, `$ConnectionString`, Standard tier or above; a Unity Catalog service credential (`databricks.serviceCredential`, DBR 16.1+) on standard access mode or serverless.
 - Auto Loader: `cloudFiles` or `STREAM read_files`, schema location, `addNewColumns` by default, `_rescued_data` in rescue mode, file events for production.

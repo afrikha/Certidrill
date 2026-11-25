@@ -17,7 +17,7 @@ Comment la construire :
 | --- | --- | --- | --- |
 | `sys.dm_db_resource_stats` (chaque base) | 15 secondes | Environ 1 heure | Détail à court terme, état actuel |
 | `sys.resource_stats` (dans `master` du serveur logique) | 5 minutes | Environ 14 jours | Historique de deux semaines par base |
-| `sys.elastic_pool_resource_stats` (dans `master`) | Agrégée | Environ 14 jours | Historique des pools élastiques |
+| `sys.elastic_pool_resource_stats` (dans `master`, rôle `dbmanager`) | 15 secondes, une ligne par pool | Environ 14 jours | Historique des pools élastiques |
 | Métriques de plateforme Azure Monitor | 1 minute | 93 jours | Tendances, alertes, tableaux de bord |
 | Magasin des requêtes | Intervalle configurable | Configurable (taille et ancienneté) | Base de référence par requête : comparer plans et durées avant et après un changement |
 | Analyseur de performances (SQL Server sur machine virtuelle) | Configurable | Ce que vous conservez | Compteurs du système d'exploitation et de SQL Server |
@@ -37,7 +37,7 @@ Comment la construire :
 | Intelligent Insights | Azure SQL Database, SQL Managed Instance | Détection par IA des dégradations de performances, par le journal `SQLInsights` |
 | Observateur de base de données (préversion) | Azure SQL Database, SQL Managed Instance | Données des DMV collectées dans Azure Data Explorer ou Fabric, avec des tableaux de bord |
 | Compteurs de l'Analyseur de performances, Azure Monitor Agent | SQL Server sur machine virtuelle Azure | Compteurs du système (`% Processor Time`, `Avg. Disk sec/Read`) et de SQL Server (`Batch Requests/sec`, `Page life expectancy`), envoyés à Log Analytics avec une règle de collecte de données |
-| `sys.dm_os_performance_counters` | SQL Server, Managed Instance | Compteurs SQL Server depuis T-SQL |
+| `sys.dm_os_performance_counters` | Toutes (sur les bases Azure SQL Basic, S0, S1 et en pool, seulement l'administrateur du serveur, l'administrateur Microsoft Entra ou `##MS_ServerStateReader##`) | Compteurs SQL Server depuis T-SQL |
 
 Choisir selon le besoin :
 
@@ -122,7 +122,7 @@ Autres outils de supervision :
 | --- | --- | --- |
 | Query Performance Insight | Portail Azure, Azure SQL Database | Requêtes les plus consommatrices et les plus longues, à partir du Magasin des requêtes |
 | Metrics Explorer | Portail Azure | Graphiques des métriques de plateforme, épinglés aux tableaux de bord |
-| Activity Monitor | SSMS | Processus en direct, attentes, E/S des fichiers de données, requêtes coûteuses récentes |
+| Activity Monitor | SSMS, SQL Server seulement | Processus en direct, attentes, E/S des fichiers de données, requêtes coûteuses récentes ; exige `VIEW SERVER STATE`, plus `CREATE DATABASE`, `ALTER ANY DATABASE` ou `VIEW ANY DEFINITION` pour la section Data File I/O |
 | Rapports du Magasin des requêtes | SSMS | Requêtes régressées, principaux consommateurs de ressources, plans forcés |
 | XEvent Profiler | SSMS | Trace rapide en direct avec les événements étendus |
 
@@ -182,13 +182,13 @@ Les événements étendus (XEvents) sont le moteur léger de capture d'événeme
 | Événement | Ce qui s'est produit | `sql_statement_completed`, `rpc_completed`, `sql_batch_completed`, `error_reported`, `xml_deadlock_report`, `blocked_process_report`, `wait_info` |
 | Action | Données ajoutées à l'événement | `sql_text`, `session_id`, `client_app_name`, `username`, `query_hash` |
 | Prédicat | Filtre évalué avant la collecte | `duration > 5000000` (microsecondes), `database_name = N'Sales'` |
-| Cible | Où vont les événements | `event_file` (persistant), `ring_buffer` (mémoire), `histogram` (comptage par compartiment), `event_counter`, `pair_matching` |
+| Cible | Où vont les événements | `event_file` (persistant), `ring_buffer` (mémoire), `histogram` (comptage par compartiment), `event_counter`, `pair_matching` (SQL Server seulement, ni Azure SQL Database ni Managed Instance) |
 
 | | Azure SQL Database | SQL Managed Instance, SQL Server |
 | --- | --- | --- |
 | Étendue | `ON DATABASE` uniquement ; événements de cette base | `ON SERVER` (recommandé), Managed Instance accepte aussi `ON DATABASE` |
 | Cible `event_file` | Stockage Blob Azure uniquement, avec des **informations d'identification délimitées à la base de données** | Stockage Blob Azure sur Managed Instance (informations d'identification du serveur) ; disque local ou URL sur SQL Server |
-| Stockage | Même région, niveau chaud (Hot), sans espace de noms hiérarchique ; informations d'identification avec une SAS (`rwdl`) ou une identité managée avec Storage Blob Data Contributor | Mêmes règles pour les cibles blob |
+| Stockage | Compte v2 universel Standard dans la même région, niveau chaud (Hot), redondance identique à celle de la base (LRS, GRS ou RA-GRS pour une ressource localement redondante ; ZRS, GZRS ou RA-GZRS pour une ressource redondante interzone), sans espace de noms hiérarchique (erreur 13), sans stratégie d'immuabilité ; informations d'identification nommées d'après l'URL du conteneur sans barre oblique finale (erreur 86), avec une SAS (`rwdl`) ou une identité managée avec Storage Blob Data Contributor | Mêmes règles pour les cibles blob |
 | Limites | 128 Mo de mémoire de session et 100 sessions démarrées par base | Mémoire de l'instance |
 | Sessions en cours | `sys.dm_xe_database_sessions` | `sys.dm_xe_sessions` |
 

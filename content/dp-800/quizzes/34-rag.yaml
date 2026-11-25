@@ -1,0 +1,530 @@
+chapter: 34-rag
+questions:
+  # ------------------------------------------------------------------ 1
+  - id: dp800-qz-34-01
+    objective: "3.3.1"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        Contoso builds a retrieval-augmented generation (RAG) assistant on an Azure SQL database. T-SQL code retrieves the relevant product rows, formats them as JSON and adds them to a prompt.
+
+        Which component writes the text of the answer?
+      fr: |
+        Contoso crée un assistant de génération augmentée par récupération (RAG) sur une base de données Azure SQL. Du code T-SQL récupère les lignes de produits pertinentes, les met au format JSON et les ajoute à une invite.
+
+        Quel composant rédige le texte de la réponse ?
+    body:
+      options:
+        - { id: a, text: { en: "The VECTOR_SEARCH function, which returns the rows closest to the question", fr: "La fonction VECTOR_SEARCH, qui renvoie les lignes les plus proches de la question" } }
+        - { id: b, text: { en: "The FOR JSON clause, which turns the retrieved rows into the context of the prompt", fr: "La clause FOR JSON, qui transforme les lignes récupérées en contexte de l'invite" } }
+        - { id: c, text: { en: "A chat model deployment in Azure OpenAI, which receives the prompt from T-SQL", fr: "Un déploiement de modèle de conversation dans Azure OpenAI, qui reçoit l'invite depuis T-SQL" } }
+        - { id: d, text: { en: "The sp_invoke_external_rest_endpoint procedure, which builds the answer from the payload", fr: "La procédure sp_invoke_external_rest_endpoint, qui construit la réponse à partir de la charge utile" } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          In RAG, the database retrieves the data and augments the prompt, and a language model that runs outside the database generates the answer. Azure SQL Database participates in RAG without hosting models: T-SQL orchestrates the flow and calls the model, for example an Azure OpenAI deployment.
+        fr: |
+          Dans RAG, la base de données récupère les données et augmente l'invite, et un modèle de langage qui s'exécute hors de la base de données génère la réponse. Azure SQL Database participe à RAG sans héberger de modèle : T-SQL orchestre le flux et appelle le modèle, par exemple un déploiement Azure OpenAI.
+      options:
+        a: { en: "VECTOR_SEARCH performs the retrieval step: it returns rows, not generated text.", fr: "VECTOR_SEARCH réalise l'étape de récupération : elle renvoie des lignes, pas du texte généré." }
+        b: { en: "FOR JSON formats the context during the augmentation step; it doesn't generate an answer.", fr: "FOR JSON met en forme le contexte pendant l'étape d'augmentation ; elle ne génère pas de réponse." }
+        d: { en: "The procedure only sends the HTTPS request and returns the response of the endpoint; the model writes the answer.", fr: "La procédure ne fait qu'envoyer la requête HTTPS et renvoyer la réponse du point de terminaison ; c'est le modèle qui rédige la réponse." }
+    references:
+      - title: Identify RAG use cases and architecture
+        url: https://learn.microsoft.com/en-us/training/modules/design-implement-rag-with-sql/2-identify-rag-use-cases-architecture
+
+  # ------------------------------------------------------------------ 2
+  - id: dp800-qz-34-02
+    objective: "3.3.3"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        A RAG procedure in an Azure SQL database builds its context with the following query.
+
+        ```sql
+        SET @context = (SELECT p.Name, p.ListPrice, p.Discount
+                        FROM dbo.Products AS p
+                        WHERE p.ProductID IN (SELECT ProductID FROM @closest)
+                        FOR JSON PATH);
+        ```
+
+        Discount is NULL for products that have no discount. For these products, the model must receive a Discount property whose value is null.
+
+        Which option should you add to the FOR JSON clause?
+      fr: |
+        Une procédure RAG d'une base de données Azure SQL construit son contexte avec la requête suivante.
+
+        ```sql
+        SET @context = (SELECT p.Name, p.ListPrice, p.Discount
+                        FROM dbo.Products AS p
+                        WHERE p.ProductID IN (SELECT ProductID FROM @closest)
+                        FOR JSON PATH);
+        ```
+
+        Discount est NULL pour les produits sans remise. Pour ces produits, le modèle doit recevoir une propriété Discount dont la valeur est null.
+
+        Quelle option devez-vous ajouter à la clause FOR JSON ?
+    body:
+      options:
+        - { id: a, text: "`WITHOUT_ARRAY_WRAPPER`" }
+        - { id: b, text: "`INCLUDE_NULL_VALUES`" }
+        - { id: c, text: "`ROOT('products')`" }
+        - { id: d, text: "`ABSENT ON NULL`" }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          By default, FOR JSON omits a property whose value is NULL, so the model wouldn't see Discount at all for these products. `INCLUDE_NULL_VALUES` keeps the property with a JSON null value.
+        fr: |
+          Par défaut, FOR JSON omet une propriété dont la valeur est NULL : le modèle ne verrait donc pas du tout Discount pour ces produits. `INCLUDE_NULL_VALUES` conserve la propriété avec la valeur JSON null.
+      options:
+        a: { en: "`WITHOUT_ARRAY_WRAPPER` removes the square brackets around the result; NULL properties are still omitted.", fr: "`WITHOUT_ARRAY_WRAPPER` supprime les crochets autour du résultat ; les propriétés NULL restent omises." }
+        c: { en: "`ROOT` wraps the array in a named top-level property; it doesn't change how NULL values are handled.", fr: "`ROOT` encapsule le tableau dans une propriété racine nommée ; il ne change pas le traitement des valeurs NULL." }
+        d: { en: "`ABSENT ON NULL` is a clause of JSON_OBJECT, JSON_ARRAY and JSON_ARRAYAGG, not of FOR JSON, and it drops the value instead of keeping it.", fr: "`ABSENT ON NULL` est une clause de JSON_OBJECT, JSON_ARRAY et JSON_ARRAYAGG, pas de FOR JSON, et elle supprime la valeur au lieu de la conserver." }
+    references:
+      - title: Format query results as JSON with FOR JSON
+        url: https://learn.microsoft.com/en-us/sql/relational-databases/json/format-query-results-as-json-with-for-json-sql-server
+
+  # ------------------------------------------------------------------ 3
+  - id: dp800-qz-34-03
+    objective: "3.3.2"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Fabrikam moves a RAG solution from an on-premises SQL Server 2025 instance to an Azure SQL database. On SQL Server 2025, the setup script ran the following steps before the stored procedures could send prompts to an Azure OpenAI deployment:
+
+        1. EXECUTE sp_configure 'external rest endpoint enabled', 1; RECONFIGURE WITH OVERRIDE;
+        2. CREATE DATABASE SCOPED CREDENTIAL [https://fabrikam-ai.openai.azure.com] WITH IDENTITY = 'HTTPEndpointHeaders', SECRET = '{"api-key":"<key>"}';
+        3. GRANT EXECUTE ANY EXTERNAL ENDPOINT TO app_rag;
+        4. GRANT REFERENCES ON DATABASE SCOPED CREDENTIAL::[https://fabrikam-ai.openai.azure.com] TO app_rag;
+
+        You need to adapt the script for the Azure SQL database. Which step is no longer required?
+      fr: |
+        Fabrikam déplace une solution RAG d'une instance SQL Server 2025 locale vers une base de données Azure SQL. Sur SQL Server 2025, le script de configuration exécutait les étapes suivantes avant que les procédures stockées puissent envoyer des invites à un déploiement Azure OpenAI :
+
+        1. EXECUTE sp_configure 'external rest endpoint enabled', 1; RECONFIGURE WITH OVERRIDE;
+        2. CREATE DATABASE SCOPED CREDENTIAL [https://fabrikam-ai.openai.azure.com] WITH IDENTITY = 'HTTPEndpointHeaders', SECRET = '{"api-key":"<key>"}';
+        3. GRANT EXECUTE ANY EXTERNAL ENDPOINT TO app_rag;
+        4. GRANT REFERENCES ON DATABASE SCOPED CREDENTIAL::[https://fabrikam-ai.openai.azure.com] TO app_rag;
+
+        Vous devez adapter le script pour la base de données Azure SQL. Quelle étape n'est plus nécessaire ?
+    shuffle: false
+    body:
+      options:
+        - { id: a, text: { en: "Step 1", fr: "Étape 1" } }
+        - { id: b, text: { en: "Step 2", fr: "Étape 2" } }
+        - { id: c, text: { en: "Step 3", fr: "Étape 3" } }
+        - { id: d, text: { en: "Step 4", fr: "Étape 4" } }
+    answer: { optionId: a }
+    explanation:
+      correct:
+        en: |
+          sp_invoke_external_rest_endpoint is enabled by default in Azure SQL Database and SQL database in Fabric; only SQL Server 2025 and Azure SQL Managed Instance require the `external rest endpoint enabled` option. The credential and the two permissions are still needed on every platform.
+        fr: |
+          sp_invoke_external_rest_endpoint est activée par défaut dans Azure SQL Database et SQL Database dans Fabric ; seuls SQL Server 2025 et Azure SQL Managed Instance exigent l'option `external rest endpoint enabled`. Les informations d'identification et les deux autorisations restent nécessaires sur toutes les plateformes.
+      options:
+        b: { en: "The procedures still need a database scoped credential to authenticate to the Azure OpenAI resource without the key in their code.", fr: "Les procédures ont toujours besoin d'informations d'identification délimitées à la base de données pour s'authentifier auprès de la ressource Azure OpenAI sans placer la clé dans leur code." }
+        c: { en: "EXECUTE ANY EXTERNAL ENDPOINT is required to run sp_invoke_external_rest_endpoint in Azure SQL Database too.", fr: "EXECUTE ANY EXTERNAL ENDPOINT est également requise pour exécuter sp_invoke_external_rest_endpoint dans Azure SQL Database." }
+        d: { en: "A user who passes a credential to the procedure needs REFERENCES on that credential, whatever the platform.", fr: "Un utilisateur qui passe des informations d'identification à la procédure a besoin de REFERENCES sur celles-ci, quelle que soit la plateforme." }
+    references:
+      - title: sys.sp_invoke_external_rest_endpoint (Transact-SQL)
+        url: https://learn.microsoft.com/en-us/sql/relational-databases/system-stored-procedures/sp-invoke-external-rest-endpoint-transact-sql
+
+  # ------------------------------------------------------------------ 4
+  - id: dp800-qz-34-04
+    objective: "3.3.4"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Northwind Traders has an Azure SQL database. A RAG procedure must send the retrieved context to a function at https://nw-assist.azurewebsites.net/api/answer, which calls the language model. The function requires its key in the x-functions-key request header.
+
+        The key must not appear in the code of the procedure.
+
+        Which statement should you run before you update the procedure to call the function?
+      fr: |
+        Northwind Traders dispose d'une base de données Azure SQL. Une procédure RAG doit envoyer le contexte récupéré à une fonction à l'adresse https://nw-assist.azurewebsites.net/api/answer, qui appelle le modèle de langage. La fonction exige sa clé dans l'en-tête de requête x-functions-key.
+
+        La clé ne doit pas apparaître dans le code de la procédure.
+
+        Quelle instruction devez-vous exécuter avant de modifier la procédure pour qu'elle appelle la fonction ?
+    body:
+      options:
+        - { id: a, text: "CREATE DATABASE SCOPED CREDENTIAL [https://nw-assist.azurewebsites.net/api/answer] WITH IDENTITY = 'HTTPEndpointQueryString', SECRET = '{\"x-functions-key\":\"<key>\"}';" }
+        - { id: b, text: "CREATE DATABASE SCOPED CREDENTIAL [nw-assist-key] WITH IDENTITY = 'HTTPEndpointHeaders', SECRET = '{\"x-functions-key\":\"<key>\"}';" }
+        - { id: c, text: "CREATE DATABASE SCOPED CREDENTIAL [https://nw-assist.azurewebsites.net/api/answer] WITH IDENTITY = 'HTTPEndpointHeaders', SECRET = '{\"x-functions-key\":\"<key>\"}';" }
+        - { id: d, text: "CREATE DATABASE SCOPED CREDENTIAL [https://nw-assist.azurewebsites.net/api/answer] WITH IDENTITY = 'Managed Identity', SECRET = '{\"x-functions-key\":\"<key>\"}';" }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          A credential with IDENTITY = 'HTTPEndpointHeaders' sends the key-value pairs of its SECRET as request headers, so the function receives x-functions-key without the key appearing in the procedure. The credential name must be the URL of the endpoint (or a more generic path of it), without a query string.
+        fr: |
+          Des informations d'identification avec IDENTITY = 'HTTPEndpointHeaders' envoient les paires clé-valeur de leur SECRET comme en-têtes de requête : la fonction reçoit ainsi x-functions-key sans que la clé apparaisse dans la procédure. Le nom des informations d'identification doit être l'URL du point de terminaison (ou un chemin plus générique de celle-ci), sans chaîne de requête.
+      options:
+        a: { en: "HTTPEndpointQueryString sends the secret in the query string, not in the x-functions-key header that the function requires.", fr: "HTTPEndpointQueryString envoie le secret dans la chaîne de requête, pas dans l'en-tête x-functions-key qu'exige la fonction." }
+        b: { en: "The name of a credential used by sp_invoke_external_rest_endpoint must be a URL whose scheme and host match the called URL.", fr: "Le nom des informations d'identification utilisées par sp_invoke_external_rest_endpoint doit être une URL dont le schéma et l'hôte correspondent à l'URL appelée." }
+        d: { en: "Managed Identity sends a token of the managed identity, and its SECRET holds a resourceid; it can't send a function key.", fr: "Managed Identity envoie un jeton de l'identité managée, et son SECRET contient un resourceid ; il ne peut pas envoyer de clé de fonction." }
+    references:
+      - title: sys.sp_invoke_external_rest_endpoint (Transact-SQL)
+        url: https://learn.microsoft.com/en-us/sql/relational-databases/system-stored-procedures/sp-invoke-external-rest-endpoint-transact-sql
+
+  # ------------------------------------------------------------------ 5
+  - id: dp800-qz-34-05
+    objective: "3.3.5"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        You have an Azure SQL database. Before it retrieves the context, a RAG procedure calls an Azure OpenAI embeddings deployment by using sp_invoke_external_rest_endpoint with a payload that contains the input property. The call returns 0, and @response is an nvarchar(max) variable.
+
+        You need to assign the embedding returned by the deployment, as a JSON array, to the nvarchar(max) variable @embeddingJson.
+
+        Which expression should you use?
+      fr: |
+        Vous disposez d'une base de données Azure SQL. Avant de récupérer le contexte, une procédure RAG appelle un déploiement d'incorporations Azure OpenAI au moyen de sp_invoke_external_rest_endpoint avec une charge utile qui contient la propriété input. L'appel renvoie 0, et @response est une variable nvarchar(max).
+
+        Vous devez affecter l'incorporation renvoyée par le déploiement, sous forme de tableau JSON, à la variable nvarchar(max) @embeddingJson.
+
+        Quelle expression devez-vous utiliser ?
+    body:
+      options:
+        - { id: a, text: "`JSON_VALUE(@response, '$.result.data[0].embedding')`" }
+        - { id: b, text: "`JSON_QUERY(@response, '$.data[0].embedding')`" }
+        - { id: c, text: "`JSON_QUERY(@response, '$.result.choices[0].message.content')`" }
+        - { id: d, text: "`JSON_QUERY(@response, '$.result.data[0].embedding')`" }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          sp_invoke_external_rest_endpoint wraps the body returned by the endpoint in the `result` property of @response, and an embeddings response holds the vector in `data[0].embedding`. The vector is a JSON array, which JSON_QUERY returns; JSON_VALUE returns only scalar values.
+        fr: |
+          sp_invoke_external_rest_endpoint encapsule le corps renvoyé par le point de terminaison dans la propriété `result` de @response, et une réponse d'incorporations contient le vecteur dans `data[0].embedding`. Le vecteur est un tableau JSON, que JSON_QUERY renvoie ; JSON_VALUE ne renvoie que des valeurs scalaires.
+      options:
+        a: { en: "JSON_VALUE returns NULL in lax mode when the path points to an array or an object.", fr: "JSON_VALUE renvoie NULL en mode lax quand le chemin désigne un tableau ou un objet." }
+        b: { en: "The path skips the `result` envelope that sp_invoke_external_rest_endpoint adds around the body, so it returns NULL.", fr: "Le chemin ignore l'enveloppe `result` que sp_invoke_external_rest_endpoint ajoute autour du corps : il renvoie donc NULL." }
+        c: { en: "`choices[0].message.content` belongs to a chat completions response, not to an embeddings response.", fr: "`choices[0].message.content` appartient à une réponse de saisie semi-automatique de conversation, pas à une réponse d'incorporations." }
+    references:
+      - title: JSON_VALUE (Transact-SQL)
+        url: https://learn.microsoft.com/en-us/sql/t-sql/functions/json-value-transact-sql
+      - title: sys.sp_invoke_external_rest_endpoint (Transact-SQL)
+        url: https://learn.microsoft.com/en-us/sql/relational-databases/system-stored-procedures/sp-invoke-external-rest-endpoint-transact-sql
+
+  # ------------------------------------------------------------------ 6
+  - id: dp800-qz-34-06
+    objective: "3.3.4"
+    difficulty: 3
+    status: draft
+    type: single
+    stem:
+      en: |
+        Litware has an Azure SQL database that stores insurance claims. A RAG procedure must send the retrieved claim data to a language model that a partner hosts at https://api.partner-models.example.com/v2/chat. The partner endpoint uses HTTPS and authenticates requests with a key in a request header.
+
+        When you test the procedure, the call to sp_invoke_external_rest_endpoint fails because the endpoint isn't allowed. The procedure must keep calling the model from T-SQL, and the key must not appear in the code of the procedure.
+
+        What should you do first?
+      fr: |
+        Litware dispose d'une base de données Azure SQL qui stocke des déclarations de sinistre. Une procédure RAG doit envoyer les données de sinistre récupérées à un modèle de langage qu'un partenaire héberge à l'adresse https://api.partner-models.example.com/v2/chat. Le point de terminaison du partenaire utilise HTTPS et authentifie les requêtes par une clé dans un en-tête de requête.
+
+        Quand vous testez la procédure, l'appel à sp_invoke_external_rest_endpoint échoue parce que le point de terminaison n'est pas autorisé. La procédure doit continuer d'appeler le modèle depuis T-SQL, et la clé ne doit pas apparaître dans le code de la procédure.
+
+        Que devez-vous faire en premier ?
+    body:
+      options:
+        - { id: a, text: { en: "Create a credential named [https://api.partner-models.example.com] with IDENTITY = 'HTTPEndpointHeaders' that holds the key.", fr: "Créer des informations d'identification nommées [https://api.partner-models.example.com] avec IDENTITY = 'HTTPEndpointHeaders' qui contiennent la clé." } }
+        - { id: b, text: { en: "Expose the partner endpoint through Azure API Management, and call the azure-api.net URL of the API.", fr: "Exposer le point de terminaison du partenaire par Azure API Management, puis appeler l'URL azure-api.net de l'API." } }
+        - { id: c, text: { en: "Run sp_configure 'external rest endpoint enabled', 1 and RECONFIGURE WITH OVERRIDE in the database.", fr: "Exécuter sp_configure 'external rest endpoint enabled', 1 et RECONFIGURE WITH OVERRIDE dans la base de données." } }
+        - { id: d, text: { en: "Add an outbound firewall rule for api.partner-models.example.com to the logical server of the database.", fr: "Ajouter une règle de pare-feu sortant pour api.partner-models.example.com au serveur logique de la base de données." } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          In Azure SQL Database, sp_invoke_external_rest_endpoint can call only the domains of an allowed list (Azure OpenAI, Azure AI services, Azure Functions, API Management and other Azure services). To call a service outside the list, expose it through API Management; you can then create a credential named after the azure-api.net URL to send the key as a header.
+        fr: |
+          Dans Azure SQL Database, sp_invoke_external_rest_endpoint ne peut appeler que les domaines d'une liste autorisée (Azure OpenAI, Azure AI services, Azure Functions, API Management et d'autres services Azure). Pour appeler un service absent de la liste, exposez-le par API Management ; vous pouvez ensuite créer des informations d'identification nommées d'après l'URL azure-api.net pour envoyer la clé dans un en-tête.
+      options:
+        a: { en: "A credential name must use a domain of the allowed list, so this credential doesn't make the partner domain callable.", fr: "Le nom des informations d'identification doit utiliser un domaine de la liste autorisée : ces informations d'identification ne rendent donc pas le domaine du partenaire appelable." }
+        c: { en: "The procedure is already enabled by default in Azure SQL Database; the option doesn't change the list of allowed domains.", fr: "La procédure est déjà activée par défaut dans Azure SQL Database ; l'option ne modifie pas la liste des domaines autorisés." }
+        d: { en: "Outbound firewall rules can only restrict the endpoints that the database reaches further; they don't add domains to the allowed list.", fr: "Les règles de pare-feu sortant peuvent seulement restreindre davantage les points de terminaison que la base de données atteint ; elles n'ajoutent pas de domaines à la liste autorisée." }
+    references:
+      - title: sys.sp_invoke_external_rest_endpoint (Transact-SQL)
+        url: https://learn.microsoft.com/en-us/sql/relational-databases/system-stored-procedures/sp-invoke-external-rest-endpoint-transact-sql
+
+  # ------------------------------------------------------------------ 7
+  - id: dp800-qz-34-07
+    objective: "3.3.3"
+    difficulty: 3
+    status: draft
+    type: single
+    stem:
+      en: |
+        Tailspin Toys has an Azure SQL database. A RAG procedure sends the orders of a customer to a language model. A developer wrote the following query, which returned the expected context, and then replaced FOR JSON PATH with FOR JSON AUTO.
+
+        ```sql
+        SET @context = (
+            SELECT o.OrderNumber AS [order.number],
+                   o.Status      AS [order.status],
+                   l.ProductName
+            FROM dbo.Orders AS o
+            INNER JOIN dbo.OrderLines AS l ON l.OrderID = o.OrderID
+            WHERE o.CustomerID = @customerId
+            FOR JSON AUTO);
+        ```
+
+        The customer has one order, SO1001, with the status Shipped and two lines, Helmet and Gloves.
+
+        Which JSON does @context contain after the change?
+      fr: |
+        Tailspin Toys dispose d'une base de données Azure SQL. Une procédure RAG envoie les commandes d'un client à un modèle de langage. Un développeur a écrit la requête suivante, qui renvoyait le contexte attendu, puis a remplacé FOR JSON PATH par FOR JSON AUTO.
+
+        ```sql
+        SET @context = (
+            SELECT o.OrderNumber AS [order.number],
+                   o.Status      AS [order.status],
+                   l.ProductName
+            FROM dbo.Orders AS o
+            INNER JOIN dbo.OrderLines AS l ON l.OrderID = o.OrderID
+            WHERE o.CustomerID = @customerId
+            FOR JSON AUTO);
+        ```
+
+        Le client a une seule commande, SO1001, à l'état Shipped, avec deux lignes, Helmet et Gloves.
+
+        Quel JSON @context contient-elle après la modification ?
+    body:
+      options:
+        - { id: a, text: "`[{\"order\":{\"number\":\"SO1001\",\"status\":\"Shipped\"},\"l\":[{\"ProductName\":\"Helmet\"},{\"ProductName\":\"Gloves\"}]}]`" }
+        - { id: b, text: "`[{\"order.number\":\"SO1001\",\"order.status\":\"Shipped\",\"l\":[{\"ProductName\":\"Helmet\"},{\"ProductName\":\"Gloves\"}]}]`" }
+        - { id: c, text: "`[{\"order\":{\"number\":\"SO1001\",\"status\":\"Shipped\"},\"ProductName\":\"Helmet\"},{\"order\":{\"number\":\"SO1001\",\"status\":\"Shipped\"},\"ProductName\":\"Gloves\"}]`" }
+        - { id: d, text: "`[{\"order.number\":\"SO1001\",\"order.status\":\"Shipped\",\"OrderLines\":[{\"ProductName\":\"Helmet\"},{\"ProductName\":\"Gloves\"}]}]`" }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          With FOR JSON AUTO, the structure follows the tables of the query: the columns of the first table are properties of the root object, and the columns of the joined table go into a nested array named after its alias, l. AUTO doesn't use dotted aliases for nesting: it outputs them as keys that contain dots, so the model receives "order.number" instead of a nested order object.
+        fr: |
+          Avec FOR JSON AUTO, la structure suit les tables de la requête : les colonnes de la première table sont des propriétés de l'objet racine, et les colonnes de la table jointe vont dans un tableau imbriqué nommé d'après son alias, l. AUTO n'utilise pas les alias à points pour l'imbrication : il les produit comme des clés qui contiennent des points, et le modèle reçoit donc "order.number" au lieu d'un objet order imbriqué.
+      options:
+        a: { en: "Only FOR JSON PATH turns dotted aliases into nested objects; AUTO keeps the dots in the key names.", fr: "Seul FOR JSON PATH transforme les alias à points en objets imbriqués ; AUTO conserve les points dans les noms de clés." }
+        c: { en: "This is the output of the original FOR JSON PATH query: one object per row, with a nested order object and no array of lines.", fr: "C'est la sortie de la requête FOR JSON PATH d'origine : un objet par ligne, avec un objet order imbriqué et sans tableau de lignes." }
+        d: { en: "When the joined table has an alias, the nested array is named after the alias (l), not after the table name.", fr: "Quand la table jointe a un alias, le tableau imbriqué est nommé d'après l'alias (l), pas d'après le nom de la table." }
+    references:
+      - title: Format JSON output automatically with AUTO mode
+        url: https://learn.microsoft.com/en-us/sql/relational-databases/json/format-json-output-automatically-with-auto-mode-sql-server
+
+  # ------------------------------------------------------------------ 8
+  - id: dp800-qz-34-08
+    objective: "3.3.5"
+    difficulty: 3
+    status: draft
+    type: yesno_statements
+    stem:
+      en: |
+        Woodgrove Bank has an Azure SQL database. A RAG procedure of the advisor portal calls an Azure OpenAI chat completions deployment, logs the return value of every call, whether the call succeeded or not, and then extracts the answer of the model for the portal. The call doesn't set @retry_count. A reviewer examines how the following code behaves for different replies of the deployment.
+
+        ```sql
+        EXECUTE @rc = sp_invoke_external_rest_endpoint
+            @url = N'https://woodgrove-ai.openai.azure.com/openai/deployments/advisor/chat/completions?api-version=2024-10-21',
+            @method = 'POST',
+            @payload = @payload,
+            @credential = [https://woodgrove-ai.openai.azure.com],
+            @response = @response OUTPUT;
+
+        INSERT INTO dbo.ModelCallLog (CalledAt, ReturnValue) VALUES (SYSUTCDATETIME(), @rc);
+        ```
+
+        For each of the following statements, select **Yes** if the statement is true. Otherwise, select **No**.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Woodgrove Bank dispose d'une base de données Azure SQL. Une procédure RAG du portail des conseillers appelle un déploiement de saisie semi-automatique de conversation Azure OpenAI, journalise la valeur de retour de chaque appel, qu'il ait réussi ou non, puis extrait la réponse du modèle pour le portail. L'appel ne définit pas @retry_count. Un réviseur examine le comportement du code suivant pour différentes réponses du déploiement.
+
+        ```sql
+        EXECUTE @rc = sp_invoke_external_rest_endpoint
+            @url = N'https://woodgrove-ai.openai.azure.com/openai/deployments/advisor/chat/completions?api-version=2024-10-21',
+            @method = 'POST',
+            @payload = @payload,
+            @credential = [https://woodgrove-ai.openai.azure.com],
+            @response = @response OUTPUT;
+
+        INSERT INTO dbo.ModelCallLog (CalledAt, ReturnValue) VALUES (SYSUTCDATETIME(), @rc);
+        ```
+
+        Pour chacune des affirmations suivantes, sélectionnez **Oui** si l'affirmation est vraie. Sinon, sélectionnez **Non**.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      statements:
+        - id: s1
+          text:
+            en: "When the deployment throttles the request with HTTP 429, the EXECUTE statement raises an exception, and the INSERT statement doesn't run."
+            fr: "Quand le déploiement limite la requête avec le code HTTP 429, l'instruction EXECUTE lève une exception, et l'instruction INSERT ne s'exécute pas."
+        - id: s2
+          text:
+            en: "When the deployment answers with HTTP 200, JSON_VALUE(@response, '$.response.status.http.code') returns 200."
+            fr: "Quand le déploiement répond avec le code HTTP 200, JSON_VALUE(@response, '$.response.status.http.code') renvoie 200."
+        - id: s3
+          text:
+            en: "When the call succeeds, JSON_VALUE(@response, '$.result.choices[0].message') returns the role and the content of the assistant message."
+            fr: "Quand l'appel réussit, JSON_VALUE(@response, '$.result.choices[0].message') renvoie le rôle et le contenu du message de l'assistant."
+    answer:
+      values: { s1: false, s2: true, s3: false }
+    explanation:
+      correct:
+        en: |
+          No: when the HTTP status isn't 2xx, the procedure returns the status code itself (429 here) in @rc; an exception is thrown only when the HTTPS call can't be made at all, so the INSERT runs and logs 429. Yes: the response envelope holds the HTTP metadata under `response`, including `status.http.code`. No: `message` is an object, and JSON_VALUE returns NULL in lax mode for an object or an array; use JSON_QUERY, or read `message.content`.
+        fr: |
+          Non : quand le statut HTTP n'est pas 2xx, la procédure renvoie le code de statut lui-même (ici 429) dans @rc ; une exception n'est levée que lorsque l'appel HTTPS ne peut pas du tout être effectué : l'INSERT s'exécute donc et journalise 429. Oui : l'enveloppe de la réponse contient les métadonnées HTTP sous `response`, dont `status.http.code`. Non : `message` est un objet, et JSON_VALUE renvoie NULL en mode lax pour un objet ou un tableau ; utilisez JSON_QUERY, ou lisez `message.content`.
+      options:
+        s1: { en: "A non-2xx status is reported through the return value, not as an error: the code must test @rc.", fr: "Un statut autre que 2xx est signalé par la valeur de retour, pas par une erreur : le code doit tester @rc." }
+        s3: { en: "JSON_VALUE extracts only scalar values; the path must end at `content` or use JSON_QUERY.", fr: "JSON_VALUE n'extrait que des valeurs scalaires ; le chemin doit se terminer par `content`, ou il faut utiliser JSON_QUERY." }
+    references:
+      - title: sys.sp_invoke_external_rest_endpoint (Transact-SQL)
+        url: https://learn.microsoft.com/en-us/sql/relational-databases/system-stored-procedures/sp-invoke-external-rest-endpoint-transact-sql
+      - title: JSON_VALUE (Transact-SQL)
+        url: https://learn.microsoft.com/en-us/sql/t-sql/functions/json-value-transact-sql
+
+  # ------------------------------------------------------------------ 9
+  - id: dp800-qz-34-09
+    objective: "3.3.2"
+    difficulty: 3
+    status: draft
+    type: dropdown
+    stem:
+      en: |
+        Adatum has an Azure SQL database. A support assistant answers follow-up questions in a conversation. The stored procedure calls the v1 chat completions route of an Azure OpenAI resource, whose chat deployment is named support-chat. The variables contain the following data:
+
+        - @rules: the grounding instructions, which apply to the whole conversation
+        - @previousQuestion and @previousAnswer: the previous question of the user and the answer that the model returned
+        - @context and @question: the rows retrieved for the new question, as JSON, and the new question
+
+        You need to build the payload so that the model answers the new question with the context of the conversation.
+
+        How should you complete the code? Select the appropriate options in the answer area.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Adatum dispose d'une base de données Azure SQL. Un assistant de support répond à des questions de suivi au sein d'une conversation. La procédure stockée appelle la route v1 de saisie semi-automatique de conversation d'une ressource Azure OpenAI, dont le déploiement de conversation est nommé support-chat. Les variables contiennent les données suivantes :
+
+        - @rules : les instructions d'ancrage, qui s'appliquent à toute la conversation
+        - @previousQuestion et @previousAnswer : la question précédente de l'utilisateur et la réponse que le modèle a renvoyée
+        - @context et @question : les lignes récupérées pour la nouvelle question, au format JSON, et la nouvelle question
+
+        Vous devez construire la charge utile afin que le modèle réponde à la nouvelle question avec le contexte de la conversation.
+
+        Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      layout: code
+      language: sql
+      template: |
+        SET @payload = JSON_OBJECT(
+            [[key]]: N'support-chat',
+            'messages': JSON_ARRAY(
+                JSON_OBJECT('role': 'system', 'content': @rules),
+                JSON_OBJECT('role': 'user', 'content': @previousQuestion),
+                JSON_OBJECT('role': [[prev]], 'content': @previousAnswer),
+                JSON_OBJECT('role': [[last]], 'content': CONCAT(N'Context: ', @context, N' Question: ', @question))
+            ));
+
+        EXECUTE @rc = sp_invoke_external_rest_endpoint
+            @url = N'https://adatum-ai.openai.azure.com/openai/v1/chat/completions',
+            @method = 'POST',
+            @payload = @payload,
+            @credential = [https://adatum-ai.openai.azure.com],
+            @response = @response OUTPUT;
+      slots:
+        - id: key
+          options:
+            - { id: deployment, text: "'deployment'" }
+            - { id: model, text: "'model'" }
+            - { id: name, text: "'name'" }
+        - id: prev
+          options:
+            - { id: system, text: "'system'" }
+            - { id: user, text: "'user'" }
+            - { id: assistant, text: "'assistant'" }
+        - id: last
+          options:
+            - { id: assistant, text: "'assistant'" }
+            - { id: system, text: "'system'" }
+            - { id: user, text: "'user'" }
+    answer:
+      values: { key: model, prev: assistant, last: user }
+    explanation:
+      correct:
+        en: |
+          The v1 route has no deployment name in its URL: the request names the deployment in the `model` property. The model has no memory, so each request resends the conversation: the previous answer of the model goes in an `assistant` message, and the request ends with a `user` message that carries the new context and question, which signals that it's the assistant's turn.
+        fr: |
+          La route v1 ne contient pas le nom du déploiement dans son URL : la requête désigne le déploiement dans la propriété `model`. Le modèle n'a pas de mémoire : chaque requête renvoie donc la conversation, la réponse précédente du modèle va dans un message `assistant`, et la requête se termine par un message `user` qui porte le nouveau contexte et la nouvelle question, ce qui indique que c'est au tour de l'assistant.
+      options:
+        key: { en: "The chat completions request body has no top-level deployment or name property that selects the deployment; the deployment-specific URL (/openai/deployments/<name>/...) is the alternative to the model property.", fr: "Le corps d'une requête de saisie semi-automatique de conversation n'a pas de propriété deployment ni name de premier niveau qui sélectionne le déploiement ; l'URL propre au déploiement (/openai/deployments/<name>/...) est l'alternative à la propriété model." }
+        prev: { en: "A system message holds instructions, and a user message holds what the user typed; an earlier model answer is an assistant message.", fr: "Un message system contient des instructions, et un message user contient ce que l'utilisateur a saisi ; une réponse antérieure du modèle est un message assistant." }
+        last: { en: "Ending with an assistant or a system message doesn't present the new question as the user's turn.", fr: "Terminer par un message assistant ou system ne présente pas la nouvelle question comme le tour de l'utilisateur." }
+    references:
+      - title: Work with chat completion models
+        url: https://learn.microsoft.com/en-us/azure/foundry/openai/how-to/chatgpt
+
+  # ------------------------------------------------------------------ 10
+  - id: dp800-qz-34-10
+    objective: "3.3.4"
+    difficulty: 3
+    status: draft
+    type: multi
+    stem:
+      en: |
+        Proseware has an Azure SQL database. A RAG procedure sends prompts to an Azure OpenAI deployment by using sp_invoke_external_rest_endpoint, without the @timeout and @retry_count parameters. The deployment usually answers in 20 to 40 seconds. During peak hours, it sometimes returns HTTP 429 with a Retry-After header, or HTTP 503.
+
+        You need to modify the call to meet the following requirements:
+
+        - Retry the transient failures automatically, up to three times.
+        - Give up when the call, including its retries, has lasted three minutes.
+        - Don't add any loop or delay to the code of the procedure.
+
+        Which two parameter settings should you use? Each correct answer presents part of the solution.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Proseware dispose d'une base de données Azure SQL. Une procédure RAG envoie des invites à un déploiement Azure OpenAI au moyen de sp_invoke_external_rest_endpoint, sans les paramètres @timeout et @retry_count. Le déploiement répond en général en 20 à 40 secondes. Aux heures de pointe, il renvoie parfois le code HTTP 429 avec un en-tête Retry-After, ou le code HTTP 503.
+
+        Vous devez modifier l'appel pour répondre aux exigences suivantes :
+
+        - Réessayer automatiquement les échecs temporaires, jusqu'à trois fois.
+        - Abandonner quand l'appel, nouvelles tentatives comprises, a duré trois minutes.
+        - N'ajouter aucune boucle ni aucun délai au code de la procédure.
+
+        Quels sont les deux paramètres à définir ? Chaque bonne réponse présente une partie de la solution.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      choose: 2
+      options:
+        - { id: a, text: { en: "@timeout = 45, which the procedure applies to each of the four attempts", fr: "@timeout = 45, que la procédure applique à chacune des quatre tentatives" } }
+        - { id: b, text: { en: "@retry_count = 3, which repeats the call on 429 and 503 responses", fr: "@retry_count = 3, qui répète l'appel sur les réponses 429 et 503" } }
+        - { id: c, text: { en: "@timeout = 720, which gives each of the four attempts 180 seconds", fr: "@timeout = 720, qui donne 180 secondes à chacune des quatre tentatives" } }
+        - { id: d, text: { en: "@timeout = 180, which limits the call and all of its retries together", fr: "@timeout = 180, qui limite l'appel et toutes ses nouvelles tentatives ensemble" } }
+        - { id: e, text: { en: "@headers = N'{\"Retry-After\":\"10\"}', which sets the delay between the retries", fr: "@headers = N'{\"Retry-After\":\"10\"}', qui définit le délai entre les nouvelles tentatives" } }
+    answer: { optionIds: [b, d] }
+    explanation:
+      correct:
+        en: |
+          @retry_count (0 to 10) makes the procedure retry on 408, 429, 500, 502, 503 and 504, and it waits for the Retry-After header when the response includes one. When @retry_count is set, @timeout (1 to 230 seconds) is the cumulative timeout of the whole call, so 180 stops the call and its retries after three minutes.
+        fr: |
+          @retry_count (0 à 10) fait réessayer la procédure sur 408, 429, 500, 502, 503 et 504, et elle attend le délai de l'en-tête Retry-After quand la réponse en contient un. Quand @retry_count est défini, @timeout (1 à 230 secondes) est le délai d'expiration cumulé de tout l'appel : 180 arrête donc l'appel et ses nouvelles tentatives au bout de trois minutes.
+      options:
+        a: { en: "With retries, @timeout isn't per attempt: 45 seconds would stop the whole call, retries included, after 45 seconds.", fr: "Avec des nouvelles tentatives, @timeout ne s'applique pas à chaque tentative : 45 secondes arrêteraient tout l'appel, nouvelles tentatives comprises, au bout de 45 secondes." }
+        c: { en: "@timeout accepts 1 to 230 seconds, and it is cumulative, not per attempt.", fr: "@timeout accepte 1 à 230 secondes, et il est cumulé, pas propre à chaque tentative." }
+        e: { en: "Retry-After is a response header sent by the service; a request header doesn't change the retry interval.", fr: "Retry-After est un en-tête de réponse envoyé par le service ; un en-tête de requête ne change pas l'intervalle entre les tentatives." }
+    references:
+      - title: sys.sp_invoke_external_rest_endpoint (Transact-SQL)
+        url: https://learn.microsoft.com/en-us/sql/relational-databases/system-stored-procedures/sp-invoke-external-rest-endpoint-transact-sql

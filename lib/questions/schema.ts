@@ -63,7 +63,7 @@ export const dropdownBody = z
   .superRefine((b, ctx) => {
     uniqueIds(b.slots, ctx, "slots");
     for (const s of b.slots) uniqueIds(s.options, ctx, "slots");
-    const templates = typeof b.template === "string" ? [b.template] : [b.template.en, b.template.fr];
+    const templates = typeof b.template === "string" ? [b.template] : [b.template.en, b.template.fr].filter((s): s is string => typeof s === "string");
     for (const t of templates) {
       const markers = [...t.matchAll(/\[\[([a-zA-Z0-9_-]+)\]\]/g)].map((m) => m[1]);
       const slotIds = b.slots.map((s) => s.id);

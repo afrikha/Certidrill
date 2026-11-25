@@ -10,9 +10,9 @@ Azure Managed Redis exécute le logiciel Redis Enterprise (Redis 7.4) et s'utili
 | Memory Optimized | 8:1 | Grands jeux de données, débit modéré, développement et test |
 | Balanced | 4:1 | Charges de travail standard |
 | Compute Optimized | 2:1 | Débit le plus élevé |
-| Flash Optimized | RAM plus NVMe | Très grands jeux de données à moindre coût ; pas de RediSearch, RedisBloom ni RedisTimeSeries |
+| Flash Optimized | RAM plus NVMe | Très grands jeux de données à moindre coût ; pas de RediSearch, RedisBloom ni RedisTimeSeries ; tailles A2000 et A4500 en préversion |
 
-La haute disponibilité (un réplica sur un second nœud, réparti entre zones quand la région en a) est activée par défaut ; ne la désactivez que pour le développement, car une panne de nœud fait alors perdre des données. L'authentification Microsoft Entra ID, les points de terminaison privés et TLS sont disponibles à tous les niveaux.
+La haute disponibilité (un réplica sur un second nœud, réparti entre zones quand la région en a) est activée par défaut ; ne la désactivez que pour le développement et les tests, car une panne de nœud fait alors perdre des données. Vous pouvez l'activer plus tard sur une instance créée sans elle, mais pas la désactiver sur une instance existante. L'authentification Microsoft Entra ID, les points de terminaison privés et TLS sont disponibles à tous les niveaux.
 
 ```text
 import redis
@@ -35,7 +35,7 @@ r = redis.Redis(
 | --- | --- |
 | Port | **10000** pour Azure Managed Redis ; 6380 était le port TLS d'Azure Cache for Redis |
 | Authentification | Clé d'accès dans `password` pour les configurations simples ; Microsoft Entra ID avec le package `redis-entraid` et l'étendue `https://redis.azure.com/.default` en production |
-| Classe cliente | `redis.Redis` pour les stratégies Enterprise et non cluster ; `redis.cluster.RedisCluster` pour la stratégie de clustering OSS |
+| Classe cliente | `redis.Redis` pour les stratégies Enterprise et non cluster (non cluster uniquement pour les caches de 25 Go ou moins) ; `redis.cluster.RedisCluster` pour la stratégie de clustering OSS |
 | `decode_responses` | `True` pour des valeurs texte ; `False` pour des valeurs binaires comme les octets d'un vecteur, des images ou des objets sérialisés avec pickle |
 | Connexions | `redis-py` regroupe les connexions : créez un client par processus et réutilisez-le |
 
@@ -115,7 +115,7 @@ Pour les charges de travail IA, le même modèle met en cache les incorporations
 <!-- section: vector-index | objectives: 2.3.2 -->
 ## Créer un index vectoriel
 
-La recherche vectorielle vient du module **RediSearch**. Les modules ne peuvent être ajoutés **qu'à la création de l'instance** (onglet Avancé), ne peuvent pas être chargés plus tard, et RediSearch exige :
+La recherche vectorielle vient du module **RediSearch**. Avec Redis 7.4, les modules ne peuvent être ajoutés **qu'à la création de l'instance** (onglet Avancé) et ne peuvent pas être chargés plus tard (Redis 8.2, en préversion, inclut tous les modules sur les niveaux en mémoire). RediSearch exige :
 
 - un niveau en mémoire (pas Flash Optimized) ;
 - la stratégie de clustering **Enterprise** ou **non cluster**, pas OSS.
@@ -214,6 +214,6 @@ Dans une application RAG, l'étape de récupération incorpore la question avec 
 - Cache-aside : lecture, en cas d'absence chargement et `set(..., ex=ttl)` en une commande ; TTL choisi selon l'exigence de fraîcheur.
 - `ttl` renvoie -1 (pas d'expiration) ou -2 (pas de clé) ; un simple `set` efface le TTL.
 - Invalidez après l'écriture en base avec `delete` ; `SCAN`, jamais `KEYS`, pour les motifs ; les stratégies d'éviction s'appliquent quand la mémoire est pleine.
-- RediSearch se choisit à la création, exige un niveau en mémoire et la stratégie Enterprise ou non cluster.
+- RediSearch se choisit à la création (Redis 7.4), exige un niveau en mémoire et la stratégie Enterprise ou non cluster.
 - `VectorField` avec `FLAT` ou `HNSW`, `FLOAT32`, `DIM` = sortie du modèle, `COSINE` pour le texte ; vecteurs en octets `float32` dans les hachages.
 - `KNN k @champ $param AS score`, filtres avant `=>`, `dialect(2)`, tri par distance croissante ; `EF_RUNTIME` arbitre entre précision et latence.

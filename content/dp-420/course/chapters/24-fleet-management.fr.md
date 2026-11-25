@@ -109,7 +109,7 @@ L'**analytique de la flotte** (Fleet analytics, en préversion, comptes NoSQL d'
 | --- | --- | --- | --- |
 | Étendue | Compte | Compte | Flotte entière |
 | Agrégation | 1 minute, préagrégée | Chaque requête | 1 heure, préagrégée |
-| Rétention | 90 jours | À votre choix | À votre choix |
+| Rétention | 93 jours | À votre choix | À votre choix |
 | Coût | Aucun | Stockage des journaux | Fabric ou stockage |
 | Outils | Explorateur de métriques, Grafana | Log Analytics, classeurs | Point de terminaison SQL Fabric ou KQL, Spark, Power BI |
 
@@ -128,23 +128,23 @@ Tables :
 
 | Table | Contenu |
 | --- | --- |
-| `FactAccountHourly` | Paramètres du compte par heure : niveau de cohérence par défaut, niveau gratuit, capacité en rafale, mode et rétention des sauvegardes, `TotalRUPerSecLimit`, paramètres des clés et dernière rotation de clé |
-| `FactRequestHourly` | `TotalRequestCount` par ressource et par heure |
+| `FactAccountHourly` | Paramètres du compte par heure : `ResourceGroup`, niveau de cohérence par défaut, niveau gratuit, capacité en rafale, mode et rétention des sauvegardes, `TotalRUPerSecLimit`, paramètres des clés et dernière rotation de clé |
+| `FactRequestHourly` | `TotalRequestCount` et `TotalRequestChargeInRU` par ressource, opération et code d'état, par heure |
 | `FactResourceUsageHourly` | `MaxDataStorageInKB`, `MaxIndexStorageInKB` |
 | `FactMeterUsageHourly` | `ConsumedUnits` par compteur de facturation (`MeterId`) |
-| `DimResource` | `ResourceId` avec `SubscriptionId`, `AccountName`, `ResourceGroup` |
+| `DimResource` | `ResourceId` avec `SubscriptionId`, `AccountName`, `Region`, `DatabaseName`, `CollectionName` (pas de groupe de ressources) |
 | `DimMeter` | Compteurs de facturation |
 
 Les faits se joignent à `DimResource` sur `ResourceId`. Les 100 comptes ayant le plus de requêtes du plan de données sur 7 jours, depuis le point de terminaison SQL Fabric :
 
 ```text
-SELECT TOP 100 DR.[SubscriptionId], DR.[AccountName], DR.[ResourceGroup],
+SELECT TOP 100 DR.[SubscriptionId], DR.[AccountName],
        SUM(FRH.[TotalRequestCount]) AS sum_total_requests
 FROM [FactRequestHourly] FRH
 JOIN [DimResource] DR ON FRH.[ResourceId] = DR.[ResourceId]
 WHERE FRH.[Timestamp] >= DATEADD(DAY, -7, GETDATE())
   AND FRH.[ResourceName] IN ('Document', 'StoredProcedure')
-GROUP BY DR.[AccountName], DR.[SubscriptionId], DR.[ResourceGroup]
+GROUP BY DR.[AccountName], DR.[SubscriptionId]
 ORDER BY sum_total_requests DESC;
 ```
 

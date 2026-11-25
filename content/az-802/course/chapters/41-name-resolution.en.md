@@ -108,7 +108,7 @@ Add-DnsServerConditionalForwarderZone -Name "fabrikam.com" -MasterServers 192.16
 ```
 
 - A conditional forwarder stored in AD DS replicates to the chosen scope; without `-ReplicationScope` it exists only on this server. Create an Active Directory-integrated conditional forwarder on a writable domain controller (not an RODC).
-- A conditional forwarder can't exist for a name that the server already hosts as a primary, secondary or stub zone.
+- A conditional forwarder can't exist for a name that the server already hosts as a primary, secondary or stub zone. For a child namespace of a zone the server hosts (for example `branch.contoso.com` when it hosts `contoso.com`), the conditional forwarder is refused unless it sits at or below a delegation in that zone: delegate the child zone instead.
 - Dynamic forwarder reordering moves slow forwarders to the end of the list and resets to the configured order about every 15 minutes.
 
 > **Exam trap.** Two forests that must resolve each other's names before a forest trust is created: a conditional forwarder for the other forest's root domain on each side, stored in AD DS with forest scope so that every DNS server of the forest has it.
@@ -137,6 +137,7 @@ Set-DnsServerForwarder -IPAddress 168.63.129.16
 
 - Changing the DNS servers of a virtual network takes effect on a VM after `ipconfig /renew` or a restart.
 - With custom DNS servers on the virtual network, private zones are resolved only if those servers forward to 168.63.129.16 from a linked virtual network.
+- When Azure VPN Gateway is used with custom DNS servers on the virtual network, Learn says to add 168.63.129.16 to the virtual network's DNS server list to keep the service undisrupted.
 
 > **Exam trap.** An on-premises DNS server can't forward to 168.63.129.16: the address answers only inside Azure. Forward to the Private Resolver inbound endpoint or to a DNS server in Azure.
 

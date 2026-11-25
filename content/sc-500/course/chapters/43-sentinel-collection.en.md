@@ -105,7 +105,7 @@ Get-WinEvent -LogName 'Security' -FilterXPath $XPath -MaxEvents 5
 <!-- section: custom-tables | objectives: 4.2.7 -->
 ## Custom log tables
 
-When no connector or built-in table fits, create a **DCR-based custom table** in the workspace. In the portal: workspace > **Tables** > **Create**, enter a name (the portal adds the `_CL` suffix), choose the plan (**Analytics**, **Basic** or **Auxiliary**), select or create a DCR (and a data collection endpoint if needed), upload a JSON sample, optionally write a transformation, then **Create**.
+When no connector or built-in table fits, create a **DCR-based custom table** in the workspace. In the portal: workspace > **Tables** > **Create**, enter a name (the portal adds the `_CL` suffix), choose the plan (**Analytics** by default, **Basic** or **Auxiliary / Lake**), select or create a DCR (and a data collection endpoint if needed), upload a JSON sample, optionally write a transformation, then **Create**.
 
 | Rule | Detail |
 | --- | --- |
@@ -115,7 +115,7 @@ When no connector or built-in table fits, create a **DCR-based custom table** in
 | Reserved names | `id`, `TenantId`, `Type`, `Title`, `UniqueId`, `_ResourceId`, `_SubscriptionId`... |
 | Permissions | `Microsoft.OperationalInsights/workspaces/*` on the workspace (Log Analytics Contributor) for the table; `Microsoft.Insights/dataCollectionRules/write` (Monitoring Contributor) for the DCR |
 | Schema change | Update every DCR that sends to the table; DCRs aren't updated automatically |
-| Basic and Auxiliary plans | Available for DCR-based custom tables and supported Azure tables only |
+| Basic and Auxiliary / Lake plans | Available for DCR-based custom tables and supported Azure tables only |
 
 Two ways to fill a custom table:
 

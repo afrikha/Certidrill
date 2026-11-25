@@ -26,7 +26,7 @@ Choosing the metric:
 
 The metric of the query must equal the metric of the index. When `VECTOR_SEARCH` asks for `METRIC = 'euclidean'` on a column indexed with `cosine`, the index isn't used: the engine raises a warning and runs an exact kNN scan.
 
-> **Exam trap.** To query the same column with two metrics through ANN, you need two vector indexes. Changing the `METRIC` argument of the query alone silently turns the search into a full scan.
+> **Exam trap.** Changing only the `METRIC` argument of the query doesn't change the index: with no index of that metric on the column, the search becomes an exact kNN scan, signaled only by a warning.
 
 Index versions and metadata:
 

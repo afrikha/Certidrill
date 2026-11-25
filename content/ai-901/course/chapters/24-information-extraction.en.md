@@ -15,17 +15,21 @@ Three notions carry the whole service:
 
 The schema is applied **semantically**: "Invoice No.", "Invoice #" or an unlabeled number at the top of the page can all fill the invoice number field, because the analyzer looks for the meaning, not for a fixed label or position.
 
+Each field also has a method: `extract` takes the value as it appears in the content (documents only), `generate` lets the model produce it, and `classify` picks it from a fixed list of categories. A custom analyzer inherits from the base analyzer of its content type: `prebuilt-document`, `prebuilt-image`, `prebuilt-audio` or `prebuilt-video`.
+
 | Analyzer | Returns | Use it for |
 | --- | --- | --- |
 | `prebuilt-read` | The text: words and paragraphs (OCR) | Reading printed or handwritten text |
 | `prebuilt-layout` | The text and its structure: paragraphs, tables, sections | Keeping the layout of a document |
 | `prebuilt-invoice` | Invoice fields: vendor, customer, dates, items, totals | Invoices, without defining a schema |
 | `prebuilt-receipt` | Receipt fields | Sales receipts, expense claims |
+| `prebuilt-idDocument` | Fields of identity documents | Passports, driver licenses, ID cards |
+| `prebuilt-documentSearch` | Content and layout, figure descriptions, a summary, chunks ready for vector indexing | Document ingestion for retrieval-augmented generation (RAG) |
 | Custom analyzer | The fields of your own schema | A form or a document type that no prebuilt analyzer covers |
 
 In the Foundry portal, the Content Understanding playground lets you pick an analyzer, run it on a sample or on your own file, and read the result: the extracted fields, the Markdown version of the content and the raw JSON.
 
-> **Exam trap.** OCR and layout analyzers return what is written, not what it means: the text of an invoice, but not "the total is 1585.98". To get named values, use an analyzer with a schema, prebuilt (`prebuilt-invoice`) or custom. Field extraction relies on a generative model deployed in the Foundry resource; the read and layout analyzers don't need one.
+> **Exam trap.** OCR and layout analyzers return what is written, not what it means: the text of an invoice, but not "the total is 1585.98". To get named values, use an analyzer with a schema, prebuilt (`prebuilt-invoice`) or custom. Field extraction relies on generative and embedding models deployed in the Foundry resource and mapped once per resource as its default model deployments; the read and layout analyzers don't need them.
 
 <!-- section: images | objectives: 2.4.2 -->
 ## Extracting information from images
@@ -57,12 +61,14 @@ A schema for voicemail could ask for the caller, a summary of the message, the r
 
 For a recorded meeting, a schema can ask for the attendance, who spoke and what they said, a summary of the discussion and the list of assigned actions.
 
+The `locales` property of an audio or video analyzer lists the expected languages, mainly for transcription. A video analyzer samples about one frame per second, so a very brief event can be missed.
+
 > **Exam tip.** Speech recognition alone gives a transcript. Content Understanding gives the transcript and the fields of a schema. If the question wants "the callback number" or "a summary of each call" as data, the answer is a Content Understanding audio analyzer.
 
 <!-- section: client-app | objectives: 2.4.4 -->
 ## A lightweight application with Content Understanding
 
-The Python SDK is the `azure-ai-contentunderstanding` package. The client needs the endpoint of the Foundry resource (`https://<resource>.services.ai.azure.com/`) and a credential: a key, or Microsoft Entra ID with `DefaultAzureCredential`.
+The Python SDK is the `azure-ai-contentunderstanding` package. The client needs the endpoint of the Foundry resource (`https://<resource>.services.ai.azure.com/`) and a credential: Microsoft Entra ID with `DefaultAzureCredential`, or a key, which the SDK documentation recommends only for testing with test resources. To set the default model deployments, your account needs the Cognitive Services User role on the resource, even if it is the Owner.
 
 ```text
 from azure.ai.contentunderstanding import ContentUnderstandingClient
@@ -102,6 +108,7 @@ The same code handles every type of content: to analyze a recording instead of a
 - Content Understanding: content in, structured Markdown and JSON out, for documents, images, audio and video.
 - Analyzer: prebuilt or custom. Schema: the fields you want and their structure, matched by meaning.
 - `prebuilt-read` and `prebuilt-layout` return text and structure; `prebuilt-invoice` and `prebuilt-receipt` return fields.
+- Field methods: `extract` (documents only), `generate`, `classify`.
 - Images: fields generated from what the picture shows; mostly-text images go to a document analyzer.
 - Audio and video: transcript plus generated fields such as a summary; `prebuilt-audioSearch`, `prebuilt-callCenter`, `prebuilt-videoSearch`.
 - Client: `ContentUnderstandingClient`, `begin_analyze(analyzer_id=..., inputs=...)`, `poller.result()`, then `contents`, `markdown` and `fields`.

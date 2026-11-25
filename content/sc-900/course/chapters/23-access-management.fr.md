@@ -19,7 +19,7 @@ Les **contrôles d'accès** disent ce qui se passe :
 | Contrôle | Options |
 | --- | --- |
 | **Bloquer** | Refuser l'accès ; la décision la plus restrictive |
-| **Accorder** | Autoriser l'accès, éventuellement sous condition : exiger l'authentification multifacteur, exiger une force d'authentification, exiger un appareil conforme, exiger un appareil à jonction hybride à Microsoft Entra, exiger une application cliente approuvée ou une stratégie de protection des applications, exiger un changement de mot de passe, exiger des conditions d'utilisation |
+| **Accorder** | Autoriser l'accès, éventuellement sous condition : exiger l'authentification multifacteur, exiger une force d'authentification, exiger un appareil conforme, exiger un appareil à jonction hybride à Microsoft Entra, exiger une stratégie de protection des applications (l'ancien contrôle « exiger une application cliente approuvée » a été retiré début mars 2026), exiger un changement de mot de passe, exiger des conditions d'utilisation |
 | **Session** | Limiter l'expérience une fois l'accès accordé : fréquence de connexion, restrictions appliquées par l'application, contrôle d'application par accès conditionnel avec Microsoft Defender pour les applications cloud |
 
 Une **force d'authentification** précise quelles combinaisons de méthodes sont acceptées ; trois sont intégrées : authentification multifacteur, MFA sans mot de passe et MFA résistante au hameçonnage.
@@ -63,7 +63,7 @@ Le **contrôle d'accès en fonction du rôle** (RBAC) accorde les autorisations 
 | Rôles propres à un service | Exchange Administrator, Intune Administrator, SharePoint Administrator, Teams Administrator |
 | Rôles interservices | Security Administrator, Compliance Administrator |
 
-Une **attribution de rôle** rattache une définition de rôle à un principal de sécurité (un utilisateur, un groupe ou un principal de service) à une **étendue** : tout le locataire, une unité administrative, ou une seule ressource comme une application.
+Une **attribution de rôle** rattache une définition de rôle à un principal de sécurité (un utilisateur, un groupe assignable à un rôle ou un principal de service) à une **étendue** : tout le locataire, une unité administrative, ou une seule ressource comme une application. Un groupe ne peut recevoir un rôle Microsoft Entra que s'il a été créé comme assignable à un rôle, ce qui demande P1 ou P2 et une appartenance affectée (pas dynamique).
 
 Appliquez le **moindre privilège** : quelqu'un qui ne gère que des utilisateurs reçoit User Administrator, pas Global Administrator, ce qui limite les dégâts si le compte est compromis.
 

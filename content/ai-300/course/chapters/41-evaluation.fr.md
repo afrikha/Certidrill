@@ -9,7 +9,7 @@ Un jeu de données d'évaluation est un fichier JSONL ou CSV (ou des éléments 
 | --- | --- | --- |
 | Requête et réponse | `query`, `response` et, en option, `context`, `ground_truth` | Évaluer des sorties déjà produites (journaux, exécution précédente) |
 | Requête seule, avec une cible | `query` (et `ground_truth` si nécessaire) ; le modèle ou l'agent génère la réponse pendant l'exécution | Évaluer directement un déploiement de modèle ou une version d'agent |
-| Messages | Un tableau `messages` au format de message OpenAI, éventuellement avec des appels d'outils | Conversations multitours ; obligatoire pour l'évaluation au niveau de la conversation |
+| Messages | Un tableau `messages` au format de message OpenAI, éventuellement avec des appels d'outils | Conversations multitours ; obligatoire pour l'évaluation au niveau de la conversation. Pour une cible (modèle ou agent), le tableau se termine par un message `user` |
 
 ```json
 {"query": "What is the return window?", "context": "Returns are accepted within 30 days of delivery.", "response": "You can return items within 30 days of delivery.", "ground_truth": "30 days after delivery."}
@@ -21,7 +21,7 @@ Champs exigés par les évaluateurs courants :
 | --- | --- |
 | Cohérence (Coherence) | `query`, `response` (ou `messages`) |
 | Fluidité (Fluency) | `response` (ou `messages`) |
-| Ancrage (Groundedness) | `response` et `context` ; `query` facultatif mais améliore la précision |
+| Ancrage (Groundedness) | `response` et `context` (`context` est facultatif mais recommandé, et nécessaire quand `query` et `response` sont des chaînes ; une réponse d'agent avec des appels d'outils peut le fournir) ; `query` facultatif mais améliore la précision |
 | Pertinence (Relevance) | `query`, `response` |
 | Récupération (Retrieval) | `query`, `context` |
 | Exhaustivité de la réponse (Response completeness) | `response`, `ground_truth` |
@@ -65,8 +65,8 @@ Les évaluateurs de qualité assistés par IA utilisent un LLM comme juge : vous
 | Exhaustivité de la réponse (préversion) | | La réponse inclut-elle les informations essentielles de la vérité terrain ? | 1 à 5, seuil par défaut 3 |
 | Groundedness Pro (préversion) | | La réponse est-elle ancrée, selon Azure AI Content Safety, sans déploiement de modèle ? | Réussite ou échec |
 | Récupération de documents (Document retrieval) | `builtin.document_retrieval` | Les documents récupérés sont-ils les bons, par rapport à une pertinence étiquetée ? | Plusieurs métriques de classement |
-| Similarité | | Proximité avec la vérité terrain, assistée par IA | Score assisté par IA |
-| F1, BLEU, GLEU, ROUGE, METEOR | `builtin.f1_score`... | Recouvrement de jetons ou de n-grammes avec la vérité terrain, calculé sans modèle juge | Scores numériques |
+| Similarité | `builtin.similarity` | Proximité avec la vérité terrain, assistée par IA (exige un déploiement juge) | 1 à 5, seuil par défaut 3 |
+| F1, BLEU, GLEU, ROUGE, METEOR | `builtin.f1_score`... | Recouvrement de jetons ou de n-grammes avec la vérité terrain, calculé sans modèle juge | 0 à 1, seuil par défaut 0,5 |
 
 Chaque résultat contient un score, une étiquette, la justification et le seuil :
 
@@ -94,7 +94,7 @@ Chaque résultat contient un score, une étiquette, la justification et le seuil
 
 La cohérence et la fluidité ne prennent actuellement en charge que les réponses en anglais, et les scores sont moins fiables pour les réponses très courtes. La cohérence peut aussi s'évaluer au niveau de la **conversation** (`evaluation_level="conversation"`), ce qui exige le format `messages` ; le niveau par défaut est `turn`.
 
-> **Piège d'examen.** L'ancrage et la pertinence mesurent des choses différentes. Une réponse copiée du contexte est parfaitement ancrée même si elle ne répond pas à la question (pertinence faible) ; une réponse correcte tirée des connaissances générales du modèle est pertinente mais non ancrée si le contexte ne la contient pas. L'ancrage a besoin de `context` ; la pertinence non.
+> **Piège d'examen.** L'ancrage et la pertinence mesurent des choses différentes. Une réponse copiée du contexte est parfaitement ancrée même si elle ne répond pas à la question (pertinence faible) ; une réponse correcte tirée des connaissances générales du modèle est pertinente mais non ancrée si le contexte ne la contient pas. L'ancrage juge la réponse par rapport à `context` ; la pertinence ne l'utilise pas.
 
 <!-- section: safety-evaluations | objectives: 4.1.3 -->
 ## Évaluations des risques et de la sécurité
@@ -105,7 +105,7 @@ Les évaluateurs de risques et de sécurité s'exécutent sur le service d'éval
 | --- | --- | --- |
 | `builtin.violence`, `builtin.sexual`, `builtin.self_harm`, `builtin.hate_unfairness` | Contenu nuisible, avec un score de gravité | `query`, `response` ou `messages` |
 | `builtin.protected_material` | Texte protégé par le droit d'auteur, classé par le service de matériel protégé d'Azure AI Content Safety | `query`, `response` ou `messages` |
-| `builtin.indirect_attack` | La réponse a suivi des instructions injectées par du contenu récupéré (XPIA) : contenu manipulé, intrusion, collecte d'informations | `query`, `response` ou `messages` |
+| `builtin.indirect_attack` | La réponse a suivi des instructions injectées par du contenu récupéré (XPIA) : contenu manipulé, intrusion, collecte d'informations | `query`, `response` ou `messages` ; modèles uniquement, pas les agents |
 | `builtin.code_vulnerability` | Failles de sécurité dans le code généré (injection SQL, informations d'identification codées en dur, chiffrement faible...) pour Python, Java, C++, C#, Go, JavaScript et SQL | `query`, `response` ou `messages` |
 | `builtin.ungrounded_attributes` | État émotionnel ou attributs de classe protégée déduits sur une personne et non ancrés dans le contexte | `query`, `response`, `context` |
 | `builtin.prohibited_actions`, `builtin.sensitive_data_leakage` (préversion) | Un agent qui effectue des actions interdites ou expose des données sensibles | `query`, `response`, `tool_calls` ; cibles d'agent uniquement |
@@ -209,7 +209,7 @@ run = openai_client.evals.runs.create(
 | `data_source` de type `jsonl` ou `csv` avec `file_id` | Évaluer des lignes qui contiennent déjà les réponses |
 | `azure_ai_target_completions` | Générer les réponses pendant l'exécution à partir de `input_messages`, pour une cible de type `azure_ai_model` ou `azure_ai_agent` (version facultative ; la dernière si elle est omise) |
 | `initialization_parameters` | Déploiement juge pour les évaluateurs assistés par IA, seuils pour les évaluateurs personnalisés |
-| Rôle | Foundry User sur le projet ; un déploiement de modèle de conversation pour le juge |
+| Rôle | Foundry User sur le projet, et à l'étendue de la ressource Foundry (compte) quand l'exécution appelle un déploiement de modèle comme le juge (une attribution sur le seul projet n'autorise pas l'inférence) ; avec un stockage personnel (bring-your-own storage), l'identité managée du projet a besoin de Storage Blob Data Contributor sur le compte de stockage |
 
 Les **évaluateurs personnalisés** (préversion) s'inscrivent dans le catalogue d'évaluateurs du projet et s'utilisent dans `testing_criteria` comme les évaluateurs intégrés :
 
@@ -235,12 +235,12 @@ L'**évaluation locale** avec le SDK Azure AI Evaluation (`pip install azure-ai-
 
 | Déclencheur | Outil |
 | --- | --- |
-| Demande de tirage qui modifie une invite ou un agent | Action GitHub `microsoft/ai-agent-evals@v3-beta` : entrées `azure-ai-project-endpoint`, `deployment-name` (juge), `agent-ids` (`name:version`, séparés par des virgules), `data-path` (fichier JSON avec `name`, `evaluators`, `data`) ; résultats avec intervalles de confiance dans le résumé de l'exécution |
-| Contrôle de qualité bloquant | L'extension d'évaluation azd avec un seuil d'échec comme `--fail-on pass-rate=0.8` |
+| Demande de tirage qui modifie une invite ou un agent | Action GitHub `microsoft/ai-agent-evals@v3-beta` (préversion) : entrées `azure-ai-project-endpoint`, `deployment-name` (juge), `agent-ids` (`name:version`, séparés par des virgules), `data-path` (fichier JSON avec `name`, `evaluators`, `data`) ; résultats avec intervalles de confiance dans le résumé de l'exécution |
+| Contrôle de qualité bloquant | L'extension d'évaluation azd (préversion) avec un seuil d'échec comme `--fail-on pass-rate=0.8` |
 | Avant la promotion vers l'environnement suivant | Une étape de pipeline qui exécute l'évaluation cloud et compare avec l'exécution de référence |
 | Après la mise en production | Évaluation continue d'un échantillon du trafic de production et exécutions planifiées sur le même jeu de données (voir le chapitre sur l'observabilité) |
 
-Le workflow s'authentifie par OIDC (`permissions: id-token: write`, `azure/login`) et a besoin de Foundry User sur le projet. Les évaluations coûtent des jetons de juge : ne les exécutez pas à chaque commit.
+Le workflow s'authentifie par OIDC (`permissions: id-token: write`, `azure/login`) et a besoin de Foundry User sur le projet, ou sur la ressource Foundry quand l'exécution appelle un déploiement juge. Les évaluations coûtent des jetons de juge : ne les exécutez pas à chaque commit.
 
 > **Piège d'examen.** Un évaluateur personnalisé basé sur du code ne peut appeler ni une API externe ni un modèle : le bac à sable n'a pas de réseau. Pour juger avec un modèle, écrivez un évaluateur basé sur une invite ; pour atteindre votre propre service, utilisez un évaluateur basé sur un point de terminaison.
 
@@ -249,6 +249,6 @@ Le workflow s'authentifie par OIDC (`permissions: id-token: write`, `azure/login
 
 - Jeu de données : JSONL ou CSV avec `query`, `response`, `context`, `ground_truth`, ou `messages` ; versionné avec `datasets.upload_file` ; synthétique (15 à 1 000 échantillons, préversion) ou issu des traces.
 - Mappage : `{{item.field}}` pour les champs du jeu de données, `{{sample.output_text}}` et `{{sample.output_items}}` pour les sorties de la cible (avec `include_sample_schema=True`) ; le SDK local utilise `${data.field}` et `${outputs.field}`.
-- Qualité : ancrage (exige le contexte), pertinence, cohérence, fluidité, récupération ; 1 à 5, réussite à 3 ou plus, déploiement de modèle juge obligatoire.
+- Qualité : ancrage (jugé par rapport au contexte), pertinence, cohérence, fluidité, récupération ; 1 à 5, réussite à 3 ou plus, déploiement de modèle juge obligatoire.
 - Sécurité : service hébergé, pas de nom de déploiement, projet obligatoire ; gravité de 0 à 7, réussite à 3 ou moins ; matériel protégé, attaque indirecte et vulnérabilité du code donnent réussite ou échec.
 - Automatisation : `evals.create` plus `evals.runs.create`, évaluateurs personnalisés par code (sans réseau) ou par invite, action GitHub `ai-agent-evals` avec comparaison à la référence, contrôles sur le taux de réussite.

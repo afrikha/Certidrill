@@ -14,8 +14,8 @@ Quand vous activez la supervision de l'invité, vous choisissez entre deux expé
 
 | Expérience | Stockée dans | Interrogée avec | Remarques |
 | --- | --- | --- | --- |
-| Métriques OpenTelemetry (recommandées pour les nouveaux déploiements) | Espace de travail Azure Monitor | PromQL | L'ensemble par défaut est gratuit : `system.cpu.time`, `system.memory.usage`, `system.disk.io`, `system.network.io`, `system.filesystem.usage`... Les métriques supplémentaires comme `system.cpu.utilization` ou `process.cpu.utilization` sont facturées |
-| Métriques basées sur les journaux (classiques) | Espace de travail Log Analytics, table `InsightsMetrics` | KQL | Alimentent la vue Performances de VM Insights ; espaces de noms `Processor`, `Memory`, `LogicalDisk`, `Network` |
+| Métriques OpenTelemetry (recommandées pour les nouveaux déploiements) | Espace de travail Azure Monitor | PromQL | L'ensemble par défaut est gratuit : `system.cpu.time`, `system.memory.usage`, `system.disk.io`, `system.network.io`, `system.filesystem.usage`... Les métriques supplémentaires comme `system.cpu.utilization` ou `process.cpu.utilization` sont facturées. Machines virtuelles individuelles et serveurs Arc uniquement (pas les groupes identiques), pas de prise en charge de la liaison privée, et une même requête ne peut pas porter à la fois sur l'espace de travail Azure Monitor et sur un espace de travail Log Analytics |
+| Métriques basées sur les journaux (classiques) | Espace de travail Log Analytics, table `InsightsMetrics` | KQL | Alimentent la vue Performances de VM Insights ; espaces de noms `Processor`, `Memory`, `LogicalDisk`, `Network`. Les métriques par défaut vont dans `InsightsMetrics`, les compteurs supplémentaires dans `Perf`. Prend aussi en charge les groupes identiques |
 
 La vue **Performances** de VM Insights (Monitor > Machines virtuelles, ou Insights de la machine virtuelle) affiche, pour l'expérience basée sur les journaux :
 
@@ -39,7 +39,7 @@ Lire les indicateurs :
 | Logical Disk Space Used % proche de 100 % | Volume plein | Étendre le disque, purger les journaux |
 | Débits réseau élevés, processeur inactif | Charge limitée par le réseau ou dépendance trop bavarde | Mise en réseau accélérée, taille supérieure, cache |
 
-Les autres ressources suivent la même logique : un plan App Service expose `CPU Percentage`, `Memory Percentage`, `Disk Queue Length` et `Http Queue Length` ; un compte de stockage expose `Transactions` (fractionnée par `ResponseType` ou `ApiName`), `Availability`, `SuccessE2ELatency` et `SuccessServerLatency`. Dans Container Insights, **Memory working set** inclut le cache, tandis que **Memory RSS** ne montre que la mémoire résidente ; les visualisations Managed Prometheus sont à privilégier par rapport aux visualisations Log Analytics.
+Les autres ressources suivent la même logique : un plan App Service des niveaux Basic, Standard, Premium ou Isolated (les métriques de plan n'existent pas en Free et Shared, où la métrique `CPU Time` de l'application suit le quota de processeur) expose `CPU Percentage`, `Memory Percentage`, `Disk Queue Length` et `Http Queue Length` ; un compte de stockage expose `Transactions` (fractionnée par `ResponseType` ou `ApiName`), `Availability`, `SuccessE2ELatency` et `SuccessServerLatency`. Dans Container Insights, **Memory working set** inclut le cache, tandis que **Memory RSS** ne montre que la mémoire résidente ; les visualisations Managed Prometheus sont à privilégier par rapport aux visualisations Log Analytics.
 
 > **Piège d'examen.** `SuccessE2ELatency` inclut le temps réseau et l'accusé de réception du client ; `SuccessServerLatency` ne mesure que le traitement dans Stockage Azure. Une latence de bout en bout élevée avec une latence serveur basse désigne le réseau ou le client, pas le stockage.
 

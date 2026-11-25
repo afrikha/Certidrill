@@ -61,7 +61,7 @@ WITH (
 | Argument | Values and rules |
 | --- | --- |
 | `LOCATION` | HTTPS endpoint only (TLS). Azure OpenAI: `.../openai/deployments/{deployment}/embeddings?api-version=...`; OpenAI: `.../v1/embeddings`; Ollama: `.../api/embed`; ONNX Runtime: a local folder |
-| `API_FORMAT` | `Azure OpenAI`, `OpenAI`, `Ollama`, `ONNX Runtime` |
+| `API_FORMAT` | `Azure OpenAI`, `OpenAI`, `Ollama`, `ONNX Runtime`. `ONNX Runtime` works only with SQL Server 2025 on Windows, with Machine Learning Services installed, `external AI runtimes enabled` and the preview features (`PREVIEW_FEATURES = ON`) |
 | `MODEL_TYPE` | `EMBEDDINGS` is the only value |
 | `MODEL` | Model name at the provider |
 | `CREDENTIAL` | A database scoped credential; not needed for a local Ollama or ONNX model |
@@ -72,7 +72,7 @@ Credential identities:
 
 | `IDENTITY` | `SECRET` | When |
 | --- | --- | --- |
-| `'Managed Identity'` | `{"resourceid":"https://cognitiveservices.azure.com"}` | Preferred: no key to store or rotate. The database's managed identity needs an Azure OpenAI role on the resource |
+| `'Managed Identity'` | `{"resourceid":"https://cognitiveservices.azure.com"}` | Preferred: no key to store or rotate. The managed identity needs a role on the Azure OpenAI resource: Cognitive Services OpenAI User in the `sp_invoke_external_rest_endpoint` examples; the `CREATE EXTERNAL MODEL` page names Cognitive Services OpenAI Contributor for SQL Server 2025 (Azure Arc) |
 | `'HTTPEndpointHeaders'` | `{"api-key":"..."}` or `{"Bearer":"..."}` | Key-based endpoints, OpenAI |
 
 The credential name must be a URL whose scheme and host match the called URL, and whose path is the same or more generic. On SQL Server 2025, managed identity (Azure Arc or Azure VM) also needs `sp_configure 'allow server scoped db credentials', 1`, and calls to REST endpoints need `sp_configure 'external rest endpoint enabled', 1`; that option is already on in Azure SQL Database and SQL database in Fabric.
@@ -212,7 +212,7 @@ When the source text changes, its embedding must be regenerated. The method depe
 | Change data capture (CDC) | Asynchronous | High-volume workloads; before and after values show whether the embedded text really changed | Capture process and change tables to manage |
 | Azure Functions with SQL trigger binding | Near real time | Offload generation from the database engine, scale independently | Relies on Change Tracking; code to deploy |
 | Azure Logic Apps | Per workflow schedule | Low-code orchestration with other services | Polling interval, connector limits |
-| Change event streaming (CES) | Near real time | Several consumers of the same change stream, no extra work in the transaction | Preview; events go to Azure Event Hubs, a consumer must call the model and write back |
+| Change event streaming (CES) | Near real time | Several consumers of the same change stream, no extra work in the transaction | Preview; events go to Azure Event Hubs or Fabric Eventstream, a consumer must call the model and write back |
 | Microsoft Foundry | Not a detection method | Central model selection, hosting and evaluation | Another process must detect changes and update the database |
 
 Trigger that only **marks** the row, with a batch job that regenerates later (the model isn't called inside the user's transaction):
@@ -275,4 +275,4 @@ UPDATE dbo.EmbeddingSync SET LastVersion = @now;
 - Embed meaningful text, not IDs or numbers; store vectors in a separate table.
 - `AI_GENERATE_CHUNKS`: `FIXED` only, size in characters, overlap in percent (0 to 50), compatibility level 170.
 - `AI_GENERATE_EMBEDDINGS(text USE MODEL m [PARAMETERS j])` in `SELECT`, `UPDATE` or `INSERT ... SELECT`.
-- Maintenance: trigger (immediate), Change Tracking (batched), CDC (old and new values), Functions (outside the engine), Logic Apps (low-code), CES (streams to Event Hubs), Foundry (models only).
+- Maintenance: trigger (immediate), Change Tracking (batched), CDC (old and new values), Functions (outside the engine), Logic Apps (low-code), CES (streams to Event Hubs or Fabric Eventstream), Foundry (models only).

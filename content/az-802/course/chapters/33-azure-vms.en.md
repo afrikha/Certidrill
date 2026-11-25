@@ -19,7 +19,7 @@ A VM has three kinds of disks:
 | Standard SSD | 32,767 GiB | 6,000 | Yes |
 | Standard HDD | 32,767 GiB | 2,000 or 3,000 | Yes, retiring on September 8, 2028 |
 
-Premium SSD needs a VM size that supports premium storage. Ultra Disks and Premium SSD v2 let you change IOPS and throughput independently of size; a Premium SSD gets its performance from its size, or from a **performance tier** that you raise temporarily.
+Premium SSD needs a VM size that supports premium storage. Ultra Disks and Premium SSD v2 let you change IOPS and throughput independently of size; a Premium SSD gets its performance from its size, or from a **performance tier** that you raise temporarily. Bursting is the other way to get short-term performance: **credit-based** bursting (Premium SSD of 512 GiB or less, Standard SSD of 1,024 GiB or less; on by default, no extra cost, best effort, up to 30 minutes at the maximum burst rate) or **on-demand** bursting (Premium SSD larger than 512 GiB; you enable it, and it's billed).
 
 ```powershell
 # Create an empty data disk and attach it at LUN 1
@@ -97,7 +97,7 @@ Autoscale (Azure Monitor) works with a profile and rules:
 | Scale-in rule | Example: Percentage CPU below 30 %, decrease the count. Always pair it with a scale-out rule |
 | Duration | Time over which the metric is averaged (10 minutes in the portal default rule) |
 | Cool down | Wait before the next scale action (5 minutes by default) |
-| Scale-in policy | Which instances are removed: Default (balance across zones, then fault domains, then highest instance ID), NewestVM or OldestVM |
+| Scale-in policy | Which instances are removed: Default (balance across zones, then fault domains, then highest instance ID), NewestVM or OldestVM (both also balance across zones first in a zone-spanning scale set) |
 
 ```bash
 az vmss scale --resource-group RG1 --name VMSS1 --new-capacity 5
@@ -146,7 +146,7 @@ New-AzAvailabilitySet -ResourceGroupName RG1 -Name AS-Web -Location westeurope `
 
 | Item | Detail |
 | --- | --- |
-| Prerequisite | Microsoft Defender for Servers **Plan 2** on the subscription; a network security group or an Azure Firewall (classic rules, not Firewall Manager policies) in front of the VM; Azure Resource Manager VMs |
+| Prerequisite | Microsoft Defender for Servers **Plan 2** on the subscription; a network security group, or an Azure Firewall on the same virtual network as the VM (classic rules; firewalls controlled by Azure Firewall Manager aren't supported), in front of the VM; Azure Resource Manager VMs |
 | When enabled | Defender for Cloud adds *deny all inbound* rules for the selected ports (by default 3389 for Windows, 22 for Linux; 5985 and 5986 for WinRM are suggested) |
 | Per port | Protocol, allowed source IPs (default any), maximum request time (default 3 hours) |
 | On request | Allow rules for the requester's IP address and the requested ports, for the requested time; rules are restored afterward. Established connections aren't cut |

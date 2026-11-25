@@ -23,7 +23,7 @@ Techniques:
 | **Precomputed aggregates** (counters, totals) | A frequent read would otherwise scan many items |
 | **Several entity types in one container**, with a `type` property | Related items are read together and can share the partition key (an order and its shipments) |
 | **Separate containers** | Entities need different partition keys, throughput, TTL or indexing |
-| **Materialized view** fed by the change feed | The same data must be queried by a second key (orders by product as well as by customer) |
+| **Materialized view** fed by the change feed, or a **global secondary index** (GSI) | The same data must be queried by a second key (orders by product as well as by customer) |
 
 Operational limits shape the model too: an item can't exceed 2 MB and a logical partition 20 GB; nesting is limited to 128 levels; retention (TTL), throughput and indexing are set per container, so data with different retention or load belongs in different containers.
 
@@ -89,7 +89,7 @@ A good partition key:
 | `/sensorType` (5 values) | Low cardinality: 5 logical partitions, 20 GB each at most |
 | `/readingId` (GUID) | Writes spread, but every per-device query fans out |
 
-Changing the key later means a new container and a data move: container copy jobs, or the change feed for a live migration.
+Changing the key later means a new container and a data move: container copy jobs, or the change feed for a live migration. When the old key must stay but another query pattern needs a different key, add a **global secondary index**: a read-only container with its own partition key, kept in sync automatically through the change feed (eventually consistent, autoscale throughput only; replaces and deletes on the source cost 50 to 100 % more RU).
 
 > **Exam trap.** Raising the container's RU/s doesn't fix a hot logical partition: one key value can never get more than 10,000 RU/s. Fix the key (or add a suffix), not the throughput.
 
@@ -104,7 +104,7 @@ Changing the key later means a new container and a data move: container copy job
 | `tenantId`, or `tenantId` + `userId` | Only the physical partitions holding that prefix |
 | `userId` or `sessionId` alone | Fan-out across all physical partitions |
 
-Design rules: every level should have high cardinality; with few first-level values (five tenants), ingestion stays on one physical partition until it splits at 50 GB; use a unique value such as the item `id` as the **last level** so that a prefix can grow beyond 20 GB. Hierarchical keys are set **at container creation only** (migrate with container copy jobs or the change feed), need a recent SDK (.NET 3.33.0, Java 4.42.0, Python 4.6.0 or later), and permissions can't target a partial prefix.
+Design rules: every level should have high cardinality (at least thousands of values, more than the number of physical partitions); with few first-level values (five tenants), ingestion stays on one physical partition until it splits at 50 GB (a split takes 4 to 6 hours), and if such a key already hits the 20 GB limit, Learn suggests a synthetic key instead; use a unique value such as the item `id` as the **last level** so that a prefix can grow beyond 20 GB. Hierarchical keys are set **at container creation only** (migrate with container copy jobs or the change feed), need a recent SDK (.NET 3.33.0, Java 4.42.0, Python 4.6.0 or later), and permissions can't target a partial prefix.
 
 ```text
 // C#: create the container, then point read with the full key
@@ -145,10 +145,12 @@ partitionKey: {
 | Layout | Isolation | Cost and limits | Fits |
 | --- | --- | --- | --- |
 | Partition key per tenant (`/tenantId`) | Logical only; noisy neighbors share RU/s | Cheapest; a tenant is capped at 20 GB | Many small tenants of similar size |
-| Hierarchical key `/tenantId` > ... | Logical | Cheap; large tenants grow past 20 GB | Many tenants, a few very large ones |
-| Container per tenant | Throughput (dedicated RU/s) and settings | Dedicated RU/s for each (400 minimum in manual mode); 500 containers and databases per account | Fewer tenants needing performance isolation |
-| Database per tenant (shared throughput) | Grouping of containers | Up to 25 containers sharing RU/s | Tenants with several containers each |
-| Account per tenant | Strongest: keys, network, regions, backup | Highest; 250 accounts per subscription by default | Regulated or premium tenants |
+| Hierarchical key `/tenantId` > ... | Logical | Cheap; large tenants grow past 20 GB | Many tenants (hundreds or more) with similar usage, read-heavy |
+| Container per tenant | Throughput (dedicated RU/s) and settings | Dedicated RU/s for each (400 minimum in manual mode); 500 containers and databases per account | Not recommended by the Architecture Center (account limits on containers and metadata operations) |
+| Database per tenant (shared throughput) | Grouping of containers | Up to 25 containers sharing RU/s | Not recommended, for the same reasons |
+| Account per tenant | Strongest: keys, network, regions, backup | Highest; 250 accounts per subscription by default | Regulated or premium tenants, a few very large tenants (a fleet throughput pool, in preview, can share RU/s across accounts) |
+
+The Architecture Center recommends partition key per tenant and account per tenant for most multi-tenant scenarios. For write-optimized workloads, or when the tenant level lacks high cardinality, it recommends a synthetic key or `/id` instead of a hierarchical key.
 
 > **Exam trap.** Filtering on `userId` alone in a `/tenantId` > `/userId` container is a fan-out query. And passing the values through `PartitionKeyBuilder` doesn't guarantee efficient routing: the leading levels must be in the `WHERE` clause.
 
@@ -199,8 +201,8 @@ reading["partitionKey"] = f"{reading['date']}.{bucket(reading['vin'])}"
 | Key on a property that changes (`status`) | Can't update in place; delete plus create isn't atomic | Immutable property |
 | One tenant near 20 GB on `/tenantId` | Writes will fail for that tenant | Hierarchical key with a unique last level |
 | Unbounded embedded array | Item grows toward 2 MB, write RU keep rising | Reference: one item per child |
-| Frequent cross-partition query on the hot path | RU and latency grow with the partition count | Add the key to the filter, denormalize, or a materialized view |
-| Shared database throughput with one busy container | The others get throttled | Dedicated throughput for that container |
+| Frequent cross-partition query on the hot path | RU and latency grow with the partition count | Add the key to the filter, denormalize, or a materialized view or global secondary index |
+| Shared database throughput with one busy container | The others get throttled (shared throughput isn't recommended for most workloads) | A new container with dedicated throughput and a data move: there's no in-place conversion |
 
 **Spotting a hot partition**: Insights > Throughput > **Normalized RU Consumption (%) By PartitionKeyRangeID**. The metric is the maximum utilization across partition key ranges each minute; one range at 100 % while others stay at 30 % or less signals a hot partition. Consistently 100 % across several ranges with more than 5 % of 429 means the container needs more RU/s. Per-second RU by partition key range, from diagnostic logs:
 
@@ -242,7 +244,7 @@ The **Azure Cosmos DB Cost Estimator** (`https://cosmos.azure.com/costestimator/
 <!-- section: key-points -->
 ## Key points
 
-- Model from the most frequent operations: make them point reads or single-partition queries; denormalize, precompute, co-locate types, or feed views with the change feed.
+- Model from the most frequent operations: make them point reads or single-partition queries; denormalize, precompute, co-locate types, or feed views with the change feed (or a global secondary index).
 - Embed what is bounded, read together and stable; reference what is unbounded, many-to-many or volatile; store references on the side that doesn't grow.
 - Partition key: immutable, high cardinality, even spread, used in filters. Logical partition 20 GB and 10,000 RU/s; physical 50 GB and 10,000 RU/s.
 - Hierarchical keys: up to 3 levels, prefix routing, set at creation, unique last level to pass 20 GB.

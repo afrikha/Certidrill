@@ -131,7 +131,7 @@ Design rules:
 | --- | --- | --- |
 | Remote users open an on-premises web application with Microsoft Entra sign-in and Conditional Access, without VPN | Microsoft Entra application proxy | A private network connector on-premises makes outbound connections only (ports 80 and 443); pre-authentication in the cloud; Kerberos constrained delegation gives single sign-on to applications using Integrated Windows Authentication |
 | Replace the VPN for any private resource defined by FQDN or IP address: file shares, RDP, SSH | Microsoft Entra Private Access | Global Secure Access client on the devices, the same connectors on-premises, Conditional Access per application |
-| Users who sign in with Windows Hello for Business or a security key on Microsoft Entra joined devices must reach on-premises file shares and Kerberos applications | Microsoft Entra Kerberos (cloud Kerberos trust) | Microsoft Entra ID issues a partial Kerberos ticket that an on-premises domain controller completes; authorization stays in AD DS |
+| Users who sign in with Windows Hello for Business or a security key on Microsoft Entra joined devices must reach on-premises file shares and Kerberos applications | Microsoft Entra Kerberos (cloud Kerberos trust) | Microsoft Entra ID issues a partial Kerberos ticket that an on-premises domain controller completes; authorization stays in AD DS. Works on Microsoft Entra joined and hybrid joined devices; for security keys, domain controllers run Windows Server 2016 or later, with at least one writable domain controller per site |
 | Manage on-premises servers with Azure roles, policies and monitoring | Azure Arc-enabled servers | Each server becomes an Azure resource; Linux servers accept SSH sign-in with Microsoft Entra ID through the Virtual Machine Administrator Login and Virtual Machine User Login roles, without public IP address |
 | Govern from the cloud the access to on-premises applications that authorize with AD groups | Cloud security groups provisioned to AD DS by Cloud Sync (group writeback), assigned through access packages | Membership of the AD group follows the cloud assignment and its expiration |
 
@@ -144,15 +144,15 @@ Azure Key Vault stores three kinds of objects: **secrets** (passwords, connectio
 
 | Option | Key protection | Tenancy | Stores | Recommend when |
 | --- | --- | --- | --- | --- |
-| Key Vault Standard | Software | Multitenant | Keys, secrets, certificates | Lowest cost and no HSM requirement |
-| Key Vault Premium | HSM, FIPS 140-3 Level 3 | Multitenant | Keys, secrets, certificates | HSM-protected keys are required; recommended minimum for customer-managed keys |
+| Key Vault Standard | Software, FIPS 140-2 Level 1 | Multitenant | Keys, secrets, certificates | Lowest cost and no HSM requirement |
+| Key Vault Premium | HSM, FIPS 140-3 Level 3 (FIPS 140-2 Level 2 for keys created on the older HSM Platform 1) | Multitenant | Keys, secrets, certificates | HSM-protected keys are required; recommended minimum for customer-managed keys |
 | Azure Key Vault Managed HSM | HSM, FIPS 140-3 Level 3 | Single-tenant, controlled by the customer | Keys only | Key sovereignty or a dedicated HSM is required |
 | Azure Cloud HSM | HSM, FIPS 140-3 Level 3 | Single-tenant | Keys, certificates | Migrated applications that call an HSM through PKCS#11; no integration with Azure platform services |
 | Azure Payment HSM | HSM | Single-tenant | Keys | Payment PIN processing |
 
 - **One vault per application, per environment and per region**: a breach stays contained, and access is granted vault by vault.
 - **Azure RBAC** is the recommended permission model and the default for new vaults from API version 2026-02-01. With legacy **access policies**, anyone who can write to the vault resource (Contributor, for example) can grant themselves access to its content, and Privileged Identity Management isn't supported.
-- Applications authenticate with a **managed identity**. App Service and Azure Functions accept **Key Vault references** in their settings: no code change, and a reference without version picks up a new secret version within 24 hours.
+- Applications authenticate with a **managed identity**. App Service and Azure Functions accept **Key Vault references** in their settings: no code change, and a reference without version picks up a new secret version within 24 hours, and any configuration change restarts the app and refetches every referenced secret immediately.
 - **Soft delete** is always on and can't be disabled: deleted vaults and objects are recoverable for 7 to 90 days (90 by default). **Purge protection** is optional: it forbids permanent deletion until the retention period ends, and services that encrypt with customer-managed keys, such as Azure Storage, require it.
 - **Rotation**: a rotation policy creates new key versions automatically; certificates renew automatically with the integrated certificate authorities (DigiCert, GlobalSign); a secret is rotated by a function triggered by the near-expiry event that Key Vault sends to Event Grid. Two alternating sets of credentials avoid downtime.
 - **Network and audit**: private endpoint, public access disabled, resource logs sent by a diagnostic setting.

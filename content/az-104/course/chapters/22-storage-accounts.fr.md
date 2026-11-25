@@ -40,7 +40,7 @@ Le Stockage Azure conserve toujours au moins trois copies. L'option de redondanc
 | Option | Copies | Survit à la panne d'un centre de données | Survit à la panne d'une zone | Survit à la panne d'une région | Lecture du secondaire sans basculement |
 | --- | --- | --- | --- | --- | --- |
 | **LRS** | 3, synchrones, un centre de données | Non | Non | Non | Non |
-| **ZRS** | 3, synchrones, trois zones de disponibilité | Oui | Oui | Non | Non |
+| **ZRS** | Synchrones, réparties sur trois zones de disponibilité ou plus | Oui | Oui | Non | Non |
 | **GRS** | LRS dans la région primaire + 3 copies asynchrones (LRS) dans la région jumelée | Oui | Oui | Oui | Non |
 | **RA-GRS** | GRS | Oui | Oui | Oui | **Oui** |
 | **GZRS** | ZRS dans la région primaire + 3 copies asynchrones (LRS) dans la région jumelée | Oui | Oui | Oui | Non |
@@ -74,7 +74,7 @@ Prérequis et règles :
 | Règle | Valeur |
 | --- | --- |
 | Types de comptes | Usage général v2 ou objets blob de blocs Premium, des deux côtés |
-| **Versioning des objets blob** | Activé sur la **source et la destination** |
+| **Contrôle de version des objets blob** | Activé sur la **source et la destination** |
 | **Flux de modification** (change feed) | Activé sur la **source** |
 | Stratégie | Une stratégie de réplication par couple source-destination, composée de règles (conteneur source, conteneur de destination, filtre de préfixe facultatif) |
 | Destinations | Un compte source peut répliquer vers deux comptes de destination au plus |
@@ -153,8 +153,8 @@ Pour les très gros transferts hors ligne, Azure propose les appareils Data Box 
 
 - Nom : 3 à 24 lettres minuscules et chiffres. Le type de compte est définitif ; la redondance ne l'est pas.
 - Comptes Premium : LRS ou ZRS seulement. Partages NFS : compte de partages de fichiers Premium.
-- LRS (un centre de données), ZRS (trois zones), GRS (plus la région jumelée), RA- (secondaire lisible, point de terminaison `-secondary`), GZRS (zones plus région).
+- LRS (un centre de données), ZRS (trois zones ou plus), GRS (plus la région jumelée), RA- (secondaire lisible, point de terminaison `-secondary`), GZRS (zones plus région).
 - Un basculement non planifié laisse le compte en LRS. L'archive n'existe pas avec ZRS, GZRS, RA-GZRS.
-- Réplication d'objets : objets blob de blocs, versioning sur les deux comptes, flux de modification sur la source, destination en lecture seule.
+- Réplication d'objets : objets blob de blocs, contrôle de version sur les deux comptes, flux de modification sur la source, destination en lecture seule.
 - Le chiffrement au repos est toujours actif. Clés gérées par le client : coffre avec suppression réversible et protection contre le vidage, identité managée. Chiffrement d'infrastructure : à la création seulement.
 - `azcopy sync` transfère les différences ; `azcopy copy` copie tout. Les rôles de données sont obligatoires avec Microsoft Entra ID.

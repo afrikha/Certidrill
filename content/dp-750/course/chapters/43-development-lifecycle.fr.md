@@ -26,7 +26,7 @@ Les bonnes pratiques attendues à l'examen :
 
 Limites : **1 Go** par branche de travail, moins de **20 000** ressources recommandées ; utilisez le **sparse checkout** pour un dépôt volumineux.
 
-Les **dossiers Git de production** sont créés par un administrateur hors de `/Workspace/Users/`, contiennent une branche de déploiement et ne sont mis à jour que par l'automatisation lorsqu'une pull request est fusionnée. La plupart des utilisateurs reçoivent **Can Run** ; seuls les administrateurs et les principaux de service les modifient. Le principal de service a besoin d'informations d'identification Git pour le dépôt.
+Les **dossiers Git de production** sont créés par un administrateur hors de `/Workspace/Users/`, contiennent une branche de déploiement et ne sont mis à jour que par l'automatisation lorsqu'une pull request est fusionnée. Les utilisateurs du projet, et les principaux de service qui exécutent de l'automatisation sur le dossier, reçoivent **Can Run** (éventuellement **Can View** pour tous les autres) ; seuls les administrateurs et les principaux de service les modifient. Le principal de service a besoin d'informations d'identification Git pour le dépôt.
 
 > **Piège d'examen.** Un dossier Git ne versionne que du code. Pour versionner et promouvoir la **définition du job** (tâches, planification, calcul) avec le code, utilisez un bundle.
 
@@ -222,15 +222,15 @@ Les **modes de déploiement** appliquent un ensemble de paramètres à une cible
 | --- | --- | --- |
 | Noms des ressources | Préfixés `[dev <short_name>]`, jobs et pipelines étiquetés `dev` | Inchangés |
 | Planifications et déclencheurs | En pause | Tels que configurés |
-| Exécutions simultanées des jobs | Activées | Telles que configurées |
-| Verrou de déploiement | Désactivé | Activé (par défaut) |
+| Exécutions simultanées des jobs | Activées (`max_concurrent_runs: 1` les désactive pour un job) | Telles que configurées |
+| Verrou de déploiement | Désactivé (`bundle.deployment.lock.enabled: true` le réactive) | Activé (par défaut) |
 | Pipelines | `development: true` | Doivent être `development: false` |
 | Remplacement `--cluster-id` | Autorisé | Interdit |
-| Validations | Aucune | La branche Git actuelle est égale à `git.branch` ; sans principal de service dans `run_as`, les chemins ne peuvent pas pointer vers un dossier utilisateur et `run_as` et `permissions` doivent être définis |
+| Validations | Aucune | La branche Git actuelle est égale à `git.branch` ; sans principal de service dans `run_as`, `artifact_path`, `file_path`, `root_path` et `state_path` ne peuvent pas être remplacés par un emplacement propre à un utilisateur, et `run_as` et `permissions` doivent être définis |
 
-Les **presets** (`name_prefix`, `trigger_pause_status`, `jobs_max_concurrent_runs`, `tags`) ajustent une cible comme staging ; les presets remplacent le mode, et le paramètre propre à une ressource remplace les presets.
+Les **presets** (`name_prefix`, `pipelines_development`, `trigger_pause_status`, `jobs_max_concurrent_runs`, `tags`) ajustent une cible comme staging ; les presets remplacent le mode, et le paramètre propre à une ressource remplace les presets.
 
-> **Piège d'examen.** Une planification qui ne se déclenche jamais après un déploiement sur la cible dev n'est pas un bogue : `mode: development` met toutes les planifications en pause. Définissez `pause_status: UNPAUSED` sur ce job s'il doit s'exécuter.
+> **Piège d'examen.** Une planification qui ne se déclenche jamais après un déploiement sur la cible dev n'est pas un bogue : `mode: development` met toutes les planifications en pause. Définissez `pause_status: UNPAUSED` dans le `schedule` (ou `continuous`) de ce job s'il doit s'exécuter.
 
 <!-- section: bundle-cli-deployment | objectives: 4.3.5 -->
 ## Déployer un bundle avec l'interface CLI Databricks
@@ -261,13 +261,15 @@ databricks bundle destroy -t prod           # delete everything the bundle deplo
 | Remplacer une variable | `--var="name=value"` |
 | Échouer plutôt que perturber des jobs en cours | `deploy --fail-on-active-runs` |
 | Lever un verrou obsolète laissé par un déploiement interrompu | `deploy --force-lock` (seulement si aucun déploiement n'est en cours) |
-| Contourner la validation de branche Git du mode production | `deploy --force` |
+| Passer outre les validations qui bloquent un déploiement (branche Git du mode production ; écrase aussi un tableau de bord modifié dans l'espace de travail) | `deploy --force` |
 | Ignorer les invites dans un pipeline | `--auto-approve` |
 | Utiliser un cluster existant en développement | `deploy --cluster-id` (mode development uniquement) |
-| Exécuter certaines tâches seulement ; redémarrer un job en cours | `run --only ingest,transform` ; `run --restart` |
-| Placer un job existant sous le contrôle du bundle | `bundle generate job`, `bundle deployment bind` |
+| Exécuter certaines tâches seulement ; redémarrer un job en cours | `run --only ingest,transform` (`+key` ajoute ses tâches en amont, `key+` ses tâches en aval) ; `run --restart` |
+| Passer des paramètres de job à une exécution ; ne pas attendre la fin de l'exécution | `run --params run_date=2026-11-24` ; `run --no-wait` |
+| Déployer seulement certaines ressources et leurs dépendances en amont (développement uniquement) | `deploy --select jobs.daily_sales` |
+| Placer un job existant sous le contrôle du bundle | `bundle generate job --bind`, ou `bundle generate job` puis `bundle deployment bind` |
 
-`bundle deploy` conserve son état dans l'espace de travail : il crée les nouvelles ressources, met à jour celles déjà déployées et **supprime les ressources retirées de la configuration**. L'identité d'un déploiement est nom du bundle + cible + auteur du déploiement : deux personnes qui déploient sur la même cible partagée entrent en conflit, confiez donc ce déploiement à un pipeline qui s'exécute en tant que principal de service. `bundle destroy` est irréversible. L'interface de l'espace de travail (volet **Deployments**) déploie aussi, en tant qu'utilisateur actuel et dans l'espace de travail actuel uniquement ; l'interface CLI est la voie pour le CI/CD.
+`bundle deploy` conserve son état dans l'espace de travail : il crée les nouvelles ressources, met à jour celles déjà déployées et **supprime les ressources retirées de la configuration**. L'identité d'un déploiement est nom du bundle + cible + auteur du déploiement : deux personnes qui déploient sur la même cible partagée entrent en conflit, confiez donc ce déploiement à un pipeline qui s'exécute en tant que principal de service. `bundle destroy` est irréversible ; le paramètre `lifecycle` en protège certaines ressources. L'interface de l'espace de travail (volet **Deployments**) déploie aussi, en tant qu'utilisateur actuel et dans l'espace de travail actuel uniquement ; l'interface CLI est la voie pour le CI/CD.
 
 > **Piège d'examen.** Un déploiement depuis une branche de fonctionnalité vers une cible de production échoue à la vérification `git.branch` : fusionnez, puis déployez depuis `main`. `--force` ne fait que contourner la protection.
 
@@ -318,6 +320,8 @@ Pour synchroniser un **dossier Git de production** après une fusion, le pipelin
 ```bash
 databricks repos update /Workspace/Production/sales-pipeline --branch main
 ```
+
+Sans CI/CD externe, un job planifié peut à la place exécuter un notebook qui appelle le SDK Databricks (`w.repos.update(..., branch="main")`).
 
 > **Conseil d'examen.** « Aucun secret stocké dans le système CI » : fédération d'identité de charge de travail. « Déployer les jobs avec leur configuration » : un bundle. « Seulement actualiser le code d'un dossier de production après une fusion » : une mise à jour par l'API Repos.
 

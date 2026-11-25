@@ -35,6 +35,7 @@ Limits to remember:
 - **Visualize results** doesn't support SQL with `ORDER BY`.
 - If a step can't be translated to SQL, a banner says the query isn't supported as a warehouse view.
 - For merged queries, only the table with **Enable load** set appears in the SQL script.
+- Warehouses with more than 750,000 combined tables, views and columns aren't supported for modeling.
 - Queries save automatically to **My queries**; users with the Viewer workspace role and users the warehouse was shared with can't move them to **Shared queries**.
 
 > **Exam trap.** The visual query editor never writes data except through Save as table. A request to insert, update or delete rows needs the SQL query editor in a warehouse, not the visual editor and not a SQL analytics endpoint.
@@ -91,6 +92,8 @@ SELECT OrderDate, StoreID, SalesAmount,
        LAG(SalesAmount) OVER (PARTITION BY StoreID ORDER BY OrderDate) AS PreviousDay
 FROM dbo.DailyStoreSales;
 ```
+
+A window function isn't allowed in `WHERE`. In a Fabric warehouse or SQL analytics endpoint, `QUALIFY` filters on its result after `HAVING`, without a CTE or subquery: `QUALIFY ROW_NUMBER() OVER (PARTITION BY CustomerKey ORDER BY OrderDate DESC) = 1` keeps one row per key.
 
 > **Exam trap.** `COUNT(*)` counts rows, `COUNT(col)` skips nulls and `COUNT(DISTINCT col)` counts unique non-null values. "Number of customers who ordered" is `COUNT(DISTINCT CustomerKey)`, not `COUNT(CustomerKey)`.
 
@@ -195,15 +198,16 @@ EVALUATE
 
 Useful features:
 
-- **Quick queries** from the Data pane: Show top 100 rows, Show column statistics, Define all measures in the model, Evaluate a measure.
+- **Quick queries** from the Data pane: Define all measures in the model and Define new measure; on a table, Show top 100 rows, Show column statistics and Define all measures in this table; on a column, Show data preview and Show column statistics; on a measure, Evaluate, Define and evaluate, and Define with references and evaluate. Define all measures is unavailable above 500 measures.
 - **CodeLens** above a `DEFINE MEASURE`: Update model: Add new measure, or Update model: Overwrite measure; **Update model with changes** applies them all. A `///` comment becomes the measure description.
 - Performance analyzer copies a visual's DAX query, or **Run** opens it in DAX query view.
 
 | Limit or prerequisite | Value |
 | --- | --- |
-| Desktop | 15 MB of data and 1,000,000 values per query |
-| Web | 99,999 rows per query |
-| Web permission | Write permission on the semantic model, and the workspace setting that lets users edit data models in the service |
+| Every query | 15 MB of data and 1,000,000 values per query |
+| Web, in addition | 99,999 rows per query; queries aren't kept after you close the browser |
+| Web permission | Write permission on the semantic model, and the workspace setting **User can edit data models in the Power BI service (preview)** |
+| Web, default semantic model | Not available: connect live from Power BI Desktop instead |
 | Viewer with Build permission | Use Power BI Desktop with a live connection instead |
 
 > **Exam trap.** `SUMMARIZECOLUMNS` groups and aggregates in one call, and its filter arguments (such as `TREATAS`) restrict the result. `SUMMARIZE` with extension columns is the older pattern; `FILTER` over a whole fact table is the slow pattern.
@@ -213,7 +217,7 @@ Useful features:
 
 - Visual query editor: Power Query diagram over a warehouse or SQL analytics endpoint, folding steps only, read-only; Save as view or Save as table (CTAS).
 - T-SQL: `WHERE` before grouping, `HAVING` after; aliases only usable in `ORDER BY`; three-part names for cross-database queries in the current workspace.
-- `ROW_NUMBER`, `RANK` and `DENSE_RANK` differ only on ties.
+- `ROW_NUMBER`, `RANK` and `DENSE_RANK` differ only on ties; filter on them with a CTE or, in Fabric, `QUALIFY`, never in `WHERE`.
 - KQL: `where`, `project`, `extend`, `summarize ... by bin()`, `top n by`; `take` is unordered; `has` is faster than `contains`; `=~` ignores case.
 - DAX query: `EVALUATE` returns a table, `DEFINE MEASURE` adds temporary measures, `SUMMARIZECOLUMNS` groups and aggregates.
 - DAX queries use the model's measures and security; SQL on the endpoint doesn't.

@@ -25,6 +25,13 @@ enum ContentStatus {
   retired
 }
 
+/// What a question is for (docs/SPECS-QUIZ-CHAPITRE.md §4.1): the mock exams and
+/// trainings (`exam`), or an end-of-chapter quiz (`quiz`), never drawn in an exam.
+enum QuestionUsage {
+  exam
+  quiz
+}
+
 enum QuestionType {
   single
   multi
@@ -144,6 +151,7 @@ model User {
   outcomes       ExamOutcome[]
   entitlements   Entitlement[]
   courseProgress CourseProgress[]
+  quizAttempts   QuizAttempt[]
   billing        BillingCustomer?
   emails         EmailOutbox[]
   auditActions   AuditLog[]       @relation("audit_actor")
@@ -199,15 +207,17 @@ model VerificationToken {
 // ---------------------------------------------------------------- referential
 
 model Certification {
-  id         String  @id @default(cuid())
-  code       String  @unique // e.g. "az-104"
+  id         String   @id @default(cuid())
+  code       String   @unique // e.g. "az-104"
   title      String
   vendor     String
-  active     Boolean @default(true)
+  /// The languages of the official exam (blueprint certification.languages): without "fr", the French site shows the English content.
+  languages  String[] @default(["en", "fr"])
+  active     Boolean  @default(true)
   /// `active` as blueprint.yaml gave it at the last seed: while the file keeps it, the value set in the back-office stays.
-  fileActive Boolean @default(true)
+  fileActive Boolean  @default(true)
   /// Full access for every signed-in user (e.g. a free entry-level certification).
-  freeAccess Boolean @default(false)
+  freeAccess Boolean  @default(false)
 
   blueprints     Blueprint[]
   caseStudies    CaseStudy[]
@@ -350,6 +360,12 @@ model Question {
   fileStatus       ContentStatus @default(draft) // the status the file gave at the last seed (see seed.ts)
   version          Int           @default(1)
   blueprintVersion String
+  /// exam: mock exams and trainings; quiz: end-of-chapter quiz only (lib/questions/usage.ts).
+  usage            QuestionUsage @default(exam)
+  /// The chapter of a quiz question (null for the exam bank).
+  chapterId        String?
+  /// Its place in the quiz, 1..10 (increasing difficulty).
+  quizPosition     Int?
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
 
@@ -357,9 +373,12 @@ model Question {
   objective     Objective        @relation(fields: [objectiveId], references: [id])
   caseStudy     CaseStudy?       @relation(fields: [caseStudyId], references: [id])
   series        QuestionSeries?  @relation(fields: [seriesId], references: [id])
+  chapter       CourseChapter?   @relation(fields: [chapterId], references: [id], onDelete: SetNull)
   items         AttemptItem[]
   reports       QuestionReport[]
 
+  @@unique([chapterId, quizPosition])
+  @@index([certificationId, usage, status])
   @@index([certificationId, status])
   @@index([objectiveId])
   @@map("question")
@@ -414,6 +433,8 @@ model CourseChapter {
   certification Certification   @relation(fields: [certificationId], references: [id], onDelete: Cascade)
   module        CourseModule    @relation(fields: [moduleId], references: [id], onDelete: Cascade)
   sections      CourseSection[]
+  quizQuestions Question[]
+  quizAttempts  QuizAttempt[]
 
   @@unique([certificationId, code])
   @@index([moduleId])
@@ -818,4 +839,35 @@ model SignupRequest {
   @@index([email])
   @@index([expiresAt])
   @@map("signup_request")
+}
+
+// ---------------------------------------------------------------- chapter quizzes
+// docs/SPECS-QUIZ-CHAPITRE.md §4.1. Not an Attempt: its partial index (one
+// exam in progress per user and certification) would block an exam during a quiz.
+
+model QuizAttempt {
+  id          String    @id @default(cuid())
+  userId      String
+  chapterId   String
+  /// The language the quiz is taken in.
+  locale      String
+  /// By position, the question drawn and its frozen option order: { "1": { question, order: OptionOrder }, … }.
+  optionOrder Json
+  /// The responses given, by position: { "1": response, … }.
+  responses   Json      @default("{}")
+  /// By position: { "1": { questionId, earned, max, passed } }; a position is validated once it is here.
+  results     Json      @default("{}")
+  /// Questions fully right, out of 10; and among positions 6-10 (exam level).
+  score       Int?
+  hardScore   Int?
+  passed      Boolean?
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  user    User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chapter CourseChapter @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+
+  @@index([userId, chapterId])
+  @@index([chapterId])
+  @@map("quiz_attempt")
 }

@@ -31,7 +31,7 @@ TRACK HISTORY ON * EXCEPT (last_login);
 
 Avec `STORED AS SCD TYPE 2`, la cible reçoit les colonnes `__START_AT` et `__END_AT` (`__END_AT` est nul pour la version courante). `TRACK HISTORY ON * EXCEPT (last_login)` met à jour `last_login` sur place au lieu de créer une version. `STORED AS SCD TYPE 1` ne garde que l'état courant, sans ces colonnes. AUTO CDC exige un pipeline serverless ou l'édition Pro ou Advanced.
 
-Hors pipeline, une dimension de type 2 se maintient avec un seul `MERGE` qui ferme et insère à la fois : les lignes modifiées sont envoyées deux fois, une fois avec leur clé (pour fermer la version courante) et une fois avec une clé nulle (pour qu'elles ne correspondent pas et soient insérées comme nouvelle version).
+Hors pipeline, une dimension de type 2 se maintient avec un seul `MERGE` qui ferme et insère à la fois : les lignes modifiées sont envoyées deux fois, une fois avec leur clé (pour fermer la version courante) et une fois avec une clé nulle (pour qu'elles ne correspondent pas et soient insérées comme nouvelle version). Le module de formation Learn utilise plutôt deux instructions : un `MERGE` qui ferme les lignes modifiées et insère les nouveaux clients, puis un `INSERT ... SELECT` des nouvelles versions.
 
 ```text
 MERGE INTO sales.gold.dim_customer AS t
@@ -80,8 +80,10 @@ Trois mécanismes enregistrent les modifications au fil du temps :
 | Mécanisme | Ce qu'il apporte | Limite |
 | --- | --- | --- |
 | Voyage dans le temps Delta (`VERSION AS OF`, `TIMESTAMP AS OF`, `DESCRIBE HISTORY`) | N'importe quel état passé de la table, sans travail de conception | Seulement dans les fenêtres de rétention (7 jours de fichiers, 30 jours de journal par défaut) |
-| Flux de données modifiées (change data feed) | Les modifications au niveau des lignes avec `_change_type` (`insert`, `update_preimage`, `update_postimage`, `delete`), `_commit_version`, `_commit_timestamp` | Désactivé par défaut ; n'enregistre que les modifications postérieures à son activation ; suit la rétention de la table |
+| Flux de données modifiées (change data feed) | Les modifications au niveau des lignes avec `_change_type` (`insert`, `update_preimage`, `update_postimage`, `delete`), `_commit_version`, `_commit_timestamp` | Désactivé par défaut (flux hérité) ; n'enregistre que les modifications postérieures à son activation ; suit la rétention de la table |
 | Table d'historique explicite | Chaque modification conservée aussi longtemps que vous le décidez | Doit être alimentée par un job ou un pipeline |
+
+Le tableau décrit le flux de données modifiées **hérité** (legacy), activé table par table avec `delta.enableChangeDataFeed`. Databricks recommande de migrer vers le **flux de données modifiées automatique** (automatic change data feed ; Databricks Runtime 19 et versions ultérieures, tables Delta Unity Catalog avec le suivi des lignes (row tracking), ou tables Iceberg v3) : il calcule les modifications à la lecture, ne demande aucune propriété par table et s'interroge avec les mêmes `table_changes` et `readChangeFeed`.
 
 Le SCD de type 2 suit les versions **métier** pour les rapports ; une table temporelle enregistre les modifications **techniques** pour le débogage, l'audit et la reproduction d'un rapport tel qu'il était.
 
@@ -110,7 +112,7 @@ Pour conserver l'historique au-delà des fenêtres de rétention, diffusez le fl
 
 Les versions de `table_changes` sont inclusives ; `startingVersion` ou `startingTimestamp` font de même en Python. Augmenter `delta.logRetentionDuration` et `delta.deletedFileRetentionDuration` étend le voyage dans le temps, au prix du stockage ; Microsoft Learn déconseille d'utiliser l'historique de la table comme sauvegarde à long terme.
 
-> **Piège d'examen.** Activer le flux de données modifiées aujourd'hui ne révèle pas les modifications d'hier : il ne capture que les validations effectuées après la définition de la propriété. Activez-le avant de charger les données de production.
+> **Piège d'examen.** Activer aujourd'hui le flux de données modifiées hérité ne révèle pas les modifications d'hier : il ne capture que les validations effectuées après la définition de la propriété. Activez-le avant de charger les données de production.
 
 <!-- section: clustering | objectives: 3.1.9 -->
 ## Stratégie de clustering : clustering liquide, ordre Z, vecteurs de suppression
@@ -135,19 +137,19 @@ OPTIMIZE sales.legacy.orders ZORDER BY (customer_id, order_date);
 | Statut | Recommandé pour les nouvelles tables | Hérité | Seulement pour les tables de plus de 1 To |
 | Clés | Jusqu'à 4, toute cardinalité | Plusieurs colonnes, appliquées au moment de `OPTIMIZE` | Une colonne à faible cardinalité (ou quelques-unes) |
 | Changer les clés | `ALTER TABLE ... CLUSTER BY`, sans réécriture (`OPTIMIZE FULL` pour regrouper les données existantes) | Réécriture complète | Réécriture complète |
-| Concurrence | Concurrence au niveau des lignes | Au niveau de la transaction | Au niveau de la transaction |
+| Concurrence | Concurrence au niveau des lignes (avec vecteurs de suppression) | Au niveau de la transaction | Au niveau de la transaction |
 | Combinable avec | Ni le partitionnement ni `ZORDER` | Le partitionnement | L'ordre Z |
 
-Le clustering liquide exige Databricks Runtime 13.3 LTS ou ultérieur et il est incrémentiel : chaque `OPTIMIZE` ne réorganise que ce qui en a besoin (planifiez-le toutes les une ou deux heures sur les tables très actives, ou laissez l'optimisation prédictive l'exécuter sur les tables managées). `CLUSTER BY AUTO` laisse Databricks choisir et réviser les clés d'après l'historique des requêtes ; il exige l'optimisation prédictive. Choisissez les clés parmi les colonnes les plus utilisées dans les filtres ; leur ordre compte peu.
+Le clustering liquide est en disponibilité générale pour les tables Delta à partir de Databricks Runtime 15.4 LTS et il est incrémentiel : chaque `OPTIMIZE` ne réorganise que ce qui en a besoin (planifiez-le toutes les une ou deux heures sur les tables très actives, ou laissez l'optimisation prédictive l'exécuter sur les tables managées). `CLUSTER BY AUTO` laisse Databricks choisir et réviser les clés d'après l'historique des requêtes ; il exige l'optimisation prédictive. Choisissez les clés parmi les colonnes les plus utilisées dans les filtres ; leur ordre compte peu.
 
-Les **vecteurs de suppression** font que `DELETE`, `UPDATE` et `MERGE` marquent les lignes comme supprimées dans un petit fichier au lieu de réécrire des fichiers Parquet entiers ; les lecteurs les appliquent à la volée. Ils sont activés par défaut pour les nouvelles tables à partir de Databricks Runtime 14.1, appliqués physiquement par `OPTIMIZE`, le compactage automatique ou `REORG TABLE ... APPLY (PURGE)`, et permettent la concurrence au niveau des lignes.
+Les **vecteurs de suppression** font que `DELETE`, `UPDATE` et `MERGE` marquent les lignes comme supprimées dans un petit fichier au lieu de réécrire des fichiers Parquet entiers ; les lecteurs les appliquent à la volée. Sur les tables Delta, ils doivent être activés explicitement, sauf si le paramètre d'espace de travail **Auto-enable deletion vectors** les active pour les nouvelles tables (entrepôt SQL ou Databricks Runtime 14.3 LTS et versions ultérieures ; les valeurs par défaut varient selon la région). `MERGE` avec vecteurs de suppression exige Databricks Runtime 14.3 LTS (12.2 LTS avec Photon). Ils sont appliqués physiquement par `OPTIMIZE`, le compactage automatique ou `REORG TABLE ... APPLY (PURGE)`, et permettent la concurrence au niveau des lignes (Databricks Runtime 14.3 LTS et versions ultérieures, tables non partitionnées uniquement).
 
 ```text
 ALTER TABLE sales.silver.orders SET TBLPROPERTIES ('delta.enableDeletionVectors' = true);
 REORG TABLE sales.silver.orders APPLY (PURGE);
 ```
 
-> **Piège d'examen.** Le clustering liquide ne peut pas être activé sur une table partitionnée. Pour passer une table partitionnée au clustering liquide, recréez-la sans partitionnement (par exemple par CTAS avec `CLUSTER BY`), puis exécutez `OPTIMIZE`.
+> **Piège d'examen.** Le clustering liquide ne peut pas être activé sur une table partitionnée avec `ALTER TABLE ... CLUSTER BY`. À partir de Databricks Runtime 18.1, convertissez-la sur place avec `ALTER TABLE ... REPLACE PARTITIONED BY WITH CLUSTER BY (...)`, puis exécutez `OPTIMIZE ... FULL` ; sur les runtimes plus anciens, recréez-la sans partitionnement (par exemple par CTAS avec `CLUSTER BY`).
 
 <!-- section: managed-external | objectives: 3.1.10 -->
 ## Tables managées ou non managées (externes)
@@ -159,14 +161,14 @@ REORG TABLE sales.silver.orders APPLY (PURGE);
 | Formats | Delta, Iceberg | Delta, CSV, JSON, Avro, Parquet, ORC, texte |
 | Optimisation prédictive, clustering liquide automatique | Oui | Non |
 | `DROP TABLE` | Fichiers supprimés par Unity Catalog après la période de récupération | Seules les métadonnées sont supprimées ; les fichiers restent dans le stockage |
-| `UNDROP TABLE` | Pendant la période de récupération (7 jours par défaut) | Récupère la définition ; exige `CREATE EXTERNAL TABLE` sur l'emplacement |
+| `UNDROP TABLE` | Pendant la période de récupération (7 jours par défaut ; configurable à 0 heure ou de 7 à 30 jours en préversion publique) | Récupère la définition ; exige `CREATE EXTERNAL TABLE` sur l'emplacement |
 
 ```text
 CREATE TABLE sales.bronze.legacy_orders (order_id BIGINT, amount DECIMAL(12,2))
 LOCATION 'abfss://lake@contosodata.dfs.core.windows.net/legacy/orders';
 ```
 
-Créer une table externe exige `CREATE EXTERNAL TABLE` sur l'emplacement externe, plus `CREATE TABLE` et `USE SCHEMA` sur le schéma et `USE CATALOG` sur le catalogue.
+Créer une table externe exige `CREATE EXTERNAL TABLE` sur l'emplacement externe, plus `CREATE TABLE` et `USE SCHEMA` sur le schéma et `USE CATALOG` sur le catalogue. Supprimer une table exige d'en être propriétaire ou de disposer de `MANAGE` sur elle.
 
 Databricks recommande les tables **managées** dans la plupart des cas : optimisation automatique, requêtes plus rapides, coût réduit, cycle de vie géré par Unity Catalog. Choisissez des tables **externes** quand :
 
@@ -184,7 +186,7 @@ Databricks recommande les tables **managées** dans la plupart des cas : optimis
 - Le type 1 écrase, le type 2 crée des versions avec une clé de substitution et des dates de validité, le type 3 garde une valeur précédente, le type 0 ne change jamais.
 - AUTO CDC avec `SEQUENCE BY` et `STORED AS SCD TYPE 2` ajoute `__START_AT` et `__END_AT` et gère les enregistrements tardifs.
 - Déclarez d'abord la granularité ; gardez les données atomiques et dérivez les agrégats par des vues matérialisées.
-- Le voyage dans le temps est borné par la rétention ; le flux de données modifiées n'enregistre qu'après son activation ; une table d'historique alimentée par `readChangeFeed` conserve tout.
-- Clustering liquide : jusqu'à 4 clés, changement de clés sans réécriture, `CLUSTER BY AUTO` exige l'optimisation prédictive, incompatible avec le partitionnement et `ZORDER`.
-- Les vecteurs de suppression accélèrent suppressions et mises à jour ; `REORG ... APPLY (PURGE)` puis `VACUUM` suppriment physiquement les données.
+- Le voyage dans le temps est borné par la rétention ; le flux de données modifiées hérité n'enregistre qu'après son activation (le flux automatique ne demande aucun paramètre par table) ; une table d'historique alimentée par `readChangeFeed` conserve tout.
+- Clustering liquide : jusqu'à 4 clés, changement de clés sans réécriture, `REPLACE PARTITIONED BY WITH CLUSTER BY` convertit une table partitionnée (DBR 18.1+), `CLUSTER BY AUTO` exige l'optimisation prédictive, incompatible avec le partitionnement et `ZORDER`.
+- Les vecteurs de suppression accélèrent suppressions et mises à jour et doivent être activés sur les tables Delta, sauf activation automatique par l'espace de travail ; `REORG ... APPLY (PURGE)` puis `VACUUM` suppriment physiquement les données.
 - Managée par défaut ; externe quand les fichiers doivent survivre à `DROP`, que d'autres moteurs y accèdent ou que le format n'est ni Delta ni Iceberg.

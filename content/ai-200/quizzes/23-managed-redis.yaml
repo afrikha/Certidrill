@@ -1,0 +1,462 @@
+chapter: 23-managed-redis
+questions:
+  # ------------------------------------------------------------------ 1
+  - id: ai200-qz-23-01
+    objective: "2.3.1"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        Northwind Traders caches product details in Azure Managed Redis by using the cache-aside pattern. A request asks for a product whose key isn't in the cache.
+
+        What should the application do?
+      fr: |
+        Northwind Traders met en cache des détails de produits dans Azure Managed Redis à l'aide du modèle cache-aside. Une requête demande un produit dont la clé n'est pas dans le cache.
+
+        Que doit faire l'application ?
+    body:
+      options:
+        - { id: a, text: { en: "Read the product from the database, write it to the cache with a time to live (TTL), and return it.", fr: "Lire le produit dans la base de données, l'écrire dans le cache avec une durée de vie (TTL), puis le renvoyer." } }
+        - { id: b, text: { en: "Return an error, and let the client retry after a background job has loaded the product into the cache.", fr: "Renvoyer une erreur et laisser le client réessayer après qu'un traitement en arrière-plan a chargé le produit dans le cache." } }
+        - { id: c, text: { en: "Wait for Azure Managed Redis to load the product from the database, and then read the key again.", fr: "Attendre qu'Azure Managed Redis charge le produit depuis la base de données, puis relire la clé." } }
+        - { id: d, text: { en: "Read the product from the database and return it, without writing anything to the cache.", fr: "Lire le produit dans la base de données et le renvoyer, sans rien écrire dans le cache." } }
+    answer: { optionId: a }
+    explanation:
+      correct:
+        en: |
+          In cache-aside (lazy loading), the application checks the cache first. On a cache miss, it retrieves the item from the data store, stores it in the cache for the next requests, and returns it. Writing it with an expiration bounds how stale the cached copy can become.
+        fr: |
+          Avec cache-aside (chargement différé), l'application consulte d'abord le cache. En cas d'absence dans le cache, elle récupère l'élément dans le magasin de données, le stocke dans le cache pour les requêtes suivantes, puis le renvoie. L'écrire avec une expiration borne le retard que la copie en cache peut prendre.
+      options:
+        b: { en: "Cache-aside never fails a request on a miss: the application itself loads the item from the data store.", fr: "Cache-aside ne fait jamais échouer une requête en cas d'absence : l'application charge elle-même l'élément depuis le magasin de données." }
+        c: { en: "Azure Managed Redis doesn't read your database; in cache-aside, the application code loads the data on a miss.", fr: "Azure Managed Redis ne lit pas votre base de données ; avec cache-aside, c'est le code de l'application qui charge les données en cas d'absence." }
+        d: { en: "Without writing the item to the cache, every later request also misses and reaches the database.", fr: "Sans écriture de l'élément dans le cache, toutes les requêtes suivantes échouent aussi dans le cache et atteignent la base de données." }
+    references:
+      - title: Cache-Aside Pattern
+        url: https://learn.microsoft.com/en-us/azure/architecture/patterns/cache-aside
+      - title: Implement data operations
+        url: https://learn.microsoft.com/en-us/training/modules/implement-data-operations-azure-managed-redis/4-implement-data-operations
+
+  # ------------------------------------------------------------------ 2
+  - id: ai200-qz-23-02
+    objective: "2.3.2"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        Fabrikam stores 1,536-dimension text embeddings as hashes in Azure Managed Redis, in an index whose vector field uses `"TYPE": "FLOAT32"`. A developer proposes to change the field to `"TYPE": "FLOAT64"`, and to update the loader so that it writes vectors of the matching type.
+
+        What is the main effect of this change?
+      fr: |
+        Fabrikam stocke des incorporations de texte de 1 536 dimensions sous forme de hachages dans Azure Managed Redis, dans un index dont le champ vectoriel utilise `"TYPE": "FLOAT32"`. Un développeur propose de passer le champ à `"TYPE": "FLOAT64"` et de mettre à jour le chargeur pour qu'il écrive des vecteurs du type correspondant.
+
+        Quel est le principal effet de ce changement ?
+    body:
+      options:
+        - { id: a, text: { en: "Queries return exact nearest neighbors instead of approximate ones, at the cost of latency.", fr: "Les requêtes renvoient les plus proches voisins exacts au lieu de voisins approximatifs, au prix de la latence." } }
+        - { id: b, text: { en: "The index rejects the vectors, because a FLOAT64 field accepts at most 768 dimensions.", fr: "L'index refuse les vecteurs, car un champ FLOAT64 accepte au plus 768 dimensions." } }
+        - { id: c, text: { en: "Each vector takes about 12 KB instead of 6 KB, with no practical gain for AI search.", fr: "Chaque vecteur occupe environ 12 Ko au lieu de 6 Ko, sans gain pratique pour la recherche IA." } }
+        - { id: d, text: { en: "Each vector takes about 3 KB instead of 6 KB, because values are stored compressed.", fr: "Chaque vecteur occupe environ 3 Ko au lieu de 6 Ko, car les valeurs sont stockées compressées." } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          A FLOAT32 value takes 4 bytes and a FLOAT64 value 8 bytes, so a 1,536-dimension vector grows from about 6 KB to about 12 KB. FLOAT64 also slows distance calculations, and Learn recommends FLOAT32 as the standard type for AI embeddings; FLOAT64 is only for specialized needs of maximum precision.
+        fr: |
+          Une valeur FLOAT32 occupe 4 octets et une valeur FLOAT64 8 octets : un vecteur de 1 536 dimensions passe d'environ 6 Ko à environ 12 Ko. FLOAT64 ralentit aussi les calculs de distance, et Learn recommande FLOAT32 comme type standard pour les incorporations IA ; FLOAT64 est réservé aux besoins spécialisés de précision maximale.
+      options:
+        a: { en: "Exact versus approximate search is decided by the algorithm (FLAT or HNSW), not by the vector type.", fr: "La recherche exacte ou approximative dépend de l'algorithme (FLAT ou HNSW), pas du type de vecteur." }
+        b: { en: "The vector type doesn't limit the dimension; `DIM` must simply match the model's output.", fr: "Le type de vecteur ne limite pas la dimension ; `DIM` doit simplement correspondre à la sortie du modèle." }
+        d: { en: "FLOAT64 uses 8 bytes per dimension, twice as much as FLOAT32, and values aren't compressed.", fr: "FLOAT64 utilise 8 octets par dimension, deux fois plus que FLOAT32, et les valeurs ne sont pas compressées." }
+    references:
+      - title: Choose vector types and indexing strategies
+        url: https://learn.microsoft.com/en-us/training/modules/implement-vector-storage-azure-managed-redis/3-vector-types-index-strategy
+
+  # ------------------------------------------------------------------ 3
+  - id: ai200-qz-23-03
+    objective: "2.3.1"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Contoso created an Azure Managed Redis instance with the OSS clustering policy to get the highest throughput for a session cache. A Python service connects to the instance by using redis-py, TLS, and a Microsoft Entra credential provider.
+
+        Which client configuration should the service use?
+      fr: |
+        Contoso a créé une instance Azure Managed Redis avec la stratégie de clustering OSS pour obtenir le débit le plus élevé pour un cache de sessions. Un service Python se connecte à l'instance à l'aide de redis-py, de TLS et d'un fournisseur d'informations d'identification Microsoft Entra.
+
+        Quelle configuration cliente le service doit-il utiliser ?
+    body:
+      options:
+        - { id: a, text: { en: "`redis.Redis` on port 10000, the single endpoint of the instance", fr: "`redis.Redis` sur le port 10000, le point de terminaison unique de l'instance" } }
+        - { id: b, text: { en: "`redis.cluster.RedisCluster` on port 10000, the initial endpoint of the instance", fr: "`redis.cluster.RedisCluster` sur le port 10000, le point de terminaison initial de l'instance" } }
+        - { id: c, text: { en: "`redis.Redis` on the 85xx port of each node, hardcoded in the configuration", fr: "`redis.Redis` sur le port 85xx de chaque nœud, codé en dur dans la configuration" } }
+        - { id: d, text: { en: "`redis.cluster.RedisCluster` on port 6380, the TLS endpoint of the instance", fr: "`redis.cluster.RedisCluster` sur le port 6380, le point de terminaison TLS de l'instance" } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          The OSS clustering policy exposes the Redis Cluster API, so the client library must be cluster-aware: in redis-py, that's `RedisCluster`. The initial connection uses port 10000, and the cluster-aware client discovers the shard ports itself and connects to the right shard for each key.
+        fr: |
+          La stratégie de clustering OSS expose l'API Redis Cluster : la bibliothèque cliente doit gérer les clusters, c'est-à-dire `RedisCluster` dans redis-py. La connexion initiale utilise le port 10000, et le client compatible cluster découvre lui-même les ports des partitions et se connecte à la bonne partition pour chaque clé.
+      options:
+        a: { en: "`redis.Redis` isn't cluster-aware; a single endpoint that routes every request is the Enterprise policy, not OSS.", fr: "`redis.Redis` ne gère pas les clusters ; un point de terminaison unique qui route chaque requête correspond à la stratégie Enterprise, pas OSS." }
+        c: { en: "The 85xx ports can change over time and must not be hardcoded; a cluster-aware client discovers them.", fr: "Les ports 85xx peuvent changer au fil du temps et ne doivent pas être codés en dur ; un client compatible cluster les découvre." }
+        d: { en: "Port 6380 is the TLS port of Azure Cache for Redis; Azure Managed Redis listens on port 10000.", fr: "Le port 6380 est le port TLS d'Azure Cache for Redis ; Azure Managed Redis écoute sur le port 10000." }
+    references:
+      - title: Azure Managed Redis Architecture
+        url: https://learn.microsoft.com/en-us/azure/redis/architecture
+      - title: "Quickstart: Create a Python app with Azure Managed Redis"
+        url: https://learn.microsoft.com/en-us/azure/redis/python-get-started
+
+  # ------------------------------------------------------------------ 4
+  - id: ai200-qz-23-04
+    objective: "2.3.2"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Wingtip Toys is adding vector search to its catalog in an Azure Managed Redis instance that was created with the RediSearch and RedisJSON modules. Each product has nested specifications and a list of photos, and each photo has its own image embedding, so one product holds several vectors.
+
+        The application must keep this structure under one key per product. How should you store and index the products?
+      fr: |
+        Wingtip Toys ajoute la recherche vectorielle à son catalogue dans une instance Azure Managed Redis créée avec les modules RediSearch et RedisJSON. Chaque produit a des spécifications imbriquées et une liste de photos, et chaque photo a sa propre incorporation d'image : un produit contient donc plusieurs vecteurs.
+
+        L'application doit conserver cette structure sous une clé par produit. Comment devez-vous stocker et indexer les produits ?
+    body:
+      options:
+        - { id: a, text: { en: "As hashes indexed with `IndexType.HASH`, each embedding written as `float32` bytes", fr: "Sous forme de hachages indexés avec `IndexType.HASH`, chaque incorporation écrite en octets `float32`" } }
+        - { id: b, text: { en: "As hashes indexed with `IndexType.HASH`, each embedding written as a list of numbers", fr: "Sous forme de hachages indexés avec `IndexType.HASH`, chaque incorporation écrite comme une liste de nombres" } }
+        - { id: c, text: { en: "As JSON documents indexed with `IndexType.HASH`, each embedding written as `float32` bytes", fr: "Sous forme de documents JSON indexés avec `IndexType.HASH`, chaque incorporation écrite en octets `float32`" } }
+        - { id: d, text: { en: "As JSON documents indexed with `IndexType.JSON`, each embedding written as a list of numbers", fr: "Sous forme de documents JSON indexés avec `IndexType.JSON`, chaque incorporation écrite comme une liste de nombres" } }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          JSON documents fit nested structures and several vectors per document, which a hash's flat fields can't represent. A JSON index is created with `IndexType.JSON` and JSONPath field names, and the vectors are stored as numeric arrays, for example with `tolist()` on a NumPy array.
+        fr: |
+          Les documents JSON conviennent aux structures imbriquées et à plusieurs vecteurs par document, ce que les champs plats d'un hachage ne peuvent pas représenter. Un index JSON se crée avec `IndexType.JSON` et des noms de champs JSONPath, et les vecteurs sont stockés sous forme de tableaux numériques, par exemple avec `tolist()` sur un tableau NumPy.
+      options:
+        a: { en: "Hashes are the best choice for flat records, but they hold only flat fields and can't keep nested specifications and a list of photos.", fr: "Les hachages sont le meilleur choix pour des enregistrements plats, mais ils ne contiennent que des champs plats et ne peuvent pas conserver des spécifications imbriquées et une liste de photos." }
+        b: { en: "A hash can't keep the nested structure, and a vector in a hash field must be binary bytes, not a list.", fr: "Un hachage ne peut pas conserver la structure imbriquée, et un vecteur dans un champ de hachage doit être en octets binaires, pas une liste." }
+        c: { en: "A JSON document is indexed with `IndexType.JSON`, and its vectors are numeric arrays, not bytes.", fr: "Un document JSON s'indexe avec `IndexType.JSON`, et ses vecteurs sont des tableaux numériques, pas des octets." }
+    references:
+      - title: Optimize Redis data structures for vector storage
+        url: https://learn.microsoft.com/en-us/training/modules/implement-vector-storage-azure-managed-redis/4-optimize-redis-data-structure
+
+  # ------------------------------------------------------------------ 5
+  - id: ai200-qz-23-05
+    objective: "2.3.1"
+    difficulty: 2
+    status: draft
+    type: yesno_statements
+    stem:
+      en: |
+        Litware caches model responses in Azure Managed Redis by using redis-py. The `r` variable is a connected `redis.Redis` client, and every key below already exists.
+
+        For each of the following statements, select **Yes** if the statement is true. Otherwise, select **No**.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Litware met en cache des réponses de modèle dans Azure Managed Redis à l'aide de redis-py. La variable `r` est un client `redis.Redis` connecté, et toutes les clés ci-dessous existent déjà.
+
+        Pour chacune des affirmations suivantes, sélectionnez **Oui** si l'affirmation est vraie. Sinon, sélectionnez **Non**.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      statements:
+        - { id: s1, text: { en: "`r.pexpire(\"resp:42\", 5000)` makes the key `resp:42` expire in five seconds.", fr: "`r.pexpire(\"resp:42\", 5000)` fait expirer la clé `resp:42` dans cinq secondes." } }
+        - { id: s2, text: { en: "`r.persist(\"resp:43\")` removes the key `resp:43` from the cache.", fr: "`r.persist(\"resp:43\")` retire la clé `resp:43` du cache." } }
+        - { id: s3, text: { en: "`r.expire(\"resp:44\", 600)` on a key that has 50 seconds left sets its remaining time to live to 600 seconds.", fr: "`r.expire(\"resp:44\", 600)` sur une clé à laquelle il reste 50 secondes fixe sa durée de vie restante à 600 secondes." } }
+    answer:
+      values: { s1: true, s2: false, s3: true }
+    explanation:
+      correct:
+        en: |
+          `PEXPIRE` sets the expiration in milliseconds, so 5000 is five seconds. `PERSIST` doesn't delete anything: it removes the expiration, and the key then stays until it's deleted or evicted. `EXPIRE` adds or changes the expiration of an existing key, so the key now expires 600 seconds after the call.
+        fr: |
+          `PEXPIRE` définit l'expiration en millisecondes : 5000 correspond à cinq secondes. `PERSIST` ne supprime rien : il retire l'expiration, et la clé reste ensuite jusqu'à sa suppression ou son éviction. `EXPIRE` ajoute ou modifie l'expiration d'une clé existante : la clé expire désormais 600 secondes après l'appel.
+      options:
+        s2: { en: "To remove a key immediately, use `delete` (or `unlink`); `persist` keeps the key and only removes its TTL.", fr: "Pour retirer une clé immédiatement, utilisez `delete` (ou `unlink`) ; `persist` conserve la clé et supprime seulement sa durée de vie." }
+    references:
+      - title: Implement data operations
+        url: https://learn.microsoft.com/en-us/training/modules/implement-data-operations-azure-managed-redis/4-implement-data-operations
+
+  # ------------------------------------------------------------------ 6
+  - id: ai200-qz-23-06
+    objective: "2.3.1"
+    difficulty: 3
+    status: draft
+    type: single
+    stem:
+      en: |
+        Tailspin Toys uses an Azure Managed Redis instance with the default eviction policy. The instance holds two kinds of keys:
+
+        - Feature flags under `config:*`, written without a time to live (TTL). They must never be removed from the cache, because the application can't start without them.
+        - Model responses under `resp:*`, written by `r.set(key, value)` in a cache-aside function. A response can be regenerated at any time and may be up to 30 minutes old.
+
+        Used Memory Percentage has reached the memory limit, and the instance evicts no keys. You need Redis to free memory automatically under memory pressure while keeping every feature flag.
+
+        What should you do?
+      fr: |
+        Tailspin Toys utilise une instance Azure Managed Redis avec la stratégie d'éviction par défaut. L'instance contient deux types de clés :
+
+        - Des indicateurs de fonctionnalité sous `config:*`, écrits sans durée de vie (TTL). Ils ne doivent jamais être retirés du cache, car l'application ne peut pas démarrer sans eux.
+        - Des réponses de modèle sous `resp:*`, écrites par `r.set(key, value)` dans une fonction cache-aside. Une réponse peut être régénérée à tout moment et peut dater de 30 minutes au plus.
+
+        Used Memory Percentage a atteint la limite de mémoire, et l'instance n'évince aucune clé. Vous devez faire en sorte que Redis libère automatiquement de la mémoire sous pression mémoire tout en conservant tous les indicateurs de fonctionnalité.
+
+        Que devez-vous faire ?
+    body:
+      options:
+        - { id: a, text: { en: "Change the eviction policy to `allkeys-lru`, and keep writing the responses with `r.set(key, value)`.", fr: "Passer la stratégie d'éviction à `allkeys-lru`, et continuer d'écrire les réponses avec `r.set(key, value)`." } }
+        - { id: b, text: { en: "Write the feature flags with `r.set(key, value, ex=1800)`, and keep the default eviction policy.", fr: "Écrire les indicateurs de fonctionnalité avec `r.set(key, value, ex=1800)`, et conserver la stratégie d'éviction par défaut." } }
+        - { id: c, text: { en: "Write the responses with `r.set(key, value, ex=1800)`, and keep the default eviction policy.", fr: "Écrire les réponses avec `r.set(key, value, ex=1800)`, et conserver la stratégie d'éviction par défaut." } }
+        - { id: d, text: { en: "Call `r.persist()` on each feature flag, and change the eviction policy to `allkeys-lru`.", fr: "Appeler `r.persist()` sur chaque indicateur de fonctionnalité, et passer la stratégie d'éviction à `allkeys-lru`." } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          The default policy of Azure Managed Redis is `volatile-lru`: only keys that have a TTL can be evicted, so with no TTL anywhere, nothing is evicted. Writing the responses with a 1,800-second TTL makes them expire after 30 minutes and makes them eligible for eviction under memory pressure, while the feature flags, which have no TTL, are never evicted.
+        fr: |
+          La stratégie par défaut d'Azure Managed Redis est `volatile-lru` : seules les clés qui ont une durée de vie peuvent être évincées ; sans aucune durée de vie, rien n'est évincé. Écrire les réponses avec une durée de vie de 1 800 secondes les fait expirer au bout de 30 minutes et les rend éligibles à l'éviction sous pression mémoire, tandis que les indicateurs de fonctionnalité, sans durée de vie, ne sont jamais évincés.
+      options:
+        a: { en: "`allkeys-lru` can evict any key, including a feature flag that hasn't been read recently.", fr: "`allkeys-lru` peut évincer n'importe quelle clé, y compris un indicateur de fonctionnalité qui n'a pas été lu récemment." }
+        b: { en: "A TTL on the feature flags makes them expire after 30 minutes, which breaks the requirement to keep them.", fr: "Une durée de vie sur les indicateurs de fonctionnalité les fait expirer au bout de 30 minutes, ce qui enfreint l'exigence de les conserver." }
+        d: { en: "The flags have no TTL, so `persist` changes nothing, and `allkeys-lru` can still evict them.", fr: "Les indicateurs n'ont pas de durée de vie : `persist` ne change rien, et `allkeys-lru` peut toujours les évincer." }
+    references:
+      - title: Best practices for memory management for Azure Managed Redis
+        url: https://learn.microsoft.com/en-us/azure/redis/best-practices-memory-management
+
+  # ------------------------------------------------------------------ 7
+  - id: ai200-qz-23-07
+    objective: "2.3.1"
+    difficulty: 3
+    status: draft
+    type: dropdown
+    stem:
+      en: |
+        Adatum's shopping assistant shows daily offers that a model generates every night. Buyers can edit the offers during the day, and each edit republishes the full list. The offers are cached in Azure Managed Redis as a JSON string under the key `offers:today`, which readers get with `r.get`.
+
+        The publishing function must meet the following requirements:
+
+        - Each call replaces the current value of the key.
+        - The key expires at the next midnight UTC, whatever the time of the call, so that readers never get the offers of the previous day.
+        - The value and the expiration are sent in one network round trip.
+
+        The `next_midnight` variable is a time zone-aware `datetime` that contains the next midnight UTC. How should you complete the code? To answer, select the appropriate options in the answer area.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        L'assistant d'achat d'Adatum affiche des offres du jour qu'un modèle génère chaque nuit. Les acheteurs peuvent modifier les offres dans la journée, et chaque modification republie la liste complète. Les offres sont mises en cache dans Azure Managed Redis sous forme de chaîne JSON sous la clé `offers:today`, que les lecteurs obtiennent avec `r.get`.
+
+        La fonction de publication doit respecter les exigences suivantes :
+
+        - Chaque appel remplace la valeur actuelle de la clé.
+        - La clé expire au prochain minuit UTC, quelle que soit l'heure de l'appel, pour que les lecteurs n'obtiennent jamais les offres de la veille.
+        - La valeur et l'expiration sont envoyées en un seul aller-retour réseau.
+
+        La variable `next_midnight` est un `datetime` avec fuseau horaire qui contient le prochain minuit UTC. Comment devez-vous compléter le code ? Pour répondre, sélectionnez les options appropriées dans la zone de réponse.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      layout: code
+      language: python
+      template: |
+        def publish_offers(offers: list[dict]) -> None:
+            pipe = r.pipeline()
+            pipe.[[write]]("offers:today", json.dumps(offers))
+            pipe.[[exp]]("offers:today", [[when]])
+            pipe.execute()
+      slots:
+        - id: write
+          options:
+            - { id: setnx, text: setnx }
+            - { id: set, text: set }
+            - { id: lpush, text: lpush }
+        - id: exp
+          options:
+            - { id: expire, text: expire }
+            - { id: pexpire, text: pexpire }
+            - { id: expireat, text: expireat }
+        - id: when
+          options:
+            - { id: ts, text: "int(next_midnight.timestamp())" }
+            - { id: day, text: "86400" }
+            - { id: now, text: "int(time.time())" }
+    answer:
+      values: { write: set, exp: expireat, when: ts }
+    explanation:
+      correct:
+        en: |
+          `set` writes the string and replaces the current value, as each republication requires. `expireat` takes an absolute Unix timestamp, so `int(next_midnight.timestamp())` makes the key expire at midnight UTC whatever the time of the call. The pipeline sends both commands in one round trip.
+        fr: |
+          `set` écrit la chaîne et remplace la valeur actuelle, comme l'exige chaque republication. `expireat` prend un horodatage Unix absolu : `int(next_midnight.timestamp())` fait expirer la clé à minuit UTC quelle que soit l'heure de l'appel. Le pipeline envoie les deux commandes en un seul aller-retour.
+      options:
+        setnx: { en: "`setnx` writes only if the key doesn't exist, so a republication during the day would be ignored.", fr: "`setnx` n'écrit que si la clé n'existe pas : une republication dans la journée serait ignorée." }
+        lpush: { en: "`lpush` creates a list, which readers can't get with `r.get`.", fr: "`lpush` crée une liste, que les lecteurs ne peuvent pas obtenir avec `r.get`." }
+        expire: { en: "`expire` takes a relative duration in seconds; with a timestamp, the key would live for decades.", fr: "`expire` prend une durée relative en secondes ; avec un horodatage, la clé vivrait des décennies." }
+        pexpire: { en: "`pexpire` takes a relative duration in milliseconds, not an absolute time.", fr: "`pexpire` prend une durée relative en millisecondes, pas une heure absolue." }
+        day: { en: "86400 is a duration: with `expireat`, it's a date in 1970, and as a TTL it would expire 24 hours after the call, not at midnight.", fr: "86400 est une durée : avec `expireat`, c'est une date de 1970, et comme durée de vie la clé expirerait 24 heures après l'appel, pas à minuit." }
+        now: { en: "The current timestamp is already reached: with `expireat`, the key would expire immediately.", fr: "L'horodatage actuel est déjà atteint : avec `expireat`, la clé expirerait immédiatement." }
+    references:
+      - title: Implement data operations
+        url: https://learn.microsoft.com/en-us/training/modules/implement-data-operations-azure-managed-redis/4-implement-data-operations
+
+  # ------------------------------------------------------------------ 8
+  - id: ai200-qz-23-08
+    objective: "2.3.2"
+    difficulty: 3
+    status: draft
+    type: single
+    stem:
+      en: |
+        Contoso runs a multi-tenant retrieval-augmented generation (RAG) assistant on Azure Managed Redis. The index `idx:chunks` covers hashes that have a tag field named `tenant`, a text field named `content`, and an HNSW vector field named `embedding`. The retrieval code runs the following query, and then discards in Python the results whose `tenant` value isn't the caller's tenant.
+
+        ```python
+        q = (Query("*=>[KNN 5 @embedding $vec AS score]")
+             .return_fields("content", "tenant", "score").sort_by("score").dialect(2))
+        ```
+
+        Users of small tenants often get fewer than five chunks, or none. Each user must get the five chunks of their own tenant that are the most similar to the question. The index must not be changed.
+
+        What should you do?
+      fr: |
+        Contoso exécute un assistant multilocataire de génération augmentée de récupération (RAG) sur Azure Managed Redis. L'index `idx:chunks` couvre des hachages qui ont un champ de balise nommé `tenant`, un champ texte nommé `content` et un champ vectoriel HNSW nommé `embedding`. Le code de récupération exécute la requête suivante, puis écarte en Python les résultats dont la valeur `tenant` n'est pas le locataire de l'appelant.
+
+        ```python
+        q = (Query("*=>[KNN 5 @embedding $vec AS score]")
+             .return_fields("content", "tenant", "score").sort_by("score").dialect(2))
+        ```
+
+        Les utilisateurs des petits locataires obtiennent souvent moins de cinq segments, voire aucun. Chaque utilisateur doit obtenir les cinq segments de son propre locataire les plus similaires à la question. L'index ne doit pas être modifié.
+
+        Que devez-vous faire ?
+    body:
+      options:
+        - { id: a, text: { en: "Replace `KNN 5` with `KNN 50`, and keep the first five results that belong to the caller's tenant.", fr: "Remplacer `KNN 5` par `KNN 50`, et conserver les cinq premiers résultats qui appartiennent au locataire de l'appelant." } }
+        - { id: b, text: { en: "Put the tenant filter before `=>`, for example `(@tenant:{contoso})=>[KNN 5 @embedding $vec AS score]`.", fr: "Placer le filtre de locataire avant `=>`, par exemple `(@tenant:{contoso})=>[KNN 5 @embedding $vec AS score]`." } }
+        - { id: c, text: { en: "Add `EF_RUNTIME 200` to the KNN clause, so that the search explores more of the HNSW graph.", fr: "Ajouter `EF_RUNTIME 200` à la clause KNN, pour que la recherche explore une plus grande partie du graphe HNSW." } }
+        - { id: d, text: { en: "Replace the KNN clause with `@embedding:[VECTOR_RANGE 0.2 $vec]`, and keep the caller's results.", fr: "Remplacer la clause KNN par `@embedding:[VECTOR_RANGE 0.2 $vec]`, et conserver les résultats de l'appelant." } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          A filter placed before `=>` makes a hybrid query: Redis first narrows the candidates to the matching documents, then finds the K nearest neighbors only within that set. The query then returns the five most similar chunks of the caller's tenant whenever the tenant has at least five, and filtering inside Redis also stops other tenants' chunks from reaching the application.
+        fr: |
+          Un filtre placé avant `=>` crée une requête hybride : Redis réduit d'abord les candidats aux documents correspondants, puis cherche les K plus proches voisins uniquement dans cet ensemble. La requête renvoie alors les cinq segments les plus similaires du locataire de l'appelant dès que celui-ci en a au moins cinq, et le filtrage dans Redis empêche aussi les segments des autres locataires d'atteindre l'application.
+      options:
+        a: { en: "Filtering after the search stays a gamble: the 50 nearest chunks can still contain fewer than five, or none, of a small tenant.", fr: "Filtrer après la recherche reste aléatoire : les 50 segments les plus proches peuvent encore en contenir moins de cinq, voire aucun, d'un petit locataire." }
+        c: { en: "`EF_RUNTIME` improves the accuracy of the five nearest chunks overall, but they can still belong to other tenants.", fr: "`EF_RUNTIME` améliore la précision des cinq segments les plus proches dans l'ensemble, mais ils peuvent toujours appartenir à d'autres locataires." }
+        d: { en: "A range query returns every chunk within a distance threshold, not the five most similar ones, and still mixes tenants.", fr: "Une requête de plage renvoie tous les segments sous un seuil de distance, pas les cinq plus similaires, et mélange toujours les locataires." }
+    references:
+      - title: Index and query vector data
+        url: https://learn.microsoft.com/en-us/training/modules/implement-vector-storage-azure-managed-redis/2-index-query-vector-data
+
+  # ------------------------------------------------------------------ 9
+  - id: ai200-qz-23-09
+    objective: "2.3.2"
+    difficulty: 3
+    status: draft
+    type: multi
+    stem:
+      en: |
+        Fabrikam's knowledge assistant stores two million document chunks as hashes in Azure Managed Redis. The index `idx:kb` defines an HNSW vector field with `"TYPE": "FLOAT32"`, `"DIM": 1536` and `"DISTANCE_METRIC": "COSINE"`, and the chunks were embedded with text-embedding-3-small.
+
+        To improve retrieval quality, Fabrikam starts to embed the questions with a newer embedding model that outputs 3,072-dimension vectors. Since the change, every vector query fails.
+
+        You need vector search to work with the new model. Which two actions should you perform? Each correct answer presents part of the solution.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        L'assistant de connaissances de Fabrikam stocke deux millions de segments de documents sous forme de hachages dans Azure Managed Redis. L'index `idx:kb` définit un champ vectoriel HNSW avec `"TYPE": "FLOAT32"`, `"DIM": 1536` et `"DISTANCE_METRIC": "COSINE"`, et les segments ont été incorporés avec text-embedding-3-small.
+
+        Pour améliorer la qualité de la récupération, Fabrikam commence à incorporer les questions avec un modèle d'incorporation plus récent qui produit des vecteurs de 3 072 dimensions. Depuis ce changement, toutes les requêtes vectorielles échouent.
+
+        Vous devez faire fonctionner la recherche vectorielle avec le nouveau modèle. Quelles sont les deux actions à effectuer ? Chaque bonne réponse présente une partie de la solution.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      choose: 2
+      options:
+        - { id: a, text: { en: "Create an index whose vector field has `\"DIM\": 3072`, and run the queries on it.", fr: "Créer un index dont le champ vectoriel a `\"DIM\": 3072`, et y exécuter les requêtes." } }
+        - { id: b, text: { en: "Change the vector field to `\"TYPE\": \"FLOAT64\"`, so that it accepts the longer vectors.", fr: "Passer le champ vectoriel à `\"TYPE\": \"FLOAT64\"`, pour qu'il accepte les vecteurs plus longs." } }
+        - { id: c, text: { en: "Keep only the first 1,536 values of each question vector before you run the query.", fr: "Ne conserver que les 1 536 premières valeurs de chaque vecteur de question avant d'exécuter la requête." } }
+        - { id: d, text: { en: "Embed every chunk again with the new model, and write the vectors as `float32` bytes.", fr: "Incorporer de nouveau chaque segment avec le nouveau modèle, et écrire les vecteurs en octets `float32`." } }
+        - { id: e, text: { en: "Change the distance metric to `L2`, which compares vectors of different lengths.", fr: "Passer la métrique de distance à `L2`, qui compare des vecteurs de longueurs différentes." } }
+        - { id: f, text: { en: "Add `EF_RUNTIME 200` to the KNN clause, so that the query explores more of the graph.", fr: "Ajouter `EF_RUNTIME 200` à la clause KNN, pour que la requête explore une plus grande partie du graphe." } }
+    answer: { optionIds: [ a, d ] }
+    explanation:
+      correct:
+        en: |
+          The `DIM` of an index must match the model's output exactly, so 3,072-dimension query vectors need an index whose vector field is declared with 3,072 dimensions; to change the structure of an index, you create a new one. The stored chunks must also be embedded with the same model as the questions, because vectors from two different models aren't comparable; in a hash, the new vectors are written as `float32` bytes to match `FLOAT32`.
+        fr: |
+          Le `DIM` d'un index doit correspondre exactement à la sortie du modèle : des vecteurs de requête de 3 072 dimensions exigent un index dont le champ vectoriel est déclaré avec 3 072 dimensions ; pour modifier la structure d'un index, on en crée un nouveau. Les segments stockés doivent aussi être incorporés avec le même modèle que les questions, car les vecteurs de deux modèles différents ne sont pas comparables ; dans un hachage, les nouveaux vecteurs s'écrivent en octets `float32` pour correspondre à `FLOAT32`.
+      options:
+        b: { en: "The vector type sets the bytes per value, not the number of dimensions; `DIM` still rejects 3,072-dimension vectors.", fr: "Le type de vecteur fixe les octets par valeur, pas le nombre de dimensions ; `DIM` refuse toujours les vecteurs de 3 072 dimensions." }
+        c: { en: "Truncated vectors of the new model have the right length but aren't comparable with the vectors of text-embedding-3-small.", fr: "Les vecteurs tronqués du nouveau modèle ont la bonne longueur mais ne sont pas comparables aux vecteurs de text-embedding-3-small." }
+        e: { en: "Every metric compares vectors position by position, so all of them need the dimension declared in the index.", fr: "Toutes les métriques comparent les vecteurs position par position : toutes exigent la dimension déclarée dans l'index." }
+        f: { en: "`EF_RUNTIME` tunes the accuracy of a valid HNSW query; it doesn't fix a dimension mismatch.", fr: "`EF_RUNTIME` ajuste la précision d'une requête HNSW valide ; il ne corrige pas une différence de dimension." }
+    references:
+      - title: Choose vector types and indexing strategies
+        url: https://learn.microsoft.com/en-us/training/modules/implement-vector-storage-azure-managed-redis/3-vector-types-index-strategy
+      - title: Optimize Redis data structures for vector storage
+        url: https://learn.microsoft.com/en-us/training/modules/implement-vector-storage-azure-managed-redis/4-optimize-redis-data-structure
+
+  # ------------------------------------------------------------------ 10
+  - id: ai200-qz-23-10
+    objective: "2.3.2"
+    difficulty: 3
+    status: draft
+    type: ordering
+    stem:
+      en: |
+        Relecloud adds a semantic cache to a chat assistant. An index named `idx:prompts` already exists in Azure Managed Redis. It covers hashes whose keys start with `prompt:` and has a vector field named `embedding` that uses the COSINE metric.
+
+        For each user prompt, the assistant must meet the following requirements:
+
+        - Reuse a cached response when a cached prompt is within a distance of 0.1 of the new prompt.
+        - Otherwise, call the chat model, and cache the new prompt and its response for later prompts.
+        - Cached entries must be removed automatically after 24 hours.
+
+        A user sends a prompt that has no close match in the cache. Which five actions should the assistant perform in sequence? To answer, move the appropriate actions from the list of actions to the answer area and arrange them in the correct order.
+      fr: |
+        Relecloud ajoute un cache sémantique à un assistant de conversation. Un index nommé `idx:prompts` existe déjà dans Azure Managed Redis. Il couvre les hachages dont les clés commencent par `prompt:` et possède un champ vectoriel nommé `embedding` qui utilise la métrique COSINE.
+
+        Pour chaque prompt d'utilisateur, l'assistant doit respecter les exigences suivantes :
+
+        - Réutiliser une réponse en cache quand un prompt en cache est à une distance de 0,1 au plus du nouveau prompt.
+        - Sinon, appeler le modèle de conversation, puis mettre en cache le nouveau prompt et sa réponse pour les prompts suivants.
+        - Les entrées en cache doivent être supprimées automatiquement au bout de 24 heures.
+
+        Un utilisateur envoie un prompt qui n'a aucune correspondance proche dans le cache. Quelles sont les cinq actions que l'assistant doit effectuer dans l'ordre ? Pour répondre, déplacez les actions appropriées de la liste vers la zone de réponse et classez-les dans le bon ordre.
+    body:
+      count: 5
+      actions:
+        - { id: hset, text: { en: "Write the prompt, the response and the embedding bytes to a hash under a key that starts with `prompt:`.", fr: "Écrire le prompt, la réponse et les octets de l'incorporation dans un hachage sous une clé qui commence par `prompt:`." } }
+        - { id: model, text: { en: "Call the chat model, because the query returned no document.", fr: "Appeler le modèle de conversation, car la requête n'a renvoyé aucun document." } }
+        - { id: knn, text: { en: "Run a `KNN 1` query on `idx:prompts`, and return the response of the nearest cached prompt.", fr: "Exécuter une requête `KNN 1` sur `idx:prompts`, et renvoyer la réponse du prompt en cache le plus proche." } }
+        - { id: embed, text: { en: "Embed the prompt with the model that embedded the cached prompts, and convert it to `float32` bytes.", fr: "Incorporer le prompt avec le modèle qui a incorporé les prompts en cache, et le convertir en octets `float32`." } }
+        - { id: expire, text: { en: "Set an expiration of 86,400 seconds on the new hash by calling `expire`.", fr: "Définir une expiration de 86 400 secondes sur le nouveau hachage en appelant `expire`." } }
+        - { id: create, text: { en: "Call `create_index` on `idx:prompts` so that the new hash is added to the index.", fr: "Appeler `create_index` sur `idx:prompts` pour que le nouveau hachage soit ajouté à l'index." } }
+        - { id: range, text: { en: "Run a `VECTOR_RANGE 0.1` query on `idx:prompts` with the prompt embedding as a parameter.", fr: "Exécuter une requête `VECTOR_RANGE 0.1` sur `idx:prompts` avec l'incorporation du prompt comme paramètre." } }
+    answer:
+      sequence: [ embed, range, model, hset, expire ]
+    explanation:
+      correct:
+        en: |
+          The lookup needs the prompt embedded with the same model as the cached prompts, as `float32` bytes for the hash index. A `VECTOR_RANGE` query returns only cached prompts within the 0.1 distance threshold; when it returns nothing, the assistant calls the model. It then writes the new entry as a hash under the `prompt:` prefix and adds the 24-hour expiration with `expire`, because a hash write doesn't set a TTL.
+        fr: |
+          La recherche exige que le prompt soit incorporé avec le même modèle que les prompts en cache, en octets `float32` pour l'index de hachages. Une requête `VECTOR_RANGE` ne renvoie que les prompts en cache sous le seuil de distance de 0,1 ; quand elle ne renvoie rien, l'assistant appelle le modèle. Il écrit ensuite la nouvelle entrée sous forme de hachage sous le préfixe `prompt:` et ajoute l'expiration de 24 heures avec `expire`, car l'écriture d'un hachage ne définit pas de durée de vie.
+      options:
+        knn: { en: "`KNN 1` always returns the nearest prompt, however far it is, so the assistant would reuse an unrelated response.", fr: "`KNN 1` renvoie toujours le prompt le plus proche, quelle que soit sa distance : l'assistant réutiliserait une réponse sans rapport." }
+        create: { en: "The index already exists, and keys written under its prefix are indexed automatically in the background.", fr: "L'index existe déjà, et les clés écrites sous son préfixe sont indexées automatiquement en arrière-plan." }
+    references:
+      - title: Index and query vector data
+        url: https://learn.microsoft.com/en-us/training/modules/implement-vector-storage-azure-managed-redis/2-index-query-vector-data
+      - title: Implement data operations
+        url: https://learn.microsoft.com/en-us/training/modules/implement-data-operations-azure-managed-redis/4-implement-data-operations

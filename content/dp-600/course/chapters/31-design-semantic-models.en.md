@@ -16,7 +16,7 @@ A semantic model turns tables into a business layer: storage mode, star schema, 
 | Source must be queried live (seconds of latency), or data can't be copied | DirectQuery |
 | Data already in Fabric lakehouse or warehouse Delta tables, large volume, no import refresh window | Direct Lake |
 | Dimension related to both Import and DirectQuery tables from the same source | Dual |
-| History imported, today's rows live | Hybrid table: incremental refresh with a real-time DirectQuery partition |
+| History imported, today's rows live | Hybrid table: incremental refresh with **Get the latest data in real time with DirectQuery**, which adds a real-time DirectQuery partition |
 
 Direct Lake has two flavours: **Direct Lake on OneLake** (Power BI Desktop or web modeling through the **OneLake catalog**; can combine several Fabric items; no DirectQuery fallback) and **Direct Lake on SQL** (from a SQL analytics endpoint with **New semantic model**; single source; falls back to DirectQuery).
 
@@ -159,7 +159,7 @@ Orders YOY % = CALCULATE ( [Orders], 'Time Intelligence'[Time Calculation] = "YO
 ```
 
 - Each item can have its own **Dynamic format string** (for example `#,##0.00%` for YOY%).
-- **Precedence** orders several calculation groups applied to the same measure; the **Ordinal** column orders the items.
+- **Precedence** orders several calculation groups applied to the same measure; items are reordered in the **Calculation items** section of the **Properties** pane (or with move up or down in their context menu), and the **Ordinal** column sorts them.
 - With a calculation group, report measures use the `variant` data type.
 - Calculation groups only affect explicit measures.
 
@@ -203,14 +203,14 @@ The **Large semantic model storage format** removes the default size limit of a 
 How to enable it:
 
 - Per model: semantic model **Settings > Large semantic model storage format > On > Apply** (after publishing).
-- Per workspace: workspace **Settings > Premium > Default storage format**: Large semantic model storage format, for new models.
+- Per workspace: workspace **Settings > Premium > Default storage format**: Large semantic model storage format, for new models; an existing model needs the per-model setting.
 - PowerShell, as capacity and workspace admin:
 
 ```powershell
 Set-PowerBIDataset -Id <semantic model ID> -TargetStorageMode PremiumFiles
 ```
 
-Requirements and limits: Fabric F, Premium P, Embedded A SKUs or Premium Per User; Pro workspaces stay at 1 GB. The Power BI Desktop upload limit stays 10 GB: the model grows beyond it through refresh in the service. Large models use 8-million-row segments by default. Push semantic models don't support the format, and the workspace can't then move to a capacity in another region.
+Requirements and limits: Fabric F, Premium P, Embedded A SKUs or Premium Per User. Pro workspaces can use the format only when assigned to Reserved Capacity for Pro Workspaces, and their limit stays 1 GB; semantic models in Pro workspaces don't support XMLA write operations. The Power BI Desktop upload limit stays 10 GB: the model grows beyond it through refresh in the service. Large models use 8-million-row segments by default. Push semantic models don't support the format, and the workspace can't then move to a capacity in another region.
 
 > **Exam trap.** The format doesn't make a single model bigger than the capacity's memory, and it doesn't raise the 10 GB upload limit. To publish a model that will grow, publish it small and load history with incremental refresh.
 
@@ -220,7 +220,7 @@ Requirements and limits: Fabric F, Premium P, Embedded A SKUs or Premium Per Use
 A model is **composite** when it mixes storage modes (Import, DirectQuery, Direct Lake), or DirectQuery tables from different sources. Several Import sources alone aren't a composite model.
 
 - **Source group**: all Import tables (and Direct Lake tables) form one group; each DirectQuery source is its own group. Relationships between groups are **limited** and default to many-to-many cardinality.
-- **DirectQuery for Power BI semantic models**: connect live to a published model, select **Make changes to this model**, then add local tables or measures. The owner needs **Build** permission on each source model; viewers need Read on the composite model and the sources.
+- **DirectQuery for Power BI semantic models**: connect live to a published model, select **Make changes to this model**, then add local tables or measures. The owner needs **Build** permission on each source model; viewers generally need Read on the composite model and the sources (Build might be required when the reports are in a Pro workspace).
 - **Dual** on dimensions shared with DirectQuery facts from the same source avoids limited relationships.
 - **Direct Lake on OneLake** can be combined with Import tables (web modeling) or DirectQuery tables (XMLA tools). Direct Lake on SQL can't be part of a composite model.
 
@@ -228,9 +228,9 @@ A model is **composite** when it mixes storage modes (Import, DirectQuery, Direc
 | --- | --- |
 | Chain length | 3 at most |
 | Row-level security | Applies only in the source model where it's defined; can't be defined on remote tables |
-| Calculation groups on remote sources | Not supported |
+| Calculation groups on remote sources | Not supported (undefined query results) |
 | Data types of remote columns | Can't be changed; use a calculated column |
-| Sources not supported | My workspace models, SSAS Multidimensional, SAP HANA, SAP BW, streaming models |
+| Sources not supported | My workspace models, SSAS Tabular before 2022, SSAS Multidimensional, SAP HANA, SAP BW, real-time (streaming) and sample models, Excel Online Refresh, data imported from Excel or CSV files in the service, usage metrics |
 
 > **Exam trap.** A composite model can send values from one source inside queries to another (names from Excel in a SQL `WHERE` clause): a risk when sources have different security or encryption.
 

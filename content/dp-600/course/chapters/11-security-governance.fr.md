@@ -51,10 +51,12 @@ Les points qui décident des réponses :
 
 - **ReadData et ReadAll sont indépendantes.** Un utilisateur qui n'a que ReadData peut utiliser le point de terminaison d'analytique SQL, mais ni l'URL du lakehouse ni Spark.
 - Le partage d'un lakehouse n'accorde jamais l'**écriture**. Écrire demande le rôle Contributor ou supérieur (ou un rôle de sécurité OneLake ReadWrite, voir plus bas).
-- Pour un accès SQL **granulaire**, partagez sans autorisation supplémentaire (Read seul), puis accordez des autorisations sur les objets en T-SQL dans l'entrepôt ou le point de terminaison d'analytique SQL.
+- Pour un accès SQL **granulaire**, partagez sans autorisation supplémentaire (Read seul), puis accordez des autorisations sur les objets en T-SQL dans l'entrepôt ou le point de terminaison d'analytique SQL. Sur un lakehouse, cela vaut pour le mode identité déléguée par défaut du point de terminaison d'analytique SQL : en mode **identité de l'utilisateur**, les `GRANT`/`REVOKE` sur les tables sont ignorés et ReadData ne donne aucun accès SQL aux données (voir la sécurité OneLake plus bas).
 - Un rapport en **Direct Lake** ou en **DirectQuery** sur un entrepôt exige que le lecteur ait ReadData ou des autorisations SQL granulaires ; un rapport en **Import** non.
 - Un entrepôt ne peut pas être partagé directement avec un principal de service, et ses destinataires ne peuvent pas le repartager.
 - La révocation d'une autorisation peut prendre jusqu'à **deux heures** pour les utilisateurs connectés.
+- Un lakehouse peut aussi être partagé avec **Execute Apache Spark**, qui permet au destinataire d'exécuter des travaux Spark par le point de terminaison Livy du lakehouse.
+- Sur un modèle sémantique, **Write** (republier, modifier le modèle par XMLA) est inclus dans les rôles Admin, Member et Contributor, et peut aussi être ajouté à un utilisateur depuis la page **Gérer les autorisations** du modèle.
 
 ```text
 -- Warehouse or SQL analytics endpoint: one table, after sharing with Read only
@@ -93,7 +95,7 @@ ADD FILTER PREDICATE Security.fn_region(Region) ON dbo.FactSales
 WITH (STATE = ON);
 ```
 
-- Les lignes filtrées disparaissent silencieusement des `SELECT`, `UPDATE` et `DELETE`. Chaque table a besoin de sa propre stratégie.
+- Les lignes filtrées disparaissent silencieusement des `SELECT`, `UPDATE` et `DELETE`. Chaque table a besoin de son propre prédicat ; une même stratégie de sécurité peut contenir les prédicats de plusieurs tables.
 - `SCHEMABINDING = ON` est la valeur par défaut ; pour modifier la fonction, supprimez la stratégie, modifiez la fonction, recréez la stratégie.
 
 La sécurité au niveau des colonnes accorde `SELECT` sur les seules colonnes autorisées. Un `SELECT *` de cet utilisateur **échoue** alors avec une erreur d'autorisation au lieu de renvoyer les autres colonnes :
@@ -112,13 +114,13 @@ GRANT SELECT ON dbo.Customers (CustomerID, FirstName, LastName, Email) TO [Sales
 ```
 
 - Les rôles sont **cumulatifs** : un utilisateur dans deux rôles voit les deux ensembles de lignes. Un Viewer qui n'est dans aucun rôle ne voit aucune donnée.
-- Les membres peuvent être des utilisateurs, des groupes de sécurité, des groupes de distribution et des groupes à extension messagerie, mais **pas des groupes Microsoft 365**, ni des principaux de service.
+- Les membres peuvent être des utilisateurs, des groupes de sécurité, des groupes de distribution et des groupes à extension messagerie, mais **pas des groupes Microsoft 365**, ni des principaux de service : la RLS ne s'applique pas à une application dont l'identité effective est un principal de service.
 - Les Viewers qui ont **Build** restent filtrés, par exemple dans Analyser dans Excel.
 - Testez avec **Tester en tant que rôle** sur la page Sécurité.
 
-L'**OLS** fixe l'autorisation d'une table ou d'une colonne à **None** dans un rôle, dans la vue TMDL ou Tabular Editor. L'objet n'existe alors plus pour l'utilisateur : un visuel qui l'utilise affiche une erreur. La RLS ne peut pas masquer de colonnes ; l'OLS ne peut pas filtrer de lignes.
+L'**OLS** fixe l'autorisation d'une table ou d'une colonne à **None** dans un rôle, dans la vue TMDL ou Tabular Editor. L'objet n'existe alors plus pour l'utilisateur : un visuel qui l'utilise affiche une erreur. La RLS ne peut pas masquer de colonnes ; l'OLS ne peut pas filtrer de lignes. La RLS et l'OLS ne peuvent pas être combinées depuis des rôles **différents** : un utilisateur membre d'une telle combinaison obtient une erreur au moment de la requête.
 
-La **sécurité OneLake** (au niveau du fichier et de la table) crée des rôles d'accès aux données sur un lakehouse : chaque rôle accorde **Read** (ou **ReadWrite** sur les lakehouses) à des dossiers, tables ou schémas choisis, avec éventuellement des règles de lignes et de colonnes. Les rôles sont créés par les utilisateurs qui ont Write et Reshare, en pratique les Admins et Members de l'espace de travail. L'accès est refusé par défaut et les rôles se combinent par union. Le rôle **DefaultReader** inclut automatiquement tout utilisateur qui a ReadAll : retirez-en l'utilisateur, ou supprimez-le, quand vous restreignez cet utilisateur avec un rôle personnalisé. Le point de terminaison d'analytique SQL n'applique la sécurité OneLake qu'après qu'un Admin ou un Member l'a fait passer du mode identité déléguée au mode d'accès **identité de l'utilisateur** (onglet Sécurité).
+La **sécurité OneLake** (au niveau du fichier et de la table) crée des rôles d'accès aux données sur un lakehouse : chaque rôle accorde **Read** (ou **ReadWrite** sur les lakehouses) à des dossiers, tables ou schémas choisis, avec éventuellement des règles de lignes et de colonnes. Les Admins et Members de l'espace de travail créent et gèrent les rôles. L'accès est refusé par défaut et les rôles se combinent par union. Le rôle **DefaultReader** inclut automatiquement tout utilisateur qui a ReadAll : retirez-en l'utilisateur, ou supprimez-le, quand vous restreignez cet utilisateur avec un rôle personnalisé. Le point de terminaison d'analytique SQL n'applique la sécurité OneLake qu'après qu'un Admin ou un Member l'a fait passer du mode identité déléguée au mode d'accès **identité de l'utilisateur** (onglet Sécurité). Dans ce mode, l'accès aux tables, la RLS et la CLS viennent uniquement des rôles de sécurité OneLake : T-SQL ne peut pas définir de RLS ni de CLS, les `GRANT`/`REVOKE` sur les tables sont ignorés, et les autorisations SQL ne restent possibles que sur les vues, procédures stockées et fonctions. Le changement de mode supprime les rôles SQL existants du point de terminaison.
 
 > **Piège d'examen.** Les Admins, Members et Contributors de l'espace de travail ne sont pas restreints par la RLS ou l'OLS du modèle sémantique ni par les rôles de sécurité OneLake. Pour les tester ou les appliquer à un utilisateur, donnez-lui le rôle Viewer ou seulement des autorisations d'élément.
 
@@ -139,7 +141,7 @@ Les étiquettes de confidentialité viennent de **Microsoft Purview Information 
 | Héritage en aval | Les étiquettes descendent vers les éléments dépendants : Fabric vers Fabric, Fabric vers Power BI, Power BI vers Power BI, mais **pas Power BI vers Fabric** |
 | Exportation | L'étiquette et la protection suivent les exportations vers Excel, PDF, PowerPoint et .pbix ; pas vers .csv ou .txt |
 
-> **Piège d'examen.** Une étiquette ne masque pas les données dans Fabric aux utilisateurs qui y ont déjà accès ; elle classe l'élément et protège les fichiers exportés depuis lui. Pour restreindre qui voit des lignes ou des tables, utilisez les fonctionnalités de sécurité de la section précédente.
+> **Piège d'examen.** Une étiquette ne masque pas les données dans Fabric aux utilisateurs qui y ont déjà accès, sauf si elle est associée à une **stratégie de protection** Microsoft Purview, qui contrôle alors l'accès à l'élément étiqueté dans le locataire. Sinon, elle classe l'élément et protège les fichiers exportés depuis lui. Pour restreindre qui voit des lignes ou des tables, utilisez les fonctionnalités de sécurité de la section précédente.
 
 <!-- section: endorsement | objectives: 1.1.5 -->
 ## L'approbation
@@ -162,8 +164,8 @@ L'approbation signale les éléments fiables par un badge que la recherche et le
 ## Points clés
 
 - Rôle d'espace de travail = tous les éléments ; autorisation d'élément = un élément. Seul l'Admin supprime l'espace de travail et connecte Git ; le Member ajoute des personnes ; le Contributor construit ; le Viewer lit.
-- Le partage n'accorde que Read ; les données demandent ReadData (SQL), ReadAll (Spark et OneLake) ou des autorisations T-SQL. Build concerne les modèles sémantiques.
+- Le partage n'accorde que Read ; les données demandent ReadData (SQL, mode délégué), ReadAll (Spark et OneLake) ou des autorisations T-SQL ; en mode identité de l'utilisateur, les rôles de sécurité OneLake décident de l'accès SQL aux tables. Build concerne les modèles sémantiques.
 - La RLS et la CLS SQL protègent les requêtes SQL et font basculer Direct Lake en DirectQuery ; la RLS et l'OLS du modèle sémantique protègent les rapports ; la sécurité OneLake protège dossiers et tables pour tous les moteurs.
 - La RLS, l'OLS et les rôles OneLake ne restreignent que les Viewers et les utilisateurs disposant d'autorisations d'élément.
-- Les étiquettes classent et protègent les exportations ; l'héritage en aval ne va pas de Power BI vers Fabric.
+- Les étiquettes classent et protègent les exportations, et ne contrôlent l'accès que par une stratégie de protection Purview ; l'héritage en aval ne va pas de Power BI vers Fabric.
 - Promoted = tout rédacteur ; Certified et Master data = réviseurs autorisés par l'administrateur.

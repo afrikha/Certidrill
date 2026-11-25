@@ -1,0 +1,521 @@
+chapter: 21-loading-patterns
+questions:
+  # ------------------------------------------------------------------ 1
+  - id: dp700-qz-21-01
+    objective: "2.1.1"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        You have a lakehouse named **Lakehouse1** and an Azure SQL database that contains a table named **dbo.AuditEvents**. Rows are only ever inserted into dbo.AuditEvents: they're never updated or deleted. EventID is an identity column, and EventTime contains the time of the event.
+
+        A pipeline runs every hour and copies the new rows of dbo.AuditEvents to Lakehouse1. Each new row must be copied exactly once, even if a run fails or starts late.
+
+        Which rows should the Copy data activity read?
+      fr: |
+        Vous disposez d'un lakehouse nommé **Lakehouse1** et d'une base de données Azure SQL qui contient une table nommée **dbo.AuditEvents**. Des lignes sont seulement insérées dans dbo.AuditEvents : elles ne sont jamais mises à jour ni supprimées. EventID est une colonne d'identité, et EventTime contient l'heure de l'événement.
+
+        Un pipeline s'exécute toutes les heures et copie les nouvelles lignes de dbo.AuditEvents dans Lakehouse1. Chaque nouvelle ligne doit être copiée exactement une fois, même si une exécution échoue ou démarre en retard.
+
+        Quelles lignes l'activité Copy data doit-elle lire ?
+    body:
+      options:
+        - { id: a, text: { en: "The rows whose EventTime is later than the start time of the current run minus one hour", fr: "Les lignes dont EventTime est postérieur à l'heure de début de l'exécution en cours moins une heure" } }
+        - { id: b, text: { en: "The rows whose EventID is greater than the value saved in a control table by the last successful run", fr: "Les lignes dont EventID est supérieur à la valeur enregistrée dans une table de contrôle par la dernière exécution réussie" } }
+        - { id: c, text: { en: "All the rows of dbo.AuditEvents, which then overwrite the destination table in Lakehouse1", fr: "Toutes les lignes de dbo.AuditEvents, qui remplacent ensuite la table de destination dans Lakehouse1" } }
+        - { id: d, text: { en: "The rows whose EventTime falls on the current day, which then overwrite the destination table in Lakehouse1", fr: "Les lignes dont EventTime tombe le jour en cours, qui remplacent ensuite la table de destination dans Lakehouse1" } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          This is the high watermark pattern: an identity column only increases, so on an insert-only table it identifies every new row. The pipeline reads the rows above the stored value and saves the new maximum only after the copy succeeds, so a failed or late run simply picks up where the last successful run stopped.
+        fr: |
+          C'est le modèle du filigrane haut : une colonne d'identité ne fait qu'augmenter, et sur une table où l'on ne fait qu'insérer, elle identifie donc chaque nouvelle ligne. Le pipeline lit les lignes au-dessus de la valeur stockée et n'enregistre le nouveau maximum qu'après la réussite de la copie : une exécution en échec ou en retard reprend simplement là où la dernière exécution réussie s'est arrêtée.
+      options:
+        a: { en: "A window relative to the run time loses rows when a run fails or starts more than an hour late, and copies rows twice when two runs overlap.", fr: "Une fenêtre relative à l'heure d'exécution perd des lignes quand une exécution échoue ou démarre avec plus d'une heure de retard, et copie des lignes deux fois quand deux exécutions se chevauchent." }
+        c: { en: "A full load copies every row on every run instead of only the new rows, which grows with the table.", fr: "Un chargement complet copie toutes les lignes à chaque exécution au lieu des seules nouvelles lignes, et le volume grandit avec la table." }
+        d: { en: "Overwriting the table with the current day removes the rows of the previous days, and a late row of the previous day is never copied.", fr: "Remplacer la table par la journée en cours supprime les lignes des jours précédents, et une ligne tardive de la veille n'est jamais copiée." }
+    references:
+      - title: Incrementally load data from Data Warehouse to Lakehouse
+        url: https://learn.microsoft.com/en-us/fabric/data-factory/tutorial-incremental-copy-data-warehouse-lakehouse
+
+  # ------------------------------------------------------------------ 2
+  - id: dp700-qz-21-02
+    objective: "2.1.3"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        You have a KQL database named **OpsDB** that contains two tables named **RawEvents** and **Events**. An update policy on Events runs a stored function on each batch ingested into RawEvents. The policy was created without the IsTransactional property.
+
+        During an ingestion into RawEvents, the function fails because of a type conversion error.
+
+        What is the result of this ingestion?
+      fr: |
+        Vous disposez d'une base de données KQL nommée **OpsDB** qui contient deux tables nommées **RawEvents** et **Events**. Une stratégie de mise à jour sur Events exécute une fonction stockée sur chaque lot ingéré dans RawEvents. La stratégie a été créée sans la propriété IsTransactional.
+
+        Pendant une ingestion dans RawEvents, la fonction échoue à cause d'une erreur de conversion de type.
+
+        Quel est le résultat de cette ingestion ?
+    body:
+      options:
+        - { id: a, text: { en: "The batch is stored in neither RawEvents nor Events, and the ingestion is reported as failed.", fr: "Le lot n'est stocké ni dans RawEvents ni dans Events, et l'ingestion est signalée en échec." } }
+        - { id: b, text: { en: "The batch is stored in RawEvents, and the policy retries the function until Events receives the batch.", fr: "Le lot est stocké dans RawEvents, et la stratégie relance la fonction jusqu'à ce qu'Events reçoive le lot." } }
+        - { id: c, text: { en: "The batch is stored in RawEvents but not in Events, and the ingestion is reported as successful.", fr: "Le lot est stocké dans RawEvents mais pas dans Events, et l'ingestion est signalée comme réussie." } }
+        - { id: d, text: { en: "The batch is stored in both tables, with null values in the Events columns that failed to convert.", fr: "Le lot est stocké dans les deux tables, avec des valeurs nulles dans les colonnes d'Events dont la conversion a échoué." } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          IsTransactional is false by default. When the policy query fails in that mode, the data is ingested into the source table only, the target table misses it, and the ingestion operation still succeeds. The failure is visible with `.show ingestion failures` (OriginatesFromUpdatePolicy), and setting IsTransactional to true is recommended in production.
+        fr: |
+          IsTransactional vaut false par défaut. Quand la requête de la stratégie échoue dans ce mode, les données sont ingérées dans la table source uniquement, la table cible ne les reçoit pas, et l'opération d'ingestion réussit quand même. L'échec est visible avec `.show ingestion failures` (OriginatesFromUpdatePolicy), et il est recommandé de mettre IsTransactional à true en production.
+      options:
+        a: { en: "This is the behaviour of a transactional policy (IsTransactional set to true), not of the default.", fr: "C'est le comportement d'une stratégie transactionnelle (IsTransactional à true), pas celui par défaut." }
+        b: { en: "An update policy doesn't retry the function by itself; the batch stays missing from Events until you ingest it again.", fr: "Une stratégie de mise à jour ne relance pas la fonction d'elle-même ; le lot reste absent d'Events jusqu'à ce que vous l'ingériez de nouveau." }
+        d: { en: "A query error makes the policy fail for the whole batch; it doesn't write partial rows with nulls into the target.", fr: "Une erreur de requête fait échouer la stratégie pour tout le lot ; elle n'écrit pas de lignes partielles avec des valeurs nulles dans la cible." }
+    references:
+      - title: Update policy overview
+        url: https://learn.microsoft.com/en-us/kusto/management/update-policy?view=microsoft-fabric
+
+  # ------------------------------------------------------------------ 3
+  - id: dp700-qz-21-03
+    objective: "2.1.2"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Contoso has a Fabric workspace that contains a lakehouse named **LH_Silver** and a warehouse named **DW_Sales**. Every night, notebooks maintain cleansed Delta tables in LH_Silver.
+
+        You are writing the stored procedures that load the star schema of DW_Sales from LH_Silver. The design must follow Fabric guidance for dimensional models and minimize the number of copies of the data.
+
+        What should the procedures do?
+      fr: |
+        Contoso dispose d'un espace de travail Fabric qui contient un lakehouse nommé **LH_Silver** et un entrepôt nommé **DW_Sales**. Chaque nuit, des notebooks tiennent à jour des tables Delta nettoyées dans LH_Silver.
+
+        Vous écrivez les procédures stockées qui chargent le schéma en étoile de DW_Sales depuis LH_Silver. La conception doit suivre les recommandations Fabric pour les modèles dimensionnels et réduire au minimum le nombre de copies des données.
+
+        Que doivent faire les procédures ?
+    body:
+      options:
+        - { id: a, text: { en: "Copy the LH_Silver tables to a staging schema of DW_Sales, then process the dimensions and the facts from the staging tables.", fr: "Copier les tables de LH_Silver dans un schéma de mise en lots de DW_Sales, puis traiter les dimensions et les faits depuis les tables de mise en lots." } }
+        - { id: b, text: { en: "Export the LH_Silver tables to Parquet files, load them with COPY INTO, then process the dimensions and the facts.", fr: "Exporter les tables de LH_Silver en fichiers Parquet, les charger avec COPY INTO, puis traiter les dimensions et les faits." } }
+        - { id: c, text: { en: "Process the dimensions, then the facts, by reading the LH_Silver tables with three-part names in INSERT...SELECT statements.", fr: "Traiter les dimensions, puis les faits, en lisant les tables de LH_Silver par des noms en trois parties dans des instructions INSERT...SELECT." } }
+        - { id: d, text: { en: "Process the facts first by reading LH_Silver with three-part names, then insert the dimension members that the facts reference.", fr: "Traiter d'abord les faits en lisant LH_Silver par des noms en trois parties, puis insérer les membres de dimension que les faits référencent." } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          When the data is already in a Fabric lakehouse, staging it in the warehouse might not be necessary: the procedures can read the silver tables in place through cross-database queries with three-part names. Dimensions are processed first so that every member exists, then the facts look up their surrogate keys.
+        fr: |
+          Quand les données sont déjà dans un lakehouse Fabric, les mettre en lots dans l'entrepôt peut être inutile : les procédures peuvent lire les tables argent sur place par des requêtes inter-bases avec des noms en trois parties. Les dimensions sont traitées en premier pour que chaque membre existe, puis les faits recherchent leurs clés de substitution.
+      options:
+        a: { en: "Staging tables are optional here: copying the silver tables into the warehouse adds a copy that the cross-database query avoids.", fr: "Les tables de mise en lots sont facultatives ici : copier les tables argent dans l'entrepôt ajoute une copie que la requête inter-bases évite." }
+        b: { en: "Exporting to files and loading them again creates two extra copies of data that T-SQL can already read in place.", fr: "Exporter en fichiers puis les recharger crée deux copies supplémentaires de données que T-SQL peut déjà lire sur place." }
+        d: { en: "Facts are processed after all the dimensions, so that every fact row finds the surrogate key of its dimension members.", fr: "Les faits sont traités après toutes les dimensions, pour que chaque ligne de fait trouve la clé de substitution de ses membres de dimension." }
+    references:
+      - title: "Dimensional modeling in Microsoft Fabric Warehouse: Load tables"
+        url: https://learn.microsoft.com/en-us/fabric/data-warehouse/dimensional-modeling-load-tables
+      - title: Query the warehouse or SQL analytics endpoint
+        url: https://learn.microsoft.com/en-us/fabric/data-warehouse/query-warehouse
+
+  # ------------------------------------------------------------------ 4
+  - id: dp700-qz-21-04
+    objective: "2.1.1"
+    difficulty: 2
+    status: draft
+    type: yesno_statements
+    stem:
+      en: |
+        You have a Dataflow Gen2 named **DF_Orders** that contains a query named Orders. The query reads an orders table from an Azure SQL database and fully folds to the source. The table has an OrderDate column and a ModifiedDate column that changes on every insert and update.
+
+        You plan to configure incremental refresh for Orders.
+
+        For each of the following statements, select **Yes** if the statement is true. Otherwise, select **No**.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Vous disposez d'un Dataflow Gen2 nommé **DF_Orders** qui contient une requête nommée Orders. La requête lit une table de commandes dans une base de données Azure SQL et est entièrement repliée vers la source. La table a une colonne OrderDate et une colonne ModifiedDate qui change à chaque insertion et mise à jour.
+
+        Vous prévoyez de configurer l'actualisation incrémentielle pour Orders.
+
+        Pour chacune des affirmations suivantes, sélectionnez **Oui** si l'affirmation est vraie. Sinon, sélectionnez **Non**.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      statements:
+        - id: s1
+          text: { en: "You can use a table in a Fabric warehouse as the data destination of Orders.", fr: "Vous pouvez utiliser une table d'un entrepôt Fabric comme destination de données d'Orders." }
+        - id: s2
+          text: { en: "You can extract the orders of the past six months with a bucket size of Day.", fr: "Vous pouvez extraire les commandes des six derniers mois avec une taille de compartiment Day." }
+        - id: s3
+          text: { en: "You should select ModifiedDate both as the filter column and as the change detection column, so that every change is detected.", fr: "Vous devez sélectionner ModifiedDate à la fois comme colonne de filtre et comme colonne de détection des changements, afin que chaque changement soit détecté." }
+    answer:
+      values: { s1: true, s2: false, s3: false }
+    explanation:
+      correct:
+        en: |
+          Incremental refresh supports a Fabric lakehouse, a Fabric warehouse and Azure SQL Database as destinations. Each query can handle up to 50 buckets, so six months of Day buckets (about 180) exceeds the limit; a Week or Month bucket fits. Using the same column to filter and to detect changes isn't recommended: when rows move between buckets, changes can be missed or duplicated, so filter on OrderDate and detect changes on ModifiedDate.
+        fr: |
+          L'actualisation incrémentielle prend en charge un lakehouse Fabric, un entrepôt Fabric et Azure SQL Database comme destinations. Chaque requête peut gérer jusqu'à 50 compartiments : six mois de compartiments Day (environ 180) dépassent la limite, alors qu'un compartiment Week ou Month convient. Utiliser la même colonne pour filtrer et pour détecter les changements n'est pas recommandé : quand des lignes changent de compartiment, des changements peuvent être manqués ou dupliqués ; filtrez donc sur OrderDate et détectez les changements sur ModifiedDate.
+      options:
+        s2: { en: "About 180 daily buckets exceed the limit of 50 buckets per query.", fr: "Environ 180 compartiments journaliers dépassent la limite de 50 compartiments par requête." }
+        s3: { en: "The same column for both roles triggers a warning and can create duplicates when a modified row moves to another bucket.", fr: "La même colonne pour les deux rôles déclenche un avertissement et peut créer des doublons quand une ligne modifiée change de compartiment." }
+    references:
+      - title: Incremental refresh in Dataflow Gen2
+        url: https://learn.microsoft.com/en-us/fabric/data-factory/dataflow-gen2-incremental-refresh
+
+  # ------------------------------------------------------------------ 5
+  - id: dp700-qz-21-05
+    objective: "2.1.3"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Fabrikam has an Azure Event Hubs namespace that receives shipment scan events. You have a Fabric workspace that contains a lakehouse named **LH_Logistics**.
+
+        Data engineers must enrich each event by calling an open-source Python package that computes a delivery risk score, and write the results to a Delta table in LH_Logistics. The process must run continuously in production.
+
+        What should you use?
+      fr: |
+        Fabrikam dispose d'un espace de noms Azure Event Hubs qui reçoit des événements de scan d'expéditions. Vous disposez d'un espace de travail Fabric qui contient un lakehouse nommé **LH_Logistics**.
+
+        Les ingénieurs données doivent enrichir chaque événement en appelant un package Python open source qui calcule un score de risque de livraison, puis écrire les résultats dans une table Delta de LH_Logistics. Le processus doit s'exécuter en continu en production.
+
+        Que devez-vous utiliser ?
+    body:
+      options:
+        - { id: a, text: { en: "An eventstream with a Manage fields operator connected to a Lakehouse destination", fr: "Un flux d'événements avec un opérateur Manage fields connecté à une destination Lakehouse" } }
+        - { id: b, text: { en: "An eventstream with an Eventhouse destination, and an update policy that calls a stored function", fr: "Un flux d'événements avec une destination Eventhouse, et une stratégie de mise à jour qui appelle une fonction stockée" } }
+        - { id: c, text: { en: "A Dataflow Gen2 that reads the event hub and is scheduled to refresh every minute", fr: "Un Dataflow Gen2 qui lit l'event hub et dont l'actualisation est planifiée toutes les minutes" } }
+        - { id: d, text: { en: "Spark structured streaming code that runs in a Spark job definition and writes to LH_Logistics", fr: "Du code de streaming structuré Spark qui s'exécute dans une définition de travail Spark et écrit dans LH_Logistics" } }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          Calling a Python library on every event is complex logic that needs code: Spark structured streaming reads Event Hubs, applies the library and writes Delta tables. Notebooks are for developing the stream; continuous production workloads run in a Spark job definition, which can also have a retry policy.
+        fr: |
+          Appeler une bibliothèque Python sur chaque événement est une logique complexe qui demande du code : le streaming structuré Spark lit Event Hubs, applique la bibliothèque et écrit des tables Delta. Les notebooks servent à développer le flux ; les charges de production continues s'exécutent dans une définition de travail Spark, qui peut aussi avoir une stratégie de nouvelle tentative.
+      options:
+        a: { en: "The event processing editor is a no-code experience with built-in functions only; it can't call a Python package.", fr: "L'éditeur de traitement des événements est une expérience sans code avec des fonctions intégrées uniquement ; il ne peut pas appeler un package Python." }
+        b: { en: "An update policy runs a KQL function and writes to a KQL table, not a Python package writing to a lakehouse Delta table.", fr: "Une stratégie de mise à jour exécute une fonction KQL et écrit dans une table KQL, pas un package Python qui écrit dans une table Delta de lakehouse." }
+        c: { en: "A Dataflow Gen2 is a scheduled batch transformation in Power Query, not a continuous stream, and it can't call a Python package.", fr: "Un Dataflow Gen2 est une transformation par lots planifiée en Power Query, pas un flux continu, et il ne peut pas appeler un package Python." }
+    references:
+      - title: Data streaming into a lakehouse with Spark
+        url: https://learn.microsoft.com/en-us/fabric/data-engineering/lakehouse-streaming-data
+      - title: Process event data by using the event processing editor
+        url: https://learn.microsoft.com/en-us/fabric/real-time-intelligence/event-streams/process-events-using-event-processor-editor
+
+  # ------------------------------------------------------------------ 6
+  - id: dp700-qz-21-06
+    objective: "2.1.1"
+    difficulty: 3
+    status: draft
+    type: single
+    stem:
+      en: |
+        Tailspin Toys has an Azure SQL database that contains a table named **dbo.Orders** with 300 million rows. OrderID is the primary key. CDC isn't enabled on the database and can't be enabled.
+
+        The application never deletes rows physically. To cancel an order, it sets IsDeleted to 1. ModifiedAt is updated on every insert and update, including cancellations.
+
+        You need to load dbo.Orders every hour into a table named **dbo.Orders** in a warehouse named **DW1**. The solution must meet the following requirements:
+
+        - Each run reads only the rows changed since the previous successful run.
+        - Canceled orders are removed from DW1.
+        - The other changes are applied by OrderID.
+
+        What should you do?
+      fr: |
+        Tailspin Toys dispose d'une base de données Azure SQL qui contient une table nommée **dbo.Orders** de 300 millions de lignes. OrderID est la clé primaire. La CDC n'est pas activée sur la base de données et ne peut pas l'être.
+
+        L'application ne supprime jamais physiquement de lignes. Pour annuler une commande, elle met IsDeleted à 1. ModifiedAt est mis à jour à chaque insertion et mise à jour, y compris les annulations.
+
+        Vous devez charger dbo.Orders toutes les heures dans une table nommée **dbo.Orders** d'un entrepôt nommé **DW1**. La solution doit répondre aux exigences suivantes :
+
+        - Chaque exécution lit uniquement les lignes modifiées depuis l'exécution réussie précédente.
+        - Les commandes annulées sont retirées de DW1.
+        - Les autres changements sont appliqués par OrderID.
+
+        Que devez-vous faire ?
+    body:
+      options:
+        - id: a
+          text:
+            en: "Create a copy job that uses watermark-based incremental copy on ModifiedAt and the Merge update method, keyed on the OrderID column."
+            fr: "Créer un travail de copie qui utilise une copie incrémentielle par filigrane sur ModifiedAt et la méthode de mise à jour Merge, avec la colonne OrderID comme clé."
+        - id: b
+          text:
+            en: "Copy the rows changed between the two watermarks to a staging table, then MERGE them: delete the matched rows flagged IsDeleted, upsert the rest."
+            fr: "Copier les lignes modifiées entre les deux filigranes dans une table de mise en lots, puis les fusionner par MERGE : supprimer les lignes correspondantes marquées IsDeleted, insérer ou mettre à jour les autres."
+        - id: c
+          text:
+            en: "Create a copy job that uses watermark-based incremental copy on OrderID and the Merge update method, keyed on the OrderID column."
+            fr: "Créer un travail de copie qui utilise une copie incrémentielle par filigrane sur OrderID et la méthode de mise à jour Merge, avec la colonne OrderID comme clé."
+        - id: d
+          text:
+            en: "Every hour, copy all the rows of dbo.Orders whose IsDeleted value is 0 to DW1, and overwrite the existing dbo.Orders table."
+            fr: "Toutes les heures, copier dans DW1 toutes les lignes de dbo.Orders dont la valeur IsDeleted est 0, et remplacer la table dbo.Orders existante."
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          Without CDC, a watermark on ModifiedAt is the way to read only changed rows, and because cancellations update ModifiedAt, the canceled orders arrive with IsDeleted = 1. A MERGE on OrderID can then use `WHEN MATCHED AND s.IsDeleted = 1 THEN DELETE` to remove them, update the other matched rows and insert the new ones that aren't canceled. Fabric Data Warehouse supports MERGE with a conditional DELETE clause.
+        fr: |
+          Sans CDC, un filigrane sur ModifiedAt permet de lire uniquement les lignes modifiées, et comme les annulations mettent à jour ModifiedAt, les commandes annulées arrivent avec IsDeleted = 1. Un MERGE sur OrderID peut alors utiliser `WHEN MATCHED AND s.IsDeleted = 1 THEN DELETE` pour les retirer, mettre à jour les autres lignes correspondantes et insérer les nouvelles qui ne sont pas annulées. Fabric Data Warehouse prend en charge MERGE avec une clause DELETE conditionnelle.
+      options:
+        a: { en: "The copy job reads the right rows, but Merge only inserts or updates them: canceled orders stay in DW1 with IsDeleted = 1 instead of being removed.", fr: "Le travail de copie lit les bonnes lignes, mais Merge ne fait que les insérer ou les mettre à jour : les commandes annulées restent dans DW1 avec IsDeleted = 1 au lieu d'être retirées." }
+        c: { en: "An identity watermark only sees new rows: updates and cancellations of existing orders never exceed the stored OrderID value.", fr: "Un filigrane sur l'identité ne voit que les nouvelles lignes : les mises à jour et les annulations de commandes existantes ne dépassent jamais la valeur OrderID stockée." }
+        d: { en: "A full reload reads all 300 million rows every hour, which breaks the requirement to read only the changed rows.", fr: "Un rechargement complet lit les 300 millions de lignes toutes les heures, ce qui enfreint l'exigence de ne lire que les lignes modifiées." }
+    references:
+      - title: What is Copy job in Data Factory for Microsoft Fabric?
+        url: https://learn.microsoft.com/en-us/fabric/data-factory/what-is-copy-job
+      - title: MERGE (Transact-SQL)
+        url: https://learn.microsoft.com/en-us/sql/t-sql/statements/merge-transact-sql?view=fabric
+
+  # ------------------------------------------------------------------ 7
+  - id: dp700-qz-21-07
+    objective: "2.1.3"
+    difficulty: 3
+    status: draft
+    type: dragdrop
+    stem:
+      en: |
+        Northwind Traders has a Fabric workspace that contains an eventstream named **ES_Plant**, an eventhouse named **EH_Plant** and a lakehouse named **LH_Plant**. ES_Plant receives machine events from an Azure IoT Hub source.
+
+        You need to design a loading pattern for each requirement shown in the answer area. The solution must minimize development effort.
+
+        What should you use for each requirement? To answer, drag the appropriate patterns to the correct requirements. Each pattern may be used once or not at all.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Northwind Traders dispose d'un espace de travail Fabric qui contient un flux d'événements nommé **ES_Plant**, un eventhouse nommé **EH_Plant** et un lakehouse nommé **LH_Plant**. ES_Plant reçoit des événements de machines depuis une source Azure IoT Hub.
+
+        Vous devez concevoir un modèle de chargement pour chaque exigence affichée dans la zone de réponse. La solution doit réduire au minimum l'effort de développement.
+
+        Que devez-vous utiliser pour chaque exigence ? Pour répondre, faites glisser les modèles appropriés vers les exigences correctes. Chaque modèle peut être utilisé une fois ou pas du tout.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      reuse: false
+      items:
+        - { id: direct, text: { en: "An Eventhouse destination that uses Direct ingestion, on the default stream", fr: "Une destination Eventhouse qui utilise l'ingestion directe, sur le flux par défaut" } }
+        - { id: evproc, text: { en: "Filter and Manage fields operators, then an Eventhouse destination that uses Event processing before ingestion", fr: "Des opérateurs Filter et Manage fields, puis une destination Eventhouse qui utilise le traitement des événements avant l'ingestion" } }
+        - { id: lake, text: { en: "A Lakehouse destination on the default stream", fr: "Une destination Lakehouse sur le flux par défaut" } }
+        - { id: policy, text: { en: "An update policy to a typed table, and a materialized view that uses arg_max()", fr: "Une stratégie de mise à jour vers une table typée, et une vue matérialisée qui utilise arg_max()" } }
+        - { id: sjd, text: { en: "Spark structured streaming code in a Spark job definition", fr: "Du code de streaming structuré Spark dans une définition de travail Spark" } }
+        - { id: dfg, text: { en: "A Dataflow Gen2 that refreshes every 15 minutes", fr: "Un Dataflow Gen2 actualisé toutes les 15 minutes" } }
+      targets:
+        - { id: t1, text: { en: "Store every event unchanged in a KQL table of EH_Plant. Analysts will parse the payload later by using KQL.", fr: "Stocker chaque événement sans modification dans une table KQL d'EH_Plant. Les analystes analyseront la charge utile plus tard en KQL." } }
+        - { id: t2, text: { en: "Store in a KQL table of EH_Plant only the events whose Severity is 3 or higher, without their Payload field.", fr: "Stocker dans une table KQL d'EH_Plant uniquement les événements dont Severity vaut 3 ou plus, sans leur champ Payload." } }
+        - { id: t3, text: { en: "Give Spark and SQL users all the events as a Delta table in LH_Plant.", fr: "Fournir aux utilisateurs Spark et SQL tous les événements sous forme de table Delta dans LH_Plant." } }
+        - { id: t4, text: { en: "Inside EH_Plant, keep a typed copy of the raw events filled at ingestion time, and the latest status of each machine.", fr: "Dans EH_Plant, conserver une copie typée des événements bruts remplie au moment de l'ingestion, et le dernier état de chaque machine." } }
+    answer:
+      mapping: { t1: direct, t2: evproc, t3: lake, t4: policy }
+    explanation:
+      correct:
+        en: |
+          Direct ingestion stores events without processing and attaches to the default or a derived stream: the lowest effort for raw events queried later with KQL. Dropping events or fields before storage needs operators, and an Eventhouse destination placed after an operator uses Event processing before ingestion. A Lakehouse destination writes the stream as a Delta table without code. Inside the eventhouse, an update policy fills a typed table at ingestion time and a materialized view with `arg_max()` keeps the latest status per machine.
+        fr: |
+          L'ingestion directe stocke les événements sans traitement et se rattache au flux par défaut ou à un flux dérivé : l'effort minimal pour des événements bruts interrogés plus tard en KQL. Écarter des événements ou des champs avant le stockage demande des opérateurs, et une destination Eventhouse placée après un opérateur utilise le traitement des événements avant l'ingestion. Une destination Lakehouse écrit le flux sous forme de table Delta sans code. Dans l'eventhouse, une stratégie de mise à jour remplit une table typée au moment de l'ingestion et une vue matérialisée avec `arg_max()` garde le dernier état par machine.
+      options:
+        sjd: { en: "Spark structured streaming could write the Delta table, but it requires code where a Lakehouse destination needs none.", fr: "Le streaming structuré Spark pourrait écrire la table Delta, mais il demande du code là où une destination Lakehouse n'en demande pas." }
+        dfg: { en: "A Dataflow Gen2 is a scheduled batch transformation; it isn't a pattern for loading a continuous stream of events.", fr: "Un Dataflow Gen2 est une transformation par lots planifiée ; ce n'est pas un modèle de chargement d'un flux continu d'événements." }
+    references:
+      - title: Add an Eventhouse destination to an eventstream
+        url: https://learn.microsoft.com/en-us/fabric/real-time-intelligence/event-streams/add-destination-kql-database
+      - title: Add a lakehouse destination to an eventstream
+        url: https://learn.microsoft.com/en-us/fabric/real-time-intelligence/event-streams/add-destination-lakehouse
+
+  # ------------------------------------------------------------------ 8
+  - id: dp700-qz-21-08
+    objective: "2.1.2"
+    difficulty: 3
+    status: draft
+    type: multi
+    stem:
+      en: |
+        You have a warehouse named **DW1** that contains a date dimension named **dbo.DimDate**, a customer dimension named **dbo.DimCustomer** and a fact table named **dbo.FactSales**.
+
+        dbo.DimDate has a column named MonthOffset (0 for the current month, -1 for the previous month, and so on), which reports use to show the last three months. When the nightly fact load can't find the customer of a sale, it stores the key of the Unknown member (-1). The customer usually appears in the source system a few days later.
+
+        Reports must always use correct MonthOffset values, and each sale must be assigned to its real customer once that customer is known.
+
+        Which two actions should you perform? Each correct answer presents part of the solution.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Vous disposez d'un entrepôt nommé **DW1** qui contient une dimension de date nommée **dbo.DimDate**, une dimension client nommée **dbo.DimCustomer** et une table de faits nommée **dbo.FactSales**.
+
+        dbo.DimDate a une colonne nommée MonthOffset (0 pour le mois en cours, -1 pour le mois précédent, et ainsi de suite), que les rapports utilisent pour afficher les trois derniers mois. Quand le chargement nocturne des faits ne trouve pas le client d'une vente, il stocke la clé du membre Unknown (-1). Le client apparaît en général dans le système source quelques jours plus tard.
+
+        Les rapports doivent toujours utiliser des valeurs MonthOffset correctes, et chaque vente doit être attribuée à son vrai client dès que ce client est connu.
+
+        Quelles sont les deux actions à effectuer ? Chaque bonne réponse présente une partie de la solution.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      choose: 2
+      options:
+        - { id: a, text: { en: "Calculate MonthOffset once for each date, when the rows of a new year are added to dbo.DimDate.", fr: "Calculer MonthOffset une seule fois pour chaque date, quand les lignes d'une nouvelle année sont ajoutées à dbo.DimDate." } }
+        - { id: b, text: { en: "Run a stored procedure every day that recalculates MonthOffset in dbo.DimDate from the current date.", fr: "Exécuter chaque jour une procédure stockée qui recalcule MonthOffset dans dbo.DimDate à partir de la date du jour." } }
+        - { id: c, text: { en: "Truncate and reload dbo.DimCustomer every night so that it contains the customers added to the source.", fr: "Tronquer et recharger dbo.DimCustomer chaque nuit pour qu'elle contienne les clients ajoutés à la source." } }
+        - { id: d, text: { en: "Run a periodic process that reads the source data of the sales stored with key -1 and updates their customer key.", fr: "Exécuter un processus périodique qui lit les données source des ventes stockées avec la clé -1 et met à jour leur clé client." } }
+        - { id: e, text: { en: "Add a FOREIGN KEY constraint with NOT ENFORCED on dbo.FactSales so that sales with an unknown customer are rejected.", fr: "Ajouter une contrainte FOREIGN KEY avec NOT ENFORCED sur dbo.FactSales pour que les ventes avec un client inconnu soient rejetées." } }
+    answer: { optionIds: [b, d] }
+    explanation:
+      correct:
+        en: |
+          Relative offset attributes depend on today's date, so the ETL process must update them every day; Fabric guidance recommends a T-SQL stored procedure for this logic. A fact row stored with the Unknown member requires a later update: a periodic process retrieves the current source data of those rows and replaces the -1 key with the valid customer key.
+        fr: |
+          Les attributs de décalage relatif dépendent de la date du jour : le processus ETL doit donc les mettre à jour chaque jour, et les recommandations Fabric conseillent une procédure stockée T-SQL pour cette logique. Une ligne de fait stockée avec le membre Unknown demande une mise à jour ultérieure : un processus périodique récupère les données source actuelles de ces lignes et remplace la clé -1 par la clé client valide.
+      options:
+        a: { en: "An offset calculated once becomes wrong as soon as the month changes: the current month would stay 0 forever.", fr: "Un décalage calculé une seule fois devient faux dès que le mois change : le mois courant resterait à 0 indéfiniment." }
+        c: { en: "A truncate and reload regenerates the surrogate keys, which invalidates the facts that reference them; dimensions are loaded incrementally.", fr: "Tronquer et recharger régénère les clés de substitution, ce qui invalide les faits qui les référencent ; les dimensions se chargent de façon incrémentielle." }
+        e: { en: "NOT ENFORCED constraints aren't checked by the warehouse, and rejecting sales would break the rule that every fact row is loaded.", fr: "Les contraintes NOT ENFORCED ne sont pas vérifiées par l'entrepôt, et rejeter des ventes enfreindrait la règle selon laquelle chaque ligne de fait est chargée." }
+    references:
+      - title: "Dimensional modeling in Microsoft Fabric Warehouse: Load tables"
+        url: https://learn.microsoft.com/en-us/fabric/data-warehouse/dimensional-modeling-load-tables
+      - title: "Dimensional modeling in Microsoft Fabric Warehouse: Dimension tables"
+        url: https://learn.microsoft.com/en-us/fabric/data-warehouse/dimensional-modeling-dimension-tables
+
+  # ------------------------------------------------------------------ 9
+  - id: dp700-qz-21-09
+    objective: "2.1.1"
+    difficulty: 3
+    status: draft
+    type: yesno_statements
+    stem:
+      en: |
+        You have a pipeline named **PL_Claims** that loads a table named dbo.Claims from an Azure SQL database to a lakehouse. PL_Claims contains the following activities:
+
+        - **LookupOld**: reads the watermark of dbo.Claims from a control table.
+        - **LookupNew**: runs `SELECT MAX(LastModified) AS NewValue FROM dbo.Claims`.
+        - **CopyClaims**: runs after both lookups and copies the rows whose LastModified value is greater than the old watermark and lower than or equal to NewValue.
+        - **SaveWatermark**: runs on success of CopyClaims and writes NewValue to the control table.
+
+        LastModified is updated on every insert and update of dbo.Claims. You also have a copy job named **CJ_Policies** that copies a table named dbo.Policies from a database on which CDC is enabled, by using the Merge update method.
+
+        For each of the following statements, select **Yes** if the statement is true. Otherwise, select **No**.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Vous disposez d'un pipeline nommé **PL_Claims** qui charge une table nommée dbo.Claims d'une base de données Azure SQL vers un lakehouse. PL_Claims contient les activités suivantes :
+
+        - **LookupOld** : lit le filigrane de dbo.Claims dans une table de contrôle.
+        - **LookupNew** : exécute `SELECT MAX(LastModified) AS NewValue FROM dbo.Claims`.
+        - **CopyClaims** : s'exécute après les deux recherches et copie les lignes dont la valeur LastModified est supérieure à l'ancien filigrane et inférieure ou égale à NewValue.
+        - **SaveWatermark** : s'exécute en cas de réussite de CopyClaims et écrit NewValue dans la table de contrôle.
+
+        LastModified est mis à jour à chaque insertion et mise à jour de dbo.Claims. Vous disposez aussi d'un travail de copie nommé **CJ_Policies** qui copie une table nommée dbo.Policies depuis une base de données sur laquelle la CDC est activée, en utilisant la méthode de mise à jour Merge.
+
+        Pour chacune des affirmations suivantes, sélectionnez **Oui** si l'affirmation est vraie. Sinon, sélectionnez **Non**.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      statements:
+        - id: s1
+          text: { en: "A claim that is modified after LookupNew runs, while CopyClaims is running, is copied by the next run of PL_Claims.", fr: "Une déclaration de sinistre modifiée après l'exécution de LookupNew, pendant l'exécution de CopyClaims, est copiée par l'exécution suivante de PL_Claims." }
+        - id: s2
+          text: { en: "If PL_Claims used a rowversion column as the watermark instead of LastModified, claims deleted from dbo.Claims would be removed from the lakehouse.", fr: "Si PL_Claims utilisait une colonne rowversion comme filigrane au lieu de LastModified, les déclarations supprimées de dbo.Claims seraient retirées du lakehouse." }
+        - id: s3
+          text: { en: "A policy that is deleted from dbo.Policies is removed from the destination table by the next run of CJ_Policies.", fr: "Une police supprimée de dbo.Policies est retirée de la table de destination par l'exécution suivante de CJ_Policies." }
+    answer:
+      values: { s1: true, s2: false, s3: true }
+    explanation:
+      correct:
+        en: |
+          The modified claim now has a LastModified value above NewValue, so this run excludes it (`<=` NewValue) and the next run, whose old watermark is NewValue, includes it (`>`): each row is copied exactly once even if it changes during a run. Any watermark, rowversion included, only sees rows that still exist, so deletes are never captured. With CDC enabled at the source, a copy job captures inserts, updates and deletes, and the Merge method removes deleted rows from the destination.
+        fr: |
+          La déclaration modifiée a désormais une valeur LastModified supérieure à NewValue : cette exécution l'exclut (`<=` NewValue) et l'exécution suivante, dont l'ancien filigrane vaut NewValue, l'inclut (`>`). Chaque ligne est ainsi copiée exactement une fois, même si elle change pendant une exécution. Tout filigrane, rowversion compris, ne voit que les lignes qui existent encore : les suppressions ne sont jamais capturées. Avec la CDC activée à la source, un travail de copie capture les insertions, les mises à jour et les suppressions, et la méthode Merge retire les lignes supprimées de la destination.
+      options:
+        s2: { en: "A rowversion changes on inserts and updates, but a deleted row has no value left to read: deletes need CDC, a soft-delete flag or a full comparison.", fr: "Un rowversion change lors des insertions et des mises à jour, mais une ligne supprimée n'a plus de valeur à lire : les suppressions demandent la CDC, un indicateur de suppression réversible ou une comparaison complète." }
+    references:
+      - title: Incrementally load data from Data Warehouse to Lakehouse
+        url: https://learn.microsoft.com/en-us/fabric/data-factory/tutorial-incremental-copy-data-warehouse-lakehouse
+      - title: What is Copy job in Data Factory for Microsoft Fabric?
+        url: https://learn.microsoft.com/en-us/fabric/data-factory/what-is-copy-job
+
+  # ------------------------------------------------------------------ 10
+  - id: dp700-qz-21-10
+    objective: "2.1.1"
+    difficulty: 3
+    status: draft
+    type: dropdown
+    stem:
+      en: |
+        You have a Fabric workspace that contains two lakehouses named **LH_Ops** and **LH_Copy**. LH_Ops contains a Delta table named **orders** that has the columns OrderID, Status and Amount. Change data feed was enabled on orders when the table was created. Notebooks insert, update and delete rows of orders.
+
+        A notebook attached to LH_Ops must apply the changes of orders to a Delta table named **orders_copy** in LH_Copy every hour. The variable last_version contains the last version of orders whose changes were applied by the previous run, and the notebook saves new_version at the end of each run. Between two runs, each order changes at most once. The notebook imports `pyspark.sql.functions as F`.
+
+        How should you complete the code? Select the appropriate options in the answer area.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Vous disposez d'un espace de travail Fabric qui contient deux lakehouses nommés **LH_Ops** et **LH_Copy**. LH_Ops contient une table Delta nommée **orders** qui a les colonnes OrderID, Status et Amount. Le flux de changements Delta (change data feed) a été activé sur orders à la création de la table. Des notebooks insèrent, mettent à jour et suppriment des lignes d'orders.
+
+        Un notebook attaché à LH_Ops doit appliquer les changements d'orders à une table Delta nommée **orders_copy** de LH_Copy toutes les heures. La variable last_version contient la dernière version d'orders dont les changements ont été appliqués par l'exécution précédente, et le notebook enregistre new_version à la fin de chaque exécution. Entre deux exécutions, chaque commande change au plus une fois. Le notebook importe `pyspark.sql.functions as F`.
+
+        Comment devez-vous compléter le code ? Sélectionnez les options appropriées dans la zone de réponse.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      layout: code
+      language: python
+      template: |
+        changes = spark.sql(f"""
+            SELECT OrderID, Status, Amount, _change_type, _commit_version
+            FROM [[src]]
+            WHERE _change_type [[ct]]
+        """)
+        changes.createOrReplaceTempView("s")
+
+        spark.sql("""
+            MERGE INTO LH_Copy.orders_copy AS t
+            USING s ON t.OrderID = s.OrderID
+            WHEN MATCHED AND s._change_type = 'delete' THEN DELETE
+            WHEN MATCHED THEN UPDATE SET t.Status = s.Status, t.Amount = s.Amount
+            WHEN NOT MATCHED THEN INSERT (OrderID, Status, Amount)
+                VALUES (s.OrderID, s.Status, s.Amount)
+        """)
+
+        new_version = changes.agg(F.max("[[ver]]")).first()[0]
+      slots:
+        - id: src
+          options:
+            - { id: v_next, text: "table_changes('orders', {last_version + 1})" }
+            - { id: v_zero, text: "table_changes('orders', 0)" }
+            - { id: v_asof, text: "orders VERSION AS OF {last_version}" }
+        - id: ct
+          options:
+            - { id: c_post, text: "= 'update_postimage'" }
+            - { id: c_nopre, text: "<> 'update_preimage'" }
+            - { id: c_nodel, text: "<> 'delete'" }
+            - { id: c_insdel, text: "IN ('insert', 'delete')" }
+        - id: ver
+          options:
+            - { id: r_version, text: _commit_version }
+            - { id: r_ts, text: _commit_timestamp }
+            - { id: r_key, text: OrderID }
+    answer:
+      values: { src: v_next, ct: c_nopre, ver: r_version }
+    explanation:
+      correct:
+        en: |
+          `table_changes()` returns the row-level changes of a Delta table that has change data feed enabled, from the given version (included): starting at `last_version + 1` reads only the changes not applied yet. Each change carries `_change_type`: `insert`, `delete`, and for an update both `update_preimage` (old values) and `update_postimage` (new values); excluding the preimages leaves one row per change, which the MERGE applies. The next starting point is the highest `_commit_version` read.
+        fr: |
+          `table_changes()` renvoie les changements au niveau des lignes d'une table Delta dont le flux de changements est activé, à partir de la version donnée (incluse) : commencer à `last_version + 1` lit uniquement les changements pas encore appliqués. Chaque changement porte `_change_type` : `insert`, `delete` et, pour une mise à jour, à la fois `update_preimage` (anciennes valeurs) et `update_postimage` (nouvelles valeurs) ; exclure les préimages laisse une ligne par changement, que le MERGE applique. Le prochain point de départ est le `_commit_version` le plus élevé lu.
+      options:
+        v_zero: { en: "Version 0 rereads the whole history at every run: an order changed several times then matches several source rows, and the MERGE fails.", fr: "La version 0 relit tout l'historique à chaque exécution : une commande modifiée plusieurs fois correspond alors à plusieurs lignes source, et le MERGE échoue." }
+        v_asof: { en: "Time travel returns a snapshot of the table, without `_change_type` or `_commit_version` and without the deleted rows.", fr: "Le voyage dans le temps renvoie un instantané de la table, sans `_change_type` ni `_commit_version`, et sans les lignes supprimées." }
+        c_post: { en: "Keeping only the postimages drops the inserts and the deletes.", fr: "Ne garder que les postimages écarte les insertions et les suppressions." }
+        c_nodel: { en: "Excluding the deletes keeps deleted orders in orders_copy, and the preimage plus postimage of an update both match the same order.", fr: "Exclure les suppressions garde les commandes supprimées dans orders_copy, et la préimage et la postimage d'une mise à jour correspondent toutes deux à la même commande." }
+        c_insdel: { en: "This filter drops every update, so changed statuses and amounts never reach orders_copy.", fr: "Ce filtre écarte toutes les mises à jour : les statuts et les montants modifiés n'atteignent jamais orders_copy." }
+        r_ts: { en: "`_commit_timestamp` is a time, not a version number for `table_changes()` to start from.", fr: "`_commit_timestamp` est une date et heure, pas un numéro de version à partir duquel `table_changes()` peut commencer." }
+        r_key: { en: "The highest OrderID says nothing about which versions of the table were processed.", fr: "Le plus grand OrderID n'indique pas quelles versions de la table ont été traitées." }
+    references:
+      - title: Use change data feed with Delta tables
+        url: https://learn.microsoft.com/en-us/fabric/data-engineering/delta-lake-change-data-feed

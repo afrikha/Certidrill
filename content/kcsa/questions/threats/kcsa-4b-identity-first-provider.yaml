@@ -1,0 +1,52 @@
+id: kcsa-4b-identity-first-provider
+objective: "4.6.3"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    The API server is restarted with this encryption configuration:
+
+    ```yaml
+    apiVersion: apiserver.config.k8s.io/v1
+    kind: EncryptionConfiguration
+    resources:
+      - resources:
+          - secrets
+        providers:
+          - identity: {}
+          - aescbc:
+              keys:
+                - name: key1
+                  secret: <base64-encoded 32-byte key>
+    ```
+
+    A new Secret is then created. How is it stored in etcd?
+body:
+  options:
+    - id: a
+      text: { en: "Encrypted with `aescbc`, because the strongest provider listed is used for writes" }
+    - id: b
+      text: { en: "Encrypted with `aescbc`, because `identity` is used only to read existing data" }
+    - id: c
+      text: { en: "Unencrypted, because the first provider in the list is used for new writes" }
+    - id: d
+      text: { en: "Not stored, because `identity` cannot be listed before another provider" }
+answer: { optionId: c }
+explanation:
+  correct:
+    en: |
+      The first provider in the list encrypts everything written to storage; the other providers are tried in order only when reading. With `identity` first, new Secrets are written unencrypted. To encrypt, the encrypting provider must come first, followed by `identity` to read data that is still unencrypted, and existing Secrets must then be rewritten.
+  options:
+    a:
+      en: |
+        Order decides, not strength. The API server always writes with the first provider.
+    b:
+      en: |
+        Whichever provider is first, `identity` included, is the one used for writes. The providers after it are used only to read data that they can decrypt.
+    d:
+      en: |
+        Listing `identity` first is valid: the API server accepts it, writes new data unencrypted, and keeps `aescbc` to read Secrets that are still encrypted.
+references:
+  - title: Encrypting Confidential Data at Rest
+    url: https://kubernetes.io/docs/tasks/administer-cluster/encrypt-data/

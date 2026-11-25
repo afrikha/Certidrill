@@ -1,0 +1,40 @@
+id: kcsa-1a-imds-hostnetwork
+objective: "1.2.3"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    Namespace `web` has an egress NetworkPolicy that blocks `169.254.169.254`, and the network plugin enforces NetworkPolicy. One Pod of `web` still reaches the instance metadata service. Its spec contains `hostNetwork: true`.
+
+    What explains this, and which control addresses it?
+body:
+  options:
+    - id: a
+      text: { en: "The Pod shares the node's network namespace, so the policy usually doesn't apply to it; enforce the Baseline Pod Security Standard to forbid `hostNetwork`" }
+    - id: b
+      text: { en: "The Pod's ServiceAccount has an RBAC permission on the metadata service; remove the RoleBinding that grants this permission" }
+    - id: c
+      text: { en: "NetworkPolicy applies only to connections opened after a Pod restarts; delete the Pod so that its replacement is blocked" }
+    - id: d
+      text: { en: "Egress rules apply only to traffic sent to Services; create a Service for the metadata address so that the rule matches it" }
+answer: { optionId: a }
+explanation:
+  correct:
+    en: |
+      A `hostNetwork` Pod uses the node's IP address, and most network plugins treat its traffic like any other traffic of the node, ignoring it when they match Pod selectors. The Baseline Pod Security Standard forbids host namespaces, including `hostNetwork`, so enforcing it in `web` stops such Pods from being created.
+  options:
+    b:
+      en: |
+        The metadata service is not part of the Kubernetes API, so RBAC can neither grant nor deny access to it.
+    c:
+      en: |
+        NetworkPolicy has no such rule about restarts. A replacement Pod with `hostNetwork: true` would bypass the policy the same way.
+    d:
+      en: |
+        Egress rules match IP blocks, Pods and namespaces, not only Services. The `ipBlock` rule already matches the metadata address for ordinary Pods.
+references:
+  - title: "Network Policies"
+    url: https://kubernetes.io/docs/concepts/services-networking/network-policies/
+  - title: "Pod Security Standards"
+    url: https://kubernetes.io/docs/concepts/security/pod-security-standards/

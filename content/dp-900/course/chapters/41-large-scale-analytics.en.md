@@ -7,7 +7,7 @@ Large-scale analytics turns data from many operational systems into reports and 
 | --- | --- |
 | **Data ingestion and processing** | Data from transactional stores, files and real-time streams is loaded into a data lake or a data warehouse, then cleaned, filtered and restructured for analysis |
 | **Analytical data store** | The prepared data is kept in a data warehouse, a data lake or a lakehouse |
-| **Analytical data model** | A semantic model defines tables, relationships, hierarchies and measures on top of the store |
+| **Analytical data model** | A semantic model defines tables, relationships, hierarchies and measures on top of the store; measures are written in DAX and computed at query time. In Microsoft Fabric, **Direct Lake** mode loads Delta tables from OneLake without importing a copy of the data into the model |
 | **Data visualization** | Analysts build reports and dashboards that show trends, comparisons and key performance indicators (KPIs) |
 
 Natural-language assistants such as Copilot in Microsoft Fabric or Genie in Azure Databricks let users ask questions of the data without writing queries.
@@ -87,7 +87,10 @@ Both platforms cover the whole architecture, with different approaches.
 | --- | --- |
 | One SaaS platform from ingestion to Power BI reports, with one shared data lake | Microsoft Fabric |
 | A code-first Spark platform, existing Databricks skills, portability across clouds | Azure Databricks |
-| A relational warehouse queried with T-SQL | Warehouse in Microsoft Fabric |
+| A relational warehouse queried with T-SQL, with strong schema enforcement and many concurrent users | Warehouse in Microsoft Fabric |
+| Mixed or semi-structured data, Spark notebooks, machine-learning workflows | Lakehouse in Microsoft Fabric |
+
+The two platforms can be combined: an ELT process copies the data into the data lake, an Azure Databricks notebook processes the large volume, then the results are loaded into the tables of a Fabric Warehouse.
 
 <!-- section: key-points -->
 ## Key points

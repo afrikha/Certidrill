@@ -5,17 +5,17 @@ difficulty: 3
 status: draft
 stem:
   en: |
-    Contoso, Ltd. uses Microsoft Purview Data Loss Prevention (DLP) and Microsoft Defender XDR. The built-in alert tuning rule for DLP signals is enabled, so DLP signals are recorded as behaviors.
+    Contoso, Ltd. uses Microsoft Purview Data Loss Prevention (DLP) and Microsoft Defender XDR. The built-in alert tuning rule for DLP signals is disabled, so DLP signals create alerts. The titles of the alerts raised by the DLP policy named **DLP-HR** contain the string `DLP-HR`.
 
-    You need an advanced hunting query that lists the behaviors of the last seven days together with the names of the files they involve. Behaviors that involve no file must not be returned.
+    You need an advanced hunting query that lists the DLP-HR alerts of the last seven days together with the names of the files they involve. Alerts that involve no file must not be returned.
 
     How should you complete the query? Select the appropriate options in the answer area.
 
     NOTE: Each correct selection is worth one point.
   fr: |
-    Contoso, Ltd. utilise la protection contre la perte de données (DLP) de Microsoft Purview et Microsoft Defender XDR. La règle de réglage d'alerte intégrée pour les signaux DLP est activée : les signaux DLP sont donc enregistrés comme comportements.
+    Contoso, Ltd. utilise la protection contre la perte de données (DLP) de Microsoft Purview et Microsoft Defender XDR. La règle de réglage d'alerte intégrée pour les signaux DLP est désactivée : les signaux DLP créent donc des alertes. Les titres des alertes générées par la stratégie DLP nommée **DLP-HR** contiennent la chaîne `DLP-HR`.
 
-    Vous avez besoin d'une requête de repérage avancé qui liste les comportements des sept derniers jours avec le nom des fichiers concernés. Les comportements qui ne concernent aucun fichier ne doivent pas être renvoyés.
+    Vous avez besoin d'une requête de repérage avancé qui liste les alertes DLP-HR des sept derniers jours avec le nom des fichiers concernés. Les alertes qui ne concernent aucun fichier ne doivent pas être renvoyées.
 
     Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
 
@@ -24,13 +24,14 @@ body:
   layout: code
   language: kusto
   template: |
-    BehaviorInfo
+    AlertInfo
     | where Timestamp > ago(7d)
+    | where Title has "DLP-HR"
     | join kind=[[kind]] (
         [[tbl]]
         | where isnotempty(FileName)
       ) on [[key]]
-    | project Timestamp, Description, AccountUpn, FileName
+    | project Timestamp, Title, Severity, FileName
   slots:
     - id: kind
       options:
@@ -40,30 +41,32 @@ body:
         - { id: fullouter, text: fullouter }
     - id: tbl
       options:
-        - { id: entities, text: BehaviorEntities }
         - { id: evidence, text: AlertEvidence }
-        - { id: dsb, text: DataSecurityBehaviors }
+        - { id: entities, text: BehaviorEntities }
+        - { id: cloudapp, text: CloudAppEvents }
     - id: key
       options:
-        - { id: bid, text: BehaviorId }
-        - { id: upn, text: AccountUpn }
-        - { id: report, text: ReportId }
+        - { id: alertid, text: AlertId }
+        - { id: title, text: Title }
+        - { id: ts, text: Timestamp }
 answer:
-  values: { kind: inner, tbl: entities, key: bid }
+  values: { kind: inner, tbl: evidence, key: alertid }
 explanation:
   correct:
     en: |
-      The DLP signals remain in the BehaviorInfo and BehaviorEntities tables: BehaviorInfo holds one row per behavior, and BehaviorEntities holds the entities of each behavior, including the files, linked by BehaviorId. An inner join keeps only the behaviors that have a matching file row on the right side.
+      AlertInfo holds one row per alert, and AlertEvidence holds the entities of each alert, including the files, linked by AlertId. An inner join keeps only the alerts that have a matching file row on the right side, so alerts without a file are dropped.
     fr: |
-      Les signaux DLP restent dans les tables BehaviorInfo et BehaviorEntities : BehaviorInfo contient une ligne par comportement, et BehaviorEntities contient les entités de chaque comportement, dont les fichiers, reliées par BehaviorId. Une jointure inner ne conserve que les comportements qui ont une ligne de fichier correspondante à droite.
+      AlertInfo contient une ligne par alerte, et AlertEvidence contient les entités de chaque alerte, dont les fichiers, reliées par AlertId. Une jointure inner ne conserve que les alertes qui ont une ligne de fichier correspondante à droite : les alertes sans fichier sont écartées.
   options:
-    leftouter: { en: "leftouter also returns the behaviors without any file, with an empty FileName.", fr: "leftouter renvoie aussi les comportements sans fichier, avec un FileName vide." }
-    leftanti: { en: "leftanti returns only the behaviors that have no file, the opposite of the requirement.", fr: "leftanti ne renvoie que les comportements sans fichier, soit l'inverse de l'exigence." }
+    leftouter: { en: "leftouter also returns the alerts without any file, with an empty FileName.", fr: "leftouter renvoie aussi les alertes sans fichier, avec un FileName vide." }
+    leftanti: { en: "leftanti returns only the alerts that have no file, the opposite of the requirement.", fr: "leftanti ne renvoie que les alertes sans fichier, soit l'inverse de l'exigence." }
     fullouter: { en: "fullouter also returns unmatched rows from both sides.", fr: "fullouter renvoie aussi les lignes sans correspondance des deux côtés." }
-    evidence: { en: "AlertEvidence holds the entities of alerts, and DLP signals no longer generate alerts.", fr: "AlertEvidence contient les entités des alertes, et les signaux DLP ne génèrent plus d'alertes." }
-    upn: { en: "Joining on AccountUpn would attach every file of the user to every behavior of that user.", fr: "Une jointure sur AccountUpn associerait chaque fichier de l'utilisateur à chacun de ses comportements." }
+    entities: { en: "BehaviorEntities holds the entities of behaviors; with the tuning rule disabled, the DLP signals are alerts.", fr: "BehaviorEntities contient les entités des comportements ; avec la règle de réglage désactivée, les signaux DLP sont des alertes." }
+    cloudapp: { en: "CloudAppEvents holds the audit activities of cloud apps, not the entities of each alert, and it has no AlertId to join on.", fr: "CloudAppEvents contient les activités d'audit des applications cloud, pas les entités de chaque alerte, et n'a pas d'AlertId pour la jointure." }
+    title: { en: "Joining on Title would attach the files of every alert with the same title to each alert.", fr: "Une jointure sur Title associerait à chaque alerte les fichiers de toutes les alertes portant le même titre." }
+    ts: { en: "Timestamp isn't an identifier: alerts and evidence rows with the same time would be matched at random.", fr: "Timestamp n'est pas un identifiant : les alertes et les lignes de preuve de même horodatage seraient associées au hasard." }
 references:
+  - title: AlertInfo table in the advanced hunting schema
+    url: https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-alertinfo-table
   - title: Investigate data loss alerts with Microsoft Defender XDR
     url: https://learn.microsoft.com/en-us/defender-xdr/dlp-investigate-alerts-defender
-  - title: BehaviorEntities table in the advanced hunting schema
-    url: https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-behaviorentities-table

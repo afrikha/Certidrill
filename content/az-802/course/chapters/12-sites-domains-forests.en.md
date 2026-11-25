@@ -77,7 +77,7 @@ Get-ADDomainController -Identity "DC5" | Move-ADDirectoryServer -Site "Lyon"
 | Cost | 100 (`DEFAULTIPSITELINK`) | The lowest total cost between two sites wins, for replication and for finding the closest DC in another site |
 | Replication interval | 180 minutes | Minimum 15 minutes; a shorter interval lowers latency but increases WAN traffic |
 | Schedule | Always available | Replication across several links happens only when their schedules overlap |
-| Transport | IP (RPC over IP) | SMTP can't replicate domain partitions and isn't recommended |
+| Transport | IP (RPC over IP) | SMTP isn't recommended: SMTP replication won't be supported in future versions of AD DS |
 
 All site links are transitive by default (**Bridge all site links** is enabled on the IP transport). Create site link bridges only when the network isn't fully routed: disable **Bridge all site links**, then bridge the links that can actually route traffic.
 

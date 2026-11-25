@@ -9,7 +9,7 @@ Delta tables support two **enforced** constraints. When a write violates one, th
 | --- | --- | --- |
 | Nullability | `NOT NULL` column constraint | `ALTER TABLE t ALTER COLUMN c SET NOT NULL` (or `DROP NOT NULL`) |
 | Range, allowed values, rule between columns | `CHECK` constraint | `ALTER TABLE t ADD CONSTRAINT name CHECK (expr)` |
-| Uniqueness of a key | Informational `PRIMARY KEY` or `UNIQUE`: **not enforced** | Check with a query (below) |
+| Uniqueness of a key | Informational `PRIMARY KEY` (GA from Databricks Runtime 15.2) or `UNIQUE` (Public Preview, Databricks SQL and Databricks Runtime 18.2 and above; nulls count as distinct): **not enforced** | Check with a query (below) |
 | Referential integrity | Informational `FOREIGN KEY`: **not enforced** | Check with a left anti join |
 
 ```text
@@ -33,8 +33,8 @@ Rules to know:
 
 - Adding a `NOT NULL` or `CHECK` constraint first verifies **all existing rows**; it fails if one violates it.
 - A `CHECK` expression can use deterministic functions only: no user-defined, aggregate or window function, no subquery. So a constraint can't express "unique" or "exists in another table".
-- Adding a constraint can upgrade the table writer protocol, which matters for external Delta clients.
-- CTAS doesn't accept constraint clauses: create the table, then add the constraints.
+- Adding a constraint can upgrade the table writer protocol, which matters for external Delta clients. On Databricks Runtime 15.4 LTS and above, `ALTER TABLE ... DROP FEATURE` removes `CHECK` constraints and downgrades the protocol.
+- CTAS doesn't accept the `PRIMARY KEY`, `FOREIGN KEY` and `UNIQUE` clauses: create the table, then add the constraints.
 - `CHECK` constraints appear in `SHOW TBLPROPERTIES` and `DESCRIBE DETAIL`; key constraints in `information_schema`, `DESCRIBE TABLE EXTENDED` or `SHOW CREATE TABLE`.
 
 Cardinality and referential checks are queries that a job runs before publishing:
@@ -127,12 +127,12 @@ For files, Auto Loader's `cloudFiles.schemaEvolutionMode` decides what a new col
 | Mode | When a new column appears |
 | --- | --- |
 | `addNewColumns` (default without a provided schema) | The stream fails with `UnknownFieldException` after adding the column to the schema; a restart resumes with the new schema. Existing column types don't change |
-| `addNewColumnsWithTypeWidening` | Same, and supported types are widened (`int` to `long`); unsupported changes go to the rescued data column |
+| `addNewColumnsWithTypeWidening` (Public Preview, Databricks Runtime 16.4 and above) | Same, and supported types are widened (`int` to `long`); unsupported changes go to the rescued data column |
 | `rescue` | The schema never evolves and the stream doesn't fail; new columns go to the rescued data column |
 | `failOnNewColumns` | The stream fails and stays failed until you update the schema or remove the file |
 | `none` (default with a provided schema) | New columns are ignored; nothing is rescued unless `rescuedDataColumn` is set |
 
-The schema history lives in the `_schemas` folder of `cloudFiles.schemaLocation`. Run `addNewColumns` streams in a Lakeflow job with retries so the expected failure restarts automatically.
+`addNewColumns` isn't allowed when the stream schema is provided (`.schema(...)`); it works when the known types are given as `cloudFiles.schemaHints`, which Auto Loader uses only when no schema is provided. The schema history lives in the `_schemas` folder of `cloudFiles.schemaLocation`. Run `addNewColumns` streams in a Lakeflow job with retries so the expected failure restarts automatically.
 
 > **Exam trap.** With `addNewColumns`, the first failure is by design, not a bug. "New columns must appear in the table without manual intervention" means `addNewColumns` plus automatic restart; "the stream must never stop" means `rescue`; "an engineer must review every schema change" means `failOnNewColumns`.
 
@@ -173,8 +173,8 @@ Rules to know:
 - The constraint is a SQL Boolean expression evaluated per record: no Python function, no external call, no subquery on another table. Names are unique per dataset.
 - `expect_all`, `expect_all_or_drop` and `expect_all_or_fail` take a dictionary of rules and exist only in Python; SQL declares several `CONSTRAINT` clauses but can't group them.
 - With fail, a triggered pipeline fails that flow only (parallel flows continue); a continuous pipeline stops the flow and its dependent flows. Fix the code or the data before rerunning.
-- Metrics appear in the **Data quality** tab of the dataset in the pipeline UI and in the pipeline **event log**. There are none for fail, and none for views until they are queried.
-- Expectations aren't supported with `AUTO CDC FROM SNAPSHOT`.
+- Metrics appear in the **Data quality** tab of the dataset in the pipeline UI and in the pipeline **event log**. There are none for fail, and none for views until they are queried. Streaming tables and materialized views created in Databricks SQL (standalone pipeline) have no Data quality tab: query the event log.
+- Expectations aren't supported with `AUTO CDC FROM SNAPSHOT`, nor on tables targeted by `REPLACE WHERE` flows.
 - The legacy `import dlt` and `@dlt.expect` still work, but `from pyspark import pipelines as dp` is the current module.
 
 To keep the bad records instead of losing them, use a **quarantine** pattern: one table with the rules as drop expectations, and a second table that selects the inverse condition.

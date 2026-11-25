@@ -24,7 +24,7 @@ Deux décisions distinctes : **comment l'application arrive sur l'hôte de sessi
 <!-- section: application-groups | objectives: 3.3.2, 3.3.3 -->
 ## Créer des groupes d'applications et y affecter des utilisateurs
 
-Un groupe d'applications appartient à **un seul** pool d'hôtes ; un pool d'hôtes peut avoir **un seul** groupe d'applications de bureau et autant de groupes d'applications RemoteApp que nécessaire. Pour apparaître dans le flux des utilisateurs, un groupe d'applications doit être **inscrit dans un espace de travail**.
+Un groupe d'applications appartient à **un seul** pool d'hôtes ; un pool d'hôtes peut avoir **un seul** groupe d'applications de bureau et autant de groupes d'applications RemoteApp que nécessaire. Pour apparaître dans le flux des utilisateurs, un groupe d'applications doit être **inscrit dans un espace de travail**, et il ne peut être inscrit que dans un seul espace de travail.
 
 | Règle | Détail |
 | --- | --- |
@@ -98,12 +98,12 @@ App attach monte des images d'applications depuis un partage SMB dans la session
 | Élément | Détail |
 | --- | --- |
 | Formats de package | MSIX et bundle MSIX, Appx et bundle Appx, App-V (`.appv`) |
-| Images disque (MSIX/Appx) | **CimFS** (montage et démontage les plus rapides, moins de processeur et de mémoire, recommandé avec des hôtes Windows 11), VHDX, VHD (non recommandé) |
+| Images disque (MSIX/Appx) | **CimFS** (montage et démontage les plus rapides, moins de processeur et de mémoire ; recommandé uniquement si les hôtes de session exécutent Windows 11), VHDX, VHD (non recommandé) |
 | Hôtes de session | Windows client et versions de Windows Server prises en charge, joints à Microsoft Entra ID ou à AD DS (Microsoft Entra Domain Services n'est pas pris en charge) |
 | Stockage | Partage SMB dans la **même région** que les hôtes de session ; Azure Files recommandé, Azure NetApp Files exige des hôtes joints à AD DS ; ne le partagez pas avec les profils FSLogix ; excluez les images de l'antivirus |
-| Autorisations du partage | Les **comptes d'ordinateur** des hôtes de session ont besoin d'un accès en lecture. Azure Files avec AD DS : Storage File Data SMB Share Reader comme autorisation par défaut au niveau du partage + lecture NTFS. Azure Files avec des hôtes joints à Entra : **Reader and Data Access** aux principaux de service Azure Virtual Desktop et Azure Virtual Desktop ARM Provider |
+| Autorisations du partage | Les **comptes d'ordinateur** des hôtes de session ont besoin d'un accès en lecture. Azure Files avec AD DS : Storage File Data SMB Share Reader comme autorisation par défaut au niveau du partage + lecture NTFS. Azure Files avec des hôtes joints à Entra : **Reader and Data Access** aux principaux de service Azure Virtual Desktop et Azure Virtual Desktop ARM Provider ; le compte de stockage doit être dans le même abonnement que les hôtes de session, et l'attribution à ARM Provider donne au service l'accès à toutes les données du compte : n'y stockez que des images App attach |
 | Certificats | Chaque package MSIX/Appx est signé : toute la chaîne doit être approuvée sur les hôtes de session |
-| Inscription | **À la demande** (par défaut, recommandé : inscription complète au démarrage de l'application) ou **Bloquante à l'ouverture de session** (inscription à la connexion, connexion plus lente) |
+| Inscription | **À la demande** (par défaut, recommandé : inscription complète au démarrage de l'application) ou **Bloquante à l'ouverture de session** (Log on blocking, affichée **Register at log on** dans le portail : inscription complète à la connexion, connexion plus lente) |
 | État | Actif ou Inactif (les packages inactifs sont ignorés à la connexion) |
 | Intégrité | **État du contrôle d'intégrité en cas d'échec** définit le résultat `AppAttachHealthCheck` (par exemple NeedsAssistance) quand la préparation échoue |
 
@@ -123,6 +123,7 @@ Update-AzWvdAppAttachPackage -Name contoso-crm -ResourceGroupName rg-avd -Locati
 New-AzRoleAssignment -ObjectId <group object ID> -RoleDefinitionName "Desktop Virtualization User" -Scope $pkg.Id
 ```
 
+- L'affectation directe à des utilisateurs exige des comptes d'utilisateur **hybrides** (créés dans AD DS et synchronisés avec Microsoft Entra ID) ; les groupes n'ont pas cette exigence.
 - Un package affecté à un pool d'hôtes et à des utilisateurs apparaît automatiquement dans leurs sessions de **bureau**. Pour RemoteApp, ajoutez-le aussi à un groupe d'applications RemoteApp (source **App attach**) ; les applications MSIX ne peuvent pas être ajoutées à un groupe d'applications de bureau.
 - `-HostPoolReference` **remplace** la liste des pools d'hôtes ; un tableau vide les retire tous.
 - Nouvelle version : **côte à côte** (un nouveau package affecté aux mêmes utilisateurs) ou **sur place** (mise à jour du package avec la nouvelle image ; la version doit être différente ; gardez l'ancienne image tant que quelqu'un l'utilise). Les utilisateurs reçoivent la nouvelle version à la connexion suivante.

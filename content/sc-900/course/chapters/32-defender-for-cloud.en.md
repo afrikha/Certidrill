@@ -18,7 +18,7 @@ Defender for Cloud also discovers and protects generative AI workloads, and it i
 <!-- section: cspm | objectives: 3.2.2 -->
 ## Cloud security posture management
 
-**Cloud security posture management (CSPM)** finds **misconfigurations** and weaknesses before an attacker does, and gives hardening guidance. Its central indicator is the **secure score**: Defender for Cloud continually assesses your resources and aggregates the findings into a single score. **The higher the score, the lower the identified risk.**
+**Cloud security posture management (CSPM)** finds **misconfigurations** and weaknesses before an attacker does, and gives hardening guidance. Its central indicator is the **secure score**: Defender for Cloud continually assesses your resources and aggregates the findings into a single score. **The higher the score, the lower the identified risk.** This classic secure score is shown in the Azure portal; the Microsoft Defender portal shows a different, risk-based **Cloud Secure Score** (0 to 100) that also weighs the risk factors and criticality of the assets.
 
 | | Foundational CSPM | Defender CSPM |
 | --- | --- | --- |
@@ -49,9 +49,9 @@ Posture improves through a continuous cycle: policies define the rules, standard
 | **Security recommendation** | Produced when a resource does not meet a control: description of the issue, remediation steps, affected resources, severity |
 | **Regulatory compliance dashboard** | For each standard applied, shows every control and how many resources pass or fail it |
 
-Regulatory standards such as ISO 27001, SOC 2, NIST SP 800-53 and PCI DSS can be added next to the MCSB, and one recommendation often improves compliance with several standards at once.
+Regulatory standards such as ISO 27001, SOC 2, NIST SP 800-53 and PCI DSS can be added next to the MCSB, and one recommendation often improves compliance with several standards at once. These regulatory standards require a paid plan: Defender CSPM, or another paid plan such as Defender for Servers Plan 2.
 
-Recommendations are grouped into **security controls**. Remediating them raises the secure score. Only the built-in MCSB recommendations count toward the score; recommendations flagged as preview do not.
+Recommendations are grouped into **security controls**. Remediating them raises the secure score: a control gives all its points only when all the resources comply with all of its recommendations. Only the built-in MCSB recommendations count toward the score; recommendations flagged as preview do not.
 
 > **Exam trap.** Three scores, three products. **Secure score** in Defender for Cloud: posture of cloud resources. **Microsoft Secure Score** in the Microsoft Defender portal: posture of Microsoft 365 identities, devices and apps. **Compliance score** in Compliance Manager: progress on regulatory improvement actions.
 
@@ -62,7 +62,7 @@ Recommendations are grouped into **security controls**. Remediating them raises 
 
 | Plan | Protects |
 | --- | --- |
-| **Defender for Servers** | Windows and Linux machines; includes Microsoft Defender for Endpoint for endpoint detection and response |
+| **Defender for Servers** | Windows and Linux machines; includes Microsoft Defender for Endpoint for endpoint detection and response; Plan 2 also includes agentless scanning of the machines |
 | **Defender for Containers** | Kubernetes clusters and container registries: hardening, vulnerability assessment, run-time threat detection |
 | **Defender for Storage** | Storage accounts, against potentially harmful activity |
 | **Defender for Databases** | Azure SQL, SQL servers on machines, open-source relational databases, Azure Cosmos DB |

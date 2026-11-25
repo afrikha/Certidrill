@@ -18,7 +18,7 @@ Toute organisation abonnée à Microsoft 365, Azure ou Dynamics 365 dispose auto
 | Développeurs | Un moyen fondé sur des standards d'ajouter l'authentification unique à leurs applications |
 | Utilisateurs | Une seule identité pour se connecter à Microsoft 365, au portail Azure, aux applications SaaS et aux applications internes |
 
-Microsoft Entra ID existe en éditions Free, P1 et P2 ; les fonctionnalités Premium comme l'accès conditionnel (P1) ou Privileged Identity Management (P2) demandent la licence correspondante. Le **score d'identité sécurisée**, pourcentage qui montre dans quelle mesure le locataire suit les recommandations de sécurité des identités de Microsoft, est disponible dans toutes les éditions.
+Microsoft Entra ID existe en éditions Free, P1 et P2 ; les fonctionnalités Premium comme l'accès conditionnel (P1) ou Privileged Identity Management (P2, ou Microsoft Entra ID Governance) demandent la licence correspondante. Le **score d'identité sécurisée**, pourcentage qui montre dans quelle mesure le locataire suit les recommandations de sécurité des identités de Microsoft, est disponible dans toutes les éditions.
 
 Autres membres de la famille que l'examen peut nommer :
 
@@ -54,7 +54,7 @@ Les **groupes** accordent le même accès à plusieurs identités à la fois :
 | Groupe de **sécurité** | Gérer l'accès à des ressources partagées ; ses membres peuvent être des utilisateurs, des appareils, d'autres groupes et des principaux de service |
 | Groupe **Microsoft 365** | La collaboration : boîte aux lettres partagée, calendrier, fichiers, site SharePoint ; ses membres sont uniquement des utilisateurs |
 
-L'appartenance est **affectée** (choisie manuellement) ou **dynamique** (des règles ajoutent et retirent automatiquement les membres).
+L'appartenance est **affectée** (choisie manuellement) ou **dynamique** (des règles ajoutent et retirent automatiquement les membres). L'appartenance dynamique demande des licences Microsoft Entra ID P1 pour ses utilisateurs ; les appareils n'en demandent aucune. Un groupe dynamique contient soit des utilisateurs, soit des appareils, jamais les deux.
 
 Une **identité d'appareil** donne aux administrateurs des informations pour décider de l'accès :
 
@@ -94,7 +94,7 @@ La plupart des organisations exploitent à la fois des applications locales et d
 | **Microsoft Entra Cloud Sync** | L'outil recommandé : un agent de provisionnement léger en local, avec une configuration stockée et gérée dans Microsoft Entra ID ; plusieurs agents assurent la haute disponibilité |
 | **Microsoft Entra Connect Sync** | L'outil antérieur, un serveur de synchronisation local, que Cloud Sync remplace |
 
-Synchroniser les comptes ne dit pas où les mots de passe sont vérifiés. Il existe trois méthodes de connexion :
+Synchroniser les comptes ne dit pas où les mots de passe sont vérifiés. Il existe trois méthodes de connexion (Cloud Sync ne configure ni l'authentification directe ni la fédération : elles se mettent en place avec des outils distincts) :
 
 | Méthode | Où le mot de passe est validé | Infrastructure locale |
 | --- | --- | --- |

@@ -1,0 +1,46 @@
+id: aipc01-2c-res-sfn-retry-fallback
+objective: "2.4.3"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    A Step Functions workflow calls a large model with the Amazon Bedrock `InvokeModel` task. During traffic peaks, the task fails with throttling errors. The team wants up to four retries with waits that grow to about 2, 4, 8, and 16 seconds, randomized so that parallel executions do not retry at the same moment, and then a fallback state that calls a smaller model.
+
+    Which solution will meet these requirements?
+body:
+  options:
+    - id: a
+      text:
+        en: |-
+          Add a `Catch` for the throttling error that goes to the fallback state, and set `TimeoutSeconds` on the task to 16.
+    - id: b
+      text:
+        en: |-
+          Add a `Retry` for the throttling error with `IntervalSeconds` 2, `MaxAttempts` 4, `BackoffRate` 2, and `JitterStrategy` `FULL`, and a `Catch` to the fallback state.
+    - id: c
+      text:
+        en: |-
+          Add a `Retry` for the throttling error with `IntervalSeconds` 2, `MaxAttempts` 4, `BackoffRate` 1, and `JitterStrategy` `NONE`, and a `Catch` to the fallback state.
+    - id: d
+      text:
+        en: |-
+          Add a `Retry` on `States.ALL` with `MaxAttempts` 4 and default values for the other fields, and no `Catch`.
+answer: { optionId: b }
+explanation:
+  correct:
+    en: |-
+      `BackoffRate` 2 doubles the interval after each retry from 2 seconds, and `JitterStrategy` `FULL` randomizes each wait between zero and the computed interval. Retriers run before catchers, so the `Catch` sends the execution to the fallback state only after the retries are exhausted.
+  options:
+    a:
+      en: |-
+        Without a retrier, the first throttling error goes straight to the fallback, and `TimeoutSeconds` limits the task's run time; it does not create retries.
+    c:
+      en: |-
+        A `BackoffRate` of 1 keeps every wait at 2 seconds, and `NONE` uses exact intervals, so parallel executions retry together.
+    d:
+      en: |-
+        The defaults start at 1 second without jitter, and without a `Catch` the execution fails instead of using the smaller model.
+references:
+  - title: "Handling errors in Step Functions workflows - AWS Step Functions"
+    url: https://docs.aws.amazon.com/step-functions/latest/dg/concepts-error-handling.html

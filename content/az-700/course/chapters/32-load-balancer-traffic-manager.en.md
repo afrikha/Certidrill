@@ -46,7 +46,7 @@ Health probes:
 | HTTP/HTTPS timeout | 30 seconds |
 | Source | `168.63.129.16` (IPv4), service tag `AzureLoadBalancer` |
 
-When one instance fails its probe, established TCP flows to it continue and its UDP flows move. When all instances fail, Standard sends no new flows but lets established TCP flows continue. A stopped VM isn't probed. HTTP probes can't use ports 19, 21, 25, 70, 110, 119, 143, 220 and 993.
+When one instance fails its probe, established TCP flows to it continue and its UDP flows move. When all instances fail, Standard sends no new flows but lets established TCP flows continue, provided the pool has more than one instance. A stopped VM isn't probed. HTTP probes can't use ports 19, 21, 25, 70, 110, 119, 143, 220 and 993.
 
 > **Exam trap.** A custom NSG rule that denies `AzureLoadBalancer` (or a guest firewall that drops `168.63.129.16`) marks every instance down. To take one instance out on purpose, set its admin state to Down rather than blocking the probe.
 
@@ -213,7 +213,7 @@ az network traffic-manager endpoint create --resource-group RG-Global --profile-
   --name ep-onprem --type externalEndpoints --target app.fabrikam.com --priority 2
 ```
 
-A disabled endpoint isn't probed nor returned; a disabled profile, or one with all endpoints disabled, returns NXDOMAIN. If all endpoints are Degraded, Traffic Manager returns them all. Map a custom name with a CNAME to the profile; for the zone apex, use an Azure DNS Traffic Manager Linked Record or alias record. Limits: 200 profiles per subscription, 200 endpoints per profile.
+A disabled endpoint isn't probed nor returned; a disabled profile, or one with all endpoints disabled, returns NXDOMAIN. If all endpoints are Degraded, Traffic Manager returns them all. Map a custom name with a CNAME to the profile; for the zone apex, use an Azure DNS Traffic Manager Linked Record (recommended for new configurations) or an alias record (still supported for backward compatibility). Limits: 200 profiles per subscription, 200 endpoints per profile.
 
 > **Exam trap.** After a failure, clients keep using the cached answer until the TTL expires: lower the TTL and probing interval for faster failover. Traffic Manager also routes on the resolver's IP address (or EDNS Client Subnet), not necessarily the user's.
 

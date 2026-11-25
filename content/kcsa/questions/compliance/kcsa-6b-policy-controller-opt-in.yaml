@@ -1,0 +1,45 @@
+id: kcsa-6b-policy-controller-opt-in
+objective: "6.3.2"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    The Sigstore policy-controller is installed with its default configuration, and a `ClusterImagePolicy` requires a signature from the release pipeline for every image of `registry.example.com/**`. Pods with unsigned images are rejected in the `shop` namespace but are still admitted in `payments`.
+
+    ```text
+    $ kubectl get namespace payments shop --show-labels
+    NAME       STATUS   AGE   LABELS
+    payments   Active   40d   kubernetes.io/metadata.name=payments
+    shop       Active   40d   kubernetes.io/metadata.name=shop,policy.sigstore.dev/include=true
+    ```
+
+    What should the administrator do so that `payments` is also protected?
+body:
+  options:
+    - id: a
+      text: { en: "Add the label `pod-security.kubernetes.io/enforce=restricted` to `payments`" }
+    - id: b
+      text: { en: "Set `spec.mode: warn` in the `ClusterImagePolicy`" }
+    - id: c
+      text: { en: "Add the label `policy.sigstore.dev/include=true` to `payments`" }
+    - id: d
+      text: { en: "Create a second `ClusterImagePolicy` that lists the `payments` namespace" }
+answer: { optionId: c }
+explanation:
+  correct:
+    en: |
+      By default, the policy-controller only checks namespaces that opt in with the `policy.sigstore.dev/include=true` label. `shop` has the label and `payments` does not, so the admission webhook never evaluates Pods in `payments`. Adding the label brings the namespace under the existing `ClusterImagePolicy`.
+  options:
+    a:
+      en: |
+        Pod Security Admission checks the security settings of the Pod spec. It does not verify image signatures, so unsigned images would still be admitted.
+    b:
+      en: |
+        `warn` mode lets non-compliant images through with a warning. It weakens the policy in `shop` and does not bring `payments` under the policy-controller.
+    d:
+      en: |
+        The existing policy already matches the images. The problem is that the webhook ignores namespaces without the opt-in label, which a second policy does not change.
+references:
+  - title: "Kubernetes Policy Controller"
+    url: https://docs.sigstore.dev/policy-controller/overview/

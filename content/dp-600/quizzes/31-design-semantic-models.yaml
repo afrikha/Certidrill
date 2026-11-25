@@ -1,0 +1,576 @@
+chapter: 31-design-semantic-models
+questions:
+  # ------------------------------------------------------------------ 1
+  - id: dp600-qz-31-01
+    objective: "3.1.1"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        Fabrikam has a Power BI semantic model that reads a **Sales** table from an Azure SQL database named **SalesDB**. Sales contains six years of orders, and the order application adds rows every few seconds. The model is published to a workspace on an F64 capacity.
+
+        Visuals must answer fast on the historical data from an in-memory copy, and the orders of the current day must appear in the reports as soon as they're written to SalesDB, without waiting for a refresh.
+
+        How should you configure the Sales table?
+      fr: |
+        Fabrikam dispose d'un modèle sémantique Power BI qui lit une table **Sales** dans une base de données Azure SQL nommée **SalesDB**. Sales contient six ans de commandes, et l'application de commandes ajoute des lignes toutes les quelques secondes. Le modèle est publié dans un espace de travail sur une capacité F64.
+
+        Les visuels doivent répondre vite sur les données historiques à partir d'une copie en mémoire, et les commandes du jour doivent apparaître dans les rapports dès leur écriture dans SalesDB, sans attendre une actualisation.
+
+        Comment devez-vous configurer la table Sales ?
+    body:
+      options:
+        - { id: a, text: { en: "Import mode, with a refresh scheduled every 30 minutes", fr: "Mode Import, avec une actualisation planifiée toutes les 30 minutes" } }
+        - { id: b, text: { en: "DirectQuery mode for the whole table", fr: "Mode DirectQuery pour toute la table" } }
+        - { id: c, text: { en: "An incremental refresh policy with real-time data in DirectQuery", fr: "Une stratégie d'actualisation incrémentielle avec données en temps réel en DirectQuery" } }
+        - { id: d, text: { en: "Direct Lake mode, with the table connected to SalesDB", fr: "Mode Direct Lake, avec la table connectée à SalesDB" } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          An incremental refresh policy with **Get the latest data in real time with DirectQuery** makes Sales a hybrid table: the historical partitions are imported and refreshed incrementally, and a DirectQuery partition fetches the rows after the refresh period from SalesDB with every query. The option requires a Premium workspace, such as one on a Fabric capacity, and a source that folds the date filter, which Azure SQL Database does.
+        fr: |
+          Une stratégie d'actualisation incrémentielle avec **Get the latest data in real time with DirectQuery** fait de Sales une table hybride : les partitions historiques sont importées et actualisées de façon incrémentielle, et une partition DirectQuery lit dans SalesDB, à chaque requête, les lignes postérieures à la période d'actualisation. L'option exige un espace de travail Premium, par exemple sur une capacité Fabric, et une source qui replie le filtre de date, ce que fait Azure SQL Database.
+      options:
+        a: { en: "A scheduled Import refresh leaves up to 30 minutes of orders missing from the reports.", fr: "Une actualisation Import planifiée laisse jusqu'à 30 minutes de commandes absentes des rapports." }
+        b: { en: "DirectQuery shows the latest rows, but every visual on six years of history then queries SalesDB instead of an in-memory copy.", fr: "DirectQuery affiche les dernières lignes, mais chaque visuel sur six ans d'historique interroge alors SalesDB au lieu d'une copie en mémoire." }
+        d: { en: "Direct Lake reads Delta tables in OneLake; it can't read an Azure SQL database directly.", fr: "Direct Lake lit des tables Delta dans OneLake ; il ne peut pas lire directement une base de données Azure SQL." }
+    references:
+      - title: Configure incremental refresh and real-time data for Power BI semantic models
+        url: https://learn.microsoft.com/en-us/power-bi/connect-data/incremental-refresh-overview
+
+  # ------------------------------------------------------------------ 2
+  - id: dp600-qz-31-02
+    objective: "3.1.2"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        You are building an Import semantic model in Power BI Desktop. You created a **Date** table from the distinct values of Sales[OrderDate], so Date contains only the days on which at least one order was placed.
+
+        You select **Mark as date table** and choose the Date[Date] column, but Power BI Desktop rejects the column.
+
+        What should you do?
+      fr: |
+        Vous créez un modèle sémantique Import dans Power BI Desktop. Vous avez créé une table **Date** à partir des valeurs distinctes de Sales[OrderDate] : Date ne contient donc que les jours où au moins une commande a été passée.
+
+        Vous sélectionnez **Marquer comme table de dates** et choisissez la colonne Date[Date], mais Power BI Desktop refuse la colonne.
+
+        Que devez-vous faire ?
+    body:
+      options:
+        - { id: a, text: { en: "Change the data type of Date[Date] from Date to Date/Time.", fr: "Changer le type de données de Date[Date] de Date en Date/Heure." } }
+        - { id: b, text: { en: "Set the cross-filter direction of the Date to Sales relationship to Both.", fr: "Définir la direction du filtrage croisé de la relation entre Date et Sales sur Les deux." } }
+        - { id: c, text: { en: "Delete the relationship between Date and Sales, and then mark the table again.", fr: "Supprimer la relation entre Date et Sales, puis marquer de nouveau la table." } }
+        - { id: d, text: { en: "Rebuild Date with one row for every day of the period, including the days without orders.", fr: "Reconstruire Date avec une ligne pour chaque jour de la période, y compris les jours sans commande." } }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          Mark as date table validates that the column contains unique values, no nulls and contiguous dates from the beginning to the end. A table built from order dates has gaps on the days without orders, so the validation fails. A date table with one row per day for the whole period passes the validation and supports time intelligence.
+        fr: |
+          Marquer comme table de dates vérifie que la colonne contient des valeurs uniques, aucune valeur Null et des dates contiguës du début à la fin. Une table construite à partir des dates de commande a des trous les jours sans commande : la validation échoue. Une table de dates avec une ligne par jour sur toute la période passe la validation et prend en charge la Time Intelligence.
+      options:
+        a: { en: "Date/Time doesn't fill the missing days, and it adds a requirement: every value must have the same time.", fr: "Date/Heure ne comble pas les jours manquants, et ajoute une exigence : toutes les valeurs doivent avoir la même heure." }
+        b: { en: "The cross-filter direction of a relationship isn't checked by the validation; the gaps remain.", fr: "La direction du filtrage croisé d'une relation n'est pas vérifiée par la validation ; les trous restent." }
+        c: { en: "The validation checks the values of the column, not the relationships: the gaps still make it fail.", fr: "La validation vérifie les valeurs de la colonne, pas les relations : les trous la font toujours échouer." }
+    references:
+      - title: Set and use date tables in Power BI Desktop
+        url: https://learn.microsoft.com/en-us/power-bi/transform-model/desktop-date-tables
+
+  # ------------------------------------------------------------------ 3
+  - id: dp600-qz-31-03
+    objective: "3.1.3"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Proseware imports two fact tables from its ERP into a semantic model:
+
+        - **OrderLine**: OrderID, ProductKey, OrderDate, OrderedQty
+        - **Shipment**: OrderID, ProductKey, ShipDate, ShippedQty
+
+        An order has several lines and can be shipped in several parts, so OrderID is unique in neither table. Analysts must compare the ordered and shipped quantities by product and by month in the same visuals.
+
+        What should you do?
+      fr: |
+        Proseware importe deux tables de faits de son ERP dans un modèle sémantique :
+
+        - **OrderLine** : OrderID, ProductKey, OrderDate, OrderedQty
+        - **Shipment** : OrderID, ProductKey, ShipDate, ShippedQty
+
+        Une commande a plusieurs lignes et peut être expédiée en plusieurs fois : OrderID n'est donc unique dans aucune des deux tables. Les analystes doivent comparer les quantités commandées et expédiées par produit et par mois dans les mêmes visuels.
+
+        Que devez-vous faire ?
+    body:
+      options:
+        - { id: a, text: { en: "Relate OrderLine and Shipment on OrderID with a many-to-many relationship that filters in both directions.", fr: "Relier OrderLine et Shipment sur OrderID par une relation plusieurs-à-plusieurs qui filtre dans les deux directions." } }
+        - { id: b, text: { en: "Add Product and Date dimension tables, and relate each of them one-to-many to both fact tables.", fr: "Ajouter des tables de dimension Product et Date, et relier chacune d'elles en un-à-plusieurs aux deux tables de faits." } }
+        - { id: c, text: { en: "Merge Shipment into OrderLine on OrderID in Power Query, and then delete the Shipment table.", fr: "Fusionner Shipment dans OrderLine sur OrderID dans Power Query, puis supprimer la table Shipment." } }
+        - { id: d, text: { en: "Add a bridge table with one row per OrderID, and relate it one-to-many to both fact tables.", fr: "Ajouter une table de pont avec une ligne par OrderID, et la relier en un-à-plusieurs aux deux tables de faits." } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          Relating two fact tables directly isn't recommended: the guidance is a star schema in which shared dimension tables filter both facts through one-to-many relationships. A Product dimension and a Date dimension, related to OrderLine on ProductKey and OrderDate and to Shipment on ProductKey and ShipDate, let one visual group both quantities by product and by month.
+        fr: |
+          Relier directement deux tables de faits est déconseillé : la recommandation est un schéma en étoile dans lequel des tables de dimension partagées filtrent les deux faits par des relations un-à-plusieurs. Une dimension Product et une dimension Date, reliées à OrderLine sur ProductKey et OrderDate et à Shipment sur ProductKey et ShipDate, permettent à un même visuel de regrouper les deux quantités par produit et par mois.
+      options:
+        a: { en: "A direct fact-to-fact relationship only lets visuals group by the OrderID of one table, and its limited evaluation can omit rows when the data has integrity issues.", fr: "Une relation directe entre faits ne permet de regrouper les visuels que par l'OrderID d'une table, et son évaluation limitée peut omettre des lignes quand les données ont des problèmes d'intégrité." }
+        c: { en: "Joining two tables in which OrderID repeats multiplies the rows of each order, so both quantities would be overstated.", fr: "Joindre deux tables dans lesquelles OrderID se répète multiplie les lignes de chaque commande : les deux quantités seraient surévaluées." }
+        d: { en: "An order bridge only shares the OrderID filter; it doesn't provide the product and month attributes the visuals must group by.", fr: "Un pont de commandes ne partage que le filtre OrderID ; il ne fournit pas les attributs de produit et de mois par lesquels les visuels doivent regrouper." }
+    references:
+      - title: Many-to-many relationship guidance
+        url: https://learn.microsoft.com/en-us/power-bi/guidance/relationships-many-to-many
+
+  # ------------------------------------------------------------------ 4
+  - id: dp600-qz-31-04
+    objective: "3.1.5"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        You have a semantic model in Power BI Desktop that contains a calculation group named **Time Intelligence**. You created its calculation items in the following order: Current, PY, YOY%, YTD.
+
+        Report readers select the items in a slicer on the Time Calculation column. The slicer must list the items in the order Current, YTD, PY, YOY%, and the names of the items must not change.
+
+        What should you do?
+      fr: |
+        Vous disposez dans Power BI Desktop d'un modèle sémantique qui contient un groupe de calcul nommé **Time Intelligence**. Vous avez créé ses éléments de calcul dans l'ordre suivant : Current, PY, YOY%, YTD.
+
+        Les lecteurs du rapport sélectionnent les éléments dans un segment sur la colonne Time Calculation. Le segment doit lister les éléments dans l'ordre Current, YTD, PY, YOY%, et les noms des éléments ne doivent pas changer.
+
+        Que devez-vous faire ?
+    body:
+      options:
+        - { id: a, text: { en: "Change the Precedence property of the Time Intelligence calculation group.", fr: "Modifier la propriété Priorité (Precedence) du groupe de calcul Time Intelligence." } }
+        - { id: b, text: { en: "Sort the slicer by the Time Calculation column in descending order.", fr: "Trier le segment par la colonne Time Calculation dans l'ordre décroissant." } }
+        - { id: c, text: { en: "Move the items up or down in the Calculation items section of the Properties pane.", fr: "Déplacer les éléments vers le haut ou vers le bas dans la section Éléments de calcul du volet Propriétés." } }
+        - { id: d, text: { en: "Create a field parameter that lists the four calculation items in the required order.", fr: "Créer un paramètre de champ qui liste les quatre éléments de calcul dans l'ordre exigé." } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          The order of the calculation items is stored with the items (the Ordinal column of the calculation group sorts them) and is changed by moving the items up or down in the Calculation items section of the Properties pane. The slicer then lists Current, YTD, PY and YOY% without renaming any item.
+        fr: |
+          L'ordre des éléments de calcul est stocké avec les éléments (la colonne Ordinal du groupe de calcul les trie) et se modifie en déplaçant les éléments vers le haut ou vers le bas dans la section Éléments de calcul du volet Propriétés. Le segment liste alors Current, YTD, PY et YOY% sans renommer aucun élément.
+      options:
+        a: { en: "Precedence sets the order in which several calculation groups apply to a measure; it doesn't order the items of one group.", fr: "La priorité fixe l'ordre dans lequel plusieurs groupes de calcul s'appliquent à une mesure ; elle n'ordonne pas les éléments d'un groupe." }
+        b: { en: "Descending order lists YTD, YOY%, PY, Current: neither alphabetical order gives the required sequence.", fr: "L'ordre décroissant liste YTD, YOY%, PY, Current : aucun ordre alphabétique ne donne la séquence exigée." }
+        d: { en: "A field parameter lists measures or columns for readers to choose; calculation items aren't fields it can list.", fr: "Un paramètre de champ liste des mesures ou des colonnes à choisir par les lecteurs ; les éléments de calcul ne sont pas des champs qu'il peut lister." }
+    references:
+      - title: Create calculation groups in Power BI
+        url: https://learn.microsoft.com/en-us/power-bi/transform-model/calculation-groups
+
+  # ------------------------------------------------------------------ 5
+  - id: dp600-qz-31-05
+    objective: "3.1.6"
+    difficulty: 2
+    status: draft
+    type: yesno_statements
+    stem:
+      en: |
+        Woodgrove Bank has the following Power BI workspaces:
+
+        - **WS-PPU**, which uses the Premium Per User license mode
+        - **WS-EMB**, which is assigned to a Power BI Embedded A4 capacity
+        - **WS-FAB**, which is assigned to a Fabric F64 capacity
+
+        You plan to use the large semantic model storage format for Import semantic models.
+
+        For each of the following statements, select **Yes** if the statement is true. Otherwise, select **No**.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Woodgrove Bank dispose des espaces de travail Power BI suivants :
+
+        - **WS-PPU**, qui utilise le mode de licence Premium par utilisateur
+        - **WS-EMB**, qui est attribué à une capacité Power BI Embedded A4
+        - **WS-FAB**, qui est attribué à une capacité Fabric F64
+
+        Vous prévoyez d'utiliser le format de stockage de modèle sémantique volumineux pour des modèles sémantiques Import.
+
+        Pour chacune des affirmations suivantes, sélectionnez **Oui** si l'affirmation est vraie. Sinon, sélectionnez **Non**.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      statements:
+        - id: s1
+          text: { en: "You can turn on the large semantic model storage format for a model published to WS-PPU.", fr: "Vous pouvez activer le format de stockage de modèle sémantique volumineux pour un modèle publié dans WS-PPU." }
+        - id: s2
+          text: { en: "You can turn on the large semantic model storage format for a model published to WS-EMB.", fr: "Vous pouvez activer le format de stockage de modèle sémantique volumineux pour un modèle publié dans WS-EMB." }
+        - id: s3
+          text: { en: "After you turn on the format for a model in WS-FAB, you can publish a 14 GB .pbix file of that model from Power BI Desktop.", fr: "Après avoir activé le format pour un modèle de WS-FAB, vous pouvez publier depuis Power BI Desktop un fichier .pbix de 14 Go de ce modèle." }
+    answer:
+      values: { s1: true, s2: true, s3: false }
+    explanation:
+      correct:
+        en: |
+          The large semantic model storage format can be enabled for Fabric F SKUs, Premium P SKUs, Embedded A SKUs and Premium Per User workspaces, so WS-PPU and WS-EMB both support it. The format doesn't change the Power BI Desktop upload limit, which stays 10 GB: a model grows beyond it through refreshes in the service.
+        fr: |
+          Le format de stockage de modèle sémantique volumineux peut être activé pour les références SKU Fabric F, Premium P, Embedded A et pour les espaces de travail Premium par utilisateur : WS-PPU et WS-EMB le prennent donc tous deux en charge. Le format ne change pas la limite de chargement depuis Power BI Desktop, qui reste de 10 Go : un modèle la dépasse par des actualisations dans le service.
+      options:
+        s3: { en: "Publish the model small, for example with an incremental refresh policy, and let the refreshes in the service load the history.", fr: "Publiez le modèle de petite taille, par exemple avec une stratégie d'actualisation incrémentielle, et laissez les actualisations du service charger l'historique." }
+    references:
+      - title: Large semantic models in Power BI Premium
+        url: https://learn.microsoft.com/en-us/fabric/enterprise/powerbi/service-premium-large-models
+
+  # ------------------------------------------------------------------ 6
+  - id: dp600-qz-31-06
+    objective: "3.1.4"
+    difficulty: 3
+    status: draft
+    type: single
+    stem:
+      en: |
+        Northwind has a semantic model with a **Product** table. A matrix visual shows 'Product'[Category] on rows, with 'Product'[Product] below it, and the following measure:
+
+        ```text
+        Level Label =
+        SWITCH (
+            TRUE (),
+            ISINSCOPE ( 'Product'[Category] ), "Category",
+            ISINSCOPE ( 'Product'[Product] ), "Product",
+            "Total"
+        )
+        ```
+
+        The total row shows Total and the category rows show Category, but the product rows also show Category. You need the product rows to show Product without changing the results of the other rows.
+
+        What should you do?
+      fr: |
+        Northwind dispose d'un modèle sémantique avec une table **Product**. Un visuel matrice affiche 'Product'[Category] en lignes, avec 'Product'[Product] en dessous, et la mesure suivante :
+
+        ```text
+        Level Label =
+        SWITCH (
+            TRUE (),
+            ISINSCOPE ( 'Product'[Category] ), "Category",
+            ISINSCOPE ( 'Product'[Product] ), "Product",
+            "Total"
+        )
+        ```
+
+        La ligne de total affiche Total et les lignes de catégorie affichent Category, mais les lignes de produit affichent aussi Category. Vous devez faire en sorte que les lignes de produit affichent Product sans changer les résultats des autres lignes.
+
+        Que devez-vous faire ?
+    body:
+      options:
+        - { id: a, text: { en: "Replace both ISINSCOPE functions with ISFILTERED.", fr: "Remplacer les deux fonctions ISINSCOPE par ISFILTERED." } }
+        - { id: b, text: { en: "Replace ISINSCOPE ( 'Product'[Category] ) with HASONEVALUE ( 'Product'[Category] ).", fr: "Remplacer ISINSCOPE ( 'Product'[Category] ) par HASONEVALUE ( 'Product'[Category] )." } }
+        - { id: c, text: { en: "Test ISINSCOPE ( 'Product'[Product] ) before ISINSCOPE ( 'Product'[Category] ).", fr: "Tester ISINSCOPE ( 'Product'[Product] ) avant ISINSCOPE ( 'Product'[Category] )." } }
+        - { id: d, text: { en: "Replace ISINSCOPE ( 'Product'[Product] ) with ISCROSSFILTERED ( 'Product'[Product] ).", fr: "Remplacer ISINSCOPE ( 'Product'[Product] ) par ISCROSSFILTERED ( 'Product'[Product] )." } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          SWITCH ( TRUE (), ... ) returns the result of the first test that is true. A product row is also inside its category, so ISINSCOPE ( 'Product'[Category] ) is true there as well and wins because it's tested first. Testing the lowest level of the hierarchy first makes product rows return Product, while category rows, where only Category is in scope, still return Category.
+        fr: |
+          SWITCH ( TRUE (), ... ) renvoie le résultat du premier test vrai. Une ligne de produit se trouve aussi dans sa catégorie : ISINSCOPE ( 'Product'[Category] ) y est donc vrai également et l'emporte parce qu'il est testé en premier. Tester d'abord le niveau le plus bas de la hiérarchie fait renvoyer Product aux lignes de produit, tandis que les lignes de catégorie, où seule Category est dans l'étendue, renvoient toujours Category.
+      options:
+        a: { en: "ISFILTERED on Category is also true on product rows, so Category still wins; it's also true when a slicer filters the column.", fr: "ISFILTERED sur Category est aussi vrai sur les lignes de produit : Category l'emporte toujours ; il est en outre vrai quand un segment filtre la colonne." }
+        b: { en: "A product row contains one category, so HASONEVALUE on Category is true there and the first test still wins.", fr: "Une ligne de produit contient une seule catégorie : HASONEVALUE sur Category y est vrai et le premier test l'emporte toujours." }
+        d: { en: "The second test is never reached on product rows, because the Category test before it is already true.", fr: "Le second test n'est jamais atteint sur les lignes de produit, car le test sur Category qui le précède est déjà vrai." }
+    references:
+      - title: ISINSCOPE
+        url: https://learn.microsoft.com/en-us/dax/isinscope-function-dax
+
+  # ------------------------------------------------------------------ 7
+  - id: dp600-qz-31-07
+    objective: "3.1.4"
+    difficulty: 3
+    status: draft
+    type: dropdown
+    stem:
+      en: |
+        Contoso has a semantic model that contains the following tables:
+
+        - **Product**, with the Category and Product columns. Report users filter products only by these two columns.
+        - **Date**, with the Date, Month and Year columns.
+        - **Target**, with one row per year and category and the columns Year, Category and TargetQuantity.
+
+        Product filters Target through a many-to-many relationship on Category, and Date filters Target on the first day of each year. A report page has a slicer on 'Product'[Product] and a matrix with Category on rows, Product below it, and Year on columns.
+
+        You need a measure named **Target Quantity** that returns the target at the category, year and total levels. The measure must return BLANK whenever a product filter applies, whether it comes from the matrix rows or from the slicer, or when the date filter is below the year.
+
+        How should you complete the DAX expression? Select the appropriate options in the answer area.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Contoso dispose d'un modèle sémantique qui contient les tables suivantes :
+
+        - **Product**, avec les colonnes Category et Product. Les utilisateurs des rapports ne filtrent les produits que par ces deux colonnes.
+        - **Date**, avec les colonnes Date, Month et Year.
+        - **Target**, avec une ligne par année et par catégorie et les colonnes Year, Category et TargetQuantity.
+
+        Product filtre Target par une relation plusieurs-à-plusieurs sur Category, et Date filtre Target sur le premier jour de chaque année. Une page de rapport comporte un segment sur 'Product'[Product] et une matrice avec Category en lignes, Product en dessous, et Year en colonnes.
+
+        Vous avez besoin d'une mesure nommée **Target Quantity** qui renvoie l'objectif aux niveaux catégorie, année et total. La mesure doit renvoyer une valeur vide dès qu'un filtre sur les produits s'applique, qu'il vienne des lignes de la matrice ou du segment, ou quand le filtre de date est inférieur à l'année.
+
+        Comment devez-vous compléter l'expression DAX ? Sélectionnez les options appropriées dans la zone de réponse.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      layout: code
+      language: text
+      template: |
+        Target Quantity =
+        IF (
+            NOT [[test]] ( [[col]] )
+                && NOT ISFILTERED ( 'Date'[Month] )
+                && NOT ISFILTERED ( 'Date'[Date] ),
+            [[agg]]
+        )
+      slots:
+        - id: test
+          options:
+            - { id: isinscope, text: ISINSCOPE }
+            - { id: isfiltered, text: ISFILTERED }
+            - { id: iscross, text: ISCROSSFILTERED }
+            - { id: hasone, text: HASONEVALUE }
+        - id: col
+          options:
+            - { id: colproduct, text: "'Product'[Product]" }
+            - { id: colcategory, text: "'Product'[Category]" }
+            - { id: tblproduct, text: "'Product'" }
+        - id: agg
+          options:
+            - { id: sumall, text: "CALCULATE ( SUM ( Target[TargetQuantity] ), ALL ( 'Product' ) )" }
+            - { id: sum, text: "SUM ( Target[TargetQuantity] )" }
+            - { id: sumdiv, text: "SUM ( Target[TargetQuantity] ) / COUNTROWS ( 'Product' )" }
+    answer:
+      values: { test: isfiltered, col: colproduct, agg: sum }
+    explanation:
+      correct:
+        en: |
+          ISFILTERED ( 'Product'[Product] ) is true when the Product column is filtered directly, by the matrix rows or by the slicer, and false on category rows, where only Category is filtered. The measure then returns SUM ( Target[TargetQuantity] ), which the many-to-many relationship restricts to the categories in context; with no else branch, IF returns BLANK below the grain of the targets.
+        fr: |
+          ISFILTERED ( 'Product'[Product] ) est vrai quand la colonne Product est filtrée directement, par les lignes de la matrice ou par le segment, et faux sur les lignes de catégorie, où seule Category est filtrée. La mesure renvoie alors SUM ( Target[TargetQuantity] ), que la relation plusieurs-à-plusieurs restreint aux catégories du contexte ; sans branche sinon, IF renvoie une valeur vide sous le grain des objectifs.
+      options:
+        isinscope: { en: "ISINSCOPE detects the product level of the matrix but not a product selected only in the slicer: the category target would show for one product.", fr: "ISINSCOPE détecte le niveau produit de la matrice, mais pas un produit sélectionné uniquement dans le segment : l'objectif de la catégorie s'afficherait pour un seul produit." }
+        iscross: { en: "ISCROSSFILTERED on Product is also true when another column of the table, such as Category, is filtered: the category rows would be blank.", fr: "ISCROSSFILTERED sur Product est aussi vrai quand une autre colonne de la table, comme Category, est filtrée : les lignes de catégorie seraient vides." }
+        hasone: { en: "HASONEVALUE is false when the slicer selects two products, so the category target would show for a subset of the category.", fr: "HASONEVALUE est faux quand le segment sélectionne deux produits : l'objectif de la catégorie s'afficherait pour un sous-ensemble de la catégorie." }
+        colcategory: { en: "Category is filtered on every category row, so the target would be blank exactly where it must appear.", fr: "Category est filtrée sur chaque ligne de catégorie : l'objectif serait vide exactement là où il doit apparaître." }
+        tblproduct: { en: "ISFILTERED on the Product table is true when any of its columns, including Category, is filtered.", fr: "ISFILTERED sur la table Product est vrai quand l'une de ses colonnes, y compris Category, est filtrée." }
+        sumall: { en: "Removing the Product filters returns the targets of all categories on every category row.", fr: "Supprimer les filtres de Product renvoie les objectifs de toutes les catégories sur chaque ligne de catégorie." }
+        sumdiv: { en: "Dividing by the number of products spreads the target arbitrarily instead of returning the category target.", fr: "Diviser par le nombre de produits répartit l'objectif arbitrairement au lieu de renvoyer l'objectif de la catégorie." }
+    references:
+      - title: Many-to-many relationship guidance
+        url: https://learn.microsoft.com/en-us/power-bi/guidance/relationships-many-to-many
+      - title: ISCROSSFILTERED
+        url: https://learn.microsoft.com/en-us/dax/iscrossfiltered-function-dax
+
+  # ------------------------------------------------------------------ 8
+  - id: dp600-qz-31-08
+    objective: "3.1.7"
+    difficulty: 3
+    status: draft
+    type: multi
+    stem:
+      en: |
+        Fabrikam has a workspace named **WS-Core** that contains a published semantic model named **SalesModel**. SalesModel contains the Date, Region and Sales tables and a measure named **Total Sales**.
+
+        An analyst who has the Build permission on SalesModel connects Power BI Desktop live to SalesModel, selects **Make changes to this model**, and imports a **Budget** table from an Excel workbook. The analyst will publish the result as a model named **FinanceExt**.
+
+        The finance team lists requirements for FinanceExt.
+
+        Which two requirements can be met in FinanceExt?
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Fabrikam dispose d'un espace de travail nommé **WS-Core** qui contient un modèle sémantique publié nommé **SalesModel**. SalesModel contient les tables Date, Region et Sales et une mesure nommée **Total Sales**.
+
+        Un analyste qui dispose de l'autorisation Build sur SalesModel connecte Power BI Desktop en direct à SalesModel, sélectionne **Apporter des modifications à ce modèle**, puis importe une table **Budget** depuis un classeur Excel. L'analyste publiera le résultat sous la forme d'un modèle nommé **FinanceExt**.
+
+        L'équipe financière liste des exigences pour FinanceExt.
+
+        Quelles sont les deux exigences qui peuvent être satisfaites dans FinanceExt ?
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      choose: 2
+      options:
+        - { id: a, text: { en: "An RLS role defined in FinanceExt that filters the remote Region table by the email address of the signed-in manager", fr: "Un rôle RLS défini dans FinanceExt qui filtre la table distante Region selon l'adresse e-mail du responsable connecté" } }
+        - { id: b, text: { en: "A measure named Budget Variance that subtracts the sum of Budget[Amount] from the remote [Total Sales] measure", fr: "Une mesure nommée Budget Variance qui soustrait la somme de Budget[Amount] de la mesure distante [Total Sales]" } }
+        - { id: c, text: { en: "A change of the data type of a remote Sales column from Text to Date in the properties of the column", fr: "Un changement du type de données d'une colonne distante de Sales de Texte en Date dans les propriétés de la colonne" } }
+        - { id: d, text: { en: "A relationship between Budget[MonthKey] and the MonthKey column of the remote Date table", fr: "Une relation entre Budget[MonthKey] et la colonne MonthKey de la table distante Date" } }
+        - { id: e, text: { en: "A DirectQuery connection to a second semantic model that a colleague stores in their My workspace", fr: "Une connexion DirectQuery à un second modèle sémantique qu'un collègue stocke dans Mon espace de travail" } }
+    answer: { optionIds: [b, d] }
+    explanation:
+      correct:
+        en: |
+          A composite model built with DirectQuery for Power BI semantic models can contain new measures that use fields from different sources, such as the remote [Total Sales] and the local Budget table. It can also contain relationships between different sources, such as Budget and the remote Date table; these relationships are limited and default to many-to-many cardinality.
+        fr: |
+          Un modèle composite créé avec DirectQuery pour les modèles sémantiques Power BI peut contenir de nouvelles mesures qui utilisent des champs de sources différentes, comme la mesure distante [Total Sales] et la table locale Budget. Il peut aussi contenir des relations entre sources différentes, comme entre Budget et la table distante Date ; ces relations sont limitées et ont par défaut une cardinalité plusieurs-à-plusieurs.
+      options:
+        a: { en: "RLS can't be defined on a table loaded from a remote source; it must be defined in SalesModel, where it applies.", fr: "La RLS ne peut pas être définie sur une table chargée depuis une source distante ; elle doit l'être dans SalesModel, où elle s'applique." }
+        c: { en: "The data types of columns loaded from a semantic model can't be changed; change it in the source or use a calculated column.", fr: "Les types de données des colonnes chargées depuis un modèle sémantique ne sont pas modifiables ; changez-le dans la source ou utilisez une colonne calculée." }
+        e: { en: "Semantic models stored in My workspace aren't supported as sources of DirectQuery for Power BI semantic models.", fr: "Les modèles sémantiques stockés dans Mon espace de travail ne sont pas pris en charge comme sources de DirectQuery pour les modèles sémantiques Power BI." }
+    references:
+      - title: Use composite models in Power BI Desktop
+        url: https://learn.microsoft.com/en-us/power-bi/connect-data/desktop-directquery-datasets-azure-analysis-services
+
+  # ------------------------------------------------------------------ 9
+  - id: dp600-qz-31-09
+    objective: "3.1.5"
+    difficulty: 3
+    status: draft
+    type: dropdown
+    stem:
+      en: |
+        Litware has a semantic model that contains the measures [Orders], formatted as `#,0`, and [Revenue], formatted as currency. A calculation group named **Time Intelligence** has a column named **Time Calculation** and a calculation item named **YOY%** with the following expression:
+
+        ```text
+        VAR _PY = CALCULATE ( SELECTEDMEASURE (), SAMEPERIODLASTYEAR ( 'Date'[Date] ) )
+        RETURN DIVIDE ( SELECTEDMEASURE () - _PY, _PY )
+        ```
+
+        You have the following requirements:
+
+        - When readers apply YOY% to any measure, the values must be displayed as percentages with two decimals and must stay numeric so that charts can plot them.
+        - A card must always show the year-over-year growth of [Orders]. The page has no slicer on the calculation group, and the YOY% logic must not be written again.
+
+        How should you complete the definitions? Select the appropriate options in the answer area.
+
+        NOTE: Each correct selection is worth one point.
+      fr: |
+        Litware dispose d'un modèle sémantique qui contient les mesures [Orders], au format `#,0`, et [Revenue], au format monétaire. Un groupe de calcul nommé **Time Intelligence** comporte une colonne nommée **Time Calculation** et un élément de calcul nommé **YOY%** avec l'expression suivante :
+
+        ```text
+        VAR _PY = CALCULATE ( SELECTEDMEASURE (), SAMEPERIODLASTYEAR ( 'Date'[Date] ) )
+        RETURN DIVIDE ( SELECTEDMEASURE () - _PY, _PY )
+        ```
+
+        Vous avez les exigences suivantes :
+
+        - Quand les lecteurs appliquent YOY% à une mesure quelconque, les valeurs doivent s'afficher en pourcentage avec deux décimales et rester numériques pour que les graphiques puissent les tracer.
+        - Une carte doit toujours afficher la croissance d'une année sur l'autre de [Orders]. La page n'a pas de segment sur le groupe de calcul, et la logique de YOY% ne doit pas être réécrite.
+
+        Comment devez-vous compléter les définitions ? Sélectionnez les options appropriées dans la zone de réponse.
+
+        Remarque : chaque sélection correcte vaut un point.
+    body:
+      layout: code
+      language: text
+      template: |
+        // Dynamic format string of the YOY% calculation item
+        [[fs]]
+
+        // Measure used by the card
+        Orders YOY % =
+        CALCULATE (
+            [[m]],
+            [[f]]
+        )
+      slots:
+        - id: fs
+          options:
+            - { id: fsformat, text: "FORMAT ( SELECTEDMEASURE (), \"0.00%\" )" }
+            - { id: fsliteral, text: "\"#,##0.00%\"" }
+            - { id: fsselected, text: "SELECTEDMEASUREFORMATSTRING ()" }
+        - id: m
+          options:
+            - { id: mselected, text: "SELECTEDMEASURE ()" }
+            - { id: morders, text: "[Orders]" }
+            - { id: mcolumn, text: "'Time Intelligence'[Time Calculation]" }
+        - id: f
+          options:
+            - { id: fspl, text: "SAMEPERIODLASTYEAR ( 'Date'[Date] )" }
+            - { id: fissel, text: "ISSELECTEDMEASURE ( [Orders] )" }
+            - { id: fitem, text: "'Time Intelligence'[Time Calculation] = \"YOY%\"" }
+    answer:
+      values: { fs: fsliteral, m: morders, f: fitem }
+    explanation:
+      correct:
+        en: |
+          A dynamic format string on the YOY% item is a DAX expression that returns a format string; the literal "#,##0.00%" displays the result as a percentage while the value stays numeric. A regular measure applies a calculation item to a specific measure by filtering the calculation group column inside CALCULATE: CALCULATE ( [Orders], 'Time Intelligence'[Time Calculation] = "YOY%" ) reuses the YOY% logic for [Orders].
+        fr: |
+          Une chaîne de format dynamique sur l'élément YOY% est une expression DAX qui renvoie une chaîne de format ; le littéral "#,##0.00%" affiche le résultat en pourcentage tandis que la valeur reste numérique. Une mesure ordinaire applique un élément de calcul à une mesure précise en filtrant la colonne du groupe de calcul dans CALCULATE : CALCULATE ( [Orders], 'Time Intelligence'[Time Calculation] = "YOY%" ) réutilise la logique de YOY% pour [Orders].
+      options:
+        fsformat: { en: "FORMAT returns the formatted value as text, not a format string, so it doesn't define how the numeric value is displayed.", fr: "FORMAT renvoie la valeur mise en forme sous forme de texte, pas une chaîne de format : elle ne définit pas l'affichage de la valeur numérique." }
+        fsselected: { en: "SELECTEDMEASUREFORMATSTRING keeps the format of the base measure, such as #,0 or currency, instead of a percentage.", fr: "SELECTEDMEASUREFORMATSTRING conserve le format de la mesure de base, comme #,0 ou le format monétaire, au lieu d'un pourcentage." }
+        mselected: { en: "SELECTEDMEASURE can only be used in a calculation item or a format string expression, not in a regular measure.", fr: "SELECTEDMEASURE ne peut être utilisée que dans un élément de calcul ou une expression de chaîne de format, pas dans une mesure ordinaire." }
+        mcolumn: { en: "The calculation group column is a filter target, not the value to evaluate.", fr: "La colonne du groupe de calcul est une cible de filtre, pas la valeur à évaluer." }
+        fspl: { en: "SAMEPERIODLASTYEAR returns the orders of the previous year, not the growth, and rewrites part of the logic.", fr: "SAMEPERIODLASTYEAR renvoie les commandes de l'année précédente, pas la croissance, et réécrit une partie de la logique." }
+        fissel: { en: "ISSELECTEDMEASURE is meant for calculation item expressions and isn't a filter that applies the YOY% item.", fr: "ISSELECTEDMEASURE est destinée aux expressions des éléments de calcul et n'est pas un filtre qui applique l'élément YOY%." }
+    references:
+      - title: Create calculation groups in Power BI
+        url: https://learn.microsoft.com/en-us/power-bi/transform-model/calculation-groups
+      - title: SELECTEDMEASURE
+        url: https://learn.microsoft.com/en-us/dax/selectedmeasure-function-dax
+
+  # ------------------------------------------------------------------ 10
+  - id: dp600-qz-31-10
+    objective: "3.1.3"
+    difficulty: 3
+    status: draft
+    type: single
+    stem:
+      en: |
+        Adatum has an Import semantic model that contains the following tables:
+
+        - **SalesRep**: RepID, RepName, Email
+        - **Territory**: TerritoryID, TerritoryName
+        - **RepTerritory**: a hidden bridging table with one row per rep and territory (RepID, TerritoryID). A rep covers several territories, and a territory has several reps.
+        - **Sales**: TerritoryID, OrderDate, Amount
+
+        The model contains the following relationships:
+
+        | One side | Many side | Cross-filter direction |
+        | --- | --- | --- |
+        | SalesRep[RepID] | RepTerritory[RepID] | Single |
+        | Territory[TerritoryID] | RepTerritory[TerritoryID] | Both |
+        | Territory[TerritoryID] | Sales[TerritoryID] | Single |
+
+        A slicer on SalesRep correctly filters Sales in the reports. You create a role named **Reps** with the rule `[Email] = USERPRINCIPALNAME ()` on SalesRep. When you test the role as a rep, the reports show the sales of every territory.
+
+        Each rep must see only the sales of the territories they cover. The cardinality of the relationships must not change.
+
+        What should you do?
+      fr: |
+        Adatum dispose d'un modèle sémantique Import qui contient les tables suivantes :
+
+        - **SalesRep** : RepID, RepName, Email
+        - **Territory** : TerritoryID, TerritoryName
+        - **RepTerritory** : une table de pont masquée avec une ligne par commercial et par territoire (RepID, TerritoryID). Un commercial couvre plusieurs territoires, et un territoire a plusieurs commerciaux.
+        - **Sales** : TerritoryID, OrderDate, Amount
+
+        Le modèle contient les relations suivantes :
+
+        | Côté « un » | Côté « plusieurs » | Direction du filtrage croisé |
+        | --- | --- | --- |
+        | SalesRep[RepID] | RepTerritory[RepID] | Unique |
+        | Territory[TerritoryID] | RepTerritory[TerritoryID] | Les deux |
+        | Territory[TerritoryID] | Sales[TerritoryID] | Unique |
+
+        Un segment sur SalesRep filtre correctement Sales dans les rapports. Vous créez un rôle nommé **Reps** avec la règle `[Email] = USERPRINCIPALNAME ()` sur SalesRep. Quand vous testez le rôle en tant que commercial, les rapports affichent les ventes de tous les territoires.
+
+        Chaque commercial ne doit voir que les ventes des territoires qu'il couvre. La cardinalité des relations ne doit pas changer.
+
+        Que devez-vous faire ?
+    body:
+      options:
+        - { id: a, text: { en: "Select **Apply security filter in both directions** on the SalesRep to RepTerritory relationship.", fr: "Sélectionner **Appliquer le filtre de sécurité dans les deux directions** sur la relation entre SalesRep et RepTerritory." } }
+        - { id: b, text: { en: "Set the cross-filter direction of the Territory to Sales relationship to Both.", fr: "Définir la direction du filtrage croisé de la relation entre Territory et Sales sur Les deux." } }
+        - { id: c, text: { en: "Move the rule of the Reps role to RepTerritory, with a lookup of the email in SalesRep.", fr: "Déplacer la règle du rôle Reps vers RepTerritory, avec une recherche de l'adresse e-mail dans SalesRep." } }
+        - { id: d, text: { en: "Select **Apply security filter in both directions** on the Territory to RepTerritory relationship.", fr: "Sélectionner **Appliquer le filtre de sécurité dans les deux directions** sur la relation entre Territory et RepTerritory." } }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          By default, row-level security filters propagate in a single direction, even across relationships set to Both. The RLS filter on SalesRep reaches RepTerritory but stops there, because going from the bridge to Territory requires the many-to-one direction. Selecting Apply security filter in both directions on the Territory to RepTerritory relationship lets the security filter cross the bridge, reach Territory and then filter Sales; this option suits dynamic RLS based on the user name.
+        fr: |
+          Par défaut, les filtres de la sécurité au niveau des lignes se propagent dans une seule direction, même à travers des relations définies sur Les deux. Le filtre RLS sur SalesRep atteint RepTerritory mais s'y arrête, car aller du pont vers Territory exige la direction plusieurs-à-un. Sélectionner Appliquer le filtre de sécurité dans les deux directions sur la relation entre Territory et RepTerritory permet au filtre de sécurité de traverser le pont, d'atteindre Territory puis de filtrer Sales ; cette option convient à une RLS dynamique fondée sur le nom d'utilisateur.
+      options:
+        a: { en: "The filter already flows from SalesRep to RepTerritory; it's the step from the bridge to Territory that RLS doesn't cross.", fr: "Le filtre circule déjà de SalesRep vers RepTerritory ; c'est le passage du pont vers Territory que la RLS ne franchit pas." }
+        b: { en: "Territory already filters Sales in a single direction; the security filter never reaches Territory in the first place.", fr: "Territory filtre déjà Sales dans une seule direction ; le filtre de sécurité n'atteint même pas Territory." }
+        c: { en: "A rule on RepTerritory still has to cross the bridge to Territory, which RLS doesn't do with the default single-direction behavior.", fr: "Une règle sur RepTerritory doit toujours traverser le pont vers Territory, ce que la RLS ne fait pas avec le comportement par défaut à direction unique." }
+    references:
+      - title: Row-level security (RLS) with Power BI
+        url: https://learn.microsoft.com/en-us/fabric/security/service-admin-row-level-security
+      - title: Many-to-many relationship guidance
+        url: https://learn.microsoft.com/en-us/power-bi/guidance/relationships-many-to-many

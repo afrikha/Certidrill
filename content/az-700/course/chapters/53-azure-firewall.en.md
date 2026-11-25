@@ -47,7 +47,7 @@ Typical design: one firewall per region in the **hub** virtual network of a hub-
 | Design element | Rule |
 | --- | --- |
 | Data subnet | **AzureFirewallSubnet**, **/26** |
-| Management subnet | **AzureFirewallManagementSubnet**, **/26**, with its own public IP; required for forced tunneling; always present for Basic and secured hub firewalls |
+| Management subnet | **AzureFirewallManagementSubnet**, **/26**, with its own public IP; required for forced tunneling; always present for Basic and secured hub firewalls. The only route allowed on it is a default route to the Internet, with **Propagate gateway routes** disabled |
 | Firewalls per virtual network | One |
 | Availability zones | For new deployments, don't specify zones: Azure spreads instances across zones in zone-redundant compatible regions, at no extra cost |
 | Public IP addresses | Standard SKU, up to **250** per firewall in a virtual network (80 in a secured hub); a public IP prefix itself can't be attached, addresses created from it can |
@@ -99,7 +99,7 @@ With a firewall policy, rules are organized as **rule collection groups** (RCG) 
 Processing order:
 
 1. **Threat intelligence** (if enabled) before any rule.
-2. **DNAT** rules, then **network** rules, then **application** rules, whatever the group or collection priorities. Within each type: rule collection groups by priority, then collections by priority. Rules inherited from a **parent policy** always come before the child's.
+2. **DNAT** rules, then **network** rules, then **application** rules, whatever the group or collection priorities. Within each type: rule collection groups by priority, then collections by priority. Network and application rule collections inherited from a **parent policy** always come before the child's.
 3. If no application rule matches, the built-in **infrastructure rule collection** (platform FQDNs), then deny.
 4. **IDPS** (Premium): in Alert mode it runs in parallel; in Alert and Deny mode it runs after rule processing and can drop a flow that a rule allowed.
 
@@ -111,7 +111,7 @@ Processing order:
 
 Worked example: a network rule allows TCP 443 to `*` in collection priority 200, and an application rule collection denies `*.games.example` in priority 100. A user opens `https://play.games.example`: the **network rule matches first** (network before application), so the connection is allowed.
 
-Wildcards in target FQDNs work only on the left (`*.contoso.com`); `*contoso.com` also matches unwanted names such as `badcontoso.com`.
+Wildcards in target FQDNs work only on the left. `*.contoso.com` doesn't match the bare `contoso.com`: add it to the rule separately. `*contoso.com` matches `contoso.com` itself, but also unwanted names such as `badcontoso.com`.
 
 ```bash
 az network firewall policy rule-collection-group create -g RG-Hub \
@@ -141,7 +141,7 @@ The firewall is stateful: return traffic of an allowed connection passes even if
 | Protects | Virtual networks and Virtual WAN hubs | Virtual networks only |
 | Cost | Free with zero or one firewall association, fixed fee with several | Free |
 
-**Hierarchy.** A child (local) policy is created with a **parent (base) policy**: it inherits all its rule collections. The parent and child must be in the **same region**, but the policy can be associated with firewalls in any region. Parent rule collections are always processed before the child's, whatever the priorities; changes to the parent flow down automatically. The threat intelligence mode is inherited and can only be made stricter in the child (Alert only can become Alert and deny, never Off); the allowlist can only be extended.
+**Hierarchy.** A child (local) policy is created with a **parent (base) policy**: it inherits its network and application rule collections. **NAT rule collections aren't inherited**, because they're specific to each firewall: define DNAT rules in the child policy. The parent and child must be in the **same region**, but the policy can be associated with firewalls in any region. Inherited network and application rule collections are always processed before the child's, whatever the priorities; changes to the parent flow down automatically. The threat intelligence mode is inherited and can only be made stricter in the child (Alert only can become Alert and deny, never Off); the allowlist can only be extended.
 
 > **Exam tip.** "Central IT must enforce rules that application teams can't override, while teams manage their own rules" is answered with a parent policy and child policies, not with two firewalls or with RBAC alone.
 
@@ -176,4 +176,4 @@ Steps (portal: **Network Security > Virtual hubs > Create new secured virtual hu
 - Workload subnets need a UDR `0.0.0.0/0` to the firewall private IP; nothing is filtered without it.
 - Processing: threat intelligence, DNAT, network, application, infrastructure collection, deny; parent policy before child; priorities 100 to 65,000.
 - DNAT implicitly allows; application rules are outbound and east-west only and always SNAT; FQDNs in network rules need DNS proxy; SNAT ports grow with public IPs or a NAT gateway.
-- Firewall Manager policies are global, reusable and hierarchical (parent and child in the same region); secured hubs use routing intent for internet, private and inter-hub traffic.
+- Firewall Manager policies are global, reusable and hierarchical (parent and child in the same region; NAT rule collections aren't inherited); secured hubs use routing intent for internet, private and inter-hub traffic.

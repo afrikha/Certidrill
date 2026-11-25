@@ -88,7 +88,7 @@ Every Azure service that integrates with RISE runs in the customer's subscriptio
 | Azure Data Factory **Azure integration runtime** | Microsoft-managed | HTTPS to a public IP that RISE exposes through its application gateway |
 | **On-premises data gateway** (Power BI, Power Apps, Logic Apps) | Customer VM in Azure or on premises | SAP .NET connector over RFC, BAPI and IDoc, through peering or site-to-site VPN; or REST through the RISE application gateway |
 | **SAP Cloud Connector** for your own integrations to BTP | Customer VMs (when virtual network connectivity exists) | Private connection to SAP; outbound to BTP |
-| Microsoft Sentinel data connector agent | Customer VM or container | Private connection to the SAP application layer |
+| Microsoft Sentinel **agentless data connector** (the containerized agent retired on September 14, 2026) | SAP Integration Suite, sending to the customer's Sentinel workspace | SAP Cloud Connector, hosted by SAP in RISE, or by the customer when virtual network connectivity exists |
 | Azure API Management | Customer subscription | Governs Power Apps, Power BI, Functions and App Service calls to SAP, with throttling, quotas and SAP principal propagation |
 
 Network services also stay on the customer side: Azure Firewall or NVAs in the hub, NAT gateway for outbound traffic, NSGs on your subnets. Inside SAP, the ABAP SDK for Azure and the Microsoft AI SDK for SAP ABAP let ABAP code call Azure services directly; installing them requires abapGit.
@@ -103,12 +103,12 @@ Network services also stay on the customer side: Azure Firewall or NVAs in the h
 | Connector | Runtime | Notes |
 | --- | --- | --- |
 | SAP ECC | Azure IR or self-hosted IR | Either path |
-| SAP table, SAP BW, SAP Open Hub | Self-hosted IR | SAP .NET connector and function modules over RFC |
+| SAP table, SAP BW, SAP Open Hub | Self-hosted IR | SAP .NET connector and function modules over RFC; the Open Hub connector doesn't support SAP BW/4HANA |
 | SAP HANA (ODBC/JDBC) | Self-hosted IR | Only if SAP agreed to direct database access and opened the user and path |
 
-Change data capture from SAP into Microsoft Fabric (OneLake) with Azure Data Factory, and Microsoft Purview scans of SAP ECC sources, use the same runtimes. Contact SAP for the communication paths to open and their license implications.
+Change data capture from SAP into Microsoft Fabric (OneLake) with Azure Data Factory uses the same runtimes. Microsoft Purview scans of SAP ECC need a self-hosted IR (standard or on Kubernetes) with JDK 11, the SAP .NET connector and SAP JCo; at least 128 GB of RAM is recommended. Contact SAP for the communication paths to open and their license implications.
 
-**Archiving.** SAP Information Lifecycle Management (ILM) manages data volumes, retention and the decommissioning of legacy systems. Its **ILM Store** can keep archive files and attachments from S/4HANA in **Azure Blob Storage**, over WebDAV, applying ILM retention rules:
+**Archiving.** SAP Information Lifecycle Management (ILM) manages data volumes, retention and the decommissioning of legacy systems. Its **ILM Store** can keep archive files and attachments from S/4HANA in **Azure Blob Storage**, applying ILM retention rules:
 
 1. Register an application in Microsoft Entra ID with a client secret; SAP ILM authenticates as this service principal.
 2. Create a Blob Storage account (manually or with the `sap-ilm-store` quickstart template).
@@ -138,7 +138,7 @@ Single sign-on works as for a self-managed SAP system, with RISE-specific limits
 **Microsoft Sentinel solution for SAP applications.**
 
 - Deployed and managed entirely by the customer in its own Azure subscription, not by SAP.
-- Covers the **SAP application layer** only (for example audit log, logons, sensitive transactions). Collection uses a data connector agent on a VM or container in your subscription, or the agentless connector through SAP Integration Suite.
+- Covers the **SAP application layer** only (for example audit log, logons, sensitive transactions). Collection uses the agentless data connector, through SAP Cloud Connector and SAP Integration Suite; the containerized data connector agent retired on September 14, 2026.
 - RISE infrastructure and OS logs are available only through the optional **SAP LogServ** service, which integrates with Microsoft Sentinel.
 - The Microsoft Sentinel solution for SAP BTP adds BTP through the audit log APIs.
 - Playbooks can, for example, block a suspicious user in SAP, BTP or Microsoft Entra ID; Microsoft Defender XDR and Security Copilot use the same data.
@@ -152,6 +152,6 @@ Single sign-on works as for a self-managed SAP system, with RISE-specific limits
 - Virtual network peering (cross-tenant, same region preferred) is the default; VPN VNet-to-VNet when a single entry point is required.
 - On-premises access goes through the customer hub with gateway transit; SAP's own ExpressRoute reaches only the SAP network.
 - DNS: delegate a subdomain to SAP and receive it by zone transfer on VM-based DNS servers; Azure DNS private zones can't do zone transfer.
-- Integration runtimes, data gateways, Cloud Connector and Sentinel collectors run on customer VMs in peered networks.
+- Integration runtimes and data gateways run on customer VMs in peered networks; the Sentinel agentless data connector reaches SAP through SAP Cloud Connector and SAP Integration Suite.
 - Archive with SAP ILM Store on Azure Blob Storage, accessed by a Microsoft Entra application with Storage Blob Data Contributor and shared key disabled.
 - Azure Center for SAP solutions and Azure Monitor for SAP solutions don't apply to RISE.

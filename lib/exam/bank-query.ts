@@ -1,6 +1,7 @@
 import type { ContentStatus, Prisma, PrismaClient } from "@prisma/client";
 import type { BlueprintStructure, QuestionTypeCode } from "@/lib/content/schema";
 import type { AssemblyBank, AssemblyBlueprint, AssemblyHistory, CandidateQuestion } from "./assembler";
+import { examBank } from "@/lib/questions/usage";
 
 /**
  * Statuses that may enter an exam. Only `published` in production (spec §7);
@@ -42,12 +43,12 @@ export async function loadAssemblyBlueprint(db: ReadDb, certificationId: string)
 export async function loadAssemblyBank(db: ReadDb, certificationId: string): Promise<AssemblyBank> {
   const status = { in: examStatuses() };
   const select = { id: true, type: true, difficulty: true, caseStudyId: true, seriesId: true, seriesOrder: true, objective: { select: { code: true, domain: { select: { code: true } } } } } as const;
-  const rows = await db.question.findMany({ where: { certificationId, status }, select, orderBy: { id: "asc" } });
+  const rows = await db.question.findMany({ where: examBank({ certificationId, status }), select, orderBy: { id: "asc" } });
   // A case study or a series is drawn whole or not at all: never while one of
   // its questions (retired ones aside) may not enter an exam, e.g. reported by
   // a user (needs_review) or back to draft with a new version of its file.
   const outside = await db.question.findMany({
-    where: { certificationId, status: { notIn: [...examStatuses(), "retired"] }, OR: [{ caseStudyId: { not: null } }, { seriesId: { not: null } }] },
+    where: examBank({ certificationId, status: { notIn: [...examStatuses(), "retired"] }, OR: [{ caseStudyId: { not: null } }, { seriesId: { not: null } }] }),
     select: { caseStudyId: true, seriesId: true },
   });
   const incomplete = [...new Set(outside.flatMap((q) => [q.caseStudyId, q.seriesId]).filter((id): id is string => id !== null))];

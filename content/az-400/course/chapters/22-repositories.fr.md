@@ -145,7 +145,7 @@ git push origin --delete v2.3.0-rc1             # delete on the server
 | Besoin | Azure DevOps | GitHub |
 | --- | --- | --- |
 | Lancer un pipeline quand une balise de version est poussée | `trigger: tags: include: [ 'v*' ]` | `on: push: tags: [ 'v*' ]` |
-| Qui peut créer / supprimer des balises | **Create tag** (Contributors) ; la suppression exige **Force push** sur le dépôt ou sur **All tags** | Accès en écriture ; restreindre avec un **ruleset de balises** (restreindre créations, mises à jour, suppressions) |
+| Qui peut créer / supprimer des balises | **Create tag** (Contributors) ; la suppression exige **Force push** sur le dépôt ou sur **All tags**, dont le créateur d'une balise hérite sur cette balise | Accès en écriture ; restreindre avec un **ruleset de balises** (restreindre créations, mises à jour, suppressions) |
 | Publier une version à partir d'une balise | Pipeline ayant la balise comme source | **Releases** (balise, notes, binaires) |
 
 Les noms de balises ne peuvent contenir ni espace, ni `~`, ni `:` ; évitez les noms hexadécimaux de 40 caractères.
@@ -189,7 +189,7 @@ git push --force --mirror origin
 
 Conséquences d'une réécriture de l'historique : tous les hachages de commits suivants changent, les collaborateurs doivent recloner ou rebaser (une fusion réintroduit les données), les branches protégées doivent autoriser temporairement le push forcé (l'autorisation **Force push** dans Azure Repos), et les pull requests ouvertes sont cassées. Les données peuvent subsister dans les forks, les autres clones et les caches du serveur : sur GitHub, contactez le support GitHub pour supprimer les vues en cache et les références des pull requests. Azure Repos avertit qu'un fichier retiré de l'historique des branches peut encore être renvoyé par les clones du dépôt.
 
-Prévenez plutôt que purger : `.gitignore`, la **protection push** de l'analyse des secrets dans GitHub et dans GitHub Advanced Security pour Azure DevOps, et les stratégies de dépôt d'Azure Repos (taille de fichier maximale, validation des chemins de fichiers).
+Prévenez plutôt que purger : `.gitignore`, la **protection push** de l'analyse des secrets dans GitHub et dans GitHub Advanced Security pour Azure DevOps (ou l'offre autonome GitHub Secret Protection for Azure DevOps), et les stratégies de dépôt d'Azure Repos (taille de fichier maximale, validation des chemins de fichiers).
 
 > **Piège d'examen.** Supprimer le fichier dans un nouveau commit ne le retire pas : il reste dans l'historique. Et réécrire l'historique ne rend pas inoffensif un secret divulgué, car des copies existent ailleurs : le renouvellement est toujours la première étape.
 

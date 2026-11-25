@@ -49,7 +49,7 @@ The **MCSB** is a set of security controls and recommendations for cloud workloa
 | AM | Asset management | BR | Backup and recovery |
 | DS | DevOps security | AI | Artificial intelligence security |
 
-Defender for Cloud assigns the MCSB by default as its security standard: the recommendations you see and the secure score come from it. Regulatory standards (ISO 27001, PCI DSS, NIST SP 800-53...) are added separately in the regulatory compliance dashboard.
+Defender for Cloud assigns the MCSB by default as its security standard (with AWS Foundational Security Best Practices for AWS connectors and GCP Default for GCP): the recommendations you see come from it, and only built-in MCSB recommendations affect the secure score. The Defender for Cloud documentation doesn't name the version of this default. Regulatory standards (ISO 27001, PCI DSS, NIST SP 800-53...) are added separately in the regulatory compliance dashboard.
 
 | Requirement | Recommendation |
 | --- | --- |
@@ -135,7 +135,7 @@ The framework follows the lifecycle phases of the Cloud Adoption Framework: **De
 ## Key points
 
 - MCRA: diagrams of Microsoft capabilities and integrations, part of the Security Adoption Framework. Use them as a target-state template and to compare with existing tools.
-- MCSB v2 (preview): 12 control domains, including DevOps security and AI security, mapped to more than 420 Azure Policy definitions; the default standard of Defender for Cloud.
+- MCSB v2 (preview): 12 control domains, including DevOps security and AI security, mapped to more than 420 Azure Policy definitions. The MCSB is the default standard of Defender for Cloud.
 - Insider risk: Purview Insider Risk Management, pseudonymized by default; departing users need the HR connector. Supply chain: code integrity, signed updates, dependency and secret scanning, governed partner access.
 - MCSB AI controls: approved models, layered content filtering, safety meta-prompts, least privilege for agents, human in the loop, monitoring, continuous red teaming.
 - Zero Trust adoption framework: three principles, five business scenarios, CAF lifecycle phases, scaled across the estate one piece at a time.

@@ -1,4 +1,4 @@
-La supervision d'Azure Virtual Desktop combine deux sources de données dans Log Analytics : les **journaux du service** des objets Azure Virtual Desktop (pools d'hôtes, espaces de travail, groupes d'applications) et les **données invitées** des hôtes de session (compteurs de performances et journaux d'événements Windows). Azure Virtual Desktop Insights transforme les deux en workbooks, et la mise à l'échelle automatique ajuste la capacité en cours d'exécution. Les questions demandent quelle source de données répond à une question, quel rôle est le minimum et ce que fait un plan de mise à l'échelle à un moment donné.
+La supervision d'Azure Virtual Desktop combine deux sources de données dans Log Analytics : les **journaux du service** des objets Azure Virtual Desktop (pools d'hôtes, espaces de travail, groupes d'applications) et les **données invitées** des hôtes de session (compteurs de performances et journaux d'événements Windows). Azure Virtual Desktop Insights transforme les deux en classeurs, et la mise à l'échelle automatique ajuste la capacité en cours d'exécution. Les questions demandent quelle source de données répond à une question, quel rôle est le minimum et ce que fait un plan de mise à l'échelle à un moment donné.
 
 <!-- section: log-collection | objectives: 4.1.1 -->
 ## Collecter les journaux d'Azure Virtual Desktop et des hôtes de session
@@ -24,7 +24,7 @@ La supervision d'Azure Virtual Desktop combine deux sources de données dans Log
 | Session Host Management Activity | L'activité de gestion sur les hôtes de session |
 | Autoscale | Les opérations de mise à l'échelle |
 
-Pour Insights, le pool d'hôtes a besoin de Management Activities, Feed, Connections, Errors, Checkpoints, HostRegistration et AgentHealthStatus ; l'espace de travail, de Management Activities, Feed, Errors et Checkpoints. Un groupe d'applications propose Checkpoints, Errors et Management.
+Pour Insights, le pool d'hôtes a besoin de Management Activities, Feed, Connections, Errors, Checkpoints, HostRegistration et AgentHealthStatus ; l'espace de travail, de Management Activities, Feed, Errors et Checkpoints. Un groupe d'applications propose Checkpoints, Errors et Management. Pour superviser la mise à l'échelle automatique dans Insights (pools regroupés uniquement), envoyez aussi depuis le pool d'hôtes la catégorie **Autoscale logs for pooled host pools** (table `WVDAutoscaleEvaluationPooled`). Le **plan de mise à l'échelle** a son propre paramètre de diagnostic (*Autoscale logs*) vers un compte de stockage ou Event Hubs, qui est l'option pour les pools d'hôtes personnels.
 
 Une connexion signale trois états : **Started** (l'utilisateur sélectionne une ressource dans le client), **Connected** (la session est établie sur l'hôte) et **Completed** (déconnexion). Dans `WVDErrors`, `ServiceError` = `false` signifie qu'un administrateur peut en général corriger la cause ; `true` signale un problème à remonter à Microsoft avec le *CorrelationId*.
 
@@ -40,27 +40,27 @@ Events
 ```
 
 ```kusto
-// How many users hit the same error
+// Whether a specific error occurred for other users
 WVDErrors
 | where CodeSymbolic == "ErrorSymbolicCode"
 | summarize count(UserName) by CodeSymbolic
 ```
 
-**Données des hôtes de session.** L'agent Log Analytics est retiré : utilisez l'**agent Azure Monitor** (une extension de machine virtuelle), qui exige une **identité managée affectée par le système** sur la machine virtuelle, et une DCR qui définit les compteurs, les journaux d'événements et l'espace de travail de destination, associée à chaque hôte de session. Microsoft recommande un **espace de travail dédié** aux données des hôtes de session, pour ne collecter que des données Azure Virtual Desktop ; il peut être différent de celui des paramètres de diagnostic. Les données de journal apparaissent avec une latence pouvant atteindre environ 15 minutes.
+**Données des hôtes de session.** L'agent Log Analytics est retiré : utilisez l'**agent Azure Monitor** (une extension de machine virtuelle), qui exige une **identité managée affectée par le système** sur la machine virtuelle, et une DCR qui définit les compteurs, les journaux d'événements et l'espace de travail de destination, associée à chaque hôte de session. Microsoft recommande un **espace de travail dédié** aux données des hôtes de session, pour ne collecter que des données Azure Virtual Desktop ; il peut être différent de celui des paramètres de diagnostic. Azure Monitor alimente les données de journal avec une latence d'environ 15 minutes, et après la première configuration des diagnostics, les données peuvent mettre quelques heures à apparaître.
 
 > **Piège d'examen.** Les paramètres de diagnostic ne collectent jamais le processeur ou la mémoire des hôtes de session, et l'agent Azure Monitor ne collecte jamais les événements de connexion ou de flux : une question sur « pourquoi les utilisateurs ne voient pas leurs applications » demande la catégorie **Feed** de l'**espace de travail**, alors que « quel hôte a un délai d'entrée élevé » demande des **compteurs de performances** par une DCR.
 
 <!-- section: azure-monitor-insights | objectives: 4.1.2 -->
 ## Superviser avec Azure Monitor et Azure Virtual Desktop Insights
 
-**Azure Virtual Desktop Insights** est un ensemble de workbooks Azure Monitor (`https://aka.ms/avdi`, ou *Insights* sur un pool d'hôtes). La configuration passe par le **workbook de configuration** (*Workbooks > Check Configuration*, choisissez l'abonnement, le groupe de ressources et le pool d'hôtes) :
+**Azure Virtual Desktop Insights** est un ensemble de classeurs Azure Monitor (`https://aka.ms/avdi`, ou *Insights* sur un pool d'hôtes). La configuration passe par le **classeur de configuration** (*Workbooks > Check Configuration*, choisissez l'abonnement, le groupe de ressources et le pool d'hôtes) :
 
 | Onglet | Ce qu'il déploie |
 | --- | --- |
 | Resource diagnostic settings | *Configure host pool* et *Configure workspace* : les paramètres de diagnostic vers l'espace de travail choisi |
 | Session host data settings | *Create data collection rule* (après le choix de l'espace de travail et du groupe de ressources de la DCR), puis *Deploy association*, *Add extension* (agent Azure Monitor) et *Add system managed identity* ; ensuite *Configure performance counters* et *Configure Events* pour les éléments manquants |
 
-Le déploiement automatisé depuis le workbook prend en charge jusqu'à 1 000 hôtes de session ; au-delà, installez l'agent à la création des hôtes de session, par exemple avec un modèle ARM.
+Le déploiement automatisé depuis le classeur prend en charge jusqu'à 1 000 hôtes de session ; au-delà, installez l'agent à la création des hôtes de session, par exemple avec un modèle ARM.
 
 **Rôles minimaux pour consulter Insights :** **Desktop Virtualization Reader** sur le groupe de ressources ou l'abonnement des pools d'hôtes, espaces de travail et hôtes de session, plus **Log Analytics Reader** sur chaque espace de travail.
 
@@ -80,9 +80,9 @@ Principaux rapports :
 > **Conseil d'examen.** « Donner au support un accès en lecture à Insights avec le moindre privilège » = Desktop Virtualization Reader sur les ressources Azure Virtual Desktop **et** Log Analytics Reader sur l'espace de travail. Aucun des deux rôles ne suffit seul.
 
 <!-- section: customize-workbooks | objectives: 4.1.3 -->
-## Personnaliser les workbooks d'Insights
+## Personnaliser les classeurs d'Insights
 
-Les workbooks d'Insights sont des modèles Microsoft. Pour les modifier, ouvrez le workbook, **enregistrez-en une copie** comme votre propre workbook, puis sélectionnez **Modifier** :
+Les classeurs d'Insights sont des modèles Microsoft. Pour les modifier, ouvrez le classeur, **enregistrez-en une copie** comme votre propre classeur, puis sélectionnez **Modifier** :
 
 | Élément | Utilisation |
 | --- | --- |
@@ -92,12 +92,12 @@ Les workbooks d'Insights sont des modèles Microsoft. Pour les modifier, ouvrez 
 | Liens/onglets | Des onglets qui fixent la valeur d'un paramètre pour afficher ou masquer des groupes |
 | Groupe | Plusieurs éléments chargés ensemble, modifiables ou issus d'un modèle |
 
-Sélectionnez **Terminer la modification** (Done editing) pour chaque élément, puis enregistrez. La galerie (*Moniteur > Workbooks*) comporte les onglets *Workbooks* (workbooks enregistrés), *Modèles publics* (modèles Microsoft) et *Mes modèles* (vos modèles déployés).
+Sélectionnez **Terminer la modification** (Done editing) pour chaque élément, puis enregistrez. La galerie (*Moniteur > Workbooks*) comporte les onglets *Workbooks* (classeurs enregistrés), *Modèles publics* (modèles Microsoft) et *Mes modèles* (vos modèles déployés).
 
 | Action | Rôle |
 | --- | --- |
-| Consulter un workbook | Un accès en lecture aux données qu'il interroge (par exemple Monitoring Reader, Log Analytics Reader) |
-| Enregistrer un workbook partagé | **Workbooks Contributor** ou **Monitoring Contributor** (`microsoft.insights/workbooks/write`) |
+| Consulter un classeur | Un accès en lecture aux données qu'il interroge (par exemple Monitoring Reader, Log Analytics Reader) |
+| Enregistrer un classeur partagé | **Workbooks Contributor** ou **Monitoring Contributor** (`microsoft.insights/workbooks/write`) |
 
 > **Piège d'examen.** Une copie personnalisée enregistrée **ne reçoit pas** les mises à jour que Microsoft publie dans le modèle Insights. Enregistrer ses paramètres favoris exige aussi une copie personnalisée.
 
@@ -155,7 +155,7 @@ Exemple : 2 hôtes × 20 sessions = une capacité de 40 sessions. Avec un seuil 
 
 **Pools d'hôtes personnels.** Pour chaque phase : démarrer les machines attribuées, les machines attribuées et non attribuées, ou aucune à l'heure de début ; **Démarrer la machine virtuelle à la connexion** (Start VM on Connect, fortement recommandé si les machines ne sont pas démarrées en montée en charge) ; et les actions après une déconnexion ou une fermeture de session (0 à 360 minutes) : **libérer**, **mettre en veille prolongée** ou rien. La veille prolongée n'est pas prise en charge avec FSLogix ni App attach.
 
-**Méthodes de mise à l'échelle des pools regroupés :** la mise à l'échelle **par gestion de l'alimentation** (power management) démarre et arrête les hôtes existants ; la mise à l'échelle **dynamique** (préversion) crée et supprime aussi des hôtes, et exige un pool d'hôtes avec une **configuration d'hôte de session**.
+**Méthodes de mise à l'échelle des pools regroupés :** la mise à l'échelle **par gestion de l'alimentation** (power management) démarre et arrête les hôtes existants ; la mise à l'échelle **dynamique** (préversion) crée et supprime aussi des hôtes, et exige un pool d'hôtes avec une **configuration d'hôte de session** et, en plus de Power On Off Contributor, le rôle **Desktop Virtualization Virtual Machine Contributor** pour le principal de service Azure Virtual Desktop à l'étendue de l'abonnement.
 
 Pour réduire la capacité utilisée, fermez les sessions déconnectées avec la stratégie *Set time limit for disconnected sessions* (*Remote Desktop Session Host > Session Time Limits*) par Intune ou par stratégie de groupe.
 
@@ -188,8 +188,8 @@ Remove-AzWvdUserSession -ResourceGroupName rg-avd -HostPoolName hp-sales -Sessio
 ## Points clés
 
 - Journaux du service : paramètres de diagnostic sur les pools d'hôtes, espaces de travail et groupes d'applications vers les tables `WVD*`. Données des hôtes de session : agent Azure Monitor avec identité managée + DCR.
-- Insights : le workbook de configuration déploie les deux ; la consultation exige Desktop Virtualization Reader + Log Analytics Reader.
-- Workbooks personnalisés : enregistrer une copie, modifier ; les copies ne reçoivent pas les mises à jour du modèle ; l'enregistrement exige Workbooks Contributor ou Monitoring Contributor.
+- Insights : le classeur de configuration déploie les deux ; la consultation exige Desktop Virtualization Reader + Log Analytics Reader.
+- Classeurs personnalisés : enregistrer une copie, modifier ; les copies ne reçoivent pas les mises à jour du modèle ; l'enregistrement exige Workbooks Contributor ou Monitoring Contributor.
 - Dimensionnement : 6 / 4 / 2 / 1 utilisateurs par vCPU pour les charges légère / moyenne / lourde / intensive ; préférez plusieurs hôtes de 4 à 24 vCPU ; fixez une vraie limite maximale de sessions.
 - Plan de mise à l'échelle : Power On Off Contributor à l'étendue de l'abonnement, un plan par pool d'hôtes, même type, même région, quatre phases ; étiquette d'exclusion, pas mode drainage, pour la maintenance.
 - Sessions : mode drainage, message, déconnexion, fermeture de session ; rôles Session Host Operator et User Session Operator.

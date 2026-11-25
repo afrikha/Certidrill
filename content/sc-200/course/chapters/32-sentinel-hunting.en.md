@@ -23,14 +23,14 @@ Monitoring and working with the results:
 | Results delta, Results delta percentage | Last 24 hours compared with the previous 24–48 hours, to spot spikes |
 | Favorites | Favorite queries run automatically each time the Hunting page opens |
 | N/A in the Results filter | Queries whose data sources aren't connected |
-| Bookmarks | Rows kept from a result with the query, tags, notes, entity and MITRE mappings; stored in the `HuntingBookmark` table |
-| Incident actions | Turn bookmarks into a new incident or add them to an existing one |
+| Bookmarks | Rows kept from a result with the query, tags, notes, entity and MITRE mappings; stored in the `HuntingBookmark` table. Created only in the Azure portal (**Add bookmark**); the Defender portal shows existing bookmarks but can't add new ones |
+| Incident actions | Turn bookmarks into a new incident or add them to an existing one (Azure portal only) |
 | Hunts (preview) | A hunt project: hypothesis, queries, bookmarks, status, comments and metrics; analytics rules and incidents created from it are linked |
 | New alert rule > Create Microsoft Sentinel alert | Turns the query into a scheduled analytics rule |
 
 Hunting queries run on the **analytics tier**: data stored only in the data lake isn't searched by them, nor by analytics rules. **Livestream** sessions are no longer available: use KQL jobs, analytics rules (scheduled or NRT) or playbooks instead.
 
-> **Exam trap.** A hunting query never alerts by itself. "Run this hunting query every hour and create incidents" is an analytics rule created from the query. "Keep these suspicious rows as evidence and attach them to incident 42" is a bookmark. Bookmarks exist in the Sentinel Hunting page, not in advanced hunting.
+> **Exam trap.** A hunting query never alerts by itself. "Run this hunting query every hour and create incidents" is an analytics rule created from the query. "Keep these suspicious rows as evidence and attach them to incident 42" is a bookmark. Bookmarks exist in the Sentinel Hunting page, not in advanced hunting, and until the Azure portal retirement they are created and added to incidents only in the Azure portal; in the Defender portal, use **Link to incident** from advanced hunting results.
 
 <!-- section: kql-jobs | objectives: 3.2.2 -->
 ## Creating and managing KQL jobs in the data lake
@@ -78,7 +78,7 @@ CommonSecurityLog
 
 The `delay` absorbs the ingestion latency of the lake so that late events aren't missed between two runs.
 
-**Managing jobs**: the **Jobs** page (KQL, notebook and graph jobs) shows the status, the last and next runs and recent health issues. A KQL job's details pane offers **Enable** / **Disable**, **Edit** (the query can change but must keep the same output schema; editing a one-time job runs it again), **View history** (runs, status, rows sent) and **Delete** (permanent; a running job can't be deleted). A job whose source workspace was deleted is disabled automatically.
+**Managing jobs**: the **Jobs** page (KQL, notebook and graph jobs) shows the status, the last and next runs and recent health issues. A KQL job's details pane offers **Enable** / **Disable**, **Edit** (the query can change but must keep the same output schema; editing a one-time job runs it again), **View history** (runs, status, rows sent) and **Delete** (permanent; a running job can't be deleted). Disabling or deleting a job doesn't stop the runs already in progress or queued; only future runs are no longer scheduled. A job whose source workspace was deleted is disabled automatically.
 
 Permissions: a Microsoft Entra role that can write to the analytics tier and schedule jobs (Security Operator or Security Administrator), and, to create **new** analytics-tier tables, the **Log Analytics Contributor** role on the workspace for the data lake managed identity `msg-resources-<guid>`.
 
@@ -100,7 +100,7 @@ Create it in **Microsoft Sentinel > Configuration > Summary rules** (the workspa
 | Columns added | `_RuleName`, `_RuleLastModifiedTime`, `_BinSize`, `_BinStartTime` |
 | Active rules | 100 per workspace |
 | Not supported | `workspaces()`, `app()`, `resource()`, `ADX()`, `ARG()`, `union *`, `bag_unpack`, `narrow`, `pivot`, user-defined functions |
-| Failures | 10 retries within 8 hours, then the bin is skipped; failed bins can be rerun |
+| Failures | 10 retries within 8 hours, then the bin is skipped; failed bins can be rerun; after eight consecutive bin retries the rule is set to `isActive: false` and put on hold |
 | Cost | No charge for the rule; Analytics sources: result ingestion only; Basic and Auxiliary sources: data scanned plus result ingestion |
 
 Don't add a time filter to the query: the bin defines the time range. Test the query in **Hunts** first, and keep results small (Microsoft suggests about 0.01 % of the source volume).
@@ -119,7 +119,7 @@ Monitoring: turn on the **Summary Logs** category in the workspace diagnostic se
 | Scheduled or one-time query over lake data, results promoted to the analytics tier | KQL job |
 | One-off search of long-term retention of an Analytics table | Search job (`_SRCH` table) |
 
-> **Exam trap.** A summary rule doesn't backfill: it processes recent bins only, from its start time. "Detect when an IP from the threat intelligence feed appears in 1 TB/day of firewall logs at the lowest cost" is a summary rule over the low-cost table plus an analytics rule on the summary table.
+> **Exam trap.** A summary rule doesn't backfill: it processes recent bins only, from its start time, and data from the recent past up to 24 hours at most. "Detect when an IP from the threat intelligence feed appears in 1 TB/day of firewall logs at the lowest cost" is a summary rule over the low-cost table plus an analytics rule on the summary table.
 
 <!-- section: notebooks-mcp | objectives: 3.2.4 -->
 ## Hunting with notebooks and the Sentinel MCP server
@@ -137,14 +137,14 @@ data_provider.save_as_table(failed, "FailedSignins_SPRK", write_options={"mode":
 | Point | Value |
 | --- | --- |
 | Pools | Small (exploration), Medium (joins, aggregations, ML), Large (deep learning, large joins) |
-| Session start | A few minutes the first time |
-| Interactive session timeout | 30 minutes by default, configurable |
+| Session start | 3 to 6 minutes the first time; later runs are faster |
+| Interactive session timeout | Session timeout setting: 30 minutes by default, configurable; the service limits list a 20-minute inactivity timeout |
 | Interactive query timeout | 2 hours |
 | Notebook job timeout, concurrency | 8 hours; 3 jobs at a time, the next ones queued |
 | Libraries | Azure Synapse libraries and the Microsoft Sentinel Provider library only; no `pip install` |
 | Display | 100,000 rows in VS Code |
 
-A notebook can be scheduled as a **notebook job** from the extension to write results to the data lake or the analytics tier; the Jobs page of the Defender portal shows it read-only. Creating analytics-tier tables needs the same Log Analytics Contributor assignment of `msg-resources-<guid>` as KQL jobs.
+A notebook can be scheduled as a **notebook job** from the extension to write results to the data lake or the analytics tier; in the Jobs page of the Defender portal you can view its details and history and enable or disable its schedule, but not edit it. Once submitted, the job is no longer linked to the local notebook: to change it, download the job definition, edit the notebook, then **Edit job** and **Submit** (a new job name creates a new job definition). Creating analytics-tier tables needs the same Log Analytics Contributor assignment of `msg-resources-<guid>` as KQL jobs.
 
 The **Microsoft Sentinel MCP server** exposes tool collections over the data lake and Defender data to MCP clients: Security Copilot, Copilot Studio, Microsoft Foundry and Visual Studio Code (GitHub Copilot chat in agent mode). It is hosted by Microsoft and authenticates with Microsoft Entra ID.
 
@@ -176,7 +176,7 @@ Custom MCP tools can also expose your saved advanced hunting KQL queries to agen
 <!-- section: key-points -->
 ## Key points
 
-- Hunting queries: New query with entity and MITRE mappings, Results delta, Favorites, bookmarks to incidents, Hunts; analytics tier only; no more livestream.
+- Hunting queries: New query with entity and MITRE mappings, Results delta, Favorites, bookmarks to incidents (created in the Azure portal), Hunts; analytics tier only; no more livestream.
 - KQL jobs: promote lake data to the analytics tier (`_KQL_CL`), one-time or scheduled, 100 enabled jobs, 5 concurrent runs, 1-hour timeout; `msg-resources-<guid>` needs Log Analytics Contributor for new tables.
 - Summary rules: bins of 20 to 1,440 minutes, Analytics `_CL` destination, any source plan, 100 rules per workspace, monitored in `LASummaryLogs`.
 - Notebooks: VS Code with the Microsoft Sentinel extension, Spark pools, `MicrosoftSentinelProvider`, notebook jobs.

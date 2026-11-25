@@ -5,17 +5,17 @@ difficulty: 2
 status: draft
 stem:
   en: |
-    Northwind has a workspace named WS-Telemetry that contains an eventhouse named EH-Plant. Workspace monitoring was enabled for WS-Telemetry two months ago, and the retention of the monitoring database was set to 90 days.
+    Northwind has a workspace named WS-Telemetry that contains an eventhouse named EH-Plant. EH-Plant contains a KQL database named PlantDB. Several applications ingest files into the tables of PlantDB by using queued ingestion. Workspace monitoring isn't enabled for WS-Telemetry.
 
-    You need a KQL query in the monitoring database that returns, for the last 30 days, the number of permanent ingestion failures for each destination table of EH-Plant.
+    You need a KQL query that returns, for the last 10 days, the number of permanent ingestion failures for each table of PlantDB.
 
     How should you complete the query? Select the appropriate options in the answer area.
 
     NOTE: Each correct selection is worth one point.
   fr: |
-    Northwind dispose d'un espace de travail nommé WS-Telemetry qui contient un eventhouse nommé EH-Plant. La supervision de l'espace de travail a été activée pour WS-Telemetry il y a deux mois, et la rétention de la base de données de supervision a été réglée sur 90 jours.
+    Northwind dispose d'un espace de travail nommé WS-Telemetry qui contient un eventhouse nommé EH-Plant. EH-Plant contient une base de données KQL nommée PlantDB. Plusieurs applications ingèrent des fichiers dans les tables de PlantDB par ingestion en file d'attente. La supervision de l'espace de travail n'est pas activée pour WS-Telemetry.
 
-    Vous avez besoin d'une requête KQL dans la base de données de supervision qui renvoie, pour les 30 derniers jours, le nombre d'échecs d'ingestion permanents pour chaque table de destination de EH-Plant.
+    Vous avez besoin d'une requête KQL qui renvoie, pour les 10 derniers jours, le nombre d'échecs d'ingestion permanents pour chaque table de PlantDB.
 
     Comment devez-vous compléter la requête ? Sélectionnez les options appropriées dans la zone de réponse.
 
@@ -24,43 +24,43 @@ body:
   layout: code
   language: kusto
   template: |
-    [[tbl]]
-    | where Timestamp > [[time]]
-    | where ItemName == "EH-Plant" and IngestionFailureStatus == "Permanent"
+    .show ingestion failures
+    | where FailedOn > [[time]]
+    | where [[kind]] == "Permanent"
     | summarize Failures = count() by [[col]]
   slots:
-    - id: tbl
-      options:
-        - { id: cmd, text: EventhouseCommandLogs }
-        - { id: res, text: EventhouseIngestionResultsLogs }
-        - { id: job, text: ItemJobEventLogs }
     - id: time
       options:
-        - { id: now, text: now(30d) }
-        - { id: raw, text: 30d }
-        - { id: ago, text: ago(30d) }
+        - { id: now, text: now(10d) }
+        - { id: raw, text: 10d }
+        - { id: ago, text: ago(10d) }
+    - id: kind
+      options:
+        - { id: code, text: ErrorCode }
+        - { id: fk, text: FailureKind }
+        - { id: op, text: OperationKind }
     - id: col
       options:
-        - { id: db, text: DatabaseName }
+        - { id: db, text: Database }
         - { id: src, text: IngestionSourcePath }
-        - { id: item, text: ItemName }
-        - { id: table, text: TableName }
+        - { id: opid, text: OperationId }
+        - { id: table, text: Table }
 answer:
-  values: { tbl: res, time: ago, col: table }
+  values: { time: ago, kind: fk, col: table }
 explanation:
   correct:
     en: |
-      Workspace monitoring writes the ingestion results of an eventhouse to the `EventhouseIngestionResultsLogs` table, which has the `IngestionFailureStatus` and `TableName` columns. `ago(30d)` returns the time 30 days before now, and grouping by `TableName` gives one count per destination table.
+      `.show ingestion failures` returns the ingestion failures that are kept for 14 days, which covers the last 10 days, and its output can be filtered and summarized. `ago(10d)` returns the time 10 days before now, `FailureKind` takes the values Permanent or Transient, and grouping by `Table` gives one count per table.
     fr: |
-      La supervision de l'espace de travail écrit les résultats d'ingestion d'un eventhouse dans la table `EventhouseIngestionResultsLogs`, qui comporte les colonnes `IngestionFailureStatus` et `TableName`. `ago(30d)` renvoie l'heure qu'il était il y a 30 jours, et le regroupement par `TableName` donne un nombre par table de destination.
+      `.show ingestion failures` renvoie les échecs d'ingestion conservés 14 jours, ce qui couvre les 10 derniers jours, et sa sortie peut être filtrée et agrégée. `ago(10d)` renvoie l'heure qu'il était il y a 10 jours, `FailureKind` prend les valeurs Permanent ou Transient, et le regroupement par `Table` donne un nombre par table.
   options:
-    cmd: { en: "EventhouseCommandLogs records management commands with their text and status; it has no IngestionFailureStatus column.", fr: "EventhouseCommandLogs enregistre les commandes de gestion avec leur texte et leur statut ; il n'a pas de colonne IngestionFailureStatus." }
-    job: { en: "ItemJobEventLogs records job runs of items such as pipelines and notebooks, not eventhouse ingestion results.", fr: "ItemJobEventLogs enregistre les exécutions de tâches d'éléments comme les pipelines et les notebooks, pas les résultats d'ingestion d'un eventhouse." }
-    now: { en: "now(30d) returns a time 30 days in the future, so no record matches.", fr: "now(30d) renvoie une heure située 30 jours dans le futur : aucun enregistrement ne correspond." }
-    raw: { en: "A timespan can't be compared with the datetime value of Timestamp.", fr: "Une durée ne peut pas être comparée à la valeur datetime de Timestamp." }
-    db: { en: "DatabaseName groups by KQL database, not by destination table.", fr: "DatabaseName regroupe par base de données KQL, pas par table de destination." }
-    src: { en: "IngestionSourcePath groups by source file or blob, not by destination table.", fr: "IngestionSourcePath regroupe par fichier ou objet blob source, pas par table de destination." }
-    item: { en: "ItemName is the eventhouse itself, so it returns a single group.", fr: "ItemName est l'eventhouse lui-même : la requête renverrait un seul groupe." }
+    now: { en: "now(10d) returns a time 10 days in the future, so no failure matches.", fr: "now(10d) renvoie une heure située 10 jours dans le futur : aucun échec ne correspond." }
+    raw: { en: "A timespan can't be compared with the datetime value of FailedOn.", fr: "Une durée ne peut pas être comparée à la valeur datetime de FailedOn." }
+    code: { en: "ErrorCode holds the ingestion error code, not the Permanent or Transient type.", fr: "ErrorCode contient le code d'erreur d'ingestion, pas le type Permanent ou Transient." }
+    op: { en: "OperationKind is the ingestion phase during which the failure was registered.", fr: "OperationKind est la phase d'ingestion pendant laquelle l'échec a été enregistré." }
+    db: { en: "Database groups by KQL database, which returns a single group for PlantDB.", fr: "Database regroupe par base de données KQL, ce qui renvoie un seul groupe pour PlantDB." }
+    src: { en: "IngestionSourcePath groups by source file or blob, not by table.", fr: "IngestionSourcePath regroupe par fichier ou objet blob source, pas par table." }
+    opid: { en: "OperationId groups by ingestion operation, not by table.", fr: "OperationId regroupe par opération d'ingestion, pas par table." }
 references:
-  - title: Ingestion results logs
-    url: https://learn.microsoft.com/en-us/fabric/real-time-intelligence/monitor-logs-ingestion-results
+  - title: .show ingestion failures command
+    url: https://learn.microsoft.com/en-us/kusto/management/ingestion-failures?view=microsoft-fabric

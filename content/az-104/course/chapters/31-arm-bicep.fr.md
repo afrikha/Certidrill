@@ -72,7 +72,7 @@ Fonctions à reconnaître :
 | `uniqueString(resourceGroup().id)` | Un hachage déterministe de 13 caractères : même entrée, même valeur. Sert aux noms uniques au monde |
 | `concat('a', 'b')`, `format('{0}-{1}', a, b)` | Des chaînes construites |
 | `resourceId('Microsoft.Network/virtualNetworks', 'vnet1')` | L'ID d'une ressource. Ne crée pas de dépendance à elle seule |
-| `reference(...)` | Les propriétés d'une ressource à l'exécution. Crée une dépendance implicite quand la ressource est dans le même modèle |
+| `reference(...)` | Les propriétés d'une ressource à l'exécution. Crée une dépendance implicite quand la ressource est dans le même modèle et qu'elle est désignée par son nom (un ID de ressource passé à `reference()` n'en crée pas) |
 | `copyIndex()` | L'index de l'itération en cours, à partir de 0 ; `copyIndex(1)` commence à 1 |
 
 <!-- section: modify-arm | objectives: 3.1.2 -->
@@ -105,7 +105,7 @@ Fonctions à reconnaître :
 
 **Conditions.** `"condition": "[equals(parameters('env'), 'prod')]"` ne déploie la ressource que si l'expression est vraie.
 
-Les **ressources enfants** se nomment `parent/enfant` avec le type `Microsoft.Network/virtualNetworks/subnets`, ou s'imbriquent dans le tableau `resources` du parent.
+Les **ressources enfants** se nomment `parent/enfant` avec le type `Microsoft.Network/virtualNetworks/subnets`, ou s'imbriquent dans le tableau `resources` du parent. En JSON, une ressource enfant n'a **aucune dépendance implicite** sur son parent : si elle doit être déployée après lui, ajoutez un `dependsOn` sur l'ID de ressource du parent.
 
 <!-- section: modify-bicep | objectives: 3.1.3 -->
 ## Modifier un fichier Bicep
@@ -169,11 +169,15 @@ output pipId string = env == 'prod' ? pip.id : ''
 | Nom symbolique (`vnet`) | Nom utilisé dans le fichier ; `vnet.id`, `vnet.name`, `vnet.properties...` |
 | `existing` | Référence une ressource déjà déployée ; ajoutez `scope` si elle est dans un autre groupe de ressources |
 | `parent: vnet` | Déclare une ressource enfant de `vnet` |
-| `[for x in list: {...}]`, `[for i in range(0, n): {...}]` | Boucles ; en parallèle par défaut |
+| `[for x in list: {...}]`, `[for (x, i) in list: {...}]`, `[for i in range(0, n): {...}]` | Boucles ; l'élément d'abord, puis l'index qui commence à 0 ; en parallèle par défaut |
 | `= if (condition) {...}` | Déploiement conditionnel |
 | `condition ? a : b` | Valeur conditionnelle |
 
-Bicep crée une **dépendance implicite** dès qu'une ressource en référence une autre par son nom symbolique ou par `parent` ; un `dependsOn` explicite est rarement nécessaire. Les groupes de ressources sont des ressources de niveau abonnement : en créer un en Bicep demande `targetScope = 'subscription'`.
+Bicep crée une **dépendance implicite** dès qu'une ressource en référence une autre par son nom symbolique ou par `parent`, ainsi que pour un enfant imbriqué dans son parent ; un `dependsOn` explicite est rarement nécessaire.
+
+Définissez les sous-réseaux dans la propriété `subnets` du réseau virtuel, comme ci-dessus, et non comme des ressources `Microsoft.Network/virtualNetworks/subnets` distinctes : tant que les sous-réseaux sont définis sur le réseau virtuel, celui-ci peut être redéployé sans les perdre.
+
+Les groupes de ressources sont des ressources de niveau abonnement : en créer un en Bicep demande `targetScope = 'subscription'`.
 
 <!-- section: deploy-templates | objectives: 3.1.4 -->
 ## Déployer des modèles et des fichiers Bicep
@@ -202,7 +206,7 @@ New-AzResourceGroupDeployment -ResourceGroupName RG1 -TemplateFile main.bicep `
 
 - Les mêmes commandes acceptent les fichiers `.json` et `.bicep`. Les étendues abonnement et supérieures exigent `--location` pour les métadonnées du déploiement.
 - Les **paramètres** se passent en ligne, dans un fichier de paramètres JSON ou dans un fichier `.bicepparam`. Un fichier `.bicepparam` commence par `using './main.bicep'` : on ne repasse donc pas le fichier de modèle.
-- **What-if** montre ce qui serait créé, modifié ou supprimé, sans rien changer.
+- L'**opération de simulation** (what-if) montre ce qui serait créé, modifié ou supprimé, sans rien changer.
 - **Modes de déploiement** (déploiements sur un groupe de ressources) :
 
 | Mode | Ressources du groupe de ressources absentes du modèle |
@@ -210,7 +214,7 @@ New-AzResourceGroupDeployment -ResourceGroupName RG1 -TemplateFile main.bicep `
 | **Incrémentiel** (Incremental, par défaut) | Laissées inchangées |
 | **Complet** (Complete) | **Supprimées** |
 
-Dans les deux modes, les ressources présentes dans le modèle sont créées ou mises à jour pour lui correspondre. En mode incrémentiel, une propriété omise dans le modèle pour une ressource existante peut revenir à sa valeur par défaut : le modèle décrit l'état voulu complet de chaque ressource qu'il contient. Microsoft recommande désormais les **piles de déploiement** (deployment stacks) plutôt que le mode complet pour supprimer les ressources sorties du modèle. Le mode complet n'existe pas pour les déploiements au niveau de l'abonnement et ne supprime rien dans un groupe de ressources verrouillé.
+Dans les deux modes, les ressources présentes dans le modèle sont créées ou mises à jour pour lui correspondre. En mode incrémentiel, une propriété omise dans le modèle pour une ressource existante peut revenir à sa valeur par défaut : le modèle décrit l'état voulu complet de chaque ressource qu'il contient. Microsoft recommande les **piles de déploiement** (deployment stacks) plutôt que le mode complet pour supprimer les ressources sorties du modèle, et indique que le mode complet sera progressivement déprécié. En mode complet, une ressource dont la `condition` est fausse est supprimée (versions actuelles d'Azure CLI et d'Azure PowerShell), de même que toute ressource absente du modèle une fois les boucles `copy` résolues. Le mode complet n'existe pas pour les déploiements au niveau de l'abonnement et ne supprime rien dans un groupe de ressources verrouillé.
 
 - Chaque déploiement est enregistré dans l'historique **Déploiements** de son étendue, avec son modèle, ses paramètres et ses sorties.
 - Une **spec de modèle** (template spec) stocke un modèle comme une ressource Azure, versionnée et partagée avec Azure RBAC ; déployez-la avec `--template-spec <ID de version>`.

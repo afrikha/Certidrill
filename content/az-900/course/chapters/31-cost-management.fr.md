@@ -9,7 +9,7 @@ Dans le cloud, on paie ce que l'on utilise : comprendre ce qui fait la facture, 
 | **Consommation** | Le paiement à l'utilisation suit l'usage. Une **réservation** (engagement d'un ou trois ans) peut faire économiser jusqu'à 72 % sur des charges stables |
 | **Maintenance** | Les ressources oubliées continuent de coûter : disques ou réseaux de machines virtuelles supprimées, environnements de test laissés en place |
 | **Zone géographique** | La même ressource n'a pas le même prix selon la région, car l'énergie, la main-d'œuvre, les taxes et les frais diffèrent |
-| **Trafic réseau** | Les données entrantes sont en général gratuites ; **les données sortantes sont facturées**, à des tarifs qui dépendent de la zone de facturation. Le trafic à l'intérieur d'une région coûte moins cher que le trafic entre régions |
+| **Trafic réseau** | Les données entrantes sont en général gratuites ; **les données sortantes sont facturées**, à des tarifs qui dépendent de la zone de facturation. Par exemple, déplacer des données à l'intérieur de l'Europe coûte moins cher que les déplacer d'Europe vers l'Asie ou l'Amérique du Sud |
 | **Type d'abonnement** | Certains abonnements incluent des quotas d'utilisation : l'essai gratuit donne un crédit pour les 30 premiers jours et certains services gratuits pendant douze mois |
 | **Place de marché Azure** | Les solutions tierces sont facturées selon leurs propres conditions, en plus des ressources Azure qu'elles utilisent |
 
@@ -32,7 +32,7 @@ La **calculatrice de prix** donne une **estimation du coût des ressources que v
 | Fonctionnalité | Usage |
 | --- | --- |
 | **Analyse des coûts** | Explorer et visualiser les coûts : par cycle de facturation, région, ressource, groupe de ressources ou étiquette ; montre les tendances et une prévision |
-| **Budgets** | Fixer une limite de dépense pour un abonnement, un groupe de ressources, un type de service... ; des alertes se déclenchent à des seuils du budget. Des montages avancés peuvent lancer une automatisation qui suspend ou modifie des ressources |
+| **Budgets** | Fixer une limite de dépense pour un abonnement, un groupe de ressources, un type de service... ; des alertes se déclenchent à des seuils du budget. Les données de coût arrivent sous 8 à 24 heures et les budgets sont évalués toutes les 24 heures : les alertes ne sont donc pas immédiates. Des montages avancés peuvent lancer une automatisation qui suspend ou modifie des ressources |
 | **Alertes de coût** | **Alertes de budget** (la dépense atteint un seuil d'un budget), **alertes de crédit** (les crédits prépayés sont en cours de consommation, pour les organisations sous contrat Entreprise), **alertes de quota de dépense de service** |
 | Recommandations | Des suggestions d'Azure Advisor pour réduire les dépenses |
 
@@ -54,7 +54,7 @@ Une **étiquette** (tag) est un nom et une valeur attachés à une ressource, co
 
 - Les étiquettes se gèrent avec le portail, Azure PowerShell, Azure CLI, les modèles ARM ou l'API REST.
 - **Azure Policy** peut exiger des étiquettes sur les nouvelles ressources ou les ajouter automatiquement.
-- Les ressources **n'héritent pas** des étiquettes de leur groupe de ressources ni de leur abonnement, sauf si une stratégie les applique.
+- Les ressources **n'héritent pas** des étiquettes de leur groupe de ressources ni de leur abonnement, sauf si une stratégie les applique. Pour les rapports de coûts uniquement, le paramètre d'**héritage des étiquettes** de Cost Management applique les étiquettes de l'abonnement et du groupe de ressources aux enregistrements d'utilisation des ressources enfants, pas aux ressources elles-mêmes.
 - Une ressource peut porter plusieurs étiquettes ; n'y mettez pas de valeurs sensibles.
 
 <!-- section: key-points -->

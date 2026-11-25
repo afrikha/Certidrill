@@ -1,0 +1,57 @@
+id: kcsa-2b-automount-pod-precedence
+objective: "2.7.3"
+type: single
+difficulty: 2
+status: draft
+stem:
+  en: |
+    The namespace `finance` contains these objects:
+
+    ```yaml
+    apiVersion: v1
+    kind: ServiceAccount
+    metadata:
+      name: reports
+    automountServiceAccountToken: false
+    ---
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: report-job
+    spec:
+      serviceAccountName: reports
+      automountServiceAccountToken: true
+      containers:
+      - name: job
+        image: registry.example.com/finance/job:1.2
+    ```
+
+    Is a ServiceAccount token mounted into the `report-job` Pod?
+body:
+  options:
+    - id: a
+      text: { en: "No, because the ServiceAccount setting always takes precedence" }
+    - id: b
+      text: { en: "No, because tokens are mounted only for the `default` ServiceAccount" }
+    - id: c
+      text: { en: "Yes, because the Pod spec value takes precedence over the ServiceAccount" }
+    - id: d
+      text: { en: "Yes, but only after an administrator approves the token request" }
+answer: { optionId: c }
+explanation:
+  correct:
+    en: |
+      When both the ServiceAccount and the Pod spec set `automountServiceAccountToken`, the Pod spec takes precedence. The `report-job` Pod therefore gets a token, even though the ServiceAccount opts out. Anyone allowed to create Pods can re-enable the mount, so RBAC on the ServiceAccount still matters.
+  options:
+    a:
+      en: |
+        It is the other way around: the ServiceAccount value is only the default for Pods that do not set the field.
+    b:
+      en: |
+        Tokens are mounted for any ServiceAccount unless automounting is disabled. The `default` ServiceAccount has no special status here.
+    d:
+      en: |
+        The kubelet obtains the token through the TokenRequest API without any approval step. Approvals apply to CertificateSigningRequests, not to tokens.
+references:
+  - title: "Configure Service Accounts for Pods"
+    url: https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/

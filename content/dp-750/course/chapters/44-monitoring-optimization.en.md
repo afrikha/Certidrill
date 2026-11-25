@@ -33,7 +33,7 @@ Levers to reduce cost:
 | Autoscaling | Adds or removes workers between a minimum and a maximum |
 | Job compute instead of all-purpose compute | The cluster ends with the run |
 | Tags | Propagate to billing records for chargeback; not retroactive |
-| Budgets | Email when spending nears a target; created by an **account admin** |
+| Budgets | Email when spending passes a threshold; created by an **account admin**, or by a workspace admin for the workspaces they administer (Governance Hub) |
 | Warehouse sizing | Stuck at its maximum cluster count or many queued queries: raise the maximum |
 
 > **Exam trap.** The Metrics tab doesn't exist for serverless compute: use query insights for serverless notebooks and jobs, and `system.billing.usage` with `product_features.is_serverless = true` for its cost.
@@ -67,7 +67,7 @@ Repair details the exam uses:
 - Tasks sharing a job cluster get a new one for the repair (`my_job_cluster_v1`).
 - The run state, not the disabled state, decides what is repaired; list a disabled task in `rerun_tasks` of the API request to force it.
 
-Fixes by cause: wrong path or parameter, **Edit task**; insufficient compute, more or larger workers; Skipped runs, raise **Maximum concurrent runs**. Prevent with failure notifications (email, Slack, webhook) and queries on `system.lakeflow.job_run_timeline` (395 days of history).
+Fixes by cause: wrong path or parameter, **Edit task**; insufficient compute, more or larger workers; Skipped runs, raise **Maximum concurrent runs** or enable **Queue** (on by default for jobs created in the UI since April 15, 2024), so that a run waits up to 48 hours instead of being skipped. Prevent with failure notifications (email, Slack, webhook) and queries on `system.lakeflow.job_run_timeline` (395 days of history).
 
 > **Exam trap.** "Rerun the failed task and its downstream tasks, not the successful ones" is **Repair run**, not Run now. "A continuous job waits longer and longer between attempts": **Restart run**.
 
@@ -106,7 +106,7 @@ Start with the **DAG** for the overall flow (shuffles are **Exchange** nodes), t
 | --- | --- | --- |
 | Under-caching | High **Input** on stages that read the same data repeatedly | Enable the disk cache (Parquet data files cached on workers) with SSD-backed worker nodes; `cache()` a reused DataFrame |
 | Over-caching | Memory needed for processing is held by cached data (**Storage** tab) | Cache only reused data; `unpersist()` when done |
-| Skew | Stage **Summary Metrics**: **Max** task duration more than 50 % above the **75th percentile** | Adaptive Query Execution (AQE, on by default) handles skewed joins; salt hot keys; broadcast the small side |
+| Skew | Stage **Summary Metrics**: **Max** task duration more than 50 % above the **75th percentile** | Adaptive Query Execution (AQE, on by default) handles skewed joins (tune `spark.sql.adaptive.skewJoin.*`; broadcast joins are never skew-optimized); salt hot keys; liquid clustering for a skewed stored table; `REBALANCE` hint for a skewed write |
 | Spill | Non-zero **Shuffle Spill (Memory)** / **Shuffle Spill (Disk)** at the top of the stage page | More partitions (`spark.sql.shuffle.partitions` = `auto`), workers with more memory per core, fewer columns and earlier filters |
 | Excessive shuffle | Large **Shuffle Read** / **Shuffle Write**; Exchange nodes in the profile | Filter before joins, broadcast joins for a small table (AQE converts below 30 MB by default), avoid needless `repartition()` |
 
@@ -129,7 +129,7 @@ Skew comes from a hot key, nulls sent to one partition or uneven dates. Spill of
 | Purpose | Performance: compacts small files or reclusters data | Storage cost: deletes unreferenced data files older than the retention threshold |
 | Effect on readers | None; same results before and after | Time travel to versions older than the retention is lost |
 | Automated by predictive optimization | Yes, on Unity Catalog managed tables | Yes, on Unity Catalog managed tables |
-| Options | `WHERE` on partition columns, `ZORDER BY` (tables without liquid clustering), `FULL` (liquid clustering, Databricks Runtime 16.0+) | `RETAIN n HOURS`, `DRY RUN`, `LITE` (uses the transaction log instead of listing files), `FULL` (default) |
+| Options | `WHERE` on partition columns, `ZORDER BY` (tables without liquid clustering), `FULL` (liquid clustering, Databricks Runtime 16.0+) | `RETAIN n HOURS`, `DRY RUN`, `LITE` (Public Preview, Databricks Runtime 16.4 LTS+; uses the transaction log instead of listing files), `FULL` (default) |
 | Frequency | Start daily, then balance cost and performance | Regularly, on all tables |
 
 ```text
@@ -146,10 +146,10 @@ VACUUM sales.silver.orders LITE;
 Rules to remember:
 
 - `OPTIMIZE` writes new files but doesn't delete the old ones: only `VACUUM` reclaims storage.
-- The default retention threshold is **7 days**, the recommended minimum; a shorter value is blocked by a safety check (`spark.databricks.delta.retentionDurationCheck.enabled`).
+- The default retention threshold is **7 days**, the recommended minimum; a shorter value is blocked by a safety check (`spark.databricks.delta.retentionDurationCheck.enabled`). On Databricks Runtime 18.0 and above (12.2 LTS and above for Unity Catalog managed tables), the `deletedFileRetentionDuration` table property controls retention.
 - `VACUUM` doesn't remove transaction log files (cleaned after checkpoints, 30 days by default); `LITE` requires a successful `VACUUM` within that period.
 - With **liquid clustering**, `OPTIMIZE` groups data by the clustering keys; Databricks recommends liquid clustering over partitioning and `ZORDER`.
-- **Predictive optimization** runs `OPTIMIZE`, `VACUUM` and `ANALYZE` on **Unity Catalog managed tables** only, on serverless jobs compute; on by default for accounts created since November 11, 2024. Control it with `ALTER CATALOG | SCHEMA | TABLE ... ENABLE | DISABLE | INHERIT PREDICTIVE OPTIMIZATION`; history in `system.storage.predictive_optimization_operations_history`.
+- **Predictive optimization** runs `OPTIMIZE`, `VACUUM` and `ANALYZE` on **Unity Catalog managed tables** only, on serverless jobs compute; enabled by default (Premium plan, supported regions), and managed tables inherit the account setting. Control it with `ALTER CATALOG | SCHEMA | TABLE ... ENABLE | DISABLE | INHERIT PREDICTIVE OPTIMIZATION`; history in `system.storage.predictive_optimization_operations_history`.
 
 > **Exam trap.** "Reduce storage costs of files left by updates and deletes" is `VACUUM`, not `OPTIMIZE`. "Users must still query the table as of 10 days ago" means the retention must exceed 10 days before you vacuum.
 
@@ -183,7 +183,7 @@ New-AzDiagnosticSetting -ResourceId $databricks.ResourceId `
 | `DatabricksClusters` | Cluster creation, termination, resizing, configuration changes |
 | `DatabricksNotebook` | Notebook execution, creation, modification |
 | `DatabricksSQL` | SQL warehouse operations and queries |
-| `DatabricksTables` | Table creation, deletion, access, permission changes |
+| `DatabricksUnityCatalog` | Unity Catalog audit events (category `unityCatalog`), such as table creation, access and permission changes |
 | `DatabricksWorkspace` | Workspace administrative actions |
 | `DatabricksSecrets` | Secret scope and secret access |
 
@@ -197,7 +197,7 @@ DatabricksJobs
 | order by FailureCount desc
 ```
 
-> **Exam tip.** To query audit events from inside Azure Databricks, Databricks recommends the `system.access.audit` system table. Choose Log Analytics when the requirement is centralized monitoring across Azure services, KQL or Azure Monitor alerts.
+> **Exam tip.** To query audit events from inside Azure Databricks, Databricks recommends the `system.access.audit` system table (Public Preview), and it highly discourages moving audit data outside the platform, because that can expose sensitive data. Choose Log Analytics when the requirement is centralized monitoring across Azure services, KQL or Azure Monitor alerts.
 
 <!-- section: azure-monitor-alerts | objectives: 4.4.7 -->
 ## Configuring alerts with Azure Monitor

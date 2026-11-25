@@ -9,7 +9,7 @@ An evaluation dataset is a JSONL or CSV file (or inline items) whose fields feed
 | --- | --- | --- |
 | Query and response | `query`, `response`, and optionally `context`, `ground_truth` | Evaluate outputs already produced (logs, a previous run) |
 | Query only, with a target | `query` (and `ground_truth` if needed); the model or agent generates the response during the run | Evaluate a model deployment or an agent version directly |
-| Messages | A `messages` array in OpenAI message format, possibly with tool calls | Multi-turn conversations; required for conversation-level evaluation |
+| Messages | A `messages` array in OpenAI message format, possibly with tool calls | Multi-turn conversations; required for conversation-level evaluation. For a model or agent target, the array ends with a `user` message |
 
 ```json
 {"query": "What is the return window?", "context": "Returns are accepted within 30 days of delivery.", "response": "You can return items within 30 days of delivery.", "ground_truth": "30 days after delivery."}
@@ -21,7 +21,7 @@ Fields required by common evaluators:
 | --- | --- |
 | Coherence | `query`, `response` (or `messages`) |
 | Fluency | `response` (or `messages`) |
-| Groundedness | `response` and `context`; `query` optional but improves accuracy |
+| Groundedness | `response` and `context` (`context` is optional but recommended, and needed when `query` and `response` are strings; an agent response with tool calls can supply it); `query` optional but improves accuracy |
 | Relevance | `query`, `response` |
 | Retrieval | `query`, `context` |
 | Response completeness | `response`, `ground_truth` |
@@ -65,8 +65,8 @@ AI-assisted quality evaluators use an LLM as judge: you pass a model deployment 
 | Response completeness (preview) | | Does the response include the critical information of the ground truth? | 1 to 5, default threshold 3 |
 | Groundedness Pro (preview) | | Is the response grounded, as judged by Azure AI Content Safety, with no model deployment? | Pass or fail |
 | Document retrieval | `builtin.document_retrieval` | Are the retrieved documents the right ones, against labeled relevance? | Several ranking metrics |
-| Similarity | | AI-assisted closeness to the ground truth | AI-assisted score |
-| F1, BLEU, GLEU, ROUGE, METEOR | `builtin.f1_score`... | Token or n-gram overlap with the ground truth, computed without a judge model | Numeric scores |
+| Similarity | `builtin.similarity` | AI-assisted closeness to the ground truth (needs a judge deployment) | 1 to 5, default threshold 3 |
+| F1, BLEU, GLEU, ROUGE, METEOR | `builtin.f1_score`... | Token or n-gram overlap with the ground truth, computed without a judge model | 0 to 1, default threshold 0.5 |
 
 Each result includes a score, a label, the reason and the threshold:
 
@@ -94,7 +94,7 @@ Each result includes a score, a label, the reason and the threshold:
 
 Coherence and fluency currently support English responses only, and scores are less reliable for very short responses. Coherence can also be evaluated at **conversation** level (`evaluation_level="conversation"`), which requires the `messages` format; the default level is `turn`.
 
-> **Exam trap.** Groundedness and relevance measure different things. A response copied from the context is perfectly grounded even if it doesn't answer the question (low relevance); a correct answer from the model's general knowledge is relevant but ungrounded if the context doesn't contain it. Groundedness needs `context`; relevance doesn't.
+> **Exam trap.** Groundedness and relevance measure different things. A response copied from the context is perfectly grounded even if it doesn't answer the question (low relevance); a correct answer from the model's general knowledge is relevant but ungrounded if the context doesn't contain it. Groundedness judges the response against `context`; relevance doesn't use it.
 
 <!-- section: safety-evaluations | objectives: 4.1.3 -->
 ## Risk and safety evaluations
@@ -105,7 +105,7 @@ Risk and safety evaluators run on the hosted Foundry evaluation service, not on 
 | --- | --- | --- |
 | `builtin.violence`, `builtin.sexual`, `builtin.self_harm`, `builtin.hate_unfairness` | Harmful content, with a severity score | `query`, `response` or `messages` |
 | `builtin.protected_material` | Copyrighted or protected text, classified by the Azure AI Content Safety protected material service | `query`, `response` or `messages` |
-| `builtin.indirect_attack` | The response followed instructions injected through retrieved content (XPIA): manipulated content, intrusion, information gathering | `query`, `response` or `messages` |
+| `builtin.indirect_attack` | The response followed instructions injected through retrieved content (XPIA): manipulated content, intrusion, information gathering | `query`, `response` or `messages`; models only, not agents |
 | `builtin.code_vulnerability` | Security issues in generated code (SQL injection, hard-coded credentials, weak cryptography...) for Python, Java, C++, C#, Go, JavaScript and SQL | `query`, `response` or `messages` |
 | `builtin.ungrounded_attributes` | Emotional state or protected-class attributes inferred about a person and not grounded in the context | `query`, `response`, `context` |
 | `builtin.prohibited_actions`, `builtin.sensitive_data_leakage` (preview) | An agent performing disallowed actions or exposing sensitive data | `query`, `response`, `tool_calls`; agent targets only |
@@ -209,7 +209,7 @@ run = openai_client.evals.runs.create(
 | `data_source` type `jsonl` or `csv` with `file_id` | Evaluate rows that already contain the responses |
 | `azure_ai_target_completions` | Generate responses during the run from `input_messages`, for a target of type `azure_ai_model` or `azure_ai_agent` (version optional; latest if omitted) |
 | `initialization_parameters` | Judge deployment for AI-assisted evaluators, thresholds for custom ones |
-| Role | Foundry User on the project; a chat model deployment for the judge |
+| Role | Foundry User on the project, and at the Foundry resource (account) scope when the run calls a model deployment such as the judge (a project-only assignment doesn't authorize inference); with bring-your-own storage, the project's managed identity needs Storage Blob Data Contributor on the storage account |
 
 **Custom evaluators** (preview) are registered in the project's evaluator catalog and used in `testing_criteria` like built-in ones:
 
@@ -235,12 +235,12 @@ Code-based evaluators run in a sandbox: code under 256 KB, 2 minutes per grading
 
 | Trigger | Tool |
 | --- | --- |
-| Pull request that changes a prompt or an agent | `microsoft/ai-agent-evals@v3-beta` GitHub Action: inputs `azure-ai-project-endpoint`, `deployment-name` (judge), `agent-ids` (`name:version`, comma-separated), `data-path` (JSON file with `name`, `evaluators`, `data`); results with confidence intervals in the run summary |
-| Blocking quality gate | The azd evaluation extension with a failure threshold such as `--fail-on pass-rate=0.8` |
+| Pull request that changes a prompt or an agent | `microsoft/ai-agent-evals@v3-beta` GitHub Action (preview): inputs `azure-ai-project-endpoint`, `deployment-name` (judge), `agent-ids` (`name:version`, comma-separated), `data-path` (JSON file with `name`, `evaluators`, `data`); results with confidence intervals in the run summary |
+| Blocking quality gate | The azd evaluation extension (preview) with a failure threshold such as `--fail-on pass-rate=0.8` |
 | Before promotion to the next environment | A pipeline stage that runs the cloud evaluation and compares with the baseline run |
 | After release | Continuous evaluation of sampled production traffic and scheduled runs on the same dataset (see the observability chapter) |
 
-The workflow authenticates with OIDC (`permissions: id-token: write`, `azure/login`) and needs Foundry User on the project. Evaluations cost judge tokens: don't run them on every commit.
+The workflow authenticates with OIDC (`permissions: id-token: write`, `azure/login`) and needs Foundry User on the project, or on the Foundry resource when the run calls a judge deployment. Evaluations cost judge tokens: don't run them on every commit.
 
 > **Exam trap.** A code-based custom evaluator can't call an external API or a model: the sandbox has no network. To judge with a model, write a prompt-based evaluator; to reach your own service, use an endpoint-based evaluator.
 
@@ -249,6 +249,6 @@ The workflow authenticates with OIDC (`permissions: id-token: write`, `azure/log
 
 - Dataset: JSONL or CSV with `query`, `response`, `context`, `ground_truth`, or `messages`; versioned with `datasets.upload_file`; synthetic (15 to 1,000 samples, preview) or from traces.
 - Mapping: `{{item.field}}` for dataset fields, `{{sample.output_text}}` and `{{sample.output_items}}` for target outputs (with `include_sample_schema=True`); local SDK uses `${data.field}` and `${outputs.field}`.
-- Quality: groundedness (needs context), relevance, coherence, fluency, retrieval; 1 to 5, pass at 3 or more, LLM judge deployment required.
+- Quality: groundedness (judged against the context), relevance, coherence, fluency, retrieval; 1 to 5, pass at 3 or more, LLM judge deployment required.
 - Safety: hosted service, no deployment name, project required; severity 0 to 7, pass at 3 or less; protected material, indirect attack, code vulnerability give pass or fail.
 - Automation: `evals.create` plus `evals.runs.create`, custom code (no network) or prompt-based evaluators, GitHub Action `ai-agent-evals` with baseline comparison, gates on pass rate.

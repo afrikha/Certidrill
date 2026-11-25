@@ -10,9 +10,9 @@ Azure Managed Redis runs Redis Enterprise software (Redis 7.4) and is used with 
 | Memory Optimized | 8:1 | Large datasets, moderate throughput, development and test |
 | Balanced | 4:1 | Standard workloads |
 | Compute Optimized | 2:1 | Highest throughput |
-| Flash Optimized | RAM plus NVMe | Very large datasets at lower cost; no RediSearch, RedisBloom or RedisTimeSeries |
+| Flash Optimized | RAM plus NVMe | Very large datasets at lower cost; no RediSearch, RedisBloom or RedisTimeSeries; sizes A2000 and A4500 in preview |
 
-High availability (a replica on a second node, across zones where the region has them) is on by default; turn it off only for development, because a node failure then loses data. Microsoft Entra ID authentication, private endpoints and TLS are available on every tier.
+High availability (a replica on a second node, across zones where the region has them) is on by default; turn it off only for development and test, because a node failure then loses data. You can turn it on later on an instance created without it, but you can't turn it off on an existing instance. Microsoft Entra ID authentication, private endpoints and TLS are available on every tier.
 
 ```text
 import redis
@@ -35,7 +35,7 @@ r = redis.Redis(
 | --- | --- |
 | Port | **10000** for Azure Managed Redis; 6380 was the TLS port of Azure Cache for Redis |
 | Authentication | Access key in `password` for basic setups; Microsoft Entra ID with the `redis-entraid` package and the scope `https://redis.azure.com/.default` for production |
-| Client class | `redis.Redis` for the Enterprise and non-clustered policies; `redis.cluster.RedisCluster` for the OSS clustering policy |
+| Client class | `redis.Redis` for the Enterprise and non-clustered policies (non-clustered only for caches of 25 GB or less); `redis.cluster.RedisCluster` for the OSS clustering policy |
 | `decode_responses` | `True` for text values; `False` for binary values such as vector bytes, images or pickled objects |
 | Connections | `redis-py` pools connections: create one client per process and reuse it |
 
@@ -115,7 +115,7 @@ For AI workloads, the same pattern caches embeddings of frequent texts and compl
 <!-- section: vector-index | objectives: 2.3.2 -->
 ## Creating a vector index
 
-Vector search comes from the **RediSearch** module. Modules can only be added **when the instance is created** (Advanced tab), can't be loaded later, and RediSearch requires:
+Vector search comes from the **RediSearch** module. With Redis 7.4, modules can only be added **when the instance is created** (Advanced tab) and can't be loaded later (Redis 8.2, in preview, includes all modules on the in-memory tiers). RediSearch requires:
 
 - an in-memory tier (not Flash Optimized);
 - the **Enterprise** or **non-clustered** clustering policy, not OSS.
@@ -214,6 +214,6 @@ In a RAG application, the retrieval step embeds the question with the same model
 - Cache-aside: get, on a miss load and `set(..., ex=ttl)` in one command; TTL from the freshness requirement.
 - `ttl` returns -1 (no expiration) or -2 (no key); a plain `set` clears the TTL.
 - Invalidate after the database write with `delete`; `SCAN`, never `KEYS`, for patterns; eviction policies apply when memory is full.
-- RediSearch is chosen at creation, needs an in-memory tier and the Enterprise or non-clustered policy.
+- RediSearch is chosen at creation (Redis 7.4), needs an in-memory tier and the Enterprise or non-clustered policy.
 - `VectorField` with `FLAT` or `HNSW`, `FLOAT32`, `DIM` = model output, `COSINE` for text; vectors as `float32` bytes in hashes.
 - `KNN k @field $param AS score`, filters before `=>`, `dialect(2)`, sort by ascending distance; `EF_RUNTIME` trades accuracy for latency.

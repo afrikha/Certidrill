@@ -9,7 +9,7 @@ Chaque passerelle VPN a deux instances. Les options de disponibilité :
 
 | Conception | Tunnels | Comportement |
 | --- | --- | --- |
-| Actif-passif (par défaut) | 1 par connexion | En cas de maintenance ou de panne, l'instance de secours prend le relais : environ 10 à 15 secondes d'interruption pour une maintenance planifiée, jusqu'à 1 à 3 minutes pour un incident imprévu |
+| Actif/passif (par défaut) | 1 par connexion | En cas de maintenance ou de panne, l'instance de secours prend le relais : environ 10 à 15 secondes d'interruption pour une maintenance planifiée, jusqu'à 1 à 3 minutes pour un incident imprévu |
 | Plusieurs appareils locaux | 1 par appareil | Protège contre une panne côté local. Une passerelle de réseau local et une connexion par appareil, des IP publiques uniques, **BGP obligatoire** (IP de pair BGP uniques, mêmes préfixes annoncés), ECMP |
 | Passerelle en mode actif/actif | 2 par connexion (une par instance, chacune avec sa propre IP publique) | Azure envoie le trafic sur les deux tunnels ; l'appareil doit établir un tunnel vers **chaque** instance, sinon la connexion tombe pendant la maintenance |
 | Double redondance | 4 (maillage complet) | Passerelle actif/actif + deux appareils locaux : deux passerelles de réseau local, deux connexions, BGP. La conception la plus résiliente |
@@ -20,7 +20,7 @@ Résilience de zone : les références SKU AZ (VpnGw1AZ à VpnGw5AZ) répartisse
 | --- | --- |
 | Plus de 100 tunnels S2S, ou de nombreuses agences avec un transit universel automatisé | Azure Virtual WAN au lieu de VPN Gateway |
 | VPN de site à site en secours d'ExpressRoute dans le même réseau virtuel | Coexistence ExpressRoute/VPN : les deux passerelles dans un GatewaySubnet plus grand |
-| Les réseaux des agences chevauchent le réseau virtuel | Règles NAT sur la passerelle (VpnGw2/VpnGw2AZ et au-delà) : IngressSNAT traduit les plages locales, EgressSNAT traduit la plage du réseau virtuel ; les règles statiques sont 1:1 et bidirectionnelles, les règles dynamiques n'autorisent que les flux lancés depuis le côté interne |
+| Les réseaux des agences chevauchent le réseau virtuel | Règles NAT sur la passerelle (VpnGw2/VpnGw2AZ et au-delà) : IngressSNAT traduit les plages locales, EgressSNAT traduit la plage du réseau virtuel ; les règles statiques sont 1:1 et bidirectionnelles, les règles dynamiques n'autorisent que les flux lancés depuis le côté interne. Limites : un préfixe par règle, jusqu'à 500 règles par passerelle ; une règle dynamique sert une seule connexion et traduit vers un /26 au plus ; non pris en charge avec les sélecteurs de trafic basés sur une stratégie, les VPN basés sur des stratégies ou les adresses BGP APIPA ; créez les règles avant les connexions |
 | Plusieurs sites sur une passerelle | Une passerelle de réseau local et une connexion par site ; les espaces d'adressage ne doivent pas se chevaucher entre connexions |
 
 > **Piège d'examen.** Le mode actif/actif seul ne protège pas contre la panne de l'unique appareil local. « Survivre à la perte d'un appareil VPN local » exige deux appareils, deux passerelles de réseau local et BGP.
@@ -43,7 +43,7 @@ Depuis le 1er novembre 2025, les nouvelles passerelles VPN utilisent les référ
 
 Un tunnel unique est plus lent que l'agrégat : environ 650 Mbit/s sur VpnGw1AZ et jusqu'à 2,3 Gbit/s sur VpnGw4AZ/5AZ avec GCMAES256, l'algorithme le plus rapide.
 
-Changer de référence SKU : mise à niveau ou rétrogradation au sein de la famille AZ (environ 45 minutes, IP publique inchangée) ; Gen1 vers Gen2 AZ par migration. **Basic ne peut pas être redimensionné** : supprimez et recréez la passerelle, ce qui change son adresse IP publique.
+Changer de référence SKU : mise à niveau ou rétrogradation au sein de la famille AZ (environ 45 minutes, IP publique inchangée) ; Gen1 vers Gen2 AZ par migration. Learn indique aussi que les passerelles qui utilisent déjà une IP publique Standard passent en Gen2 lors des mises à jour régulières du service, avant septembre 2026, alors que le tableau des références SKU liste encore des lignes Gen1 pour VpnGw1AZ à VpnGw3AZ. **Basic ne peut pas être redimensionné** : supprimez et recréez la passerelle, ce qui change son adresse IP publique.
 
 <!-- section: s2s-implementation | objectives: 2.1.3 -->
 ## Implémenter une connexion VPN de site à site
@@ -84,7 +84,7 @@ Choisissez **basé sur des routes** dans presque tous les cas. Une passerelle ba
 Pour connecter une passerelle basée sur des routes à des **pare-feu locaux basés sur des stratégies** (un ou plusieurs), activez les **sélecteurs de trafic basés sur une stratégie** (`UsePolicyBasedTrafficSelectors`) sur chaque connexion :
 
 - Les appareils doivent prendre en charge **IKEv2**.
-- L'option fait partie de la stratégie IPsec/IKE personnalisée : spécifiez la stratégie complète.
+- Avec PowerShell, l'option fait partie de la stratégie IPsec/IKE personnalisée : spécifiez la stratégie complète. Dans le portail, elle peut aussi se définir avec la stratégie par défaut (Default).
 - L'appareil doit définir des sélecteurs pour chaque combinaison de préfixes locaux et Azure, pas any-to-any.
 - Ces sites ne joignent que le réseau virtuel : **aucun transit** vers d'autres sites ou réseaux par la passerelle.
 
@@ -123,7 +123,7 @@ Sans stratégie personnalisée, la passerelle propose son jeu **par défaut**. U
 | Durée de vie des SA en mode principal | Fixée à 28 800 secondes |
 | Délai d'expiration DPD | 45 secondes par défaut, de 9 à 3 600 ; 30 à 45 recommandés |
 
-Avec GCMAES pour le chiffrement IPsec, utilisez le **même** algorithme GCMAES et la même longueur de clé pour l'intégrité IPsec. Les sélecteurs de trafic basés sur une stratégie et le délai d'expiration DPD peuvent aussi se définir avec la stratégie par défaut.
+Avec GCMAES pour le chiffrement IPsec, utilisez le **même** algorithme GCMAES et la même longueur de clé pour l'intégrité IPsec. Dans le portail, les sélecteurs de trafic basés sur une stratégie et le délai d'expiration DPD peuvent aussi se définir avec la stratégie par défaut (Default), sans stratégie personnalisée.
 
 ```powershell
 $policy = New-AzIpsecPolicy -IkeEncryption AES256 -IkeIntegrity SHA384 -DhGroup DHGroup24 `
@@ -143,7 +143,7 @@ Set-AzVirtualNetworkGatewayConnection -VirtualNetworkGatewayConnection $conn -Ip
 | Référence SKU et génération | Une référence SKU AZ ; Génération2 à partir de VpnGw2AZ |
 | GatewaySubnet | Nommé exactement **GatewaySubnet**, /27 ou plus grand (/29 possible pour Basic uniquement) ; rien d'autre dedans ; **pas de NSG** ; pas d'UDR avec 0.0.0.0/0 ni qui abandonne la plage du sous-réseau ; propagation des routes de passerelle activée |
 | Adresses IP publiques | **Standard**, statiques ; deux pour le mode actif/actif, et une troisième si une passerelle actif/actif sert aussi le P2S |
-| BGP | ASN 65515 par défaut (modifiable ; plages privées 64512-65514 et 65521-65534) ; IP de pair BGP prise dans le GatewaySubnet ; adresses **APIPA** personnalisées de 169.254.21.0 à 169.254.22.255 quand l'appareil s'appaire en APIPA |
+| BGP | ASN 65515 par défaut (modifiable ; plages privées 64512-65514 et 65521-65534) ; IP de pair BGP prise dans le GatewaySubnet ; adresses **APIPA** personnalisées de 169.254.21.0 à 169.254.22.255 quand l'appareil établit sa session BGP avec des adresses APIPA |
 
 ```bash
 az network public-ip create --resource-group RG1 --name VNet1GWpip1 --sku Standard \
@@ -155,7 +155,7 @@ az network vnet-gateway create --resource-group RG1 --name VNet1GW --vnet VNet1 
   --public-ip-addresses VNet1GWpip1 VNet1GWpip2 --no-wait
 ```
 
-BGP sur la passerelle : pas sur Basic ni sur une passerelle basée sur des stratégies ; jusqu'à 4 000 préfixes d'un pair (au-delà, la session tombe) ; l'ASN local doit différer de l'ASN Azure ; keepalive 60 s et hold 180 s, fixes ; pas de BFD. Une passerelle actif-passif peut passer en mode actif/actif ; avec des IP de pair BGP non APIPA, cela provoque une interruption et les pairs BGP locaux doivent être mis à jour.
+BGP sur la passerelle : pas sur Basic ni sur une passerelle basée sur des stratégies ; jusqu'à 4 000 préfixes d'un pair (au-delà, la session tombe) ; l'ASN local doit différer de l'ASN Azure ; keepalive 60 s et hold 180 s, fixes ; pas de BFD. Une passerelle actif/passif peut passer en mode actif/actif ; avec des IP de pair BGP non APIPA, cela provoque une interruption et les pairs BGP locaux doivent être mis à jour.
 
 <!-- section: gateway-troubleshooting | objectives: 2.1.8 -->
 ## Diagnostiquer et résoudre les problèmes de connectivité d'une passerelle
@@ -177,9 +177,9 @@ Outils :
 - **Journaux de ressources** par un paramètre de diagnostic : `TunnelDiagnosticLog` (connexion/déconnexion avec motif), `IKEDiagnosticLog`, `RouteDiagnosticLog` (routes statiques et événements BGP), `GatewayDiagnosticLog` (configuration, basculement, maintenance).
 - **Métriques** : Tunnel Bandwidth, Gateway S2S Bandwidth, BGP Peer Status ; règles d'alerte sur ces métriques.
 - **Capture de paquets** sur la passerelle ou une connexion, avec des filtres.
-- **Réinitialisation** (**Réinitialiser** dans le portail, `Reset-AzVirtualNetworkGateway`, `az network vnet-gateway reset`) : redémarre une instance et réapplique la configuration ; l'IP publique ne change pas. En actif-passif, relancez-la pour redémarrer l'autre instance. En actif/actif, utilisez `-GatewayVip` ou `--gateway-vip` pour cibler chaque instance. Une connexion peut aussi être réinitialisée seule.
+- **Réinitialisation** (**Réinitialiser** dans le portail, `Reset-AzVirtualNetworkGateway`, `az network vnet-gateway reset`) : redémarre une instance et réapplique la configuration ; l'IP publique ne change pas. En actif/passif, relancez-la pour redémarrer l'autre instance. En actif/actif, utilisez `-GatewayVip` ou `--gateway-vip` pour cibler chaque instance. Une connexion peut aussi être réinitialisée seule.
 
-> **Piège d'examen.** Le tunnel est **Connecté** mais les clients locaux ne joignent pas un spoke appairé : les sélecteurs de l'appareil ou les préfixes BGP/statiques n'incluent pas les plages du spoke, ou le peering du spoke n'utilise pas la passerelle distante. Le tunnel lui-même va bien.
+> **Piège d'examen.** Le tunnel est **Connecté** mais les clients locaux ne joignent pas un spoke relié par peering : les sélecteurs de l'appareil ou les préfixes BGP/statiques n'incluent pas les plages du spoke, ou le peering du spoke n'utilise pas la passerelle distante. Le tunnel lui-même va bien.
 
 <!-- section: azure-extended-network | objectives: 2.1.9 -->
 ## Implémenter Azure Extended Network

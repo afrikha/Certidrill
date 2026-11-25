@@ -33,11 +33,11 @@ Method:
 | --- | --- |
 | Regulation template | A prebuilt list of controls for a regulation or standard (hundreds available, custom templates possible) |
 | Assessment | A template applied to your environment, with its own score |
-| Control | A requirement of the regulation |
+| Control | A requirement of the regulation, of one of three types: Microsoft managed (Microsoft implements it for its cloud services), your controls (customer managed) or shared (both share the responsibility) |
 | Improvement action | What you must do to meet a control; assigned to an owner, with status, notes and evidence; technical actions are tested automatically when possible |
 | Compliance score | Progress on improvement actions, weighted by risk; includes Microsoft-managed actions and your own |
 
-Compliance Manager assesses Microsoft 365 by default and can assess other clouds through connectors. The compliance score measures progress on recommended actions; it isn't a certification.
+Compliance Manager assesses Microsoft 365 by default. It assesses Azure, AWS and GCP through its integration with Defender for Cloud, which tests the resources of the subscriptions that are in scope of a matching regulation in Defender for Cloud; connectors are for non-Microsoft services such as Salesforce and Zoom. The compliance score measures progress on recommended actions; it isn't a certification.
 
 The other Purview solutions implement the controls:
 
@@ -52,7 +52,7 @@ The other Purview solutions implement the controls:
 | Detect data theft by departing employees | Insider Risk Management |
 | Detect harassment or regulatory violations in messages | Communication Compliance |
 | Control sensitive data in generative AI apps and Microsoft 365 Copilot | Data Security Posture Management (DSPM) for AI, with labels and DLP |
-| Inventory and classify data in Azure, AWS, on-premises databases | Purview Data Map and Unified Catalog (data governance) |
+| Inventory and classify data in Azure, AWS, on-premises databases | Purview Unified Catalog and classic data governance (formerly Azure Purview): being retired; no new data governance accounts, maintenance mode through November 12, 2027, data governance consolidated in Microsoft Fabric |
 
 > **Exam trap.** Purview governs and protects **data** (Microsoft 365, endpoints, data estates). It doesn't evaluate Azure resource configurations: "storage accounts must deny public access" is Azure Policy or Defender for Cloud, not Purview.
 

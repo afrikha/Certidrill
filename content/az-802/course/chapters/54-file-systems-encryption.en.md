@@ -54,7 +54,7 @@ Get-DedupStatus -Volume E:
 | --- | --- | --- |
 | Default | General file servers: team shares, home folders, Work Folders | Files older than 3 days; no in-use or partial files |
 | Hyper-V | VDI servers | Files older than 3 days; optimizes in-use and partial files |
-| Backup | Virtualized backup applications such as DPM | Files older than 0 days; priority optimization |
+| Backup | Virtualized backup applications such as DPM | Files older than 0 days; optimizes in-use files, not partial files; priority optimization |
 
 | Job | Does | Default schedule |
 | --- | --- | --- |
@@ -62,6 +62,8 @@ Get-DedupStatus -Volume E:
 | Garbage Collection | Frees chunks no longer referenced after deletes or changes | Saturday 2:35 AM |
 | Integrity Scrubbing | Detects chunk store corruption and repairs from mirror or parity copies | Saturday 3:35 AM |
 | Unoptimization | Undoes deduplication and disables it on the volume | Manual only |
+
+`Disable-DedupVolume` only stops further deduplication: optimized files stay deduplicated and readable, and job cmdlets such as `Start-DedupJob` no longer run on that volume. To rehydrate the files, run the Unoptimization job, which fails if the volume lacks space for the unoptimized data.
 
 Space freed by deleting files appears only after **Garbage Collection** runs. Typical savings: user documents 30 to 50 %, deployment shares 70 to 80 %, virtualization libraries 80 to 95 %.
 

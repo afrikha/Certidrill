@@ -49,7 +49,7 @@ with client.get_queue_sender(queue_name="summarize-jobs") as sender:
 | `time_to_live` | Expiration of the message |
 | `scheduled_enqueue_time_utc` or `sender.schedule_messages()` | Delayed delivery |
 
-`create_message_batch()` raises `ValueError` from `add_message` when the batch is full: send it and start a new one. Sessions and duplicate detection are chosen when the queue or subscription is created.
+`create_message_batch()` raises `ValueError` from `add_message` when the batch is full: send it and start a new one. Sessions (queue or subscription) and duplicate detection (queue or topic) can be enabled only when the entity is created, never changed afterwards; the duplicate detection window (10 minutes by default, 20 seconds to 7 days) can be changed later.
 
 > **Exam trap.** "Process the steps of each conversation in order" needs a **session-enabled** entity and `session_id` on every message, in Standard or Premium. A plain queue with competing consumers doesn't preserve order.
 
@@ -98,12 +98,13 @@ Every queue and every subscription has a dead-letter sub-queue (DLQ), created au
 | Reason (`dead_letter_reason`) | Cause |
 | --- | --- |
 | `MaxDeliveryCountExceeded` | Delivered more times than **MaxDeliveryCount** (10 by default): abandons or expired locks |
+| `HeaderSizeExceeded` | The size quota of the message stream was exceeded |
 | `TTLExpiredException` | The message expired and dead-lettering on message expiration is enabled on the entity |
 | `Session ID is null` | A message without `session_id` sent to a session-enabled entity |
 | `MaxTransferHopCountExceeded` | More than four hops of auto-forwarding |
 | Your own reason | The application called `dead_letter_message` (poison message, failed validation) |
 
-A subscription can also dead-letter messages whose filter evaluation throws an exception, if that option is on. Expired messages are simply dropped when dead-lettering on expiration is off.
+A subscription can also dead-letter messages whose filter evaluation throws an exception, if that option is on. Expired messages are simply dropped when dead-lettering on expiration is off. Deferred messages that expire aren't moved to the DLQ.
 
 ```text
 from azure.servicebus import ServiceBusSubQueue
@@ -174,7 +175,7 @@ from azure.eventgrid import EventGridPublisherClient
 
 client = EventGridPublisherClient(
     "https://eval-events.westeurope-1.eventgrid.azure.net/api/events",
-    DefaultAzureCredential(),            # identity holds Event Grid Data Sender
+    DefaultAzureCredential(),            # identity holds EventGrid Data Sender
 )
 
 client.send([
@@ -189,7 +190,7 @@ client.send([
 
 | Need | Setting |
 | --- | --- |
-| Authenticate the publisher | Microsoft Entra ID with **Event Grid Data Sender**, or the topic access key (`AzureKeyCredential`) |
+| Authenticate the publisher | Microsoft Entra ID with **EventGrid Data Sender**, or the topic access key (`AzureKeyCredential`) |
 | Event Grid schema instead of CloudEvents | `EventGridEvent(subject=..., event_type=..., data=..., data_version="1.0")` |
 | Better throughput | Send a list of events in one call rather than one call per event |
 | Webhook handler | Must answer the subscription validation handshake; the Event Grid trigger of Azure Functions does it for you |
@@ -240,7 +241,7 @@ Event Grid waits 30 seconds for a response; 200 to 204 means success. It retries
 | Maximum delivery attempts | 1–30 | 30 |
 | Event time to live | 1–1,440 minutes | 1,440 (24 hours) |
 
-Whichever limit is reached first ends delivery. Some responses aren't retried: 400 (bad request), 403 (forbidden) and 413 (payload too large) for every endpoint, plus 401 for webhooks; 400 and 413 dead-letter the event immediately. Dead-lettering is **off by default**: without it, undeliverable events are dropped. Enable it with a blob container; the dead-letter event adds `deadLetterReason`, `deliveryAttempts` and `lastDeliveryOutcome`.
+Whichever limit is reached first ends delivery. Some responses aren't retried: 400 (bad request), 403 (forbidden) and 413 (payload too large) for every endpoint, plus 401 for webhooks (a 401 from an Azure resource endpoint is retried after 5 minutes or more); 400 and 413 dead-letter the event immediately. Dead-lettering is **off by default**: without it, undeliverable events are dropped. Enable it with a blob container: the event reaches it 5 minutes after the last attempt, and is dropped if the container stays unavailable for 4 hours. The dead-letter event adds `deadLetterReason`, `deliveryAttempts` and `lastDeliveryOutcome`.
 
 ```bash
 az eventgrid event-subscription create --name low-scores \
@@ -270,6 +271,6 @@ Batching (off by default) groups up to 5,000 events per request; a batch succeed
 - Peek-lock (default) is at least once: `complete`, `abandon`, `dead_letter`, `defer`; lock 1 minute by default, 5 at most, renew for long work; idempotent handlers.
 - DLQ per queue and per subscription; `MaxDeliveryCountExceeded` after 10 deliveries by default; read it with `sub_queue=ServiceBusSubQueue.DEAD_LETTER` and resubmit a new message.
 - `$Default` accepts everything until removed; correlation filters are the cheapest; filters read properties, never the body.
-- Event Grid: custom topics, CloudEvents or Event Grid schema, Event Grid Data Sender, at least once, no order.
+- Event Grid: custom topics, CloudEvents or Event Grid schema, EventGrid Data Sender, at least once, no order.
 - Filters: event types, subject prefix or suffix, advanced filters (values OR, filters AND, 25 limit).
 - Retries: 30 attempts and 24 hours by default, first limit wins; dead-lettering to a blob container is off by default.

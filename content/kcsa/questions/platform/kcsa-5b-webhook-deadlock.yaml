@@ -1,0 +1,38 @@
+id: kcsa-5b-webhook-deadlock
+objective: "5.7.4"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    A validating webhook with `failurePolicy: Fail` checks every Pod in every namespace. Its own Deployment runs in the `policy` namespace. After a node failure, all webhook Pods are gone, the ReplicaSet cannot recreate them, and Pod creation fails across the cluster.
+
+    Which change prevents this situation while keeping the policy fail-closed for application namespaces?
+body:
+  options:
+    - id: a
+      text: { en: "Set `failurePolicy: Ignore` so that an unavailable webhook never blocks a request" }
+    - id: b
+      text: { en: "Raise `timeoutSeconds` to 30 so that the API server waits longer for the webhook" }
+    - id: c
+      text: { en: "Exclude the `policy` and `kube-system` namespaces from the webhook with a `namespaceSelector`" }
+    - id: d
+      text: { en: "Check only Pods labeled `policy-check: enabled`, with an `objectSelector`" }
+answer: { optionId: c }
+explanation:
+  correct:
+    en: |
+      A webhook that intercepts the resources needed to start its own Pods can deadlock its own deployment. Kubernetes recommends excluding the webhook's namespace with a `namespaceSelector` and avoiding critical namespaces such as `kube-system`. The webhook Pods can then be recreated, while application namespaces stay protected with `Fail`.
+  options:
+    a:
+      en: |
+        `Ignore` removes the deadlock, but the policy then fails open everywhere, which breaks the requirement.
+    b:
+      en: |
+        Waiting longer does not help when no webhook Pod exists. The call still fails, and `Fail` still rejects the request.
+    d:
+      en: |
+        An `objectSelector` on a user-controlled label makes the check opt-in: anyone could skip it by omitting the label, so the policy would no longer be enforced.
+references:
+  - title: "Admission Webhook Good Practices"
+    url: https://kubernetes.io/docs/concepts/cluster-administration/admission-webhooks-good-practices/

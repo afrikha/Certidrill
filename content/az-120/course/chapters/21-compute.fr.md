@@ -172,7 +172,7 @@ az deployment group create --resource-group RG-SAP-PRD --template-file main.bice
 | `imageReference` | Image de la Place de marché (éditeur, offre, SKU, version) ou `id` d'une version d'image de galerie |
 | `caching`, `writeAcceleratorEnabled` | Paramètres par disque (voir le chapitre sur le stockage) |
 | `storageAccountType` | `Premium_LRS`, `PremiumV2_LRS`, `UltraSSD_LRS` |
-| `additionalCapabilities.ultraSSDEnabled` | Doit valoir `true` pour attacher des Disques Ultra |
+| `additionalCapabilities.ultraSSDEnabled` | Doit valoir `true` pour attacher des Disques Ultra ; l'activer sur une machine virtuelle existante exige de la libérer, et les Disques Ultra ne prennent pas en charge les groupes à haute disponibilité |
 | `enableAcceleratedNetworking` de la carte réseau | Se définit sur l'interface réseau, pas sur la machine virtuelle |
 
 > **Conseil d'examen.** Les modèles Bicep et ARM ne déploient que l'infrastructure. L'installation des logiciels SAP exige une autre couche : Ansible dans SAP Deployment Automation Framework, ou l'étape d'installation du Centre Azure pour les solutions SAP.
@@ -220,12 +220,14 @@ Le déploiement d'un nouveau système est une expérience guidée dans le portai
 Choix de déploiement :
 
 - **Type de déploiement** : serveur unique (hors production uniquement), distribué, ou distribué avec haute disponibilité (recommandé en production ; zones de disponibilité pour l'option de SLA à 99,99 %, groupes à haute disponibilité pour 99,95 %).
-- **Produit** : S/4HANA sur HANA scale-up.
-- **Image du système d'exploitation** : SLES for SAP Applications ou RHEL for SAP Applications de la Place de marché, ou une image personnalisée d'Azure Compute Gallery.
+- **Produit** : S/4HANA sur HANA scale-up, versions 1909, 2020, 2021 et 2022 (ISS 00).
+- **Image du système d'exploitation** : RHEL 8.4 ou 8.6 for SAP Applications, ou SLES for SAP Applications 15 SP3 ou SP4 (12 SP5 pour S/4HANA 1909 uniquement), de la Place de marché ; ou une image personnalisée d'Azure Compute Gallery, dans le même abonnement que le déploiement, avec le type de sécurité **Standard** et un système d'exploitation de base pris en charge, l'identité managée affectée par l'utilisateur ayant **Reader** sur la galerie.
 - **Dimensionnement** : saisissez les SAPS du niveau application et la mémoire de la base de données, et ACSS recommande des tailles de machines virtuelles ; dans un déploiement à haute disponibilité, le nombre de machines virtuelles ASCS et de base de données est fixé à deux.
 - **Répertoire de transport** : en créer un, utiliser un existant, ou aucun.
 
-Une fois la VIS créée (déployée, ou inscrite pour un système NetWeaver ou ABAP existant sur Windows, SLES ou RHEL avec toute base de données prise en charge), ACSS affiche l'état et l'intégrité, démarre et arrête le système SAP, fournit des contrôles de qualité et des insights, affiche les métriques de l'infrastructure et analyse les coûts.
+Une fois la VIS créée (déployée, ou inscrite pour un système SAP NetWeaver ou ABAP existant sur Windows, SLES ou RHEL avec HANA, Db2, SQL Server, Oracle, MaxDB ou SAP ASE), ACSS affiche l'état et l'intégrité, démarre et arrête le système SAP, fournit des contrôles de qualité et des insights, affiche les métriques de l'infrastructure et analyse les coûts.
+
+L'inscription ne prend pas en charge HANA Large Instances, HANA scale-out, MCOS ou MCOD, les systèmes Java ou double pile, les systèmes répartis sur des réseaux virtuels reliés par peering, ni IPv6. Pour l'inscription, l'identité managée affectée par l'utilisateur a besoin du rôle **Azure Center for SAP solutions service role** sur le groupe de ressources des machines virtuelles, des disques et des équilibreurs de charge, et de **Reader** sur le groupe de ressources du réseau virtuel.
 
 | Exigence | Outil |
 | --- | --- |

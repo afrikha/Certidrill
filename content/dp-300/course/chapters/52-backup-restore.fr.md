@@ -119,7 +119,7 @@ RESTORE LOG SalesDb FROM DISK = N'F:\Backup\SalesDb_log_1030.trn'
 
 `STOPATMARK` s'arrête à une transaction nommée (`BEGIN TRANSACTION Release42 WITH MARK`). La restauration à un point dans le temps exige le mode de récupération FULL et une chaîne de journaux ininterrompue.
 
-**Azure SQL Database et SQL Managed Instance :** PITR depuis le portail (base de données > Restaurer), Azure CLI, PowerShell ou REST, jamais en T-SQL. Elle crée toujours une **nouvelle** base ; vous ne pouvez pas remplacer une base existante.
+**Azure SQL Database et SQL Managed Instance :** PITR depuis le portail (base de données > Restaurer), Azure CLI, PowerShell ou REST, jamais en T-SQL. Elle crée toujours une **nouvelle** base ; vous ne pouvez pas remplacer une base existante. Dans SQL Database, la PITR ne s'exécute que sur une base primaire, jamais sur une base géosecondaire, et une restauration entre Hyperscale et les autres niveaux de service n'est pas prise en charge.
 
 ```bash
 az sql db restore --resource-group rg-data --server srv-sales --name SalesDb \
@@ -164,7 +164,7 @@ Set-AzSqlDatabaseBackupLongTermRetentionPolicy -ResourceGroupName "rg-data" -Ser
   -DatabaseName "SalesDb" -WeeklyRetention P12W -MonthlyRetention P12M -YearlyRetention P7Y -WeekOfYear 16
 ```
 
-Règles : vous ne pouvez ni déclencher une sauvegarde LTR ni choisir son heure ; la première peut mettre jusqu'à 7 jours à apparaître (la sauvegarde complète PITR la plus récente est copiée à la première activation de la stratégie). La LTR existe pour SQL Database, y compris Hyperscale, et pour SQL Managed Instance. Une restauration crée une nouvelle base sur n'importe quel serveur ou instance **du même abonnement** (`az sql db ltr-backup restore`, `Restore-AzSqlDatabase -FromLongTermRetentionBackup`). Avec la géoréplication ou les groupes de basculement, configurez la même stratégie sur le secondaire : elle ne prend effet que lorsque cette base devient primaire. SQL Server Contributor peut restaurer les sauvegardes LTR mais pas les supprimer.
+Règles : vous ne pouvez ni déclencher une sauvegarde LTR ni choisir son heure ; la première peut mettre jusqu'à 7 jours à apparaître (la sauvegarde complète PITR la plus récente est copiée à la première activation de la stratégie). La LTR existe pour SQL Database, y compris Hyperscale, et pour SQL Managed Instance. Une restauration crée une nouvelle base sur n'importe quel serveur ou instance **du même abonnement** (`az sql db ltr-backup restore`, `Restore-AzSqlDatabase -FromLongTermRetentionBackup`). Avec la géoréplication ou les groupes de basculement, configurez la même stratégie sur le secondaire : elle ne prend effet que lorsque cette base devient primaire. SQL Server Contributor peut restaurer les sauvegardes LTR mais pas les supprimer. Les sauvegardes LTR peuvent être rendues immuables (en préversion pour SQL Managed Instance) ; des sauvegardes LTR immuables bloquent aussi la suppression du serveur logique.
 
 > **Conseil d'examen.** « Conserver les sauvegardes 7 ans pour la conformité » = LTR, jamais une rétention PITR (35 jours au maximum). Sur les machines virtuelles SQL Server, l'équivalent est la stratégie de rétention de Sauvegarde Azure.
 
@@ -199,8 +199,9 @@ Règles à retenir :
 - La sauvegarde vers une URL en HTTP et vers un stockage premium n'est pas prise en charge.
 - Utilisez `MAXTRANSFERSIZE = 4194304` et `BLOCKSIZE = 65536` pour les grosses sauvegardes, et répartissez-les pour rester sous la limite de blocs.
 - À partir de SQL Server 2025, la sauvegarde vers une URL peut s'authentifier avec une identité managée (préversion, SQL Server activé par Azure Arc).
+- Le stockage immuable est pris en charge à partir de SQL Server 2025, avec l'immuabilité au niveau du conteneur uniquement (pas au niveau de la version) ; sur un conteneur immuable, `WITH FORMAT` échoue si une sauvegarde du même nom existe déjà.
 
-Sur **SQL Managed Instance**, les informations d'identification utilisent une SAS ou l'identité managée de l'instance (les clés d'accès ne sont pas prises en charge), une sauvegarde peut utiliser jusqu'à 32 bandes de 195 Go au plus chacune, et seul `BACKUP ... TO URL WITH COPY_ONLY` est autorisé. La restauration native depuis une URL est la façon d'amener un `.bak` de SQL Server dans une instance managée, et une sauvegarde prise sur une instance managée ne peut être restaurée que sur SQL Server 2022.
+Sur **SQL Managed Instance**, les informations d'identification utilisent une SAS ou l'identité managée de l'instance (les clés d'accès ne sont pas prises en charge), une sauvegarde peut utiliser jusqu'à 32 bandes de 195 Go au plus chacune (assez pour des bases jusqu'à 4 To avec la compression de sauvegarde), et seul `BACKUP ... TO URL WITH COPY_ONLY` est autorisé. La restauration native depuis une URL est la façon d'amener un `.bak` de SQL Server dans une instance managée, et une sauvegarde en copie seule prise sur une instance managée se restaure sur SQL Server selon la stratégie de mise à jour de l'instance : stratégie SQL Server 2022 vers SQL Server 2022, stratégie SQL Server 2025 (la valeur par défaut des nouvelles instances déployées depuis le portail) vers SQL Server 2025, Always-up-to-date vers aucune version de SQL Server.
 
 > **Piège d'examen.** Restaurer une sauvegarde SQL Server dans SQL Managed Instance utilise `RESTORE ... FROM URL`, pas `FROM DISK` : chargez d'abord le `.bak` dans le Stockage Blob. Dans Azure SQL Database, un `.bak` ne peut pas être restauré du tout ; utilisez un BACPAC ou un outil de migration.
 

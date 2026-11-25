@@ -61,7 +61,7 @@ az webapp config appsettings set -g RG1 -n app-contoso-web --settings API_URL=ht
 ```
 
 - Les **paramètres d'application** et les **chaînes de connexion** sont exposés au code sous forme de variables d'environnement ; les modifier redémarre l'application.
-- Déploiement : déploiement ZIP, Git local, GitHub Actions ou Azure Pipelines (*Centre de déploiement*), FTPS, ou image de conteneur.
+- Déploiement : déploiement ZIP, Git local, GitHub Actions ou Azure Pipelines (*Centre de déploiement*), FTPS, ou image conteneur.
 - **Always On** (Basic et supérieurs) garde l'application chargée au lieu de la décharger après une période d'inactivité.
 - Une **identité managée** permet à l'application d'accéder à Key Vault, au stockage ou à une base de données sans secret.
 - La console Kudu (`<app>.scm.azurewebsites.net`) donne accès aux fichiers et aux journaux.
@@ -77,7 +77,7 @@ Réglages de protocole : **HTTPS uniquement** redirige HTTP vers HTTPS ; **Versi
 | **Certificat App Service** | Acheté via Azure, stocké dans Key Vault, renouvellement automatique possible ; standard ou **générique** (wildcard) |
 | Import depuis Key Vault | Un certificat que vous gérez dans Key Vault |
 | Chargement d'un certificat privé (`.pfx`) | Un certificat de n'importe quelle autorité ; vous gérez le renouvellement |
-| Chargement d'un certificat public (`.cer`) | Pas pour les liaisons : permet à l'application de faire confiance à un point de terminaison distant |
+| Chargement d'un certificat public (`.cer`) | Pas pour les liaisons : permet à l'application d'approuver un point de terminaison distant |
 
 Créez ensuite une **liaison** entre le domaine personnalisé et le certificat : **SNI SSL** (Basic et supérieurs) ou **SSL basé sur IP** (Standard et supérieurs ; adresse IP entrante dédiée, pour les anciens clients).
 
@@ -99,6 +99,8 @@ Les domaines personnalisés demandent le niveau **Partagé** ou supérieur (TLS 
 | Domaine racine (apex) `contoso.com` | Enregistrement **A** `@` vers l'adresse IP entrante de l'application (un CNAME est interdit à la racine) | **TXT** `asuid` = ID de vérification du domaine personnalisé |
 | Générique `*.contoso.com` | CNAME `*` vers `<app>.azurewebsites.net` | TXT `asuid` |
 
+Selon Learn, l'enregistrement TXT `asuid` n'est pas absolument obligatoire, mais fortement recommandé : il prouve la propriété et empêche la prise de contrôle de sous-domaine par une autre application App Service ; créez-le donc toujours. Un générique `*` ne valide pas les sous-domaines qui ont déjà leur propre enregistrement CNAME : un enregistrement TXT par sous-domaine peut alors être nécessaire.
+
 Étapes : relever l'**ID de vérification du domaine personnalisé** et l'adresse IP de l'application (page Domaines personnalisés) ; créer les enregistrements DNS chez votre fournisseur DNS ; ajouter le domaine personnalisé dans l'application et valider ; ajouter un certificat et une liaison.
 
 Pour migrer un site en service **sans interruption**, créez d'abord uniquement l'enregistrement TXT `asuid`, ajoutez et sécurisez le domaine dans App Service, et basculez le CNAME ou l'enregistrement A en dernier.
@@ -110,13 +112,13 @@ Pour migrer un site en service **sans interruption**, créez d'abord uniquement 
 | --- | --- | --- |
 | Niveaux | Basic, Standard, Premium, Isolé | Idem |
 | Configuration | Aucune : activées par défaut | Un **compte de stockage et un conteneur** que vous fournissez, à la demande ou planifiées |
-| Fréquence et rétention | Toutes les heures ; points de restauration conservés jusqu'à 30 jours | Votre planification ; conservées indéfiniment ou selon votre réglage de rétention |
-| Taille | Jusqu'à 30 Go | Jusqu'à 10 Go, bases de données comprises |
-| Bases de données liées | Non | Oui (chaînes de connexion des bases prises en charge) |
+| Fréquence et rétention | Toutes les heures, non configurable ; conservées 30 jours (chaque sauvegarde horaire des jours 1 à 3, puis une sur trois, puis une sur six à partir du jour 15) | Toutes les 2 heures au plus, jusqu'à 12 sauvegardes par jour (manuelles et planifiées) ; rétention de 0 à 30 jours ou illimitée (les sauvegardes à la demande sont conservées indéfiniment) |
+| Taille | Jusqu'à 30 Go | Jusqu'à 10 Go, dont 4 Go au plus pour une base de données liée |
+| Bases de données liées | Non | En cours de retrait : plus proposées dans les nouvelles configurations de sauvegarde (retirées pour MySQL et PostgreSQL en novembre 2025, pour Azure SQL et SQL Server en avril 2026) ; les existantes s'arrêtent le 31/03/2028 |
 | Sauvegarde partielle | Non | Oui : exclusions listées dans `_backup.filter`, dans `%HOME%\site\wwwroot` |
 | Téléchargement | Non | Oui : fichier ZIP et manifeste XML dans le conteneur |
 
-Une sauvegarde contient la configuration de l'application, ses fichiers et, en option, les bases de données liées. Vous **restaurez** vers la même application (écrasement), vers un emplacement de déploiement ou vers une nouvelle application. Si le compte de stockage est derrière un pare-feu, activez la sauvegarde et la restauration via l'intégration au réseau virtuel.
+Une sauvegarde contient la configuration de l'application et ses fichiers. Les bases de données liées sont en cours de retrait des sauvegardes personnalisées : utilisez plutôt la sauvegarde native de chaque service de base de données. Vous **restaurez** vers la même application (écrasement), vers un emplacement de déploiement ou vers une nouvelle application. Si le compte de stockage est derrière un pare-feu, activez la sauvegarde et la restauration via l'intégration au réseau virtuel.
 
 <!-- section: app-service-networking | objectives: 3.4.7 -->
 ## Paramètres réseau
@@ -126,7 +128,7 @@ App Service sépare les fonctionnalités **entrantes** (qui peut atteindre l'app
 | Sens | Fonctionnalité | But |
 | --- | --- | --- |
 | Entrant | **Restrictions d'accès** | Autoriser ou refuser par plage IPv4/IPv6, **étiquette de service** ou **sous-réseau de réseau virtuel** (point de terminaison de service `Microsoft.Web`). Règles distinctes pour le site principal et le site `scm` |
-| Entrant | **Point de terminaison privé** | Une adresse IP privée pour l'application dans votre réseau virtuel ; joignable depuis les réseaux appairés et le réseau local. Désactivez l'accès réseau public pour refuser le trafic internet |
+| Entrant | **Point de terminaison privé** | Une adresse IP privée pour l'application dans votre réseau virtuel ; joignable depuis les réseaux connectés par peering et le réseau local. Désactivez l'accès réseau public pour refuser le trafic internet |
 | Sortant | **Intégration au réseau virtuel** | L'application appelle des ressources **à l'intérieur** d'un réseau virtuel (et au-delà, par peering ou VPN). Demande un sous-réseau dédié, **délégué à `Microsoft.Web/serverFarms`**, dans la même région |
 | Sortant | **Connexions hybrides** | L'application appelle un hôte et un port TCP locaux à travers Azure Relay, sans VPN |
 
@@ -171,6 +173,6 @@ az webapp deployment slot swap -g RG1 -n app-contoso-web --slot staging --target
 - Scale-up = instances plus grosses ; scale-out = plus d'instances ; autoscale à partir de Standard.
 - Sous-domaine : CNAME plus TXT `asuid.<sous-domaine>`. Racine : enregistrement A plus TXT `asuid`.
 - Certificat managé : gratuit, renouvelé automatiquement, pas de générique, non exportable.
-- Les sauvegardes automatiques ne demandent aucune configuration ; les sauvegardes personnalisées demandent un compte de stockage et permettent les bases de données et les sauvegardes partielles.
+- Les sauvegardes automatiques ne demandent aucune configuration ; les sauvegardes personnalisées demandent un compte de stockage et permettent les sauvegardes partielles ; les bases de données liées ne sont plus proposées pour les nouvelles sauvegardes (utilisez la sauvegarde propre à la base).
 - L'intégration au réseau virtuel est sortante ; le point de terminaison privé et les restrictions d'accès sont entrants.
 - Les paramètres d'emplacement restent avec l'emplacement ; échangez de nouveau pour revenir en arrière.

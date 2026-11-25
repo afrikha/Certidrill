@@ -1,0 +1,44 @@
+id: dopc02-4b-insights-parse-unstructured
+objective: "4.1.12"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    A payment service on Amazon ECS writes unstructured text lines to Amazon CloudWatch Logs, for example: 2026-11-20T10:01:02Z INFO txn=88123 region=eu-west-1 durationMs=412. The log group receives about 3 million lines per day. CloudWatch Logs Insights discovers only the default fields such as @timestamp and @message for this log group. The team lead wants a CloudWatch Logs Insights query that shows the average transaction duration for each region in 5-minute intervals, without changing the application. Which query will meet these requirements?
+body:
+  options:
+    - id: a
+      text:
+        en: |-
+          fields region, durationMs | stats avg(durationMs) by region, bin(5m)
+    - id: b
+      text:
+        en: |-
+          parse @message "region=* durationMs=*" as region, duration | stats avg(duration) by region, bin(5m)
+    - id: c
+      text:
+        en: |-
+          filter @message like /durationMs/ | stats avg(@duration) by @logStream, bin(5m)
+    - id: d
+      text:
+        en: |-
+          parse @message "region=* durationMs=*" as region, duration | stats avg(duration) by bin(5m) | sort region
+answer: { optionId: b }
+explanation:
+  correct:
+    en: |-
+      Logs Insights discovers fields automatically for JSON and some AWS log types, not for arbitrary text, so the values must be extracted with parse. The glob pattern extracts region and duration as ephemeral fields, and stats avg(duration) by region, bin(5m) groups the averages per region and per 5-minute interval.
+  options:
+    a:
+      en: |-
+        region and durationMs are not discovered fields for unstructured text, so the fields command returns empty values and the aggregation has nothing to average.
+    c:
+      en: |-
+        @duration is a field of AWS Lambda REPORT log events, not of this application's lines, and grouping by log stream does not give a result per region.
+    d:
+      en: |-
+        The stats command groups only by time interval, so the region field does not exist after the aggregation and the averages mix all regions.
+references:
+  - title: Sample queries - Amazon CloudWatch Logs
+    url: https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/CWL_QuerySyntax-examples.html

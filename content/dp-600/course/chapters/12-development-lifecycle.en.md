@@ -3,7 +3,7 @@ The analytics development lifecycle covers how Fabric items are versioned, promo
 <!-- section: git-integration | objectives: 1.2.1 -->
 ## Version control with Git integration
 
-Git integration connects **one workspace** to **one branch and one folder** of a repository in **Azure DevOps, GitHub or GitHub Enterprise** (cloud only). All items of the workspace are versioned together, and workspace folders map to Git folders. Git stores **item definitions, never data**.
+Git integration connects **one workspace** to **one branch and one folder** of a repository in **Azure DevOps, GitHub or GitHub Enterprise** (cloud only). All items of the workspace are versioned together, and workspace folders map to Git folders. Git stores **item definitions, never data**. Support depends on the item type: lakehouses, warehouses, notebooks, pipelines and Dataflow Gen2 are supported, while the Power BI **Report**, **Semantic model** and **Paginated report** items are still listed as preview.
 
 Prerequisites and permissions:
 
@@ -49,7 +49,7 @@ Sales/
 
 - The `.gitignore` is created only if none exists. The local cache keeps data out of the repository: **a project stores definitions, not data**.
 - Model metadata can be edited outside Desktop (TMDL in Visual Studio Code, or external tools connected to Desktop); Desktop detects external changes and offers to apply them. Undocumented files such as `report.json` or `diagramLayout.json` shouldn't be edited by hand.
-- Deploy a project with Fabric Git integration (commit the folder to the branch of a connected workspace), the Fabric REST APIs, or **Publish** in Desktop, which also uploads the cache.
+- Deploy a project with Fabric Git integration (commit the folder to the branch of a connected workspace; the Report and Semantic model items are in preview there), the Fabric REST APIs, or **Publish** in Desktop, which also uploads the cache.
 - Convert .pbix to .pbip and back only through **Save as** in Desktop.
 - Limitations: no sensitivity labels in a project, can't save directly to OneDrive or SharePoint, keep the root path short (260 characters on Windows).
 
@@ -64,7 +64,7 @@ A deployment pipeline has **2 to 10 stages** (default three: Development, Test, 
 | --- | --- |
 | Item metadata and definitions, report pages, model metadata, relationships between items | **Data**: refresh semantic models after deploying to an empty stage |
 | Data sources and parameters (then changed by rules) | Permissions and workspace settings; app content |
-| Sensitivity labels, only for new items or when the source label is protected and the target's isn't | Semantic model role assignments, refresh schedule, data source credentials, endorsement |
+| Sensitivity labels, only for new items or when the source label is protected and the target's isn't | Semantic model role assignments, refresh schedule, data source credentials, query caching settings, endorsement |
 
 **Deployment rules** change values in the **target** stage so that test and production use their own sources:
 
@@ -78,7 +78,7 @@ A deployment pipeline has **2 to 10 stages** (default three: Development, Test, 
 - A data source rule can only switch to a source **of the same type**.
 - For Direct Lake on SQL models use data source rules; for **Direct Lake on OneLake** models use M parameters and **parameter rules**.
 
-**Autobinding** keeps dependencies inside the stage: a report deployed to Test binds to the Test copy of its semantic model. If the dependency doesn't exist in the target, the deployment fails; use **Select related** to deploy it too.
+**Autobinding** keeps dependencies inside the stage: a report deployed to Test binds to the Test copy of its semantic model. If the dependency doesn't exist in the target, the deployment fails; use **Select related** to deploy it too. Autobinding isn't supported for Dataflow Gen2. The first deployment of a Power BI item also fails if the target stage already holds an item with the same name and type.
 
 Permissions:
 
@@ -86,7 +86,8 @@ Permissions:
 | --- | --- |
 | Create a pipeline | Pro, PPU or Premium license; you become pipeline Admin |
 | Assign a workspace to a stage | Pipeline Admin and workspace Admin |
-| Deploy to the next stage | Pipeline Admin and Contributor on both workspaces |
+| Deploy to an empty stage | Pipeline Admin and Contributor on the source workspace |
+| Deploy to the next stage | Pipeline Admin and Contributor on both workspaces (and owner of the item for dataflows) |
 | Create a deployment rule | Pipeline Admin, Contributor or higher on the target, owner of the item |
 | View deployment history | Pipeline Admin |
 
@@ -134,9 +135,9 @@ Copy the address from **Workspace settings > Premium > Workspace connection**; s
 - The tenant setting **Allow XMLA endpoints and Analyze in Excel with on-premises semantic models** must also be on (it is by default).
 - **Contributor or higher** in the workspace acts as database administrator through XMLA; **Build** permission gives read access (as database reader, filtered by RLS).
 - Tools: Tabular Editor and ALM Toolkit (write metadata, compare and deploy), SSMS (TMSL scripts, partition refresh), Visual Studio with Analysis Services projects, PowerShell `Invoke-ASCmd`, DAX Studio (read).
-- XMLA refreshes aren't limited to the 48 scheduled refreshes per day and can target single partitions, such as incremental refresh partitions.
+- XMLA refreshes aren't limited to the 48 scheduled refreshes per day and can target single partitions, such as incremental refresh partitions. They don't refresh tile caches, which refresh when a user opens the report.
 - Data source credentials can't be set through XMLA: set them in the semantic model settings.
-- Microsoft recommends the **large semantic model storage format** for models written through XMLA.
+- Microsoft recommends the **large semantic model storage format** for models written through XMLA. Write operations on a model authored in Power BI Desktop require **enhanced metadata**.
 
 > **Exam trap.** After a write through XMLA, a semantic model authored in Power BI Desktop **can't be downloaded as a .pbix** anymore. Keep the source .pbix or, better, a .pbip in Git.
 
@@ -149,7 +150,7 @@ Copy the address from **Workspace settings > Premium > Workspace connection**; s
 | Data source file (.pbids) | One connection in JSON: protocol, address, optional mode | **File > Options and settings > Data source settings > Export PBIDS**, or by hand | Give report authors a ready connection; Desktop opens Navigator to choose tables |
 | Shared semantic model | A published model reused by many reports | Publish once, grant **Build** | One governed model, many thin reports |
 
-A .pbids file holds **exactly one** data source and **no credentials, tables or query**; if `mode` is missing, the user chooses Import or DirectQuery:
+A .pbids file holds **exactly one** data source and **no credentials, tables or query**; if `mode` is missing, the user chooses Import or DirectQuery. For SQL Server (`tds`), `database` is optional, so one file can point to a server without naming a database:
 
 ```json
 {
@@ -177,7 +178,7 @@ A .pbids file holds **exactly one** data source and **no credentials, tables or 
 <!-- section: key-points -->
 ## Key points
 
-- Git integration: workspace Admin connects; one branch and one folder; definitions only; commit, update, branch out, pull requests.
+- Git integration: workspace Admin connects; one branch and one folder; definitions only; Report and Semantic model items still in preview; commit, update, branch out, pull requests.
 - .pbip = text files for Git; .pbit = template without data; .pbids = one connection without credentials.
 - Deployment pipelines: 2 to 10 stages, metadata only, rules in the target stage by the item owner, autobinding within the stage, pipeline Admin plus Contributor on both workspaces to deploy.
 - Impact analysis needs write permission; All downstream items and Notify contacts answer "who breaks and who to warn".

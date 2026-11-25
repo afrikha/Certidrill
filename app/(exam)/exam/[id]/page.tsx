@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/auth/guards";
 import { prisma } from "@/lib/db";
 import { getAttemptView, SessionError } from "@/lib/exam/session";
 import { ExamClient } from "@/components/exam/exam-client";
+import { EnglishOnlyNotice } from "@/components/english-only";
 
 export const metadata = { title: "Exam" };
 export const dynamic = "force-dynamic";
@@ -24,6 +25,7 @@ export default async function ExamPage({ params }: Readonly<{ params: Promise<{ 
   return (
     <NextIntlClientProvider locale={view.locale} messages={messages}>
       <div lang={view.locale}>
+        <EnglishOnlyNotice languages={view.certification.languages} locale={view.locale} className="mx-auto mt-2 max-w-5xl rounded-md border border-border bg-muted px-3 py-2 text-sm text-muted-foreground" />
         <ExamClient initial={view} resumed={view.status === "in_progress"} />
       </div>
     </NextIntlClientProvider>

@@ -5,7 +5,7 @@ La haute disponibilité maintient une charge de travail en service malgré la pa
 
 La haute disponibilité (HA) est une redondance qui prend le relais automatiquement, le plus souvent dans une seule région, avec peu ou pas de perte de données. La reprise d'activité (DR) redémarre la charge de travail dans une autre région, avec une perte de données (RPO, objectif de point de récupération) et une interruption (RTO, objectif de temps de récupération) mesurées. La sauvegarde protège contre la suppression et la corruption, que la réplication recopie fidèlement : ce n'est jamais une réponse de disponibilité.
 
-| Panne énoncée dans la question | Portée de la réponse | Options typiques |
+| Panne énoncée dans la question | Étendue de la réponse | Options typiques |
 | --- | --- | --- |
 | Un serveur, un rack, une mise à jour planifiée de l'hôte | Dans un centre de données | Groupe à haute disponibilité, plusieurs instances, LRS, réplicas intégrés d'un niveau PaaS |
 | Un centre de données ou une zone de disponibilité | Entre les zones d'une région | Zones de disponibilité, niveaux redondants interzones, ZRS |
@@ -73,13 +73,13 @@ Tous les niveaux d'Azure SQL Database sont localement redondants. L'architecture
 
 Une base de données redondante interzone bascule avec un RPO de zéro et un RTO généralement inférieur à 30 secondes. Pour une panne régionale :
 
-| Mécanisme | Portée | Basculement et points de terminaison |
+| Mécanisme | Étendue | Basculement et points de terminaison |
 | --- | --- | --- |
 | Géoréplication active | Une base de données ; jusqu'à quatre géosecondaires lisibles, dans la même région ou une autre ; SQL Database uniquement | Lancé par vous ou par l'application ; la chaîne de connexion change |
 | Groupe de basculement | Un groupe de bases de données d'un serveur logique, ou toutes les bases utilisateur d'une instance managée ; le secondaire est dans une autre région | Géré par le client (recommandé) ou géré par Microsoft après une période de grâce d'au moins une heure ; un point de terminaison d'écouteur en lecture-écriture et un en lecture seule restent les mêmes |
 | Géorestauration | Sauvegardes géoredondantes | Restauration manuelle vers un nouveau serveur ; de quelques minutes à plusieurs heures d'interruption et de perte de données |
 
-La géoréplication et les groupes de basculement sont asynchrones : RPO supérieur à zéro, RTO généralement inférieur à 60 secondes. SQL Managed Instance prend en charge la redondance de zone (General Purpose, Business Critical) et uniquement les groupes de basculement : un seul groupe par instance, les deux instances dans la même zone DNS, et un secondaire réservé à la DR ne paie pas de licence SQL Server.
+La géoréplication et les groupes de basculement sont asynchrones : RPO supérieur à zéro, RTO généralement inférieur à 60 secondes. SQL Managed Instance prend en charge la redondance de zone (General Purpose, Next-gen General Purpose, Business Critical ; Next-gen General Purpose exige Elastic SAN ZRS et n'est donc pas disponible dans certaines régions) et uniquement les groupes de basculement : un seul groupe par instance, les deux instances dans la même zone DNS, et un secondaire désigné comme réplica de secours réservé à la DR ne paie pas de licence SQL Server (son calcul et son stockage restent facturés).
 
 SQL Server sur Machines virtuelles Azure n'a pas de HA intégrée. Un **groupe de disponibilité Always On** protège des bases de données (HA dans la région, DR avec un réplica asynchrone ailleurs, secondaires lisibles) ; une **instance de cluster de basculement** protège toute l'instance sur un stockage partagé (disques partagés Azure, partages de fichiers Premium, Storage Spaces Direct). Répartissez les machines virtuelles entre les zones (99,99 %) ou dans un groupe à haute disponibilité (99,95 %).
 
@@ -110,7 +110,7 @@ Le Stockage Azure conserve toujours plusieurs copies ; l'option de redondance d�
 | GZRS | ZRS, puis asynchrone vers une région secondaire | 16 neuf | La panne d'une zone, et une panne régionale après un basculement |
 | RA-GRS, RA-GZRS | Comme GRS et GZRS | 16 neuf | Idem, et le secondaire est lisible à tout moment |
 
-Les options avec accès en lecture exposent le point de terminaison `<account>-secondary` et font passer le SLA de lecture du niveau chaud (Hot) de 99,9 % à 99,99 %. La propriété Heure de la dernière synchronisation (Last Sync Time) indique la quantité de données qu'un basculement perdrait ; la réplication prioritaire géographique (geo priority replication) garantit un RPO de 15 minutes ou moins pour les objets blob de blocs.
+Les options avec accès en lecture exposent le point de terminaison `<account>-secondary` et font passer le SLA de lecture du niveau chaud (Hot) de 99,9 % à 99,99 %. La propriété Heure de la dernière synchronisation (Last Sync Time) indique la quantité de données qu'un basculement perdrait ; la réplication prioritaire géographique (geo priority replication), une option des comptes GRS et GZRS facturée depuis le 1er janvier 2026, a un SLA selon lequel l'Heure de la dernière synchronisation des objets blob de blocs a 15 minutes de retard au plus pendant 99 % du mois de facturation (un basculement non planifié la désactive).
 
 | Basculement | Quand | Résultat |
 | --- | --- | --- |

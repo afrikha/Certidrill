@@ -98,7 +98,7 @@ Three tools, from the simplest:
 | Item | Detail |
 | --- | --- |
 | Requirement | Domain functional level **Windows Server 2012 R2**; **KDC support for claims, compound authentication and Kerberos armoring** in the Default Domain Controllers Policy (and the Kerberos client setting on devices) |
-| Authentication policy | TGT lifetime (minutes) and access control conditions such as "member of the silo"; **enforced** by default, or *Only audit policy restrictions* |
+| Authentication policy | TGT lifetime (minutes) and access control conditions such as "member of the silo"; **audit mode** unless created with `-Enforce` |
 | Silo | Groups users, computers and service accounts; an account belongs to one silo; **audit-only** by default unless `-Enforce` |
 | Exception | The built-in Administrator (RID 500) is always exempt |
 
@@ -110,7 +110,7 @@ Grant-ADAuthenticationPolicySiloAccess -Identity "Tier0-Silo" -Account "adm-anna
 Set-ADAccountAuthenticationPolicySilo -Identity "adm-anna" -AuthenticationPolicySilo "Tier0-Silo"
 ```
 
-> **Exam trap.** A silo created without `-Enforce` restricts nothing: it only logs what it would block. Check the **Authentication Policy Failures - Domain Controller** log during the audit phase.
+> **Exam trap.** A policy or silo created without `-Enforce` restricts nothing: it only logs what it would block. Check the **Authentication Policy Failures - Domain Controller** log during the audit phase.
 
 <!-- section: user-account-options | objectives: 6.2.6 -->
 ## Security options for user accounts
@@ -142,7 +142,7 @@ Set-ADAccountControl -Identity adm-anna -AccountNotDelegated $true
 | Group | Recommended state |
 | --- | --- |
 | Enterprise Admins, Schema Admins | **Empty**; add an account only for the duration of a forest-wide or schema change |
-| Domain Admins | Few members, used only on DCs and Tier 0 systems |
+| Domain Admins | **No day-to-day members** (except the secured built-in Administrator); add an account temporarily for build or disaster-recovery work, used only on DCs and Tier 0 systems |
 | Administrators (domain) | Keeps Enterprise Admins and Domain Admins as members (needed for forest recovery) |
 | Account Operators, Server Operators, Print Operators, Backup Operators | **Empty**: they can sign in to DCs and act on them (Backup Operators can back up and restore every file) |
 | Built-in Administrator (RID 500) | Build and disaster recovery only; **sensitive and cannot be delegated**, **smart card required**, deny rights on member servers and workstations |
@@ -199,6 +199,6 @@ Stronger methods: **smart cards** or Windows Hello for Business (PKINIT certific
 - Protected Users: no NTLM, no delegation, 4-hour TGT, no cached logon; never for service or computer accounts.
 - Harden DCs: Server Core, BitLocker, no browsing, separate patching, RODC where physical security is weak.
 - Restrict DC access with user rights, deny rights on lower tiers, and enforced authentication policy silos.
-- Empty Enterprise Admins, Schema Admins and operator groups; AdminSDHolder overrides delegated permissions.
+- Empty Enterprise Admins, Schema Admins and operator groups, no day-to-day members in Domain Admins; AdminSDHolder overrides delegated permissions.
 - Delegate to groups with the wizard; revoke by editing ACLs.
 - Audit NTLM before blocking it; AES-only Kerberos; LDAP signing and channel binding.

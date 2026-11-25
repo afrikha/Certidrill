@@ -43,7 +43,7 @@ Les trois fonctionnalités répondent à des questions différentes :
 | Modèle | Attributions éligibles ou actives, activation juste-à-temps | Packages d'accès (groupes, Teams, applications, sites SharePoint) avec stratégies de demande, approbations et expiration | Recertification récurrente par des réviseurs, avec retrait automatique |
 | Étendue | Rôles Microsoft Entra, rôles de ressources Azure, PIM for Groups | Employés et utilisateurs externes (organisations connectées) | Groupes, Teams, applications, invités, packages d'accès, rôles privilégiés |
 
-Conception **PIM** : attributions éligibles pour chaque rôle privilégié ; l'activation exige la MFA ou un **contexte d'authentification** de l'accès conditionnel (par exemple une authentification résistante au hameçonnage), une justification et, pour les rôles les plus sensibles, une approbation ; durée d'activation maximale courte (1 à 24 heures) ; éligibilité limitée dans le temps ; alertes sur les rôles attribués hors de PIM ; PIM for Groups pour rendre l'appartenance aux groupes juste-à-temps.
+Conception **PIM** : attributions éligibles pour chaque rôle privilégié ; l'activation exige la MFA ou un **contexte d'authentification** de l'accès conditionnel (par exemple une authentification résistante au hameçonnage), une justification et, pour les rôles les plus sensibles, une approbation ; durée d'activation maximale courte (1 à 24 heures) ; éligibilité limitée dans le temps ; alertes sur les rôles attribués hors de PIM (gravité élevée) et sur un trop grand nombre de Global Administrators (déclenchée seulement quand le nombre minimal et le pourcentage de Global Administrators définis dans l'alerte sont tous deux atteints) ; PIM for Groups pour rendre l'appartenance aux groupes juste-à-temps.
 
 Conception de la **gestion des droits d'utilisation** : catalogues détenus par les métiers, packages d'accès avec expiration, contrôles de séparation des tâches (packages incompatibles), organisations connectées pour que les partenaires demandent eux-mêmes l'accès et le perdent à l'expiration.
 
@@ -108,7 +108,7 @@ Contrôles de **gouvernance et de résilience** :
 
 La **gestion des droits d'utilisation de l'infrastructure cloud (CIEM)** trouve l'écart entre les autorisations que les identités ont et celles qu'elles utilisent, dans tous les clouds.
 
-**Microsoft Entra Permissions Management** a été mis hors service : plus vendu depuis le 1er avril 2025 et mis hors service le 1er novembre 2025. La CIEM fait désormais partie du plan **Defender Cloud Security Posture Management (Defender CSPM)** de Microsoft Defender pour le cloud :
+**Microsoft Entra Permissions Management** a été mis hors service : plus vendu depuis le 1er avril 2025 et mis hors service le 1er novembre 2025. La CIEM fait désormais partie du plan **Defender Cloud Security Posture Management (Defender CSPM)** de Microsoft Defender for Cloud :
 
 | Cloud | Identités analysées |
 | --- | --- |
@@ -120,7 +120,7 @@ Fonctionnalités : recommandations pour retirer les comptes inactifs, invités o
 
 | Exigence | Recommandation |
 | --- | --- |
-| Trouver les autorisations inutilisées des rôles AWS et des comptes de service GCP avec un seul outil | CIEM de Defender CSPM dans Defender pour le cloud (activer le plan sur les connecteurs AWS et GCP) |
+| Trouver les autorisations inutilisées des rôles AWS et des comptes de service GCP avec un seul outil | CIEM de Defender CSPM dans Defender for Cloud (activer le plan sur les connecteurs AWS et GCP) |
 | Rendre juste-à-temps les attributions Owner dans Azure | PIM pour les ressources Azure |
 | Détecter qu'une identité surprivilégiée ouvre un chemin vers une base de données sensible | Analyse des chemins d'attaque (Defender CSPM) |
 
@@ -134,12 +134,14 @@ Fonctionnalités : recommandations pour retirer les comptes inactifs, invités o
 | Critère | Bonne conception |
 | --- | --- |
 | Étendue | Tous les rôles privilégiés (Microsoft Entra et Azure, par PIM), les invités de tous les groupes et Teams, les packages d'accès, les applications à forte valeur |
-| Réviseurs | Propriétaires de ressources ou responsables pour l'accès métier ; une deuxième étape de révision pour les rôles privilégiés ; autorévision seulement pour les accès à faible risque |
+| Réviseurs | Propriétaires de ressources ou responsables pour l'accès métier ; réviseurs nommés (utilisateurs sélectionnés) pour les rôles privilégiés, car une révision de rôles PIM n'a qu'une seule étape (utilisateurs sélectionnés, membres eux-mêmes, ou responsables avec un réviseur de secours) ; autorévision seulement pour les accès à faible risque |
 | Fréquence | Trimestrielle ou plus pour les rôles privilégiés et les invités ; au moins annuelle pour l'accès standard aux applications |
 | Aides à la décision | Recommandations basées sur l'activité de connexion (utilisateurs inactifs), pour que les réviseurs n'approuvent pas à l'aveugle |
 | Absence de réponse | *If reviewers don't respond* : retirer l'accès ou suivre les recommandations, pas approuver |
 | Application | **Auto apply results** pour retirer l'accès automatiquement ; invités supprimés du locataire après refus |
 | Preuves | Historique des révisions conservé et exportable pour les auditeurs |
+
+Comportements des révisions de rôles PIM à connaître : dans une révision de rôle Microsoft Entra, un groupe assignable à un rôle apparaît comme un seul élément (ses membres ne sont pas développés) et le réviseur approuve ou refuse le groupe entier ; dans une révision de rôle de ressource Azure, refuser un utilisateur qui détient le rôle par un groupe de sécurité ne retire pas l'utilisateur du groupe : un administrateur doit agir ; réviser des principaux de service exige Microsoft Entra Workload ID Premium en plus de Microsoft Entra ID P2 ou de Microsoft Entra ID Governance.
 
 Conceptions faibles : révisions sans application automatique (décisions jamais appliquées), réviseurs qui ne connaissent pas la ressource, approbation par défaut quand personne ne répond, et rôles privilégiés laissés hors de l'étendue.
 
@@ -156,7 +158,7 @@ Le **principe de la source propre** : une session n'est jamais plus sûre que l'
 | Spécialisé | Utilisateurs qui ont besoin d'un environnement contrôlé | Pas d'administrateur local, seules les applications autorisées (contrôle d'application appliqué), applications installées uniquement par Intune |
 | Station de travail à accès privilégié (PAW) | Rôles dont la compromission affecterait sensiblement l'organisation | Pas d'administrateur local, contrôle d'application appliqué, navigation web refusée par défaut sauf destinations approuvées, pas de messagerie, Credential Guard, BitLocker, pas de BYOD |
 
-Les PAW sont déployées avec **Windows Autopilot** sur du matériel avec TPM 2.0, démarrage sécurisé et sécurité basée sur la virtualisation, gérées par Intune, et leur conformité est imposée par l'accès conditionnel (portails d'administration uniquement depuis des PAW conformes). Les administrateurs utilisent donc des comptes et des appareils distincts pour la productivité et l'administration.
+Les PAW sont déployées avec **Windows Autopilot** sur du matériel avec TPM 2.0, démarrage sécurisé UEFI, et virtualisation et HVCI activés, gérées par Intune, et leur conformité est imposée par l'accès conditionnel (portails d'administration uniquement depuis des PAW conformes). Les administrateurs utilisent donc des comptes et des appareils distincts pour la productivité et l'administration.
 
 **Accès à distance par des intermédiaires** :
 

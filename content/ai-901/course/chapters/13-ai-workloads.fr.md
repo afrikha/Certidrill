@@ -28,7 +28,7 @@ Prenons cet avis : « I had a fantastic meal at the diner in Seattle on Saturday
 
 Deux techniques voisines viennent d'Azure Language dans Foundry Tools : la **détection de langue** renvoie la langue d'un texte avec un score de confiance, et la **détection des informations d'identification personnelle (PII)** trouve les détails personnels comme les noms, numéros de téléphone et adresses, et peut les masquer.
 
-Il y a deux façons d'appliquer ces techniques. Un modèle à usage général les réalise toutes à partir d'une invite et peut les combiner dans une même conversation, mais sa formulation peut varier d'un appel à l'autre. Azure Language utilise des analyseurs spécialisés qui renvoient une sortie structurée et déterministe, ce qui convient aux pipelines automatisés.
+Il y a deux façons d'appliquer ces techniques. Un modèle à usage général les réalise toutes à partir d'une invite et peut les combiner dans une même conversation, mais sa formulation peut varier d'un appel à l'autre. Azure Language utilise des analyseurs spécialisés qui renvoient une sortie structurée et déterministe, ce qui convient aux pipelines automatisés. L'extraction d'expressions clés, l'analyse des sentiments et le résumé sont retirés d'Azure Language le 31 mars 2029, et Learn oriente les nouveaux projets vers les modèles Foundry pour ces tâches.
 
 <!-- section: speech-capabilities | objectives: 1.3.3 -->
 ## Reconnaissance vocale et synthèse vocale
@@ -56,9 +56,9 @@ Les deux familles vont dans des sens opposés :
 | Entrée | Une image, en général avec une instruction en texte | Une description en texte, parfois avec une image à modifier |
 | Sortie | Du texte ou des données structurées sur l'image | Une nouvelle image |
 | Fonctionnalités | Décrire le contenu d'une image ; répondre à des questions sur les objets, le texte ou les scènes ; lire le texte de l'image ; interpréter des graphiques, diagrammes, captures d'écran et documents | Texte vers image ; image vers image et modification d'une image existante ; variantes |
-| Modèles | Des modèles multimodaux (compatibles avec la vision) qui acceptent du texte et des images dans la même invite | Des modèles de génération d'images comme la famille GPT-Image-1 ou FLUX |
+| Modèles | Des modèles multimodaux (compatibles avec la vision) qui acceptent du texte et des images dans la même invite | Des modèles de génération d'images comme la famille GPT-Image-1 (GPT-Image-1.5, GPT-Image-1-Mini) ou FLUX |
 
-Les modèles de génération de vidéos (Sora) créent de courtes vidéos à partir d'une invite en texte, et peuvent partir d'une image. Parmi les Foundry Tools, Azure Vision fournit une analyse d'images prête à l'emploi, dont la lecture de texte (OCR) et la détection de visages.
+Sora 2, le modèle de génération de vidéos de Foundry, est en préversion : il crée de courtes vidéos à partir d'une invite en texte et peut partir d'une image. Parmi les Foundry Tools, Azure Vision fournit une analyse d'images prête à l'emploi, la lecture de texte (OCR) et la détection de visages. Learn signale désormais Image Analysis et l'OCR comme hérités (legacy), et Image Analysis 4.0 sera retiré le 25 septembre 2028.
 
 > **Piège d'examen.** Un modèle de conversation compatible avec la vision lit des images ; il n'en crée pas. Un modèle de génération d'images crée des images ; il ne les décrit pas. « Décrire », « identifier », « lire » désignent l'analyse ; « créer », « dessiner », « concevoir » désignent la génération.
 
