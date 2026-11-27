@@ -1,0 +1,68 @@
+id: gcppca-cs5a-brambleway-grocers
+status: draft
+title:
+  en: Brambleway Grocers
+tabs:
+  - key: overview
+    title: { en: "Company overview" }
+    body:
+      en: |
+        Brambleway Grocers is a grocery retailer headquartered in Leeds, United Kingdom, with 21,000 employees. It owns 320 supermarkets and runs an online grocery service that delivers 1.1 million orders per week from 14 fulfilment centres. Customers order on the Brambleway website or mobile app (iOS and Android) and book a one-hour delivery slot.
+
+        Online orders grow by 30 % per year, and Brambleway wants its online platform, its planning and its store reporting to keep up with that growth.
+  - key: solution
+    title: { en: "Solution concept" }
+    body:
+      en: |
+        Brambleway will finish moving its online platform to Google Cloud in the `europe-west2` region:
+
+        - The delivery slot booking experience will stay available during traffic peaks and reserve slots for real customers.
+        - The order and loyalty database will move from the Leeds datacenter to a managed database service.
+        - Demand planners will replace their spreadsheets with daily forecasts produced from the sales history.
+        - Store managers will get self-service sales dashboards limited to their own store.
+  - key: existing
+    title: { en: "Existing technical environment" }
+    body:
+      en: |
+        **Online platform**
+
+        The website and the mobile app call microservices that run on a GKE Standard regional cluster in `europe-west2`, with cluster autoscaler and node auto-provisioning enabled. A global external Application Load Balancer with a Cloud Armor security policy exposes the services. The slot booking service uses a Horizontal Pod Autoscaler (HPA) that scales it from 40 to 400 Pods. Its Pods start in 5 seconds, but a new node takes about 2 minutes to become ready.
+
+        New delivery slots are released every Sunday at 20:00. Traffic also jumps without warning when the marketing team sends a push notification to app users. During these peaks, booking Pods stay Pending while nodes are created, and customers get timeouts.
+
+        **Slot bots**
+
+        Scripts book the most popular Christmas slots within seconds and resell them. They call both the website and the API used by the mobile app, and they rotate through thousands of residential IP addresses, so the current per-IP rate limiting rule has little effect.
+
+        **Order and loyalty database**
+
+        Orders and loyalty accounts are stored in a 3-TB SQL Server 2019 Standard database on Windows Server VMs in the Leeds datacenter. A full backup is taken every night and a transaction log backup every 15 minutes. A test restore of the full backup on a new server took 11 hours.
+
+        **Analytics**
+
+        Store sales of all 320 supermarkets are in one BigQuery table, `sales.store_sales`, with a `store_id` column. Every night the HR system exports a table that maps each store manager's email address to the store that the manager runs. Store managers often move from one store to another.
+
+        Demand planners forecast the daily demand of 25,000 products in each fulfilment centre with spreadsheets. Three years of daily sales per product and fulfilment centre are already in BigQuery. The planning team knows SQL; Brambleway has no machine learning engineers.
+  - key: business
+    title: { en: "Business requirements" }
+    body:
+      en: |
+        - Customers must not get errors or timeouts when slots are released or after a push notification.
+        - Delivery slots must go to real customers. Real customers must not have to solve visual puzzles to book a slot.
+        - Each store manager must see the sales of their own store only.
+        - The order database migration must fit in the one-hour maintenance window on a Tuesday night.
+        - Planners must get, every morning, a 14-day demand forecast for each product in each fulfilment centre.
+  - key: technical
+    title: { en: "Technical requirements" }
+    body:
+      en: |
+        - Booking Pods added by the HPA must be scheduled within seconds, including during unannounced peaks. The HPA remains the mechanism that sets the number of booking replicas.
+        - Detect automated clients at the edge, before requests reach the backends; the backend services must not be changed to verify any token. The web and mobile teams can add a client SDK to the website and to the apps.
+        - The order and loyalty database must run on Cloud SQL for SQL Server.
+        - Store managers query `sales.store_sales` directly; the table must not be copied or split. The access rules must follow manager moves without anyone changing an access policy.
+        - Forecasting must run where the data already is, with SQL, and without infrastructure for Brambleway to manage.
+  - key: executive
+    title: { en: "Executive statement" }
+    body:
+      en: |
+        "Sunday evening is when our customers plan their week, and it is when we have let them down. I want every slot to go to a real family, every planner to start the day with a forecast they trust, and every store manager to see their own numbers without waiting for a report." — Chief Executive Officer, Brambleway Grocers

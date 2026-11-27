@@ -1,0 +1,7 @@
+# Q-gcp-ace-1a — report
+
+48 questions (single 38, multi 10; difficulty easy 15 / medium 24 / hard 9), 8 per objective 1.1.1–1.1.6, in `content/gcp-ace/questions/setup/gcpace-1a-*.yaml`.
+Validation: `CERT=gcp-ace npx tsx factory/validate.ts --prefix gcpace-1a-` → 48 files, 0 problem(s); `npm run content:validate -- --cert gcp-ace --prefix gcpace-1a-` → 0 problem(s), 0 warning(s).
+Doubts: basic roles Admin/Writer/Reader (`roles/admin|writer|reader`) are taken from the Roles overview page, which gives no launch stage; sink destinations now also need Logs Writer (`roles/logging.logWriter`) for the writer identity, so `obs-sink-bucket-writer` asks only "which principal".
+Metrics scope: the Metrics scopes overview page asks for Monitoring Admin on the scoping project and on each added project, but the Monitoring access control page says Monitoring Editor can also change a scope in the console. `obs-metrics-scope-setup` keeps Monitoring Admin and has no Editor option.
+Avoided as not GA or not verified: `gcloud beta projects move` (beta) and project liens (Preview, alpha commands); whether a project pending deletion blocks deleting its folder; the edition needed for group membership expiration; the `dryRunSpec` field name; Cloud Trace vs Telemetry API roles. Overlap checked against 1c/3a/3d/4a stems: I avoided their decisions (deny override, condition expiry, move inheritance, custom role statements, Ops Agent install, log bucket region/retention).

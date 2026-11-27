@@ -1,0 +1,51 @@
+id: gcpace-3b-gke-gateway-weights
+objective: "3.1.11"
+type: multi
+difficulty: 2
+status: draft
+stem:
+  en: |
+    A media company runs `player-v1` and `player-v2` as two Deployments in the VPC-native GKE Standard cluster `web-prod` (location `us-central1`). Each Deployment is exposed by its own ClusterIP Service. The Gateway API isn't enabled on the cluster. Exactly 5% of the requests for `player.example.com` must go to `player-v2` through a single external Application Load Balancer, regardless of how many replicas each Deployment runs.
+
+    Which two actions should you take? Choose two.
+body:
+  choose: 2
+  options:
+    - id: a
+      text:
+        en: |-
+          Put both Deployments behind one Service that selects a shared label, and run 19 replicas of `player-v1` and 1 replica of `player-v2`.
+    - id: b
+      text:
+        en: |-
+          Run `gcloud container clusters update web-prod --location=us-central1 --gateway-api=standard`.
+    - id: c
+      text:
+        en: |-
+          Create a HorizontalPodAutoscaler for `player-v2` with `maxReplicas: 1` so that it never takes more than a small share of requests.
+    - id: d
+      text:
+        en: |-
+          Create two external load balancers and a Cloud DNS weighted round robin record set for `player.example.com`.
+    - id: e
+      text:
+        en: |-
+          Create a Gateway and an HTTPRoute whose `backendRefs` list the `player-v1` Service with weight 95 and the `player-v2` Service with weight 5.
+answer: { optionIds: [ b, e ] }
+explanation:
+  correct:
+    en: |-
+      GKE has no revisions, so a weighted split between versions is done with the Gateway API: the GKE Gateway controller must first be enabled on the cluster with `--gateway-api=standard`. An HTTPRoute then lists both Services in `backendRefs` with relative weights; 95 and 5 send 5% of the requests to `player-v2`, independently of replica counts, through the load balancer that the Gateway creates.
+  options:
+    a:
+      en: |-
+        With one Service, the split only approximates the replica ratio, which changes with scaling; the requirement is a fixed 5% regardless of replicas.
+    c:
+      en: |-
+        Limiting replicas doesn't define a traffic percentage, and there is still no mechanism that sends requests to `player-v2` at a fixed ratio.
+    d:
+      en: |-
+        DNS weighting needs two load balancers instead of one, and client DNS caching makes the split imprecise.
+references:
+  - title: "Gateway traffic management | GKE networking | Google Cloud Documentation"
+    url: https://docs.cloud.google.com/kubernetes-engine/docs/concepts/traffic-management

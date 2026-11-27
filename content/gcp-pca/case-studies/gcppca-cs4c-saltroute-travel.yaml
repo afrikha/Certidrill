@@ -1,0 +1,64 @@
+id: gcppca-cs4c-saltroute-travel
+status: draft
+title:
+  en: Saltroute Travel
+tabs:
+  - key: overview
+    title: { en: "Company overview" }
+    body:
+      en: |
+        Saltroute Travel runs an online marketplace for hotel stays and guided tours. It is headquartered in Barcelona, has 1,100 employees, and receives 38 million visits per month from travelers in Europe and Latin America. Its 90,000 suppliers are independent hotels and tour operators, connected directly or through six channel managers. Saltroute earns a commission on each booking.
+
+        Saltroute is moving its platform from AWS to Google Cloud to reduce its operating costs and to use Google Cloud's data and security services.
+  - key: solution
+    title: { en: "Solution concept" }
+    body:
+      en: |
+        - The search and booking services will run on Cloud Run in `europe-southwest1` and `southamerica-east1`, behind a global external Application Load Balancer.
+        - The bookings database will move to AlloyDB for PostgreSQL in `europe-southwest1`.
+        - Transcripts of customer support chats will be loaded into BigQuery every night for analysis.
+  - key: existing
+    title: { en: "Existing technical environment" }
+    body:
+      en: |
+        **Platform**
+
+        Saltroute runs 60 containerized services on Amazon ECS in `eu-west-1`. The bookings database is an Amazon RDS for PostgreSQL 15 instance of 3.5 TB that handles up to 4,000 write transactions per second. Fourteen tables of the loyalty and promotions modules have no primary key; the application updates and deletes rows in them all day.
+
+        **Search**
+
+        Each search calls the availability APIs of the suppliers that match the destination. Suppliers charge Saltroute for availability calls above a monthly free quota, and the number of searches is 900 times the number of bookings. During peaks, the same hotel, dates and occupancy are requested many times per minute. Supplier results may be shown up to 5 minutes after they were received; the search service then applies the traveler's currency and loyalty discount. Search requests are POST requests. The search services keep results in the memory of each instance, but with about 400 instances at peak, only 8 % of the searches find a result in the cache.
+
+        **Scraping**
+
+        Search is available only on Saltroute's website, and travelers search without signing in. Price-comparison scrapers that imitate browsers generate about 30 % of the search traffic. They rotate through tens of thousands of residential IP addresses, so the per-IP rate limits in front of the current platform barely slow them down.
+
+        **Support chats**
+
+        The support chat tool exports the transcripts of the day every night. Travelers sometimes type their full card number in a chat. Saltroute's PCI DSS assessor warned that storing these transcripts would bring the analytics platform into PCI DSS scope.
+
+        **Booking incidents**
+
+        A booking crosses seven services and several supplier calls. Last summer, intermittent booking failures took four days to diagnose, because each team searched its own logs and no identifier linked the log entries of the same booking across services.
+  - key: business
+    title: { en: "Business requirements" }
+    body:
+      en: |
+        - Reduce the fees paid for supplier availability calls by reusing recent results, without ever showing a supplier result that is more than 5 minutes old.
+        - Stop scrapers from consuming search capacity, without asking travelers to sign in or to solve challenges.
+        - Keep the analytics platform out of PCI DSS scope: no card number may be stored in BigQuery. Analysts must still read the rest of each transcript.
+        - Limit the booking downtime of the database migration to 20 minutes.
+        - Find the service or supplier call that causes a failed or slow booking within minutes.
+  - key: technical
+    title: { en: "Technical requirements" }
+    body:
+      en: |
+        - Shared search caches must be managed services, located in each region where the search service runs.
+        - The application's update and delete logic cannot change during the database migration. Use a managed migration service.
+        - Saltroute does not want to write or maintain its own detection patterns for card numbers.
+        - Use Google Cloud Observability; no third-party monitoring product will be bought.
+  - key: executive
+    title: { en: "Executive statement" }
+    body:
+      en: |
+        "Every search we answer costs us money, and a third of them come from robots that sell our prices to our competitors. We want to pay only for the searches of real travelers, keep card data out of places where it has no business, and fix a broken booking before our customers notice it." — Chief Executive Officer, Saltroute Travel

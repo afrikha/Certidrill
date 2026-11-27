@@ -185,7 +185,7 @@ function fillMainSection(pool: CandidateQuestion[], budget: number, t: Tally, ma
   return main;
 }
 
-function casePlacement(placement: "start" | "end" | "random", random: () => number): "start" | "end" {
+function casePlacement(placement: "start" | "end" | "random" | "interleaved", random: () => number): "start" | "end" | "interleaved" {
   if (placement !== "random") return placement;
   return random() < 0.5 ? "start" : "end";
 }
@@ -268,7 +268,10 @@ export function assembleExam(input: {
 
   // --- section order: case studies at the start or the end, series before the main section
   const placement = casePlacement(s.caseStudies.placement, random);
-  const mainSection: AssembledSection = { kind: "main", questionIds: shuffleArray(main, random).map((q) => q.id) };
+  // Interleaved: the questions of the case studies are shuffled into the main section.
+  const interleaved = placement === "interleaved" ? caseSections.flatMap((c) => c.questionIds) : [];
+  const mainIds = [...main.map((q) => q.id), ...interleaved];
+  const mainSection: AssembledSection = { kind: "main", questionIds: shuffleArray(mainIds, random) };
   if (placement === "start") sections.push(...caseSections);
   sections.push(...seriesSections);
   if (mainSection.questionIds.length) sections.push(mainSection);

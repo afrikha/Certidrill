@@ -1,0 +1,46 @@
+id: gcpace-3c-disk-cmek-convert
+objective: "3.2.8"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    A manufacturing company runs a VM with a zonal Persistent Disk data disk `erp-data` in `us-central1-a`. The disk is encrypted with a Google-managed key. Compliance requires that the data be protected by the customer-managed key `erp-key`, created in `us-central1` in the project `kms-prod`. A maintenance window is approved for the VM.
+
+    What should you do?
+body:
+  options:
+    - id: a
+      text:
+        en: |-
+          Grant the VM's attached service account the Cloud KMS CryptoKey Encrypter/Decrypter role on `erp-key`, then run `gcloud compute disks update-kms-key erp-data --zone=us-central1-a --kms-key=KEY_RESOURCE`.
+    - id: b
+      text:
+        en: |-
+          Grant the Compute Engine service agent the Cloud KMS CryptoKey Encrypter/Decrypter role on `erp-key`, then run `gcloud compute disks update-kms-key erp-data --zone=us-central1-a --kms-key=KEY_RESOURCE`.
+    - id: c
+      text:
+        en: |-
+          Grant the VM's attached service account the Cloud KMS CryptoKey Encrypter/Decrypter role on `erp-key`, then create a snapshot of `erp-data` and a new disk from it with `--kms-key=KEY_RESOURCE`, and swap the disks.
+    - id: d
+      text:
+        en: |-
+          Grant the Compute Engine service agent the Cloud KMS CryptoKey Encrypter/Decrypter role on `erp-key`, then create a snapshot of `erp-data` and a new disk from it with `--kms-key=KEY_RESOURCE`, and swap the disks.
+answer: { optionId: d }
+explanation:
+  correct:
+    en: |-
+      Compute Engine can encrypt disks with a CMEK only when they are created: an existing disk that uses Google's default encryption can't be converted in place. You create a new disk from a snapshot of it with `--kms-key`, then detach the old disk and attach the new one. Compute Engine calls Cloud KMS with its service agent, `service-PROJECT_NUMBER@compute-system.iam.gserviceaccount.com`, which therefore needs the Encrypter/Decrypter role on the key.
+  options:
+    a:
+      en: |-
+        The VM's attached service account isn't used for disk encryption, and `update-kms-key` only rotates or changes the CMEK of a disk that is already protected by a CMEK.
+    b:
+      en: |-
+        The service agent is the right identity, but `update-kms-key` rotates the key version of a disk that already uses a CMEK, or switches it to another CMEK; it can't add a CMEK to a disk that uses Google's default encryption.
+    c:
+      en: |-
+        The snapshot and new-disk procedure is right, but Compute Engine uses its service agent, not the VM's attached service account, to call Cloud KMS, so the disk creation fails.
+references:
+  - title: "Protect resources with Cloud KMS keys | Compute Engine | Google Cloud Documentation"
+    url: https://docs.cloud.google.com/compute/docs/disks/customer-managed-encryption

@@ -11,7 +11,8 @@
  * - positions 1-5 (consolidation): difficulty 1 or 2, never decreasing, the first one is 1;
  *   positions 6-10 (exam level): difficulty 3;
  * - no case study, no series; objectives belong to the chapter; every objective of the chapter is tested;
- * - at least two question types other than `single` among positions 6-10 (exam formats);
+ * - at least two question types other than `single` among positions 6-10 (exam formats); when the blueprint's typeMix
+ *   offers a single format other than `single` (Google Cloud: `multi` only), at least two questions of that format;
  * - ids `<prefix>qz-<chapter number>-<01..10>`, unique across the whole repository (bank and quizzes);
  * - no question close to a mock-exam question: same id forbidden, stem shingle similarity below the threshold.
  *
@@ -81,6 +82,9 @@ async function main() {
   const blueprint = parse(await readFile(path.join(ROOT, cert, "blueprint.yaml"), "utf8"));
   const languages: Locale[] = blueprint.certification.languages ?? ["en", "fr"];
   const vendor = vendorOf(blueprint.certification.vendor);
+  const examFormats = Object.entries((blueprint.blueprint?.typeMix ?? {}) as Record<string, { max?: number }>)
+    .filter(([t, m]) => t !== "single" && (m?.max ?? 0) > 0)
+    .map(([t]) => t);
   const terms = vendor.glossary ? ((await loadVendorGlossary(vendor.glossary))?.terms ?? []) : [];
   const prefix = cert.replace(/-/g, "") + "-qz-";
 
@@ -145,6 +149,7 @@ async function main() {
     const tested = new Set<string>();
     let lastEasy = 0;
     const nonSingleHard = new Set<string>();
+    let nonSingleHardCount = 0;
     parsed.forEach((q, i) => {
       if (!q) return;
       const where = `q${i + 1} (${q.id})`;
@@ -164,7 +169,10 @@ async function main() {
         lastEasy = q.difficulty;
       } else {
         if (q.difficulty !== 3) report(rel, `${where}: positions 6-10 are exam level (difficulty 3)`);
-        if (q.type !== "single") nonSingleHard.add(q.type);
+        if (q.type !== "single") {
+          nonSingleHard.add(q.type);
+          nonSingleHardCount++;
+        }
       }
       if ((q.type === "single" || q.type === "multi") && q.explanation.options) {
         const answer = q.answer as { optionId?: string; optionIds?: string[] };
@@ -187,7 +195,9 @@ async function main() {
       }
     });
     for (const o of chapterObjs) if (!tested.has(o)) report(rel, `objective ${o} is not tested`);
-    if (nonSingleHard.size < 2) report(rel, `positions 6-10 need at least two exam formats other than single (have: ${[...nonSingleHard].join(", ") || "none"})`);
+    if (examFormats.length === 1) {
+      if (nonSingleHardCount < 2) report(rel, `positions 6-10 need at least two ${examFormats[0]} questions (the only exam format other than single; have ${nonSingleHardCount})`);
+    } else if (nonSingleHard.size < 2) report(rel, `positions 6-10 need at least two exam formats other than single (have: ${[...nonSingleHard].join(", ") || "none"})`);
   }
   console.log(`${cert}: ${checked} quiz file(s), ${problems} problem(s), ${warnings} warning(s)`);
   process.exitCode = problems ? 1 : 0;

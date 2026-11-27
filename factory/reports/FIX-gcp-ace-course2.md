@@ -1,0 +1,69 @@
+# FIX-gcp-ace — course, second pass (from the QZ reports)
+
+Checks after edits: `npm run -s content:validate -- --cert gcp-ace` → 630 files, 0 problem(s), 0 warning(s); course 18 chapters, 94/94 objectives, 0 problem(s). `npx tsx factory/check-cert.ts gcp-ace` → exit 0, course problems: 0. `npx tsx factory/check-quiz.ts gcp-ace` → 17 quiz files, 0 problem(s), 0 warning(s), exit 0. No quiz was edited. Pages fetched on 2026-11-27.
+
+## Changes
+
+- `11-projects-hierarchy` (projects): shutdown can still incur charges until the end of the billing cycle; Cloud Storage and Pub/Sub may delete data before 30 days; restore needs `resourcemanager.projects.undelete`. Source: https://docs.cloud.google.com/resource-manager/docs/delete-restore-projects
+- `11-projects-hierarchy` (constraints table, APIs bullet): `gcp.restrictServiceUsage` now described as runtime access control for in-scope services (allowlist/denylist, dependent services restricted, IAM/Logging/Monitoring excluded), not "allow only approved APIs". Source: https://docs.cloud.google.com/resource-manager/docs/organization-policy/restricting-resources
+- `12-environment-setup` (observability): Ops Agent is "the primary and preferred agent"; legacy agents get no new features or OS support (no longer "replaced"); uninstall them first to avoid duplicate logs and metric conflicts. Sources: https://docs.cloud.google.com/stackdriver/docs/solutions/agents, https://docs.cloud.google.com/stackdriver/docs/solutions/agents/ops-agent/installation
+- `12-environment-setup` (observability): no-external-IP install: packages via Private Google Access, upstream Linux dependencies may be blocked, custom image recommended (Cloud NAT no longer stated). Source: installation page above.
+- `12-environment-setup` (quotas): `--preferred-value` is the desired total value, not an increment; `--dimensions`, `--email`, `--justification` optional. Source: https://docs.cloud.google.com/sdk/gcloud/reference/quotas/preferences/create
+- `12-environment-setup` (networking): subnet expansion doesn't interrupt traffic, can't be undone; auto-mode subnets only up to `/16`. Source: https://docs.cloud.google.com/vpc/docs/create-modify-vpc-networks
+- `12-environment-setup` (Gemini Cloud Assist): full list of required APIs (`geminicloudassist`, which enables `cloudaicompanion`, plus `cloudasset`, `designcenter`, `appoptimize`, `apphub`). Source: https://docs.cloud.google.com/cloud-assist/set-up-gemini
+- `13-billing` (roles table): added Project Billing Costs Manager (`roles/billing.projectCostsManager`). Source: https://docs.cloud.google.com/billing/docs/how-to/billing-access
+- `13-billing` (linking): full role list for linking and changing a billing account (project: Project Billing Manager + Project Browser + Service Usage Viewer, or Owner; accounts: Billing Account User + Viewer, or Administrator, on both accounts when changing). Source: https://docs.cloud.google.com/billing/docs/how-to/modify-project
+- `13-billing` (budgets): `--disable-default-iam-recipients` turns off default recipients. Source: https://docs.cloud.google.com/sdk/gcloud/reference/billing/budgets/create
+- `13-billing` (spend caps): can't edit or delete while enforced (lift first); up to 1 hour to recover after a manual lift; one spend cap per scope; moving the project deletes its caps; notifications to billing admins and project owners. GA date October 13, 2026 confirmed (kept). Sources: https://docs.cloud.google.com/billing/docs/how-to/budgets-spend-caps, https://docs.cloud.google.com/billing/docs/release-notes
+- `13-billing` (export): "Loading is free" replaced by "you pay BigQuery storage and query compute" (the page doesn't say the export is free). Source: https://docs.cloud.google.com/billing/docs/how-to/export-data-bigquery-setup
+- `21-compute-engine` (VM Manager): `compute.requireOsConfig` sets the key on new projects and rejects FALSE but doesn't update existing projects or VMs. Source: https://docs.cloud.google.com/compute/docs/manage-os
+- `21-compute-engine` (OS Login): instance-level grants need a project-level role with `compute.projects.get` for console/gcloud SSH. Source: https://docs.cloud.google.com/compute/docs/oslogin/set-up-oslogin (as verified by QZ-31; not re-fetched)
+- `21-compute-engine` (SSH): `gcloud compute ssh` uses IAP tunneling automatically for a VM with no external IP. Source: https://docs.cloud.google.com/iap/docs/using-tcp-forwarding
+- `21-compute-engine` (autoscaler): stabilization period configurable 0–3,600 s (`--stabilization-period`). Sources: https://docs.cloud.google.com/compute/docs/autoscaler, local `gcloud compute instance-groups managed set-autoscaling --help`
+- `22-gke-serverless` (private nodes): on Standard, `clusters update --enable-private-nodes` applies only to new node pools; update existing pools with `node-pools update --enable-private-nodes`. Source: https://docs.cloud.google.com/kubernetes-engine/docs/how-to/latest/network-isolation
+- `23-storage-data` (product choice): Filestore Regional 100 GiB–100 TiB (custom performance under 1,024 GiB), Multishares 1–10 TiB, Basic HDD from 1 TiB, Basic SSD from 2.5 TiB. Source: https://docs.cloud.google.com/filestore/docs/service-tiers
+- `23-storage-data` (resilience table): Spanner move prerequisites (≥ 1 node, no managed autoscaler, no backups or schedules, Standard → Enterprise Plus first). Source: https://docs.cloud.google.com/spanner/docs/move-instance
+- `23-storage-data` (resilience table): Firestore relocation = new database + export/import. Source: https://docs.cloud.google.com/firestore/native/docs/manage-data/export-import
+- `23-storage-data` (replication trap): Cloud Storage soft delete on by default, 7 days, 3–90 days. Source: https://docs.cloud.google.com/storage/docs/soft-delete
+- `24-networking` (hybrid): 99.99 % Dedicated Interconnect now has both topologies (multi-region: one Cloud Router per region, global routing; single-region: four connections in one metro via a `PRODUCTION_CRITICAL` connection group, regional or global routing). Source: https://docs.cloud.google.com/network-connectivity/docs/interconnect/tutorials/dedicated-creating-9999-availability
+- `24-networking` (load balancing): backend buckets supported by five Application Load Balancer types. Source: https://docs.cloud.google.com/load-balancing/docs/backend-bucket
+- `25-tooling` (Deployment Manager trap): extensions to 2027-03-31, no new customers since 2026-06-30, shutdown after 2027-06-30, DM Convert. Source: https://docs.cloud.google.com/deployment-manager/docs/deprecations
+- `25-tooling` (AI tools): Application Design Center GA, with the Preview features listed (composite templates, troubleshoot deployments, Terraform import, SCC frameworks, many components); composite template marked Preview. Source: https://docs.cloud.google.com/application-design-center/docs/release-notes
+- `31-manage-vms` (images): a MIG using a shared image needs `roles/compute.imageUser` for the Google APIs Service Agent of the MIG's project. Source: https://docs.cloud.google.com/compute/docs/images/managing-access-custom-images
+- `32-manage-gke` (inventory trap): "creating a cluster from the CLI configures credentials automatically" reworded to what the docs state (`create-auto` adds a kubeconfig entry; console or a teammate's machine doesn't). Sources: https://docs.cloud.google.com/kubernetes-engine/docs/how-to/cluster-access-for-kubectl, https://docs.cloud.google.com/kubernetes-engine/docs/how-to/creating-a-zonal-cluster
+- `32-manage-gke` (HPA/VPA): added HPA rightsizing with VPA (Preview); multidimensional Pod autoscaling Beta confirmed. Sources: https://docs.cloud.google.com/kubernetes-engine/docs/concepts/verticalpodautoscaler, https://docs.cloud.google.com/kubernetes-engine/docs/how-to/multidimensional-pod-autoscaling
+- `33-manage-serverless-ai` (traffic splitting): `LATEST` in `--to-revisions` and proportional rescaling when under 100 %. Source: local `gcloud run services update-traffic --help` (SDK 570)
+- `33-manage-serverless-ai` (GPUs): automatic L4 quota of 3 per region only with zonal redundancy off. Source: https://docs.cloud.google.com/run/docs/configuring/services/gpu
+- `33-manage-serverless-ai` (notebooks): Workbench must be shut down to change machine type/GPU; G2 ↔ non-G2 not supported. Source: https://docs.cloud.google.com/gemini-enterprise-agent-platform/notebooks/workbench/instances/change-machine-type
+- `34-manage-storage-data` (querying): `LIMIT` qualifier "non-clustered tables", plus free preview with `bq head`. Source: https://docs.cloud.google.com/bigquery/docs/best-practices-costs
+- `34-manage-storage-data` (backup-restore): Firestore backups include index configurations. Source: https://docs.cloud.google.com/firestore/native/docs/backups
+- `34-manage-storage-data` (CMEK): dual-region key ring rule (configurable pair → `us`; predefined `nam4` → `nam4`). Source: https://docs.cloud.google.com/storage/docs/encryption/customer-managed-keys
+- `36-logging` (query language): uppercase-only operators, lowercase parsed as search terms, precedence `NOT` > `OR` > `AND`. Source: https://docs.cloud.google.com/logging/docs/view/logging-query-language
+- `36-logging` (buckets-routing): log view filters with `source()` and a `gcloud logging views create --log-filter` example; project-level Logs View Accessor without condition opens every view. Source: https://docs.cloud.google.com/logging/docs/logs-views
+- `37-monitoring` (alerting): default combiner `AND` is met even by different resources; `AND_WITH_MATCHING_RESOURCE` for the same resource. Source: https://docs.cloud.google.com/monitoring/alerts/concepts-indepth
+- `37-monitoring` (Cloud Hub): Maintenance no longer marked Preview; App Topology (Preview) added; Deployments and Security & compliance rows corrected (removed the unconfirmed "recent GKE and Cloud Run deployments"). Source: https://docs.cloud.google.com/hub/docs/overview
+- `37-monitoring` (Ops Agent row): no-external-IP install wording, same as chapter 12. Source: Ops Agent installation page above.
+- `37-monitoring` (Query Insights): on Enterprise Plus only Database Insights Viewer + Cloud SQL Viewer give historical data. Source: https://docs.cloud.google.com/sql/docs/postgres/using-query-insights
+- `37-monitoring` (Gemini Cloud Assist): `roles/geminicloudassist.*` titles carry "Beta"; the creator becomes Investigation Owner. Sources: https://docs.cloud.google.com/iam/docs/roles-permissions/geminicloudassist, https://docs.cloud.google.com/cloud-assist/investigations
+- `41-iam` (principals): organizations created on or after 2024-05-03 block `allUsers`/`allAuthenticatedUsers` by default (`iam.managed.allowedPolicyMembers`). Source: https://docs.cloud.google.com/iam/docs/principals-overview
+- `41-iam` (conditions): no more than 100 conditional bindings per allow policy (best practice). Source: https://docs.cloud.google.com/iam/docs/conditions-overview
+- `41-iam` (deny): added Deny Reviewer (`roles/iam.denyReviewer`). Source: https://docs.cloud.google.com/iam/docs/deny-access
+- `41-iam` (custom roles): deletion timeline (scheduled 7–14 days after the request, 30-day process, ID reusable once complete, up to 44 days). Source: https://docs.cloud.google.com/iam/docs/creating-custom-roles
+- `42-service-accounts` (service agents): only `gcloud workload-identity service-agents generate`, removed `gcloud beta services identity create`; agents created on request don't get their roles automatically. Source: https://docs.cloud.google.com/iam/docs/create-service-agents
+- `42-service-accounts` (attach): replaced "most resources fix the account at creation" with Compute Engine (stop + `set-service-account`), Cloud Run (`run services update --service-account`, new revision), instance templates (immutable, new template). Sources: local `gcloud run services update --help`, https://docs.cloud.google.com/compute/docs/instance-templates
+- `42-service-accounts` (keys): `iam.serviceAccountKeyExpiryHours` values, new keys only, no merge with parent; managed key constraints added. Source: https://docs.cloud.google.com/organization-policy/restrict-service-accounts
+- Mock `gcpace-3c-disk-cmek-convert`: answer d kept. The CMEK page says "You can't encrypt existing resources with CMEKs" and that disks get CMEK only when they are created; `update-kms-key` rotates or changes the CMEK of a disk that already has one. The explanations of the correct answer and of a and b now say this. Id, objective, type, difficulty and draft are unchanged. Sources: https://docs.cloud.google.com/compute/docs/disks/customer-managed-encryption, local `gcloud compute disks update-kms-key --help`
+
+## Checked, no change needed
+
+- Firewall policy rule priority 0–2,147,483,547: confirmed by local `gcloud compute network-firewall-policies rules create --help`.
+- Autopilot default 1 GiB ephemeral storage (non-DaemonSet containers): confirmed (Resource requests in Autopilot).
+- Database Center "checks show as passing when SCC or Gemini Cloud Assist aren't enabled": confirmed (Database health issues page).
+- Spend cap GA date October 13, 2026: confirmed by the Cloud Billing release notes.
+
+## Not confirmed
+
+- That `gcloud container clusters create` (Standard) writes a kubeconfig entry: the docs state it only for `create-auto`, so the chapter now says only that.
+- The OS Login project-level role rule was taken from the QZ-31 check of "Set up OS Login". I didn't re-fetch that page.
+- The custom constraint `methodTypes` doubt (QZ-11) and the Gemini Cloud Assist IAM requirements page (QZ-37) were not checked: no chapter text depends on them.
+- Some pages failed to fetch (client_error): `billing/docs/how-to/spend-cap-budgets`, `database-center/docs/database-center-overview`, `firewall/docs/firewall-policies-rules` and `cloud-hub/docs/overview`. I used the equivalent pages listed above or local help instead.

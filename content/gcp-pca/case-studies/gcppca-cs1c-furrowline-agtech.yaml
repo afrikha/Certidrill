@@ -1,0 +1,75 @@
+id: gcppca-cs1c-furrowline-agtech
+status: draft
+title:
+  en: Furrowline AgTech
+tabs:
+  - key: overview
+    title: { en: "Company overview" }
+    body:
+      en: |
+        Furrowline AgTech, headquartered in Brisbane, sells precision irrigation systems to 2,800 farms in Australia and New Zealand. Its subscription service, FieldPulse, combines soil sensors, field gateways and a mobile app that tells farmers when and how much to irrigate.
+
+        Last year, Furrowline acquired HydroSense, a start-up whose irrigation recommendation models are trained on AWS.
+  - key: solution
+    title: { en: "Solution concept" }
+    body:
+      en: |
+        Furrowline is rebuilding FieldPulse on Google Cloud in the australia-southeast1 region:
+
+        - Sensor readings are stored for the dashboards of the mobile app and copied to BigQuery for analytics.
+        - Drone images uploaded by farmers are turned into vegetation maps.
+        - The agronomy team's irrigation model is retrained automatically every week.
+        - HydroSense keeps running its training jobs on AWS for the next two years, but reads its data from BigQuery and writes its results there.
+  - key: existing
+    title: { en: "Existing technical environment" }
+    body:
+      en: |
+        **Sensors and gateways**
+
+        450,000 soil sensors each send one reading per minute to a field gateway. A gateway buffers the readings when its cellular link is down and uploads them when the link returns, sometimes several days later.
+
+        **Readings storage**
+
+        The readings are stored in a single PostgreSQL server at a hosting provider. The server is at capacity, and the dashboards often take more than 10 seconds to load.
+
+        **Analytics**
+
+        A BigQuery table named **readings** holds five years of readings. It is not partitioned. Most analysts' queries filter on the reading timestamp and the farm ID, but some analysts forget the timestamp filter and scan the whole table.
+
+        **Drone images**
+
+        Farmers upload multispectral drone images of 100 MB to 400 MB from the mobile app to a Cloud Storage bucket in australia-southeast1. A script on a virtual machine runs every hour and computes the vegetation maps; processing one image takes about one minute. Most uploads happen in the growing season, and there are almost none in winter.
+
+        **Model training**
+
+        Agronomists retrain the irrigation model by running notebook cells by hand every week. Nobody can tell which data was used to train the model that is currently in production.
+
+        **HydroSense**
+
+        HydroSense's training jobs are Python programs on Amazon EC2 instances that use an AWS IAM role named **hydrosense-training**.
+
+        **Testing**
+
+        The ingestion service, written in Go, reads messages from Pub/Sub and writes rows to the readings database. Its integration tests run in a shared Google Cloud test project; they often fail because parallel test runs modify the same data.
+  - key: business
+    title: { en: "Business requirements" }
+    body:
+      en: |
+        - Show farmers the readings of the last 24 hours of a sensor, or of all the sensors of a field, in less than one second.
+        - Give farmers the vegetation map of an image at most 3 minutes after its upload, and pay nothing for image processing when no image is uploaded.
+        - Reduce the BigQuery analysis cost, and make it impossible to run a query that scans every reading of the five years.
+        - Be able to prove which data and which parameters produced every model version used in production.
+  - key: technical
+    title: { en: "Technical requirements" }
+    body:
+      en: |
+        - Store the sensor readings in Bigtable and avoid hotspots.
+        - Do not manage virtual machines or clusters for new workloads.
+        - The organization policy constraint iam.disableServiceAccountKeyCreation is enforced: no workload, inside or outside Google Cloud, may use a service account key.
+        - Integration tests of the ingestion service must run without any Google Cloud project, and each test run must start from an empty, isolated environment.
+        - The weekly retraining must run without manual steps and without infrastructure to operate.
+  - key: executive
+    title: { en: "Executive statement" }
+    body:
+      en: |
+        "Farmers trust FieldPulse with their water and their harvest. Our dashboards must be instant, our advice must be explainable, and our cloud bill must follow the seasons, like our customers' work does." — Chief Executive Officer, Furrowline AgTech

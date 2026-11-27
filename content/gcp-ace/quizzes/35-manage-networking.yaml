@@ -1,0 +1,317 @@
+chapter: 35-manage-networking
+questions:
+  # ------------------------------------------------------------------ 1
+  - id: gcpace-qz-35-01
+    objective: "3.3.1"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        An engineer at a software company expanded the primary IPv4 range of the subnet `build-subnet` from `10.60.0.0/24` to `10.60.0.0/20`. The team now realizes that a `/22` would have been enough and wants to give the extra addresses back.
+
+        Which statement about this situation is true?
+    body:
+      options:
+        - { id: a, text: { en: "The range can be shrunk to `/22` by running `expand-ip-range` again, if no VM uses the extra addresses" } }
+        - { id: b, text: { en: "The range can be shrunk only after every secondary range of the subnet has been removed" } }
+        - { id: c, text: { en: "The expansion can't be undone; to use a smaller range, create a new subnet and move the VMs" } }
+        - { id: d, text: { en: "The extra addresses return to the network automatically if no VM uses them within 24 hours" } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          A subnet's primary IPv4 range can only grow: it can't be shrunk, and an expansion can't be undone. That is why Google recommends expanding conservatively. To work with a smaller range, create a new subnet with that range and move the workloads into it.
+      options:
+        a: { en: "`expand-ip-range` only accepts a broader range; a larger prefix length than the current one is refused, whether or not the addresses are used." }
+        b: { en: "Secondary ranges have no effect on this rule: a primary range can never be shrunk." }
+        d: { en: "Nothing reverts an expansion: the subnet keeps the broader range until it is deleted." }
+    references:
+      - title: "Quickstart: Create and manage VPC networks"
+        url: https://docs.cloud.google.com/vpc/docs/create-modify-vpc-networks
+
+  # ------------------------------------------------------------------ 2
+  - id: gcpace-qz-35-02
+    objective: "3.3.5"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        A startup creates a new custom mode VPC network `lab-vpc` with one subnet, then a VM with an external IP address in that subnet. No VPC firewall rule and no firewall policy has been created for `lab-vpc`, and none applies from the organization.
+
+        Which traffic does Cloud NGFW allow for this VM?
+    body:
+      options:
+        - { id: a, text: { en: "Inbound SSH, RDP and ICMP from any source, and all outbound traffic" } }
+        - { id: b, text: { en: "Inbound connections from VMs in `lab-vpc` only, and all outbound traffic" } }
+        - { id: c, text: { en: "No traffic in either direction until a firewall rule allows it" } }
+        - { id: d, text: { en: "Outbound connections and their replies, but no inbound connection" } }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          When no rule matches, Cloud NGFW applies the implied actions: deny for ingress to a VM's network interface and allow for egress. Because firewalls are stateful, the replies to the VM's outbound connections are allowed, but no new inbound connection reaches it.
+      options:
+        a: { en: "The rules that allow SSH, RDP and ICMP are pre-populated only in the `default` network; a new custom mode network gets none of them." }
+        b: { en: "`default-allow-internal` also exists only in the `default` network; in `lab-vpc`, inbound traffic from other VMs is denied too." }
+        c: { en: "Egress is allowed by the implied action, so the VM can open outbound connections without any rule." }
+    references:
+      - title: "Evaluation order for firewall policies and rules"
+        url: https://docs.cloud.google.com/firewall/docs/firewall-policies-rule-eval-order
+      - title: "VPC firewall rules"
+        url: https://docs.cloud.google.com/firewall/docs/firewalls
+
+  # ------------------------------------------------------------------ 3
+  - id: gcpace-qz-35-03
+    objective: "3.3.4"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        A travel company's public Cloud DNS zone `travel-public` holds the A record `api.example.com.` with a TTL of 86400 seconds. In three days, the API moves to a new load balancer, which will serve traffic only from the time of the switch. After the switch, clients must stop using the old address within about five minutes.
+
+        What should you do?
+    body:
+      options:
+        - { id: a, text: { en: "Now, lower the record's TTL to 300 seconds and keep the old address; at the switch, update the address" } }
+        - { id: b, text: { en: "At the switch, update the record with the new address and a 300-second TTL in a single command" } }
+        - { id: c, text: { en: "Now, add the new address to the record beside the old one; at the switch, remove the old address" } }
+        - { id: d, text: { en: "At the switch, delete the record set, then create it again with the new address and a 300-second TTL" } }
+    answer: { optionId: a }
+    explanation:
+      correct:
+        en: |
+          Resolvers cache a record for its TTL, so a resolver that read the record just before the switch keeps the old address for up to 86400 seconds. Lowering the TTL now, at least one old TTL before the switch, means every cached copy expires within 300 seconds by the time you update the address with `gcloud dns record-sets update`.
+      options:
+        b: { en: "The new TTL applies only to answers given after the change; resolvers that cached the old record keep it for up to 24 hours." }
+        c: { en: "With both addresses in the record, clients would be sent to the new load balancer before it serves traffic." }
+        d: { en: "Recreating the record changes nothing for resolvers that already cached it with the 86400-second TTL." }
+    references:
+      - title: "Add, update, and delete records"
+        url: https://docs.cloud.google.com/dns/docs/records
+
+  # ------------------------------------------------------------------ 4
+  - id: gcpace-qz-35-04
+    objective: "3.3.2"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        A billing review at a media company shows charges for regional static external IP addresses in the project `media-prod` that are reserved but not attached to any resource. You must release only these addresses and keep every address that a VM or a load balancer uses.
+
+        What should you do?
+    body:
+      options:
+        - { id: a, text: { en: "List the addresses with `gcloud compute addresses list --filter=\"status=IN_USE\"`, then release each one with `gcloud compute addresses delete`" } }
+        - { id: b, text: { en: "List the addresses with `gcloud compute addresses list --filter=\"addressType=EXTERNAL\"`, then release each one with `gcloud compute addresses delete`" } }
+        - { id: c, text: { en: "List the VMs that have external addresses, then run `gcloud compute instances delete-access-config` on each of these VMs" } }
+        - { id: d, text: { en: "List the addresses with `gcloud compute addresses list --filter=\"status=RESERVED\"`, then release each one with `gcloud compute addresses delete`" } }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          An address in the `RESERVED` status is reserved and available, that is, not used by any resource; `IN_USE` addresses are attached to a resource. Reserved addresses that aren't attached are billed at a higher rate than addresses in use, so you list the `RESERVED` ones and release them with `gcloud compute addresses delete`.
+      options:
+        a: { en: "`IN_USE` selects exactly the addresses that must be kept; releasing them gives up addresses that VMs and load balancers depend on." }
+        b: { en: "This filter returns every external address, including the ones in use, so the in-use addresses would be released too." }
+        c: { en: "Removing access configs detaches addresses from VMs: they become unused reservations and cost more, which is the opposite of the goal." }
+    references:
+      - title: "Reserve a static external IP address"
+        url: https://docs.cloud.google.com/vpc/docs/reserve-static-external-ip-address
+      - title: "REST Resource: addresses"
+        url: https://docs.cloud.google.com/compute/docs/reference/rest/v1/addresses
+
+  # ------------------------------------------------------------------ 5
+  - id: gcpace-qz-35-05
+    objective: "3.3.3"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        In the VPC network `core-vpc` of a utility company, no subnet uses addresses in `10.50.0.0/16`. The network has three custom static routes, none with network tags:
+
+        - `r1`: destination `10.50.0.0/16`, next hop the VM `nva-a`, priority 100
+        - `r2`: destination `10.50.8.0/24`, next hop the Classic VPN tunnel `tun-1`, priority 1000
+        - `r3`: destination `10.50.8.0/24`, next hop the VM `nva-b`, priority 1100
+
+        IP forwarding is enabled on both VMs, and all next hops are running. Which next hop does a VM in `core-vpc` use to send a packet to `10.50.8.20`?
+    body:
+      options:
+        - { id: a, text: { en: "`nva-a`, because `r1` has the lowest priority value" } }
+        - { id: b, text: { en: "`tun-1`, because `r2` wins on prefix length, then on priority" } }
+        - { id: c, text: { en: "`nva-b`, because `r3` is the most recently created route" } }
+        - { id: d, text: { en: "`tun-1` and `nva-b`, sharing the traffic through ECMP" } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          No subnet route matches, so Google Cloud keeps the routes with the most specific destination containing `10.50.8.20`: the two `/24` routes, `r2` and `r3`. Priority then breaks the tie between them, and `r2` (1000) beats `r3` (1100), so the packet goes through `tun-1`.
+      options:
+        a: { en: "Priority is compared only among routes with the same, most specific destination; the `/16` route is discarded before priority is considered." }
+        c: { en: "Creation order plays no part in route selection; `r3` loses to `r2` because of its higher priority value." }
+        d: { en: "ECMP applies only to routes left with the same destination and the same priority; `r3` has a different priority." }
+    references:
+      - title: "Routes"
+        url: https://docs.cloud.google.com/vpc/docs/routes
+
+  # ------------------------------------------------------------------ 6
+  - id: gcpace-qz-35-06
+    objective: "3.3.2"
+    difficulty: 3
+    status: draft
+    type: single
+    stem:
+      en: |
+        A logistics company's VM `erp-1` in `us-west1-b` uses the ephemeral internal IP address `10.40.3.27` in the subnet `erp-subnet`. Dozens of on-premises clients have this address hard-coded, and they must keep reaching `erp-1` until the change. Next week, `erp-1` will be deleted and recreated from a new image. The new VM must use `10.40.3.27`, and no other resource may take the address in the meantime.
+
+        What should you do?
+    body:
+      options:
+        - { id: a, text: { en: "Before you delete `erp-1`, run `gcloud compute addresses create erp-ip --region=us-west1 --subnet=erp-subnet`, then create the new VM with that reserved address." } }
+        - { id: b, text: { en: "Before you delete `erp-1`, run `gcloud compute addresses create erp-ip --region=us-west1 --subnet=erp-subnet --addresses=10.40.3.27`, then create the new VM with `--private-network-ip=10.40.3.27`." } }
+        - { id: c, text: { en: "Delete `erp-1`, then run `gcloud compute addresses create erp-ip --region=us-west1 --subnet=erp-subnet --addresses=10.40.3.27`, and create the new VM with `--private-network-ip=10.40.3.27`." } }
+        - { id: d, text: { en: "Before you delete `erp-1`, run `gcloud compute addresses create erp-ip --global --addresses=10.40.3.27`, then create the new VM with `--private-network-ip=10.40.3.27`." } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          Running `gcloud compute addresses create` with `--addresses` set to the in-use ephemeral address, plus its region and subnet, promotes it to a static internal address without changing it on the running VM. A static internal address stays reserved when the VM is deleted, so no other resource can take it, and the new VM gets it with `--private-network-ip`.
+      options:
+        a: { en: "Without `--addresses`, the command reserves a new, unused address from the subnet, not `10.40.3.27`, so the clients would lose the server." }
+        c: { en: "When `erp-1` is deleted, its ephemeral address returns to the subnet's pool, and another resource can take it before you reserve it." }
+        d: { en: "A VM's internal address is a regional resource taken from a subnet; a global reservation can't be assigned to a VM's network interface." }
+    references:
+      - title: "Reserve a static internal IP address"
+        url: https://docs.cloud.google.com/vpc/docs/reserve-static-internal-ip-address
+
+  # ------------------------------------------------------------------ 7
+  - id: gcpace-qz-35-07
+    objective: "3.3.4"
+    difficulty: 3
+    status: draft
+    type: single
+    stem:
+      en: |
+        A data analytics company runs 200 VMs without external IP addresses in `us-east4`. They reach the internet through the Public NAT gateway `nat-ue4` on the Cloud Router `nat-router`, created with the default port settings and one manually assigned NAT IP address, which is the only address that a partner API allowlists. Ten of the VMs run export jobs that each need up to 4,000 simultaneous connections to that API, and Cloud NAT error logs show dropped packets for them. The other VMs open few connections, and the partner won't allowlist another address.
+
+        What should you do?
+    body:
+      options:
+        - { id: a, text: { en: "`gcloud compute routers nats update nat-ue4 --router=nat-router --region=us-east4 --no-enable-dynamic-port-allocation --min-ports-per-vm=1024`" } }
+        - { id: b, text: { en: "`gcloud compute routers nats update nat-ue4 --router=nat-router --region=us-east4 --enable-endpoint-independent-mapping --min-ports-per-vm=4096`" } }
+        - { id: c, text: { en: "`gcloud compute routers nats update nat-ue4 --router=nat-router --region=us-east4 --enable-dynamic-port-allocation --min-ports-per-vm=32 --max-ports-per-vm=4096`" } }
+        - { id: d, text: { en: "`gcloud compute routers nats update nat-ue4 --router=nat-router --region=us-east4 --nat-external-ip-pool=nat-ip-1,nat-ip-2 --min-ports-per-vm=128`" } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          With the default static allocation, each VM gets 64 ports, so it can't open more than 64 simultaneous connections to the same API endpoint. Dynamic port allocation gives every VM a small minimum and doubles a busy VM's ports up to the maximum: 190 × 32 + 10 × 4,096 = 47,040 ports, which fits in the 64,512 ports of the single NAT IP address.
+      options:
+        a: { en: "A static minimum of 1,024 ports for 200 VMs needs 204,800 ports, more than three NAT IP addresses; one address serves only 63 VMs at that size, and 1,024 is still below the 4,000 connections needed." }
+        b: { en: "With endpoint-independent mapping the allocation stays static, and 4,096 ports for each of the 200 VMs needs 819,200 ports, far more than the single NAT IP address offers." }
+        d: { en: "A second NAT IP address would add ports, but the partner allowlists only the existing address, so connections leaving from the new one would be refused; 128 static ports per VM are also far below the 4,000 connections needed." }
+    references:
+      - title: "IP addresses and ports"
+        url: https://docs.cloud.google.com/nat/docs/ports-and-addresses
+
+  # ------------------------------------------------------------------ 8
+  - id: gcpace-qz-35-08
+    objective: "3.3.4"
+    difficulty: 3
+    status: draft
+    type: multi
+    stem:
+      en: |
+        A bank hosts the private Cloud DNS zone `gcp.bank.internal.`, authorized for the VPC network `core-vpc`. The data center connects to `core-vpc` through Cloud Interconnect VLAN attachments in `europe-west3`. The on-premises DNS servers must resolve the names of `gcp.bank.internal` for the data center's servers, without any record being copied to them.
+
+        Which two actions should you take? Choose two.
+    body:
+      choose: 2
+      options:
+        - { id: a, text: { en: "Create a forwarding zone for `gcp.bank.internal.` in `core-vpc` that targets the on-premises DNS servers" } }
+        - { id: b, text: { en: "Create a DNS server policy on `core-vpc` with inbound forwarding enabled (`--enable-inbound-forwarding`)" } }
+        - { id: c, text: { en: "Allow DNS from `35.199.192.0/19` on the on-premises firewalls, and advertise that range from Cloud Router" } }
+        - { id: d, text: { en: "On the on-premises DNS servers, forward `gcp.bank.internal` to the metadata server address `169.254.169.254`" } }
+        - { id: e, text: { en: "On the on-premises DNS servers, forward `gcp.bank.internal` to the inbound entry point address in `europe-west3`" } }
+    answer: { optionIds: [b, e] }
+    explanation:
+      correct:
+        en: |
+          An inbound server policy makes Cloud DNS allocate entry point addresses in the subnets of `core-vpc`, which systems connected through Cloud VPN or Cloud Interconnect can query; the private zone is then resolved for them. The on-premises servers need a conditional forwarder to an entry point address in the region of the VLAN attachments, listed with `gcloud compute addresses list --filter='purpose = "DNS_RESOLVER"'`.
+      options:
+        a: { en: "A forwarding zone sends queries from Google Cloud to on-premises servers, the opposite direction of the one required." }
+        c: { en: "`35.199.192.0/19` is the source range of outbound forwarding queries from Cloud DNS to on-premises servers; it isn't used for inbound queries." }
+        d: { en: "The metadata server address answers only VMs inside Google Cloud; it can't be reached from the data center." }
+    references:
+      - title: "Configure DNS server policies"
+        url: https://docs.cloud.google.com/dns/docs/policies
+      - title: "DNS server policies"
+        url: https://docs.cloud.google.com/dns/docs/server-policies-overview
+
+  # ------------------------------------------------------------------ 9
+  - id: gcpace-qz-35-09
+    objective: "3.3.5"
+    difficulty: 3
+    status: draft
+    type: multi
+    stem:
+      en: |
+        An insurance company's organization (ID `123456789012`) has the folders `Production` (ID `445566778899`) and `Sandbox`. The security team created the hierarchical firewall policy `prod-baseline` in the organization; it has no rules and no association yet. Inbound IPv4 SMB traffic (TCP 445) from any source must be blocked on every VM of every current and future project under `Production`, and project owners must not be able to allow it. All other traffic must stay under the control of each project's VPC firewall rules, and the projects under `Sandbox` must not be affected.
+
+        Which two commands should you run? Choose two.
+    body:
+      choose: 2
+      options:
+        - { id: a, text: { en: "`gcloud compute firewall-policies rules create 1000 --firewall-policy=prod-baseline --organization=123456789012 --direction=INGRESS --action=deny --src-ip-ranges=0.0.0.0/0 --layer4-configs=tcp:445`" } }
+        - { id: b, text: { en: "`gcloud compute firewall-policies associations create --firewall-policy=prod-baseline --organization=123456789012`" } }
+        - { id: c, text: { en: "`gcloud compute firewall-policies rules create 65000 --firewall-policy=prod-baseline --organization=123456789012 --direction=INGRESS --action=allow --src-ip-ranges=0.0.0.0/0 --layer4-configs=all`" } }
+        - { id: d, text: { en: "`gcloud compute firewall-policies associations create --firewall-policy=prod-baseline --organization=123456789012 --folder=445566778899`" } }
+        - { id: e, text: { en: "`gcloud compute firewall-policies rules create 1000 --firewall-policy=prod-baseline --organization=123456789012 --direction=INGRESS --action=goto_next --src-ip-ranges=0.0.0.0/0 --layer4-configs=tcp:445`" } }
+    answer: { optionIds: [a, d] }
+    explanation:
+      correct:
+        en: |
+          A `deny` rule in a hierarchical firewall policy stops the evaluation, and lower-level rules can't override it, so project owners can't allow SMB. The policy is enforced only once associated, and associating it with the `Production` folder covers every current and future project below it. Traffic that matches no rule of the policy gets the implied `goto_next` action and is decided by the projects' rules.
+      options:
+        b: { en: "An association with the organization applies the policy to every folder, including `Sandbox`, which must not be affected." }
+        c: { en: "No catch-all rule is needed, because unmatched traffic already goes to the next level; an `allow` rule would stop the evaluation and admit all other inbound traffic, overriding the projects' rules." }
+        e: { en: "`goto_next` hands SMB traffic to the lower levels, so a project's VPC firewall rule could allow it." }
+    references:
+      - title: "Hierarchical firewall policies"
+        url: https://docs.cloud.google.com/firewall/docs/firewall-policies
+      - title: "Evaluation order for firewall policies and rules"
+        url: https://docs.cloud.google.com/firewall/docs/firewall-policies-rule-eval-order
+
+  # ------------------------------------------------------------------ 10
+  - id: gcpace-qz-35-10
+    objective: "3.3.5"
+    difficulty: 3
+    status: draft
+    type: single
+    stem:
+      en: |
+        A hospital group runs PostgreSQL VMs in the VPC network `clin-vpc`, as the service account `db-sa@clin-prod.iam.gserviceaccount.com`. Application servers in the data center (`10.8.0.0/16`) reach `clin-vpc` through Cloud VPN and must connect to the databases on TCP 5432. Developers have the Compute Instance Admin (v1) role on the project, but only the platform team has the Service Account User role on `db-sa`. Developers can't change firewall rules, and they must not be able to make any other VM receive this traffic. The company uses only VPC firewall rules.
+
+        Which command should you run?
+    body:
+      options:
+        - { id: a, text: { en: "`gcloud compute firewall-rules create allow-pg --network=clin-vpc --allow=tcp:5432 --source-ranges=10.8.0.0/16 --source-service-accounts=db-sa@clin-prod.iam.gserviceaccount.com`" } }
+        - { id: b, text: { en: "`gcloud compute firewall-rules create allow-pg --network=clin-vpc --allow=tcp:5432 --source-ranges=10.8.0.0/16 --target-tags=pg-db`" } }
+        - { id: c, text: { en: "`gcloud compute firewall-rules create allow-pg --network=clin-vpc --allow=tcp:5432 --source-ranges=10.8.0.0/16 --target-tags=pg-db --target-service-accounts=db-sa@clin-prod.iam.gserviceaccount.com`" } }
+        - { id: d, text: { en: "`gcloud compute firewall-rules create allow-pg --network=clin-vpc --allow=tcp:5432 --source-ranges=10.8.0.0/16 --target-service-accounts=db-sa@clin-prod.iam.gserviceaccount.com`" } }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          A rule that targets a service account applies only to VMs that run as that account, and attaching `db-sa` to a VM requires the Service Account User role on it, which developers don't have. Network tags give no such protection, because anyone who can edit an instance, such as a Compute Instance Admin, can add a tag. The on-premises clients are matched by their IP range, since tags and service accounts identify only VMs in the network.
+      options:
+        a: { en: "With no target, the rule applies to every VM of the network; `--source-service-accounts` only adds the database VMs as an allowed source." }
+        b: { en: "Developers with Compute Instance Admin (v1) can add the `pg-db` network tag to any VM, which would then receive the traffic." }
+        c: { en: "Target tags and target service accounts can't be combined in one VPC firewall rule, so this command is refused." }
+    references:
+      - title: "VPC firewall rules"
+        url: https://docs.cloud.google.com/firewall/docs/firewalls

@@ -34,7 +34,7 @@ questions:            # exactement 10, dans l'ordre de difficulté croissante
 
 - Chaque élément de `questions` a **exactement le format d'une question de la banque** (`questionFileSchema` de `lib/questions/schema.ts`), tous types sauf `series_yesno`, sans `caseStudy` ni `series`. Règle des langues inchangée (`certification.languages`).
 - Identifiant : `<code sans tiret>-qz-<numéro du chapitre>-<position 01..10>`, unique dans tout le dépôt (même espace que les questions de la banque).
-- Positions 1–5 : `difficulty` 1 puis 2, jamais décroissante. Positions 6–10 : `difficulty` 3, au moins deux formats autres que `single` (`multi`, `dropdown`, `dragdrop`, `ordering`, `yesno_statements`, `hotarea`).
+- Positions 1–5 : `difficulty` 1 puis 2, jamais décroissante. Positions 6–10 : `difficulty` 3, au moins deux formats autres que `single` (`multi`, `dropdown`, `dragdrop`, `ordering`, `yesno_statements`, `hotarea`). Si le `typeMix` du blueprint n'offre qu'un seul format autre que `single` (Google Cloud : `multi`), au moins deux questions de ce format.
 - Les objectifs des questions sont ceux du chapitre (marqueurs de section) et chaque objectif du chapitre est testé au moins une fois.
 - Aucune question proche d'une question d'examen blanc : identifiant différent et énoncé éloigné (contrôle par similarité, §4).
 - Tout est `draft` jusqu'à relecture humaine.
@@ -89,7 +89,7 @@ Reprendre les règles de `factory/check-quiz.ts` dans `tools/validate-questions.
 - schéma de question et règle des langues pour chaque élément ;
 - `chapter` égal au nom du fichier, chapitre existant et non `00-getting-started` ;
 - exactement 10 questions ; identifiants attendus ; identifiants uniques dans tout le dépôt ;
-- positions 1–5 en difficulté 1–2 non décroissante (la première en 1), positions 6–10 en difficulté 3 ; au moins deux formats autres que `single` en 6–10 ;
+- positions 1–5 en difficulté 1–2 non décroissante (la première en 1), positions 6–10 en difficulté 3 ; au moins deux formats autres que `single` en 6–10 (ou deux questions du seul autre format du blueprint) ;
 - objectifs du chapitre seulement, et tous testés ;
 - explication de chaque mauvaise option (`single`, `multi`) ; références sur les hôtes de l'éditeur (avertissement) ; terminologie (avertissement) ;
 - **similarité avec la banque** : similarité de Jaccard sur les 4-grammes de mots de l'énoncé anglais < 0,35 avec chaque question d'examen de la même certification (problème bloquant au-delà).

@@ -1,0 +1,62 @@
+id: gcppca-cs6c-aldermoor-horizon
+status: draft
+title:
+  en: Aldermoor Horizon
+tabs:
+  - key: overview
+    title: { en: "Company overview" }
+    body:
+      en: |
+        Aldermoor Airways is a full-service airline headquartered in Calgary, with 160 aircraft flying to 95 destinations in North America and Europe. Its loyalty program, Aldermoor Horizon, has 14 million members. Members earn miles on flights and with 320 partners, such as hotels, car rental companies and a co-branded credit card, and redeem them for award seats, upgrades and gift cards.
+
+        The loyalty program is Aldermoor's most profitable business unit, and its ledger of member balances is considered a financial record.
+  - key: solution
+    title: { en: "Solution concept" }
+    body:
+      en: |
+        Aldermoor will replace the loyalty ledger that runs on its mainframe with a new ledger service on Google Cloud:
+
+        - The new ledger stores member accounts and mile transactions in a Spanner multi-region instance.
+        - The member website and the mobile app will call the new ledger service.
+        - The mainframe stays in service for three more years for other airline applications. The loyalty applications remain on it until all members are moved to the new ledger.
+        - Marketing reports move from the mainframe to BigQuery.
+  - key: existing
+    title: { en: "Existing technical environment" }
+    body:
+      en: |
+        **Mainframe**
+
+        The loyalty applications are COBOL programs on an IBM z/OS mainframe in Aldermoor's Calgary datacenter, which is connected to Google Cloud by Dedicated Interconnect. Mile balances and transactions are stored in Db2. A nightly JCL batch writes extract files of members and transactions as QSAM datasets, described by COBOL copybooks. At month end, marketing reports run on the mainframe for two days against these extracts. Aldermoor pays for the mainframe by processor consumption, and month-end reporting is its largest cost item.
+
+        **Ledger data**
+
+        Each transaction has an ID taken from a Db2 sequence, which increases by one for every transaction. Partners post earn transactions in batches, which create peaks of 6,000 transactions per second. In the new ledger, each member is identified by a member key, which is a random version 4 UUID.
+
+        **Sign-in fraud**
+
+        Members sign in to the website with their member number or email address and a password. Last quarter, attackers took over 21,000 accounts with credential stuffing and redeemed the stolen miles for gift cards. The attack came through residential proxy networks, with only a few attempts from each IP address, and used valid credentials stolen from other sites.
+
+        **Incident**
+
+        Last year, a faulty batch job credited miles twice to 380,000 members. The error was found two days later. The team restored the whole Db2 database from a backup and replayed the transactions, and the ledger was offline for 9 hours.
+  - key: business
+    title: { en: "Business requirements" }
+    body:
+      en: |
+        - Remove marketing reports from the mainframe and deliver them from BigQuery every morning, without changing the COBOL programs during the transition.
+        - Before any member is moved to the new ledger, prove that it computes the same balances and tier status as the mainframe for real member activity. No member may see a wrong balance during this test.
+        - Stop account takeovers without adding friction for legitimate members: ask for extra verification only when a sign-in is risky, and keep the current sign-in method.
+        - If an error corrupts balances, recover the correct values of the affected members up to three days after the error, without taking the ledger offline for the other members.
+  - key: technical
+    title: { en: "Technical requirements" }
+    body:
+      en: |
+        - The ledger must absorb the partner batch peaks without hotspots.
+        - The member app shows each member's transactions, latest first, and the ledger updates a member's balance and adds the transaction in the same database transaction.
+        - Use managed services and minimize custom code.
+        - The mainframe remains the system of record for balances until members are moved.
+  - key: executive
+    title: { en: "Executive statement" }
+    body:
+      en: |
+        "Our members trust us with something that works like money. We are leaving a platform that served us for 30 years, so we will move only when we have proved that every balance is right, and we will stop letting fraudsters walk off with miles that our members earned." — Vice President, Aldermoor Horizon

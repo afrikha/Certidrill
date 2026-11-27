@@ -1,0 +1,315 @@
+chapter: 32-manage-gke
+questions:
+  # ------------------------------------------------------------------ 1
+  - id: gcpace-qz-32-01
+    objective: "3.1.4"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        After a new release, `kubectl get pods -n billing` shows the Pod invoice-5c8d7-k2m9p with the status ImagePullBackOff. You need the detailed error message that explains why the image can't be pulled.
+
+        Which command should you run?
+    body:
+      options:
+        - { id: a, text: { en: "`kubectl get pods invoice-5c8d7-k2m9p -n billing -o wide`" } }
+        - { id: b, text: { en: "`kubectl describe pod invoice-5c8d7-k2m9p -n billing`" } }
+        - { id: c, text: { en: "`kubectl get deployment invoice -n billing`" } }
+        - { id: d, text: { en: "`gcloud container clusters describe billing-cluster`" } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          `kubectl describe pod` shows the Pod's Events section, which records each failed pull attempt with its message, such as a missing tag or a 403 permission error. It is the first command to run for an ImagePullBackOff or ErrImagePull status.
+      options:
+        a: { en: "The wide output adds the node and the Pod IP, but still shows only the ImagePullBackOff status, without the error message." }
+        c: { en: "The Deployment summary shows how many replicas are ready, not why one Pod fails to pull its image." }
+        d: { en: "This shows the cluster's configuration as a Google Cloud resource, not the events of a Pod." }
+    references:
+      - title: Troubleshoot image pulls
+        url: https://docs.cloud.google.com/kubernetes-engine/docs/troubleshooting/image-pulls
+
+  # ------------------------------------------------------------------ 2
+  - id: gcpace-qz-32-02
+    objective: "3.1.7"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        A security team must run one copy of a log-collection agent on every node of a GKE Standard cluster. Nodes that the cluster autoscaler adds later must get the agent automatically.
+
+        Which Kubernetes resource should you use to deploy the agent?
+    body:
+      options:
+        - { id: a, text: { en: "A Deployment with as many replicas as the cluster has nodes" } }
+        - { id: b, text: { en: "A StatefulSet with one replica for each node of the cluster" } }
+        - { id: c, text: { en: "A DaemonSet that runs the agent container" } }
+        - { id: d, text: { en: "A CronJob that starts the agent on each node every minute" } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          A DaemonSet makes sure that all nodes, or a selected set of nodes, run a copy of its Pod. When a node joins the cluster, for example after a scale-up, it gets a Pod from the DaemonSet with no manual change, which suits node-level agents such as log collectors.
+      options:
+        a: { en: "A Deployment doesn't place one Pod per node: several replicas can land on the same node, and the count doesn't follow new nodes." }
+        b: { en: "A StatefulSet gives stable names and storage to its replicas, but it doesn't tie one replica to each node." }
+        d: { en: "A CronJob runs Pods to completion on a schedule; it doesn't keep a long-running agent on every node." }
+    references:
+      - title: Automatically bootstrap GKE nodes with DaemonSets
+        url: https://docs.cloud.google.com/kubernetes-engine/docs/tutorials/automatically-bootstrapping-gke-nodes-with-daemonsets
+
+  # ------------------------------------------------------------------ 3
+  - id: gcpace-qz-32-03
+    objective: "3.1.4"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Your kubeconfig contains one context, for the cluster dev-1 in us-central1. Colleagues have since created other GKE clusters in the same project from the console, in several regions and zones. You need the name, location and control plane version of every GKE cluster in the project.
+
+        Which command should you run?
+    body:
+      options:
+        - { id: a, text: { en: "`kubectl config get-contexts`" } }
+        - { id: b, text: { en: "`kubectl get nodes -o wide`" } }
+        - { id: c, text: { en: "`gcloud container node-pools list --cluster=dev-1 --location=us-central1`" } }
+        - { id: d, text: { en: "`gcloud container clusters list`" } }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          `gcloud container clusters list` reads the clusters from the GKE API and queries every location unless you pass `--location`, `--region` or `--zone`. Its output includes each cluster's name, location and control plane version, whether or not you have credentials for it.
+      options:
+        a: { en: "This lists only the contexts in your kubeconfig, and clusters created in the console add none, so you would see dev-1 alone." }
+        b: { en: "kubectl talks to the cluster of the current context, so this shows only the nodes of dev-1." }
+        c: { en: "This lists the node pools of dev-1 only, not the other clusters of the project." }
+    references:
+      - title: gcloud container clusters list
+        url: https://docs.cloud.google.com/sdk/gcloud/reference/container/clusters/list
+      - title: Install kubectl and configure cluster access
+        url: https://docs.cloud.google.com/kubernetes-engine/docs/how-to/cluster-access-for-kubectl
+
+  # ------------------------------------------------------------------ 4
+  - id: gcpace-qz-32-04
+    objective: "3.1.8"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Vertical Pod autoscaling is enabled on a GKE Standard cluster. For the Deployment pricing-engine, the team wants a VerticalPodAutoscaler to set CPU and memory requests from its recommendations automatically. The running Pods must never be evicted by the autoscaler; new requests may apply only when a Pod is created, for example during a rollout. Only generally available features may be used.
+
+        Which `updateMode` should you set?
+    body:
+      options:
+        - { id: a, text: { en: "`Off`" } }
+        - { id: b, text: { en: "`Initial`" } }
+        - { id: c, text: { en: "`Recreate`" } }
+        - { id: d, text: { en: "`InPlaceOrRecreate`" } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          In `Initial` mode, the VerticalPodAutoscaler assigns resource requests only when a Pod is created and never changes them afterwards. Running Pods are never evicted, and each Pod created by a rollout or a scale-up starts with the recommended requests.
+      options:
+        a: { en: "`Off` only produces recommendations; it never applies them, even to new Pods." }
+        c: { en: "`Recreate` evicts running Pods whenever their requests need to change, which the team forbids." }
+        d: { en: "`InPlaceOrRecreate` is in Preview, and it can still recreate Pods when an in-place update isn't possible." }
+    references:
+      - title: Vertical Pod autoscaling
+        url: https://docs.cloud.google.com/kubernetes-engine/docs/concepts/verticalpodautoscaler
+
+  # ------------------------------------------------------------------ 5
+  - id: gcpace-qz-32-05
+    objective: "3.1.6"
+    difficulty: 2
+    status: draft
+    type: single
+    shuffle: false
+    stem:
+      en: |
+        A regional GKE Standard cluster runs its node pool batch-pool in three zones of europe-west4. You enable cluster autoscaling on batch-pool with `--enable-autoscaling --min-nodes=2 --max-nodes=5`. All three zones stay healthy.
+
+        Within which range can the cluster autoscaler size batch-pool?
+    body:
+      options:
+        - { id: a, text: { en: "Between 2 and 5 nodes in total" } }
+        - { id: b, text: { en: "Between 2 and 15 nodes in total" } }
+        - { id: c, text: { en: "Between 3 and 15 nodes in total" } }
+        - { id: d, text: { en: "Between 6 and 15 nodes in total" } }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          `--min-nodes` and `--max-nodes` set the limits for each zone of the node pool. With three zones, the pool can therefore have between 3 × 2 = 6 and 3 × 5 = 15 nodes. To set limits for the whole pool instead, you use `--total-min-nodes` and `--total-max-nodes`.
+      options:
+        a: { en: "These would be total limits, which require `--total-min-nodes` and `--total-max-nodes`; the per-zone flags multiply by the three zones." }
+        b: { en: "The minimum applies in each zone too, so the pool never drops below 2 nodes per zone, 6 in total." }
+        c: { en: "The minimum of 2 applies to each of the three zones, so the lower bound is 6 nodes, not 3." }
+    references:
+      - title: About GKE cluster autoscaling
+        url: https://docs.cloud.google.com/kubernetes-engine/docs/concepts/cluster-autoscaler
+
+  # ------------------------------------------------------------------ 6
+  - id: gcpace-qz-32-06
+    objective: "3.1.7"
+    difficulty: 3
+    status: draft
+    type: single
+    stem:
+      en: |
+        A media company runs two Deployments, video-api and web-ui, in a VPC-native GKE Standard cluster that uses container-native load balancing. Each Deployment already has a Service of type ClusterIP. Public HTTP traffic must reach both applications through a single external IP address: requests whose path starts with /api must go to video-api, and all other requests to web-ui. The team wants GKE to provision the load balancing and wants as few load balancers as possible.
+
+        What should you do?
+    body:
+      options:
+        - { id: a, text: { en: "Change both Services to type LoadBalancer and publish their two IP addresses under one DNS name" } }
+        - { id: b, text: { en: "Create one Service of type LoadBalancer whose selector matches the Pods of both Deployments" } }
+        - { id: c, text: { en: "Create one Ingress whose path rules send /api to video-api and every other path to web-ui" } }
+        - { id: d, text: { en: "Change both Services to type NodePort and allow ingress traffic to the nodes on those ports" } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          A GKE Ingress provisions an external Application Load Balancer with one forwarding rule and IP address. Its URL map holds host and path rules, each mapped to a backend service, so one load balancer can route /api to video-api and the rest to web-ui. With container-native load balancing, the traffic goes straight to the Pod endpoints behind the ClusterIP Services.
+      options:
+        a: { en: "Two LoadBalancer Services create two passthrough load balancers with two IP addresses, and a DNS name can't route requests by URL path." }
+        b: { en: "A LoadBalancer Service balances connections at layer 4; it can't look at the URL path, so requests would reach either application at random." }
+        d: { en: "NodePort Services expose ports on the node IPs only; they provide neither a single external IP address nor routing by path." }
+    references:
+      - title: GKE Ingress for Application Load Balancers
+        url: https://docs.cloud.google.com/kubernetes-engine/docs/concepts/ingress
+
+  # ------------------------------------------------------------------ 7
+  - id: gcpace-qz-32-07
+    objective: "3.1.4"
+    difficulty: 3
+    status: draft
+    type: single
+    stem:
+      en: |
+        A bank's GKE Standard cluster ledger-prod in us-east4 has its external IP-based control plane endpoint disabled. Its control plane can be reached through the internal IP-based endpoint from the VPC network and through the DNS-based endpoint. An SRE working from home, with no VPN connection to the VPC network, already holds the IAM roles needed to read the cluster's workloads and must list its Pods with kubectl from a laptop. Security policy forbids bastion hosts and any change to the cluster's endpoint settings.
+
+        What should the SRE do?
+    body:
+      options:
+        - { id: a, text: { en: "Run `gcloud container clusters get-credentials ledger-prod --location=us-east4 --internal-ip`, then kubectl" } }
+        - { id: b, text: { en: "Add the laptop's public IP address to the authorized networks, run `get-credentials`, then kubectl" } }
+        - { id: c, text: { en: "Open Cloud Shell, run `get-credentials ledger-prod --location=us-east4 --internal-ip`, then kubectl" } }
+        - { id: d, text: { en: "Run `gcloud container clusters get-credentials ledger-prod --location=us-east4 --dns-endpoint`, then kubectl" } }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          The DNS-based endpoint gives the control plane a unique DNS name that resolves to an endpoint reachable from any network that can reach Google Cloud APIs, with access controlled by IAM. `get-credentials --dns-endpoint` writes a kubeconfig entry that uses this name, so kubectl works from the laptop with no VPN, bastion or endpoint change.
+      options:
+        a: { en: "The internal IP-based endpoint is reachable only from the VPC network or networks connected to it, and the laptop has no such connection." }
+        b: { en: "Authorized networks filter access to an IP-based endpoint; the external one is disabled, and changing endpoint settings is forbidden." }
+        c: { en: "Cloud Shell runs outside the bank's VPC network, so it can't reach the internal IP-based endpoint either." }
+    references:
+      - title: About network isolation in GKE
+        url: https://docs.cloud.google.com/kubernetes-engine/docs/concepts/network-isolation
+      - title: Install kubectl and configure cluster access
+        url: https://docs.cloud.google.com/kubernetes-engine/docs/how-to/cluster-access-for-kubectl
+
+  # ------------------------------------------------------------------ 8
+  - id: gcpace-qz-32-08
+    objective: "3.1.8"
+    difficulty: 3
+    status: draft
+    type: multi
+    stem:
+      en: |
+        A retailer's zonal GKE Standard cluster shop-zonal in us-central1-a has one node pool, web-pool, with 3 nodes and autoscaling disabled. The containers of the Deployment storefront set CPU requests. During sales, the number of storefront replicas must follow the load between 4 and 40, targeting 65% of the CPU requests. When new replicas don't fit on the existing nodes, nodes must be added, up to 8 in total, and removed when the peak ends. You must minimize cost.
+
+        Which two actions should you take? Choose two.
+    body:
+      choose: 2
+      options:
+        - { id: a, text: { en: "Run `kubectl autoscale deployment storefront --cpu-percent=65 --min=4 --max=40`" } }
+        - { id: b, text: { en: "Create a VerticalPodAutoscaler for storefront with `updateMode` set to `Recreate`" } }
+        - { id: c, text: { en: "Run `gcloud container clusters resize shop-zonal --location=us-central1-a --node-pool=web-pool --num-nodes=8`" } }
+        - { id: d, text: { en: "Run `gcloud container clusters update shop-zonal --location=us-central1-a --node-pool=web-pool --enable-autoscaling --min-nodes=3 --max-nodes=8`" } }
+        - { id: e, text: { en: "Run `kubectl scale deployment storefront --replicas=40` before each sale" } }
+    answer: { optionIds: [a, d] }
+    explanation:
+      correct:
+        en: |
+          The Horizontal Pod Autoscaler changes the number of replicas between 4 and 40 from CPU utilization measured against the requests, but it never adds nodes. The cluster autoscaler adds nodes when Pods can't be scheduled and removes underused ones; in a zonal cluster the per-zone limits are the pool limits, so 3 to 8 nodes. The two autoscalers together follow the load at the lowest cost.
+      options:
+        b: { en: "A VerticalPodAutoscaler changes the CPU and memory requests of Pods, not their number, and in `Recreate` mode it would conflict with an HPA on CPU." }
+        c: { en: "A manual resize keeps 8 nodes running all the time, even outside the peak, which fails the cost requirement." }
+        e: { en: "A fixed count of 40 replicas doesn't follow the load, and the extra replicas would stay Pending without node autoscaling." }
+    references:
+      - title: Horizontal Pod autoscaling
+        url: https://docs.cloud.google.com/kubernetes-engine/docs/concepts/horizontalpodautoscaler
+      - title: About GKE cluster autoscaling
+        url: https://docs.cloud.google.com/kubernetes-engine/docs/concepts/cluster-autoscaler
+
+  # ------------------------------------------------------------------ 9
+  - id: gcpace-qz-32-09
+    objective: "3.1.5"
+    difficulty: 3
+    status: draft
+    type: multi
+    stem:
+      en: |
+        The GKE Standard cluster prod-cluster runs in the project example-prod. Its images are stored in the Artifact Registry repository shop-images, in europe-west1 of the project example-shared. Security policy forbids running nodes as the Compute Engine default service account and requires least privilege. You created the service account gke-nodes in example-prod and hold Service Account User on it. You must add a node pool named apps whose nodes can run GKE system tasks and pull images from shop-images.
+
+        Which three actions should you take? Choose three.
+    body:
+      choose: 3
+      options:
+        - { id: a, text: { en: "Create the node pool apps with `--service-account=gke-nodes@example-prod.iam.gserviceaccount.com`" } }
+        - { id: b, text: { en: "Grant gke-nodes the Kubernetes Engine Default Node Service Account role on the project example-prod" } }
+        - { id: c, text: { en: "Grant gke-nodes the Artifact Registry Reader role on the repository shop-images in example-shared" } }
+        - { id: d, text: { en: "Grant gke-nodes the Artifact Registry Reader role on the project example-prod, where the cluster runs" } }
+        - { id: e, text: { en: "Create a JSON key for gke-nodes and reference it in an `imagePullSecrets` entry of each Pod" } }
+        - { id: f, text: { en: "Grant the Artifact Registry Reader role on shop-images to the Kubernetes service account of the Pods" } }
+    answer: { optionIds: [a, b, c] }
+    explanation:
+      correct:
+        en: |
+          Nodes pull images as their node service account, which is chosen when the node pool is created. A custom node service account needs at least the Kubernetes Engine Default Node Service Account role (`roles/container.defaultNodeServiceAccount`) on the cluster's project for system tasks. Because the repository is in another project, Artifact Registry Reader must be granted there, on shop-images itself for least privilege.
+      options:
+        d: { en: "A grant on example-prod covers repositories of example-prod only; shop-images lives in example-shared." }
+        e: { en: "Service account keys are long-lived secrets to avoid; nodes already authenticate as their service account, so no pull secret is needed." }
+        f: { en: "A Kubernetes service account, through Workload Identity Federation for GKE, serves the application's own API calls; image pulls use the node service account." }
+    references:
+      - title: About service accounts in GKE
+        url: https://docs.cloud.google.com/kubernetes-engine/docs/how-to/service-accounts
+      - title: Deploying to Google Kubernetes Engine
+        url: https://docs.cloud.google.com/artifact-registry/docs/integrate-gke
+
+  # ------------------------------------------------------------------ 10
+  - id: gcpace-qz-32-10
+    objective: "3.1.9"
+    difficulty: 3
+    status: draft
+    type: single
+    stem:
+      en: |
+        A Deployment runs on a GKE Autopilot cluster that doesn't support Pod bursting. Its Pods use the default general-purpose compute class, whose allowed CPU:memory ratio is 1:1 to 1:6.5. The single container of each Pod requests 300m of CPU and 4Gi of memory and sets no limits.
+
+        Which requests and limits does Autopilot apply to the container?
+    body:
+      options:
+        - { id: a, text: { en: "Requests of 300m CPU and 4Gi memory, with no limits, exactly as in the manifest" } }
+        - { id: b, text: { en: "Requests of 500m CPU and 4Gi memory, with limits set equal to these requests" } }
+        - { id: c, text: { en: "Requests of 750m CPU and 4Gi memory, with limits set equal to these requests" } }
+        - { id: d, text: { en: "Requests of 300m CPU and 1.95Gi memory, with limits set equal to these requests" } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          4 GiB for 0.3 vCPU is outside the 1:6.5 maximum ratio, so Autopilot increases the smaller resource, CPU, to at least 4 ÷ 6.5 ≈ 0.62 vCPU. Without bursting, CPU requests are rounded up to the nearest 0.25 vCPU, which gives 750m, and limits are set equal to the requests. Memory stays at 4Gi.
+      options:
+        a: { en: "Autopilot modifies requests that break the class's CPU:memory ratio, and without bursting it always sets limits equal to requests." }
+        b: { en: "500m with 4Gi is a 1:8 ratio, still above the 1:6.5 maximum of the general-purpose class." }
+        d: { en: "Autopilot fixes a ratio by increasing the smaller resource; it never lowers the memory that the container requests." }
+    references:
+      - title: Resource requests in Autopilot
+        url: https://docs.cloud.google.com/kubernetes-engine/docs/concepts/autopilot-resource-requests

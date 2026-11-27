@@ -1,0 +1,315 @@
+chapter: 31-security-design
+questions:
+  # ------------------------------------------------------------------ 1
+  - id: gcppca-qz-31-01
+    objective: "3.1.2"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        A company created a project named "CRM Production" with the project ID acme-crm-prod. After a rebranding, the company wants its console listings to show the new brand, while its deployment scripts keep working unchanged.
+
+        Which project attribute can you change after the project is created?
+    body:
+      options:
+        - { id: a, text: { en: "The project ID, which a project owner can edit once after creation." } }
+        - { id: b, text: { en: "The project name, which can be edited at any time after creation." } }
+        - { id: c, text: { en: "The project number, which changes when the project moves to a folder." } }
+        - { id: d, text: { en: "The organization ID, which changes when the project is renamed." } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          The project name is a human-readable label that you can edit at any time, and several projects can share the same name. Scripts refer to the project ID or number, which do not change, so renaming the project does not break them.
+      options:
+        a: { en: "The project ID is unique across Google Cloud and can be edited only during creation; after creation it is permanent." }
+        c: { en: "The project number is generated automatically by Google and is not changed by moving the project in the resource hierarchy." }
+        d: { en: "The organization ID identifies the organization resource itself; renaming a project has no effect on it." }
+    references:
+      - title: Create projects | Resource Manager | Google Cloud Documentation
+        url: https://docs.cloud.google.com/resource-manager/docs/creating-managing-projects
+
+  # ------------------------------------------------------------------ 2
+  - id: gcppca-qz-31-02
+    objective: "3.1.1"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        A company's Google Cloud organization was created in 2021. When a team enables the Compute Engine API in a new project, the default service account that is created receives the Editor role on the project. The security team wants this automatic grant to stop for every new project in the organization.
+
+        Which organization policy constraint should you enforce on the organization?
+    body:
+      options:
+        - { id: a, text: "`constraints/iam.managed.disableServiceAccountKeyCreation`" }
+        - { id: b, text: "`constraints/iam.allowedPolicyMemberDomains`" }
+        - { id: c, text: "`constraints/compute.vmExternalIpAccess`" }
+        - { id: d, text: "`constraints/iam.automaticIamGrantsForDefaultServiceAccounts`" }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          The `iam.automaticIamGrantsForDefaultServiceAccounts` constraint disables the automatic Editor grant that default service accounts receive when they are created. It is enforced by default only in organizations created on or after May 3, 2024, so an organization from 2021 must enforce it. It is not retroactive: existing default service accounts keep their Editor grant until you remove it.
+      options:
+        a: { en: "This constraint blocks the creation of service account keys; it does not change the roles that default service accounts receive." }
+        b: { en: "Domain restricted sharing limits which principals can be granted roles; the default service account belongs to the project, so the Editor grant still happens." }
+        c: { en: "This constraint controls which VMs can have external IPv4 addresses; it has nothing to do with service account roles." }
+    references:
+      - title: Restrict IAM service account usage | Organization Policy | Google Cloud Documentation
+        url: https://docs.cloud.google.com/resource-manager/docs/organization-policy/restricting-service-accounts
+
+  # ------------------------------------------------------------------ 3
+  - id: gcppca-qz-31-03
+    objective: "3.1.6"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        A BigQuery dataset is protected by a Cloud KMS key dedicated to it, created with the default settings, and all its tables are encrypted with the key's current version. During an incident, the security team must make the data unreadable within minutes. The investigation may last several months, and if it finds no compromise, the data must become readable again.
+
+        What should you do?
+    body:
+      options:
+        - { id: a, text: { en: "Schedule the key version for destruction, and restore it when the investigation ends." } }
+        - { id: b, text: { en: "Rotate the key so that a new primary version is used, and rotate it back afterwards." } }
+        - { id: c, text: { en: "Disable the key version, and enable it again if the investigation ends well." } }
+        - { id: d, text: { en: "Set a new key as the dataset's default key, and switch it back afterwards." } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          Disabling a key version takes effect within about a minute: data encrypted with that version cannot be accessed while it is disabled. Disabling is reversible at any time by enabling the version again, so it fits an investigation of unknown length.
+      options:
+        a: { en: "A version scheduled for destruction can be restored only during the waiting period, 30 days by default; after that, the key material is destroyed automatically and the data is lost for good." }
+        b: { en: "Rotation adds a new primary version for new data, but the old version still decrypts the existing tables, so the data stays readable." }
+        d: { en: "A new default key applies to new tables; existing tables stay encrypted with the original key, which still works." }
+    references:
+      - title: Enable and disable key versions | Cloud Key Management Service | Google Cloud Documentation
+        url: https://docs.cloud.google.com/kms/docs/enable-disable
+      - title: Destroy and restore key versions | Cloud Key Management Service | Google Cloud Documentation
+        url: https://docs.cloud.google.com/kms/docs/destroy-restore
+
+  # ------------------------------------------------------------------ 4
+  - id: gcppca-qz-31-04
+    objective: "3.1.9"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        A bank will screen the prompts of its customer chatbot with a Model Armor template that uses the prompt injection and jailbreak filter. The product owner fears that legitimate customer questions will be blocked by false positives. The security team wants to measure what the filter would flag on real traffic, tune the template, and only then block violating prompts.
+
+        How should you configure the template first?
+    body:
+      options:
+        - { id: a, text: { en: "Set the enforcement type to Inspect only, and review the findings logged in Cloud Logging." } }
+        - { id: b, text: { en: "Set the enforcement type to Inspect and block, with the Low and above confidence level." } }
+        - { id: c, text: { en: "Set the enforcement type to Inspect and block, with the filter disabled until tuning ends." } }
+        - { id: d, text: { en: "Set floor settings on the project that block every prompt with any finding." } }
+    answer: { optionId: a }
+    explanation:
+      correct:
+        en: |
+          Inspect only logs detections to Cloud Logging without blocking anything, which is the recommended way to start. The team reviews the logged findings, tunes the filters and confidence levels, and then switches the template to Inspect and block.
+      options:
+        b: { en: "Low and above flags even slight indications, which maximizes false positives, and blocking from day one is exactly what the product owner wants to avoid." }
+        c: { en: "With the filter disabled, nothing is evaluated, so the team cannot measure what the filter would flag on real traffic." }
+        d: { en: "Floor settings set a minimum protection baseline for all templates; making them block every finding goes against measuring first." }
+    references:
+      - title: Model Armor overview | Google Cloud Documentation
+        url: https://docs.cloud.google.com/model-armor/overview
+
+  # ------------------------------------------------------------------ 5
+  - id: gcppca-qz-31-05
+    objective: "3.1.8"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        A software vendor builds its container images with Cloud Build and pushes them to a Docker repository in Artifact Registry, where vulnerability scanning is enabled. Its regulated customers now require a software bill of materials (SBOM) in SPDX format for each released image. The vendor wants a Google-managed solution with the least effort.
+
+        What should you do for each released image?
+    body:
+      options:
+        - { id: a, text: { en: "Require a Binary Authorization attestation for the image, and send the attestation to the customers." } }
+        - { id: b, text: { en: "Scan the image with On-Demand Scanning, and send the list of vulnerabilities to the customers." } }
+        - { id: c, text: { en: "Have Artifact Analysis generate an SBOM for the image, and share the SBOM file stored in Cloud Storage." } }
+        - { id: d, text: { en: "Rebuild the image from Assured Open Source Software packages, and share the SBOMs of those packages." } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          Artifact Analysis can generate an SBOM for an image stored in Artifact Registry, for example with `gcloud artifacts sbom export`. It produces SPDX 2.3 documents, stores them in Cloud Storage in the vendor's project, and records a signed reference occurrence so that the SBOM can be verified.
+      options:
+        a: { en: "An attestation records that an image passed a check so that Binary Authorization admits it; it does not list the image's dependencies." }
+        b: { en: "A vulnerability report lists known CVEs; it is not an SBOM of all the packages and versions that the image contains." }
+        d: { en: "Assured OSS supplies SBOMs for its own packages only; the customers need an SBOM of the vendor's complete image." }
+    references:
+      - title: SBOM overview | Artifact Analysis | Google Cloud Documentation
+        url: https://docs.cloud.google.com/artifact-analysis/docs/sbom-overview
+      - title: Generate and store SBOMs | Artifact Analysis | Google Cloud Documentation
+        url: https://docs.cloud.google.com/artifact-analysis/docs/generate-store-sboms
+
+  # ------------------------------------------------------------------ 6
+  - id: gcppca-qz-31-06
+    objective: "3.1.3"
+    difficulty: 3
+    status: draft
+    type: single
+    stem:
+      en: |
+        A Cloud Run service named pay-gw reads a partner API key from Secret Manager through an environment variable that references the latest version. A rotation function adds a new version every 30 days, and the partner revokes the old key 2 hours later. Since then, instances that started before a rotation fail with authentication errors until they are replaced. The service must use the new key soon after each rotation without a new deployment or a restart, and the team can change how the code reads the key.
+
+        What should you do?
+    body:
+      options:
+        - { id: a, text: { en: "Pin the environment variable to the new version number, and deploy a new revision after each rotation." } }
+        - { id: b, text: { en: "Mount the secret as a volume that references the latest version, and read the key from the file at each call." } }
+        - { id: c, text: { en: "Read the secret with the client library when an instance starts, and keep the key in memory for its lifetime." } }
+        - { id: d, text: { en: "Keep the environment variable on latest, and ask the partner to revoke old keys 30 days after each rotation." } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          Cloud Run resolves secret environment variables once, at instance startup, so running instances keep the old value. When a secret is mounted as a volume, each read fetches the value from Secret Manager, so a volume that references latest picks up every new version without a deployment, which is why volumes work well with rotation.
+      options:
+        a: { en: "Pinning a version is the recommended practice for environment variables, but every rotation then needs a new revision, which the requirement forbids." }
+        c: { en: "A value read once at startup behaves like the environment variable: running instances keep the revoked key until they are replaced." }
+        d: { en: "The instances still hold the old key; delaying revocation only postpones the failures and keeps a superseded credential valid for a month." }
+    references:
+      - title: Configure secrets for services | Cloud Run | Google Cloud Documentation
+        url: https://docs.cloud.google.com/run/docs/configuring/services/secrets
+
+  # ------------------------------------------------------------------ 7
+  - id: gcppca-qz-31-07
+    objective: "3.1.7"
+    difficulty: 3
+    status: draft
+    type: multi
+    stem:
+      en: |
+        An HR department runs an internal expense application as a single Cloud Run service in europe-west1. Employees sign in with Cloud Identity accounts and use the application from browsers at home, without a VPN. Only members of the group expense-users may reach the application, including through its run.app URL. The company does not want to provision or pay for a load balancer, and the application code must not change.
+
+        Which two actions should you take? Choose two.
+    body:
+      choose: 2
+      options:
+        - { id: a, text: { en: "Enable Identity-Aware Proxy directly on the Cloud Run service, without a load balancer in front of it." } }
+        - { id: b, text: { en: "Grant the expense-users group the IAP-secured Web App User role so that IAP admits its members." } }
+        - { id: c, text: { en: "Put a global external Application Load Balancer in front of the service, and enable IAP on its backend service." } }
+        - { id: d, text: { en: "Grant the expense-users group the Cloud Run Invoker role, and remove the allUsers principal." } }
+        - { id: e, text: { en: "Set the service's ingress to internal so that only requests from the company's network reach it." } }
+    answer: { optionIds: [a, b] }
+    explanation:
+      correct:
+        en: |
+          IAP can be enabled directly on a Cloud Run service (generally available since March 2026). It protects the run.app endpoint itself, so no load balancer has to be provisioned or paid for. Users are then admitted by IAP when they hold the IAP-secured Web App User role, and the application receives the requests unchanged.
+      options:
+        c: { en: "IAP on a load balancer works, but it adds load balancer resources and costs, and the run.app URL still bypasses IAP unless it is disabled." }
+        d: { en: "Cloud Run Invoker requires each request to carry an identity token, which a browser does not add on its own; the clients or the code would have to change." }
+        e: { en: "Internal ingress rejects requests from the internet, so employees at home without a VPN could not reach the application." }
+    references:
+      - title: Enable IAP for Cloud Run | Identity-Aware Proxy | Google Cloud Documentation
+        url: https://docs.cloud.google.com/iap/docs/enabling-cloud-run
+      - title: Cloud Run release notes | Google Cloud Documentation
+        url: https://docs.cloud.google.com/run/docs/release-notes
+
+  # ------------------------------------------------------------------ 8
+  - id: gcppca-qz-31-08
+    objective: "3.1.1"
+    difficulty: 3
+    status: draft
+    type: single
+    stem:
+      en: |
+        An external QA firm will test a release in the non-production project qa-staging for three weeks. Its testers, all in one Google group, must create and change most kinds of resources in the project. The security team accepts a basic role in this project but requires that the access end automatically at the end of the campaign, with no one removing it and no request or approval step for the testers.
+
+        What should you do?
+    body:
+      options:
+        - { id: a, text: { en: "Grant the group the Editor role on qa-staging with an IAM condition on request.time that ends with the campaign." } }
+        - { id: b, text: { en: "Grant the group the Writer role on qa-staging with an IAM condition on request.time that ends with the campaign." } }
+        - { id: c, text: { en: "Create a custom role with the Editor permissions on the qa folder, and grant it to the group with an expiry condition." } }
+        - { id: d, text: { en: "Create a Privileged Access Manager entitlement for the Writer role on qa-staging with a three-week maximum duration." } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          The basic roles Admin, Writer and Reader support IAM Conditions, so a Writer binding with a request.time condition stops granting access by itself at the end of the campaign. Google recommends these roles over the legacy basic roles when a basic role is acceptable outside production.
+      options:
+        a: { en: "Editor is a legacy basic role, and you can't add conditions to bindings of legacy basic roles, so the expiry cannot be set this way." }
+        c: { en: "Custom roles can be created only at the organization or project level, never on a folder, so this role cannot be created where the option places it." }
+        d: { en: "With Privileged Access Manager, testers must request a grant, possibly with approval, which the security team explicitly excludes." }
+    references:
+      - title: Roles overview | Identity and Access Management (IAM) | Google Cloud Documentation
+        url: https://docs.cloud.google.com/iam/docs/roles-overview
+
+  # ------------------------------------------------------------------ 9
+  - id: gcppca-qz-31-09
+    objective: "3.1.5"
+    difficulty: 3
+    status: draft
+    type: single
+    stem:
+      en: |
+        The project sales-analytics of a retailer is in a VPC Service Controls perimeter that restricts the BigQuery and Cloud Storage APIs. Every night, a Dataflow job that runs as the service account export-sa must write a CSV file to a bucket in the project partner-drop, which belongs to a logistics partner in another organization. No other identity may move data out of the perimeter, and the partner must not gain access to any resource inside it.
+
+        What should you configure?
+    body:
+      options:
+        - { id: a, text: { en: "An ingress rule that allows the partner's identities, from partner-drop, to call Cloud Storage in sales-analytics" } }
+        - { id: b, text: { en: "A perimeter bridge between the perimeter of sales-analytics and the partner-drop project of the partner" } }
+        - { id: c, text: { en: "An egress rule that allows ANY_IDENTITY in the perimeter to call all services on all resources outside it" } }
+        - { id: d, text: { en: "An egress rule that allows export-sa to call the Cloud Storage object creation method on the partner-drop project" } }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          Egress rules allow an identity inside the perimeter to reach resources outside it: `egressFrom` names export-sa, and `egressTo` names the partner-drop project with the Cloud Storage service and the method that creates objects. Nothing else leaves the perimeter, and the partner receives no access inside it.
+      options:
+        a: { en: "An ingress rule admits clients from outside into the perimeter: it gives the partner access to sales-analytics and does not let export-sa write outside." }
+        b: { en: "Perimeter bridges cannot include projects from different organizations, and a bridge would open access in both directions." }
+        c: { en: "ANY_IDENTITY on any resource lets every identity in the perimeter copy data anywhere, which removes the exfiltration protection." }
+    references:
+      - title: Ingress and egress rules | VPC Service Controls | Google Cloud Documentation
+        url: https://docs.cloud.google.com/vpc-service-controls/docs/ingress-egress-rules
+      - title: Sharing across perimeters with bridges | VPC Service Controls | Google Cloud Documentation
+        url: https://docs.cloud.google.com/vpc-service-controls/docs/share-across-perimeters
+
+  # ------------------------------------------------------------------ 10
+  - id: gcppca-qz-31-10
+    objective: "3.1.4"
+    difficulty: 3
+    status: draft
+    type: multi
+    stem:
+      en: |
+        A bank's platform engineers hold the Compute Admin and Project IAM Admin roles permanently on its production projects. The security team drafted a Privileged Access Manager entitlement on the production folder that grants both roles for up to 4 hours, requires a justification, and is approved by the security leads group. The requirements are no standing privileged access in production, no privileged access that outlives an approved grant, and no engineer approving their own elevation.
+
+        Which two changes should you make before you rely on the entitlement? Choose two.
+    body:
+      choose: 2
+      options:
+        - { id: a, text: { en: "Remove the engineers' permanent Compute Admin and Project IAM Admin bindings on the production projects." } }
+        - { id: b, text: { en: "Add the platform engineers group as approvers so that on-call requests do not wait for the security leads." } }
+        - { id: c, text: { en: "Remove Project IAM Admin from the entitlement, and keep IAM changes in a process the engineers cannot approve." } }
+        - { id: d, text: { en: "Grant the engineers Privileged Access Manager Admin on the folder so that they can extend grants during incidents." } }
+        - { id: e, text: { en: "Raise the maximum grant duration to 30 days so that the engineers request access less often during projects." } }
+    answer: { optionIds: [a, c] }
+    explanation:
+      correct:
+        en: |
+          Creating an entitlement does not revoke the permanent IAM bindings that principals already have, so the standing grants must be removed. Roles with setIamPolicy permissions, such as Project IAM Admin, should be kept out of entitlements: during a grant, a requester could add a permanent binding for themselves that survives the grant's expiry.
+      options:
+        b: { en: "Requesters who are also approvers remove the independent approval: engineers would approve their own team's elevations, against separation of duties." }
+        d: { en: "Privileged Access Manager Admin lets the engineers create and change entitlements, so they would control their own privileged access." }
+        e: { en: "A 30-day grant is standing access in practice and contradicts just-in-time, time-bound elevation." }
+    references:
+      - title: Create entitlements in Privileged Access Manager | Identity and Access Management (IAM) | Google Cloud Documentation
+        url: https://docs.cloud.google.com/iam/docs/pam-create-entitlements
+      - title: Privileged Access Manager overview | Identity and Access Management (IAM) | Google Cloud Documentation
+        url: https://docs.cloud.google.com/iam/docs/pam-overview

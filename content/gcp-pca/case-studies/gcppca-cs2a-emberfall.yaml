@@ -1,0 +1,59 @@
+id: gcppca-cs2a-emberfall
+status: draft
+title:
+  en: Emberfall Studios
+tabs:
+  - key: overview
+    title: { en: "Company overview" }
+    body:
+      en: |
+        Emberfall Studios is an independent video game studio headquartered in Austin, Texas, with 400 employees. Its flagship title, **Shardline**, is a free-to-play online team shooter for PC and consoles with 6 million monthly active players in North America, Europe and East Asia. Emberfall earns most of its revenue from an in-game currency called *embers*, which players buy with real money and spend on cosmetic items.
+
+        Emberfall will launch **Shardline 2** in nine months and expects three times the current number of concurrent players during the launch weeks.
+  - key: solution
+    title: { en: "Solution concept" }
+    body:
+      en: |
+        Emberfall will move the backend of Shardline 2 from rented bare-metal servers to Google Cloud before launch. The dedicated game servers will run on GKE clusters in three regions: `us-central1`, `europe-west1` and `asia-east1`. Emberfall will build a new player economy service for wallets and inventories, a real-time telemetry platform for anti-cheat and analytics, and a standard release process for its backend services.
+  - key: existing
+    title: { en: "Existing technical environment" }
+    body:
+      en: |
+        **Game servers.** About 2,400 bare-metal servers are rented in five colocation sites. The game server binaries are packaged as containers and run on self-managed Kubernetes clusters with the open-source Agones game server orchestrator. Match traffic uses UDP.
+
+        **Voice chat.** Stateless voice relay processes run on virtual machines in each colocation site. Players send voice traffic to a relay over UDP. The relays rate-limit abusive players by their source IP address.
+
+        **Player economy.** Wallets and inventories are stored in a single PostgreSQL primary database in Texas with two asynchronous replicas. During last season's sale, writes peaked at 40,000 transactions per second and saturated the primary. A failover to a replica lost 90 seconds of purchases, which support staff had to restore by hand.
+
+        **Matchmaking.** The matchmaking service is an HTTP microservice that runs on Kubernetes in every site. Engineers deploy new versions with `kubectl` from their workstations. Last year a faulty release reached every site at once and caused a three-hour global outage.
+
+        **Telemetry.** Game servers write gameplay events (movement, shots, hits) to local files that are uploaded every hour and loaded every night into a data warehouse. Cheating is detected the next day.
+
+        **Anti-cheat partner.** A third-party anti-cheat company runs its detection models on Amazon EC2 instances in its own AWS account. It downloads the telemetry files with a long-lived access key that Emberfall sent to it by email.
+
+        **Build.** Builds run on a self-hosted Jenkins server. Any engineer can push a container image to the registry and deploy it to production.
+  - key: business
+    title: { en: "Business requirements" }
+    body:
+      en: |
+        - Launch Shardline 2 on three continents with no planned downtime for the player economy.
+        - Never lose a purchase of embers and never apply a purchase twice. Players must see their inventory quickly wherever they play.
+        - Detect cheaters during the match in which they cheat, not the next day.
+        - Reduce the risk that a single release causes a global outage.
+        - Stop sharing long-lived credentials with partners.
+        - The platform team has six engineers: prefer managed services to self-managed infrastructure.
+  - key: technical
+    title: { en: "Technical requirements" }
+    body:
+      en: |
+        - **Player economy database.** Relational schema queried with SQL; strongly consistent transactions; 99.999 % availability; must scale horizontally to 150,000 write transactions per second at launch; low-latency reads for players in Europe and Asia.
+        - **Voice relays.** Deployed in each of the three game regions. The matchmaker tells each player which regional relay address to use. Traffic is UDP, and the relays must keep receiving the players' original source IP addresses.
+        - **Telemetry.** Peaks of 1.5 million events per second. Per-player aggregates over one-minute windows must reach the anti-cheat system within 10 seconds, and each event must be counted exactly once. Raw events must also be available in BigQuery for analysts. No cluster to manage.
+        - **Supply chain.** Production GKE clusters may run only container images that were built by Emberfall's Cloud Build pipeline. Attempts to deploy any other image must be blocked and logged.
+        - **Matchmaking releases.** Every release is deployed to a staging cluster first. In production, a new version must run in 10 % and then 50 % of the pods before it replaces the old version everywhere. A release manager must approve each production rollout. Custom deployment tooling must be kept to a minimum.
+        - **Partner access.** The anti-cheat partner's workloads on EC2 must publish their detections to a Pub/Sub topic in an Emberfall project without using service account keys.
+  - key: executive
+    title: { en: "Executive statement" }
+    body:
+      en: |
+        "Our players forgive a lost match, but they never forgive a lost purchase or a cheater who goes unpunished. Shardline 2 is the biggest bet in our history, and we cannot afford to launch it on infrastructure that six people have to keep alive by hand. I want managed services wherever they exist, releases that cannot take the whole game down, and partners that no longer hold keys to our data." — Chief Executive Officer, Emberfall Studios

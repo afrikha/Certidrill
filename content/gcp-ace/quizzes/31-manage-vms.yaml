@@ -1,0 +1,313 @@
+chapter: 31-manage-vms
+questions:
+  # ------------------------------------------------------------------ 1
+  - id: gcpace-qz-31-01
+    objective: "3.1.1"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        A software company wants SSH access to all Linux VMs of its project to depend on IAM roles rather than on public keys kept in metadata, so that removing a user's role immediately revokes that user's access.
+
+        Which metadata entry should you set on the project?
+    body:
+      options:
+        - { id: a, text: { en: "`block-project-ssh-keys=TRUE`" } }
+        - { id: b, text: { en: "`enable-oslogin-2fa=TRUE`" } }
+        - { id: c, text: { en: "`enable-oslogin=TRUE`" } }
+        - { id: d, text: { en: "`serial-port-enable=TRUE`" } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          `enable-oslogin=TRUE` in project metadata turns on OS Login for the project's VMs. Login rights then come from the Compute OS Login or Compute OS Admin Login IAM roles, and Compute Engine stops accepting SSH keys stored in project or instance metadata, so revoking the role revokes the access.
+      options:
+        a: { en: "This entry is set on a VM to ignore project-wide metadata keys; keys in instance metadata keep working and access still doesn't depend on IAM." }
+        b: { en: "This entry adds 2-step verification on top of OS Login; it is used together with `enable-oslogin=TRUE`, not instead of it." }
+        d: { en: "This entry enables interactive access to the serial console for troubleshooting; it has nothing to do with how SSH keys are authorized." }
+    references:
+      - title: Set up OS Login
+        url: https://docs.cloud.google.com/compute/docs/oslogin/set-up-oslogin
+
+  # ------------------------------------------------------------------ 2
+  - id: gcpace-qz-31-02
+    objective: "3.1.3"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        A disk has three standard snapshots, taken on Monday, Tuesday and Wednesday. To lower storage costs, an engineer deletes the Tuesday snapshot and keeps the two others.
+
+        What happens to the Wednesday snapshot?
+    body:
+      options:
+        - { id: a, text: { en: "It can no longer be restored, because each snapshot of the chain depends on the one before it" } }
+        - { id: b, text: { en: "It is rewritten as a full snapshot that no longer references the Monday snapshot" } }
+        - { id: c, text: { en: "It can still be restored, because the data it needed from Tuesday is moved into it" } }
+        - { id: d, text: { en: "It can be restored only after you rebuild the chain from the Monday snapshot" } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          Standard snapshots are incremental, but deleting one never breaks the others. Compute Engine moves the data that later snapshots still need into the next snapshot, which grows accordingly, and deletes only the data that no other snapshot requires.
+      options:
+        a: { en: "Snapshot deletion is designed to keep every remaining snapshot restorable: the needed blocks move into the next snapshot." }
+        b: { en: "Only the blocks that the Wednesday snapshot needed from Tuesday are moved into it; it still relies on Monday for the rest of the data." }
+        d: { en: "No rebuild exists or is required: the Wednesday snapshot can be used to create a disk right away." }
+    references:
+      - title: About archive and standard disk snapshots
+        url: https://docs.cloud.google.com/compute/docs/disks/snapshots
+
+  # ------------------------------------------------------------------ 3
+  - id: gcpace-qz-31-03
+    objective: "3.1.2"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Your only gcloud configuration, named default, sets ops-tools as the project, and other scripts in your Cloud Shell session rely on that setting. You need to see the VMs that carry the label env=prod in zone europe-west1-b of the project example-prod.
+
+        Which command should you run?
+    body:
+      options:
+        - { id: a, text: { en: "`gcloud compute instances list --zones=europe-west1-b --filter=\"labels.env=prod AND project=example-prod\"`" } }
+        - { id: b, text: { en: "`gcloud compute instances list --project=example-prod --zones=europe-west1-b --filter=\"labels.env=prod\"`" } }
+        - { id: c, text: { en: "`gcloud config set project example-prod`, then `gcloud compute instances list --zones=europe-west1-b --filter=\"labels.env=prod\"`" } }
+        - { id: d, text: { en: "`gcloud compute instances list --configuration=example-prod --zones=europe-west1-b --filter=\"labels.env=prod\"`" } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          The global `--project` flag sets the project for this one invocation only, so the default configuration keeps ops-tools. `--zones` limits the query to europe-west1-b, and `--filter="labels.env=prod"` keeps only the VMs with that label.
+      options:
+        a: { en: "`--filter` only filters the results returned from the current project, ops-tools; it can't redirect the query to another project." }
+        c: { en: "This lists the right VMs but changes the project of the default configuration, which breaks the scripts that rely on ops-tools." }
+        d: { en: "`--configuration` selects a named gcloud configuration, not a project, and no configuration named example-prod exists." }
+    references:
+      - title: gcloud compute instances list
+        url: https://docs.cloud.google.com/sdk/gcloud/reference/compute/instances/list
+      - title: Managing gcloud CLI configurations
+        url: https://docs.cloud.google.com/sdk/docs/configurations
+
+  # ------------------------------------------------------------------ 4
+  - id: gcpace-qz-31-04
+    objective: "3.1.3"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        The VM erp-app has a boot disk, two data disks, custom metadata, labels and network tags. Before an operating system upgrade, the team wants a single backup resource from which it can recreate the whole VM, with the data of all three disks and its instance properties, if the upgrade fails.
+
+        What should you create?
+    body:
+      options:
+        - { id: a, text: { en: "A custom image of the boot disk, added to an image family" } }
+        - { id: b, text: { en: "A machine image with erp-app as the source instance" } }
+        - { id: c, text: { en: "An instance template with erp-app as the source instance" } }
+        - { id: d, text: { en: "A snapshot schedule attached to each of the three disks" } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          A machine image captures a VM's configuration (machine type, metadata, labels, network tags, maintenance policy), its disk mapping and the data of all its disks at a consistent point in time. One `gcloud compute machine-images create` command therefore gives a single resource from which the whole VM can be recreated.
+      options:
+        a: { en: "A custom image holds the data of one disk only, so the two data disks and the instance properties would be lost." }
+        c: { en: "An instance template records instance properties but holds no disk data, so the content of the three disks would be lost." }
+        d: { en: "Snapshots protect each disk's data separately and don't record the VM's properties, so this is neither one resource nor a full VM backup." }
+    references:
+      - title: Machine images
+        url: https://docs.cloud.google.com/compute/docs/machine-images
+
+  # ------------------------------------------------------------------ 5
+  - id: gcpace-qz-31-05
+    objective: "3.1.1"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        After a kernel update and a reboot, the Linux VM app-12 in zone us-east1-b no longer answers SSH connections. The organization enforces the constraint `compute.disableSerialPortAccess`, and the security team refuses any exception. You need to read the messages that app-12 wrote during boot to find where it stops.
+
+        What should you do?
+    body:
+      options:
+        - { id: a, text: { en: "Set `serial-port-enable=TRUE` on app-12, then run `gcloud compute connect-to-serial-port app-12`" } }
+        - { id: b, text: { en: "Run `gcloud compute ssh app-12 --zone=us-east1-b --tunnel-through-iap` to reach the VM" } }
+        - { id: c, text: { en: "Open the Observability tab of app-12 in the console to read its boot messages" } }
+        - { id: d, text: { en: "Run `gcloud compute instances get-serial-port-output app-12 --zone=us-east1-b`" } }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          `gcloud compute instances get-serial-port-output` returns the most recent output that the VM wrote to its serial port, including kernel and boot messages. It is a read-only view, not an interactive session, so it shows where the boot stops while interactive serial console access stays blocked.
+      options:
+        a: { en: "The enforced `compute.disableSerialPortAccess` constraint blocks interactive serial console access whatever the `serial-port-enable` metadata says." }
+        b: { en: "IAP only changes the network path; it still needs a working SSH server on the VM, which is what fails here." }
+        c: { en: "The Observability tab shows metrics such as CPU and network usage, not the messages the VM writes during boot." }
+    references:
+      - title: Viewing serial port output
+        url: https://docs.cloud.google.com/compute/docs/troubleshooting/viewing-serial-port-output
+      - title: Troubleshooting using the serial console
+        url: https://docs.cloud.google.com/compute/docs/troubleshooting/troubleshooting-using-serial-console
+
+  # ------------------------------------------------------------------ 6
+  - id: gcpace-qz-31-06
+    objective: "3.1.2"
+    difficulty: 3
+    status: draft
+    type: single
+    stem:
+      en: |
+        A regional managed instance group named web-mig in europe-west1 is halfway through a rolling update to a new instance template. Some VMs are being recreated, and one VM has stayed pending for an hour. You need, VM by VM, which instance template each VM was created from, what the group is currently doing to it, and the error that keeps the pending VM from starting.
+
+        Which command should you run?
+    body:
+      options:
+        - { id: a, text: { en: "`gcloud compute instance-groups managed describe web-mig --region=europe-west1`" } }
+        - { id: b, text: { en: "`gcloud compute instance-groups list-instances web-mig --region=europe-west1`" } }
+        - { id: c, text: { en: "`gcloud compute instance-groups managed list-instances web-mig --region=europe-west1`" } }
+        - { id: d, text: { en: "`gcloud compute instances list --filter=\"name~^web-mig\" --format=\"table(name,status)\"`" } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          `gcloud compute instance-groups managed list-instances` lists each managed instance with its status, its current action (for example CREATING or NONE), its health state, the instance template it uses and its last error, such as a zone resource pool exhaustion. It answers every part of the need in one command.
+      options:
+        a: { en: "`describe` returns the group's own configuration and status, such as its policies and `status.isStable`, not a per-VM view of templates, actions and errors." }
+        b: { en: "The generic `instance-groups list-instances` command lists the member VMs and their status only; it shows no instance template, current action or last error." }
+        d: { en: "Listing instances by name shows their status, but not the template version, the group's current action or the error of the pending VM." }
+    references:
+      - title: View information about MIGs and managed instances
+        url: https://docs.cloud.google.com/compute/docs/instance-groups/getting-info-about-migs
+
+  # ------------------------------------------------------------------ 7
+  - id: gcpace-qz-31-07
+    objective: "3.1.1"
+    difficulty: 3
+    status: draft
+    type: single
+    stem:
+      en: |
+        A retailer's project metadata sets `enable-oslogin=TRUE`, and SSH access to its Linux VMs is granted with OS Login roles. A contractor left yesterday and you removed all of the contractor's IAM roles, yet the contractor still signs in to the VM legacy-ftp with a third-party SSH client. `gcloud compute instances describe legacy-ftp` shows two instance metadata items: `enable-oslogin` with the value FALSE, and `ssh-keys` with the contractor's public key. Access to legacy-ftp must be controlled by IAM, as on every other VM.
+
+        What should you do?
+    body:
+      options:
+        - { id: a, text: { en: "Add the metadata item `block-project-ssh-keys=TRUE` to legacy-ftp" } }
+        - { id: b, text: { en: "Set the instance metadata item `enable-oslogin` to TRUE on legacy-ftp" } }
+        - { id: c, text: { en: "Remove the contractor's key from the project-wide `ssh-keys` metadata" } }
+        - { id: d, text: { en: "Add the metadata item `enable-oslogin-2fa=TRUE` to the project" } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          An instance-level `enable-oslogin=FALSE` disables OS Login on that VM even though the project sets TRUE, so legacy-ftp still accepts metadata keys. Setting the instance value to TRUE turns OS Login on: Compute Engine stops accepting keys from project or instance metadata, and access now depends on IAM roles, which the contractor no longer has.
+      options:
+        a: { en: "This only makes the VM ignore project-wide keys; the contractor's key sits in instance metadata and OS Login stays disabled on the VM." }
+        c: { en: "The contractor's key is in the instance metadata of legacy-ftp, and the VM would still bypass IAM because OS Login is off there." }
+        d: { en: "2-step verification applies only where OS Login is enabled; the instance-level FALSE keeps legacy-ftp on metadata keys." }
+    references:
+      - title: Set up OS Login
+        url: https://docs.cloud.google.com/compute/docs/oslogin/set-up-oslogin
+
+  # ------------------------------------------------------------------ 8
+  - id: gcpace-qz-31-08
+    objective: "3.1.3"
+    difficulty: 3
+    status: draft
+    type: multi
+    stem:
+      en: |
+        A platform team publishes hardened images in the image family web-golden of the project example-images. Developers, members of the group web-devs@example.com, already hold Compute Instance Admin (v1) on their project app-dev. They must create VMs in app-dev from the newest image of web-golden, and they must not be able to create, change or delete images in example-images. You must follow the principle of least privilege.
+
+        Which two actions should you take? Choose two.
+    body:
+      choose: 2
+      options:
+        - { id: a, text: { en: "Grant web-devs the Compute Image User role (`roles/compute.imageUser`) on example-images" } }
+        - { id: b, text: { en: "Grant web-devs the Compute Image User role (`roles/compute.imageUser`) on app-dev" } }
+        - { id: c, text: { en: "Grant web-devs the Compute Storage Admin role (`roles/compute.storageAdmin`) on example-images" } }
+        - { id: d, text: { en: "Have the developers pass `--image-family=web-golden --image-project=example-images` to `gcloud compute instances create`" } }
+        - { id: e, text: { en: "Have the developers pass `--image=web-golden --image-project=example-images` to `gcloud compute instances create`" } }
+    answer: { optionIds: [a, d] }
+    explanation:
+      correct:
+        en: |
+          Compute Image User lets its holders list, read and use the images of a project in their requests without any other permission on them, so it is granted where the images live, on example-images. The developers then name the family and its project: `--image-family` resolves to the newest non-deprecated image of web-golden, and `--image-project` tells gcloud to look for it in example-images instead of app-dev.
+      options:
+        b: { en: "The images live in example-images; a role on app-dev gives no right to use them." }
+        c: { en: "Compute Storage Admin also lets its holders create, modify and delete images and snapshots, which the requirements forbid." }
+        e: { en: "`--image` expects an image name, and web-golden is the name of a family, so gcloud finds no image with that name." }
+    references:
+      - title: Manage access to custom images
+        url: https://docs.cloud.google.com/compute/docs/images/managing-access-custom-images
+
+  # ------------------------------------------------------------------ 9
+  - id: gcpace-qz-31-09
+    objective: "3.1.3"
+    difficulty: 3
+    status: draft
+    type: multi
+    stem:
+      en: |
+        A media company must back up three zonal Persistent Disks every day at 01:00 UTC and keep each snapshot for 30 days: render-a in europe-west1-b, render-b in europe-west1-c and render-c in us-east1-b. Compliance requires that the scheduled snapshots of a disk still expire after 30 days if that disk is deleted. The team wants to manage the fewest snapshot schedules.
+
+        Which three actions should you take? Choose three.
+    body:
+      choose: 3
+      options:
+        - { id: a, text: { en: "Create one snapshot schedule in europe-west1 and attach it to render-a and render-b" } }
+        - { id: b, text: { en: "Create one snapshot schedule in us-east1 and attach it to render-c" } }
+        - { id: c, text: { en: "Create one snapshot schedule in us-east1 and attach it to all three disks" } }
+        - { id: d, text: { en: "Create one snapshot schedule per zone and attach each one to the disk of its zone" } }
+        - { id: e, text: { en: "Create the schedules with `--on-source-disk-delete=apply-retention-policy`" } }
+        - { id: f, text: { en: "Create the schedules with `--on-source-disk-delete=keep-auto-snapshots`" } }
+    answer: { optionIds: [a, b, e] }
+    explanation:
+      correct:
+        en: |
+          A snapshot schedule must be created in the region of the disks it is attached to, so one schedule in europe-west1 covers both European disks and a second one in us-east1 covers render-c. With `apply-retention-policy`, the schedule keeps applying its 30-day retention to the snapshots of a disk after that disk is deleted.
+      options:
+        c: { en: "A schedule can only be attached to disks of its own region, so a us-east1 schedule can't be attached to the disks in europe-west1." }
+        d: { en: "Schedules are regional, and one europe-west1 schedule can serve both European zones; three schedules fail the fewest-schedules goal." }
+        f: { en: "`keep-auto-snapshots`, the default, keeps the snapshots of a deleted disk instead of letting them expire after 30 days." }
+    references:
+      - title: Create schedules for disk snapshots
+        url: https://docs.cloud.google.com/compute/docs/disks/scheduled-snapshots
+
+  # ------------------------------------------------------------------ 10
+  - id: gcpace-qz-31-10
+    objective: "3.1.1"
+    difficulty: 3
+    status: draft
+    type: multi
+    stem:
+      en: |
+        OS Login is enabled in the project example-ops. A contractor with an account in your organization must connect to the VM db-maint, and to no other VM, by running `gcloud compute ssh` and must be able to run commands with sudo. db-maint runs as the user-managed service account db-sa and has an external IP address that the firewall allows for SSH from the contractor's network. You must follow the principle of least privilege.
+
+        Which three actions should you take? Choose three.
+    body:
+      choose: 3
+      options:
+        - { id: a, text: { en: "Grant the Compute OS Admin Login role (`roles/compute.osAdminLogin`) on the VM db-maint" } }
+        - { id: b, text: { en: "Grant the Compute OS Admin Login role (`roles/compute.osAdminLogin`) on the project example-ops" } }
+        - { id: c, text: { en: "Grant a custom role that contains only `compute.projects.get` on the project example-ops" } }
+        - { id: d, text: { en: "Grant the Service Account User role (`roles/iam.serviceAccountUser`) on the service account db-sa" } }
+        - { id: e, text: { en: "Grant the Compute OS Login role (`roles/compute.osLogin`) on the VM db-maint" } }
+        - { id: f, text: { en: "Grant the Compute Instance Admin (v1) role (`roles/compute.instanceAdmin.v1`) on the VM db-maint" } }
+    answer: { optionIds: [a, c, d] }
+    explanation:
+      correct:
+        en: |
+          Compute OS Admin Login granted on db-maint alone gives sudo on that VM only. A role granted only at the instance level isn't enough for SSH from gcloud or the console: the user also needs a project-level role with `compute.projects.get`, and a custom role with just that permission keeps privileges minimal. Because db-maint runs as a service account, every OS Login user also needs Service Account User on db-sa.
+      options:
+        b: { en: "A project-level grant gives sudo access to every VM of example-ops, which breaks the one-VM restriction." }
+        e: { en: "Compute OS Login allows a standard login without sudo, so the contractor couldn't run administrative commands." }
+        f: { en: "Compute Instance Admin (v1) is not an OS Login role, and it lets the contractor modify, reconfigure or delete the VM, far beyond the access needed." }
+    references:
+      - title: Set up OS Login
+        url: https://docs.cloud.google.com/compute/docs/oslogin/set-up-oslogin
