@@ -1,0 +1,193 @@
+id: ckad-3e-fix-deployment-selector
+objective: "3.5.3"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    `kubectl apply -f inventory.yaml` fails with:
+
+    ```text
+    The Deployment "inventory" is invalid: spec.template.metadata.labels: Invalid value: map[string]string{"app":"inventory-api"}: `selector` does not match template `labels`
+    ```
+
+    The Service `inventory` in `service.yaml` is already deployed and selects `app: inventory`. Fix the Deployment so that it is accepted and the Service sends traffic to its Pods. Keep 3 replicas and the image.
+body:
+  starter: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: inventory
+      namespace: shop
+    spec:
+      replicas: 3
+      selector:
+        matchLabels:
+          app: inventory
+      template:
+        metadata:
+          labels:
+            app: inventory-api
+        spec:
+          containers:
+          - name: inventory
+            image: registry.example.com/inventory:1.12
+            ports:
+            - containerPort: 8080
+  files:
+  - name: service.yaml
+    content: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: inventory
+        namespace: shop
+      spec:
+        selector:
+          app: inventory
+        ports:
+        - port: 80
+          targetPort: 8080
+answer:
+  checks:
+  - id: deployment
+    label: Deployment inventory in namespace shop
+    path: metadata
+    op: subset
+    value: {name: inventory, namespace: shop}
+  - id: selector
+    label: Deployment selector is app=inventory
+    path: spec.selector.matchLabels.app
+    op: equals
+    value: inventory
+  - id: template
+    label: Pod template has label app=inventory
+    path: spec.template.metadata.labels.app
+    op: equals
+    value: inventory
+  - id: replicas
+    label: Still 3 replicas
+    path: spec.replicas
+    op: equals
+    value: 3
+  - id: image
+    label: Image is unchanged
+    path: spec.template.spec.containers[name=inventory].image
+    op: equals
+    value: registry.example.com/inventory:1.12
+  solution:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: inventory
+        namespace: shop
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: inventory
+        template:
+          metadata:
+            labels:
+              app: inventory
+          spec:
+            containers:
+            - name: inventory
+              image: registry.example.com/inventory:1.12
+              ports:
+              - containerPort: 8080
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: inventory
+        namespace: shop
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: inventory
+        template:
+          metadata:
+            labels:
+              app: inventory
+              component: api
+          spec:
+            containers:
+            - name: inventory
+              image: registry.example.com/inventory:1.12
+              ports:
+              - containerPort: 8080
+  negatives:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: inventory
+        namespace: shop
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: inventory-api
+        template:
+          metadata:
+            labels:
+              app: inventory-api
+          spec:
+            containers:
+            - name: inventory
+              image: registry.example.com/inventory:1.12
+              ports:
+              - containerPort: 8080
+    why: The Deployment becomes valid, but its Pods carry app=inventory-api and the Service selecting app=inventory gets no endpoints.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: inventory
+        namespace: shop
+      spec:
+        replicas: 3
+        template:
+          metadata:
+            labels:
+              app: inventory
+          spec:
+            containers:
+            - name: inventory
+              image: registry.example.com/inventory:1.12
+              ports:
+              - containerPort: 8080
+    why: In apps/v1 the selector is required and is not defaulted from the template labels.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: inventory
+        namespace: shop
+        labels:
+          app: inventory
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: inventory
+        template:
+          metadata:
+            labels:
+              app: inventory-api
+          spec:
+            containers:
+            - name: inventory
+              image: registry.example.com/inventory:1.12
+              ports:
+              - containerPort: 8080
+    why: Labels on the Deployment itself do not matter; the selector must match the Pod template labels.
+explanation:
+  correct:
+    en: '`.spec.selector` must match `.spec.template.metadata.labels`, or the API rejects the Deployment; in `apps/v1` it is required and immutable after creation. Because the Service selects `app: inventory`, the right fix is to change the template label, not the selector: otherwise the Deployment is accepted but the Service has no endpoints.'
+references:
+- title: Deployments
+  url: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/

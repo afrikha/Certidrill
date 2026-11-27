@@ -1,0 +1,151 @@
+id: ckad-4h-pod-run-as-ids
+objective: "4.8.1"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    Write the manifest of a Pod `reports` in namespace `analytics` with one container `gen` running `busybox:1.37` with the command `sh -c "sleep 3600"`. The Pod has an `emptyDir` volume named `data` mounted at `/data` in `gen`.
+
+    Set these in the **Pod-level** security context, because a second container will be added later and must get the same identity:
+
+    - every process runs as user ID `1000`, with primary group ID `3000`;
+    - the `data` volume and the files created in it belong to group ID `2000`.
+body:
+  starter: |
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: reports
+      namespace: analytics
+    spec:
+      containers:
+      - name: gen
+        image: busybox:1.37
+        command: ["sh", "-c", "sleep 3600"]
+answer:
+  checks:
+  - id: pod
+    label: A Pod named reports in namespace analytics
+    path: metadata
+    op: subset
+    value: {name: reports, namespace: analytics}
+  - id: run-as-user
+    label: Pod-level runAsUser is 1000
+    path: spec.securityContext.runAsUser
+    op: equals
+    value: 1000
+  - id: run-as-group
+    label: Pod-level runAsGroup is 3000
+    path: spec.securityContext.runAsGroup
+    op: equals
+    value: 3000
+  - id: fs-group
+    label: Pod-level fsGroup is 2000
+    path: spec.securityContext.fsGroup
+    op: equals
+    value: 2000
+  - id: volume
+    label: Volume data is an emptyDir
+    path: spec.volumes[name=data].emptyDir
+    op: exists
+  - id: mount
+    label: Container gen mounts data at /data
+    path: spec.containers[name=gen].volumeMounts[name=data].mountPath
+    op: equals
+    value: /data
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: reports
+        namespace: analytics
+      spec:
+        securityContext:
+          runAsUser: 1000
+          runAsGroup: 3000
+          fsGroup: 2000
+        volumes:
+        - name: data
+          emptyDir: {}
+        containers:
+        - name: gen
+          image: busybox:1.37
+          command: ["sh", "-c", "sleep 3600"]
+          volumeMounts:
+          - name: data
+            mountPath: /data
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: reports
+        namespace: analytics
+      spec:
+        securityContext:
+          runAsUser: 1000
+          runAsGroup: 2000
+          fsGroup: 3000
+        volumes:
+        - name: data
+          emptyDir: {}
+        containers:
+        - name: gen
+          image: busybox:1.37
+          command: ["sh", "-c", "sleep 3600"]
+          volumeMounts:
+          - name: data
+            mountPath: /data
+    why: runAsGroup and fsGroup are swapped; runAsGroup is the primary group of the processes, fsGroup the group of the volume.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: reports
+        namespace: analytics
+      spec:
+        securityContext:
+          runAsUser: 1000
+          runAsGroup: 3000
+          supplementalGroups: [2000]
+        volumes:
+        - name: data
+          emptyDir: {}
+        containers:
+        - name: gen
+          image: busybox:1.37
+          command: ["sh", "-c", "sleep 3600"]
+          volumeMounts:
+          - name: data
+            mountPath: /data
+    why: supplementalGroups adds group 2000 to the processes but does not change the ownership of the volume; that is fsGroup.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: reports
+        namespace: analytics
+      spec:
+        volumes:
+        - name: data
+          emptyDir: {}
+        containers:
+        - name: gen
+          image: busybox:1.37
+          command: ["sh", "-c", "sleep 3600"]
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 3000
+            fsGroup: 2000
+          volumeMounts:
+          - name: data
+            mountPath: /data
+    why: fsGroup exists only in the Pod securityContext, and the task asks for Pod-level settings that the future container inherits.
+explanation:
+  correct:
+    en: 'In `spec.securityContext`, `runAsUser: 1000` and `runAsGroup: 3000` set the UID and primary GID of every container process (a container can override them in its own securityContext). `fsGroup: 2000` is Pod-level only: supported volumes such as emptyDir are owned by GID 2000, new files in them get that group, and 2000 is added to the supplementary groups. `kubectl exec reports -- id` would show `uid=1000 gid=3000 groups=2000,3000`.'
+references:
+- title: Configure a Security Context for a Pod or Container
+  url: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/

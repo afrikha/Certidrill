@@ -1,0 +1,169 @@
+id: cka-3a-surge-from-pod-bounds
+objective: "3.1.2"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    Deployment `api` in namespace `payments` runs 10 replicas with the default rolling update settings (25% / 25%). During a rollout the nodes cannot hold more than 12 Pods of `api`, and at least 9 Pods must stay available at all times.
+
+    Set the rolling update parameters so that both bounds are met and the rollout is as fast as they allow. Use absolute numbers.
+body:
+  starter: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: api
+      namespace: payments
+    spec:
+      replicas: 10
+      strategy:
+        type: RollingUpdate
+        rollingUpdate:
+          maxSurge: 25%
+          maxUnavailable: 25%
+      selector:
+        matchLabels:
+          app: api
+      template:
+        metadata:
+          labels:
+            app: api
+        spec:
+          containers:
+          - name: api
+            image: registry.example.com/payments/api:2.6
+answer:
+  checks:
+  - id: meta
+    label: A Deployment named api in namespace payments
+    path: metadata
+    op: subset
+    value: {name: api, namespace: payments}
+  - id: replicas
+    label: 10 replicas
+    path: spec.replicas
+    op: equals
+    value: 10
+  - id: not-recreate
+    label: The strategy is not Recreate
+    path: spec.strategy
+    op: matches
+    value: '^(?!.*"type":"Recreate")'
+  - id: surge
+    label: maxSurge is 2 (at most 12 Pods)
+    path: spec.strategy.rollingUpdate.maxSurge
+    op: oneOf
+    value: [2, "20%"]
+  - id: unavailable
+    label: maxUnavailable is 1 (at least 9 available)
+    path: spec.strategy.rollingUpdate.maxUnavailable
+    op: oneOf
+    value: [1, "10%"]
+  solution:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: api
+        namespace: payments
+      spec:
+        replicas: 10
+        strategy:
+          type: RollingUpdate
+          rollingUpdate:
+            maxSurge: 2
+            maxUnavailable: 1
+        selector:
+          matchLabels:
+            app: api
+        template:
+          metadata:
+            labels:
+              app: api
+          spec:
+            containers:
+            - name: api
+              image: registry.example.com/payments/api:2.6
+  negatives:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: api
+        namespace: payments
+      spec:
+        replicas: 10
+        strategy:
+          type: RollingUpdate
+          rollingUpdate:
+            maxSurge: 12
+            maxUnavailable: 9
+        selector:
+          matchLabels:
+            app: api
+        template:
+          metadata:
+            labels:
+              app: api
+          spec:
+            containers:
+            - name: api
+              image: registry.example.com/payments/api:2.6
+    why: The fields are offsets from the desired 10 replicas, not totals; this allows 22 Pods and only 1 available.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: api
+        namespace: payments
+      spec:
+        replicas: 10
+        strategy:
+          type: RollingUpdate
+          rollingUpdate:
+            maxSurge: 25%
+            maxUnavailable: 25%
+        selector:
+          matchLabels:
+            app: api
+        template:
+          metadata:
+            labels:
+              app: api
+          spec:
+            containers:
+            - name: api
+              image: registry.example.com/payments/api:2.6
+    why: 25% of 10 rounds up to 3 for maxSurge (13 Pods) and down to 2 for maxUnavailable (8 available); both bounds are broken.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: api
+        namespace: payments
+      spec:
+        replicas: 10
+        strategy:
+          type: RollingUpdate
+          rollingUpdate:
+            maxSurge: 1
+            maxUnavailable: 2
+        selector:
+          matchLabels:
+            app: api
+        template:
+          metadata:
+            labels:
+              app: api
+          spec:
+            containers:
+            - name: api
+              image: registry.example.com/payments/api:2.6
+    why: maxUnavailable 2 lets availability drop to 8 Pods, below the required 9.
+explanation:
+  correct:
+    en: 'Both fields are counted from the desired replica count: at most `replicas + maxSurge` Pods exist and at least `replicas - maxUnavailable` are available. 12 = 10 + 2 and 9 = 10 - 1, so `maxSurge: 2` and `maxUnavailable: 1` are the largest values that respect the bounds. With the default 25%, maxSurge rounds up to 3 and maxUnavailable rounds down to 2.'
+references:
+- title: Deployments
+  url: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/

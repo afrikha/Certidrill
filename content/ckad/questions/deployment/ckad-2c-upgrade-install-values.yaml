@@ -1,0 +1,72 @@
+id: ckad-2c-upgrade-install-values
+objective: "2.3.2"
+difficulty: 3
+status: draft
+type: command
+stem:
+  en: |-
+    A pipeline deploys the release `api` of chart `acme/api` in namespace `payments`, which exists. The same command must work whether or not the release is already installed. Deploy chart version `1.8.0` with two values files from the working directory: `values-base.yaml` and `values-prod.yaml`. When a key is set in both files, the value from `values-prod.yaml` must win.
+
+    Type the single command you would run.
+body:
+  mode: invocation
+  tools: [helm]
+  namespace: default
+answer:
+  checks:
+  - id: upgrade
+    label: Uses helm upgrade
+    path: verb
+    op: equals
+    value: upgrade
+  - id: install
+    label: Installs the release if it does not exist (--install)
+    path: flags.install
+    op: equals
+    value: true
+  - id: release
+    label: The release is api
+    path: args[0]
+    op: equals
+    value: api
+  - id: chart
+    label: Uses the chart acme/api
+    path: args[1]
+    op: equals
+    value: acme/api
+  - id: version
+    label: Pins chart version 1.8.0
+    path: flags.version
+    op: equals
+    value: 1.8.0
+  - id: namespace
+    label: Targets namespace payments
+    path: flags.namespace
+    op: equals
+    value: payments
+  - id: values-order
+    label: Passes values-base.yaml, then values-prod.yaml (the right-most file wins)
+    path: flags.values
+    op: equals
+    value: [values-base.yaml, values-prod.yaml]
+  solution:
+  - command: helm upgrade --install api acme/api --version 1.8.0 -n payments -f values-base.yaml -f values-prod.yaml
+  - command: helm upgrade api acme/api --install --namespace payments --version=1.8.0 --values values-base.yaml --values values-prod.yaml
+  - command: helm upgrade -i api acme/api -n payments --version 1.8.0 -f values-base.yaml -f values-prod.yaml
+  negatives:
+  - command: helm upgrade --install api acme/api --version 1.8.0 -n payments -f values-prod.yaml -f values-base.yaml
+    why: The right-most values file has priority, so this order lets values-base.yaml override values-prod.yaml.
+  - command: helm upgrade api acme/api --version 1.8.0 -n payments -f values-base.yaml -f values-prod.yaml
+    why: Without --install, helm upgrade fails when the release does not exist yet.
+  - command: helm install api acme/api --version 1.8.0 -n payments -f values-base.yaml -f values-prod.yaml
+    why: helm install fails when the release api already exists.
+  - command: helm upgrade --install api acme/api --version 1.8.0 -f values-base.yaml -f values-prod.yaml
+    why: Without -n Helm looks for the release in the context namespace, default.
+explanation:
+  correct:
+    en: '`helm upgrade --install` upgrades the release, or installs it when it does not exist, which makes the command idempotent for a pipeline. `-f`/`--values` can be repeated and the right-most file takes precedence, so `values-prod.yaml` goes last; `--set` would override both files. `--version` pins the chart version and `-n` selects the release namespace.'
+references:
+- title: helm upgrade
+  url: https://helm.sh/docs/helm/helm_upgrade/
+- title: Using Helm
+  url: https://helm.sh/docs/intro/using_helm/

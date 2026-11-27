@@ -1,0 +1,391 @@
+id: cka-2b-scheduler-probe-port
+objective: "2.2.3"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    On `cp-1`, Pod `kube-scheduler-cp-1` restarts every few minutes and is never `Ready`. Its events repeat `Startup probe failed: Get "https://127.0.0.1:10251/livez": dial tcp 127.0.0.1:10251: connect: connection refused`, while its log shows `Serving securely on 127.0.0.1:10259`.
+
+    The editor contains `/etc/kubernetes/manifests/kube-scheduler.yaml`. Write the corrected manifest so that the probes reach the scheduler's secure health endpoints. Keep the probes referring to the named port `probe-port`, as kubeadm generates them, and change nothing else.
+body:
+  starter: |
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      labels:
+        component: kube-scheduler
+        tier: control-plane
+      name: kube-scheduler
+      namespace: kube-system
+    spec:
+      containers:
+      - command:
+        - kube-scheduler
+        - --authentication-kubeconfig=/etc/kubernetes/scheduler.conf
+        - --authorization-kubeconfig=/etc/kubernetes/scheduler.conf
+        - --bind-address=127.0.0.1
+        - --kubeconfig=/etc/kubernetes/scheduler.conf
+        - --leader-elect=true
+        image: registry.k8s.io/kube-scheduler:v1.37.1
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          failureThreshold: 8
+          httpGet:
+            host: 127.0.0.1
+            path: /livez
+            port: probe-port
+            scheme: HTTPS
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 15
+        name: kube-scheduler
+        ports:
+        - containerPort: 10251
+          name: probe-port
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            host: 127.0.0.1
+            path: /readyz
+            port: probe-port
+            scheme: HTTPS
+          initialDelaySeconds: 0
+          periodSeconds: 1
+          timeoutSeconds: 15
+        startupProbe:
+          failureThreshold: 24
+          httpGet:
+            host: 127.0.0.1
+            path: /livez
+            port: probe-port
+            scheme: HTTPS
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 15
+        volumeMounts:
+        - mountPath: /etc/kubernetes/scheduler.conf
+          name: kubeconfig
+          readOnly: true
+      hostNetwork: true
+      priorityClassName: system-node-critical
+      volumes:
+      - hostPath:
+          path: /etc/kubernetes/scheduler.conf
+          type: FileOrCreate
+        name: kubeconfig
+answer:
+  checks:
+  - id: port
+    label: The probe-port container port is 10259
+    path: spec.containers[name=kube-scheduler].ports[name=probe-port].containerPort
+    op: equals
+    value: 10259
+  - id: liveness-port
+    label: The liveness probe uses the named port probe-port
+    path: spec.containers[name=kube-scheduler].livenessProbe.httpGet.port
+    op: equals
+    value: probe-port
+  - id: startup-port
+    label: The startup probe uses the named port probe-port
+    path: spec.containers[name=kube-scheduler].startupProbe.httpGet.port
+    op: equals
+    value: probe-port
+  - id: readiness-path
+    label: The readiness probe checks /readyz
+    path: spec.containers[name=kube-scheduler].readinessProbe.httpGet.path
+    op: equals
+    value: /readyz
+  - id: liveness-path
+    label: The liveness probe checks /livez
+    path: spec.containers[name=kube-scheduler].livenessProbe.httpGet.path
+    op: equals
+    value: /livez
+  - id: scheme
+    label: The liveness probe uses HTTPS
+    path: spec.containers[name=kube-scheduler].livenessProbe.httpGet.scheme
+    op: equals
+    value: HTTPS
+  - id: bind
+    label: --bind-address stays 127.0.0.1
+    path: spec.containers[name=kube-scheduler].command
+    op: contains
+    value: --bind-address=127.0.0.1
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        labels:
+          component: kube-scheduler
+          tier: control-plane
+        name: kube-scheduler
+        namespace: kube-system
+      spec:
+        containers:
+        - command:
+          - kube-scheduler
+          - --authentication-kubeconfig=/etc/kubernetes/scheduler.conf
+          - --authorization-kubeconfig=/etc/kubernetes/scheduler.conf
+          - --bind-address=127.0.0.1
+          - --kubeconfig=/etc/kubernetes/scheduler.conf
+          - --leader-elect=true
+          image: registry.k8s.io/kube-scheduler:v1.37.1
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            failureThreshold: 8
+            httpGet:
+              host: 127.0.0.1
+              path: /livez
+              port: probe-port
+              scheme: HTTPS
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 15
+          name: kube-scheduler
+          ports:
+          - containerPort: 10259
+            name: probe-port
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              host: 127.0.0.1
+              path: /readyz
+              port: probe-port
+              scheme: HTTPS
+            initialDelaySeconds: 0
+            periodSeconds: 1
+            timeoutSeconds: 15
+          startupProbe:
+            failureThreshold: 24
+            httpGet:
+              host: 127.0.0.1
+              path: /livez
+              port: probe-port
+              scheme: HTTPS
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 15
+          volumeMounts:
+          - mountPath: /etc/kubernetes/scheduler.conf
+            name: kubeconfig
+            readOnly: true
+        hostNetwork: true
+        priorityClassName: system-node-critical
+        volumes:
+        - hostPath:
+            path: /etc/kubernetes/scheduler.conf
+            type: FileOrCreate
+          name: kubeconfig
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        labels:
+          component: kube-scheduler
+          tier: control-plane
+        name: kube-scheduler
+        namespace: kube-system
+      spec:
+        containers:
+        - command:
+          - kube-scheduler
+          - --authentication-kubeconfig=/etc/kubernetes/scheduler.conf
+          - --authorization-kubeconfig=/etc/kubernetes/scheduler.conf
+          - --bind-address=127.0.0.1
+          - --kubeconfig=/etc/kubernetes/scheduler.conf
+          - --leader-elect=true
+          image: registry.k8s.io/kube-scheduler:v1.37.1
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            failureThreshold: 8
+            httpGet:
+              host: 127.0.0.1
+              path: /livez
+              port: probe-port
+              scheme: HTTPS
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 15
+          name: kube-scheduler
+          ports:
+          - containerPort: 10257
+            name: probe-port
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              host: 127.0.0.1
+              path: /readyz
+              port: probe-port
+              scheme: HTTPS
+            initialDelaySeconds: 0
+            periodSeconds: 1
+            timeoutSeconds: 15
+          startupProbe:
+            failureThreshold: 24
+            httpGet:
+              host: 127.0.0.1
+              path: /livez
+              port: probe-port
+              scheme: HTTPS
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 15
+          volumeMounts:
+          - mountPath: /etc/kubernetes/scheduler.conf
+            name: kubeconfig
+            readOnly: true
+        hostNetwork: true
+        priorityClassName: system-node-critical
+        volumes:
+        - hostPath:
+            path: /etc/kubernetes/scheduler.conf
+            type: FileOrCreate
+          name: kubeconfig
+    why: '10257 is the kube-controller-manager secure port; the scheduler serves on 10259.'
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        labels:
+          component: kube-scheduler
+          tier: control-plane
+        name: kube-scheduler
+        namespace: kube-system
+      spec:
+        containers:
+        - command:
+          - kube-scheduler
+          - --authentication-kubeconfig=/etc/kubernetes/scheduler.conf
+          - --authorization-kubeconfig=/etc/kubernetes/scheduler.conf
+          - --bind-address=127.0.0.1
+          - --kubeconfig=/etc/kubernetes/scheduler.conf
+          - --leader-elect=true
+          image: registry.k8s.io/kube-scheduler:v1.37.1
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            failureThreshold: 8
+            httpGet:
+              host: 127.0.0.1
+              path: /livez
+              port: probe-port
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 15
+          name: kube-scheduler
+          ports:
+          - containerPort: 10259
+            name: probe-port
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              host: 127.0.0.1
+              path: /readyz
+              port: probe-port
+              scheme: HTTP
+            initialDelaySeconds: 0
+            periodSeconds: 1
+            timeoutSeconds: 15
+          startupProbe:
+            failureThreshold: 24
+            httpGet:
+              host: 127.0.0.1
+              path: /livez
+              port: probe-port
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 15
+          volumeMounts:
+          - mountPath: /etc/kubernetes/scheduler.conf
+            name: kubeconfig
+            readOnly: true
+        hostNetwork: true
+        priorityClassName: system-node-critical
+        volumes:
+        - hostPath:
+            path: /etc/kubernetes/scheduler.conf
+            type: FileOrCreate
+          name: kubeconfig
+    why: 'The port is now right, but the probes were switched to HTTP; 10259 only serves HTTPS, so they keep failing.'
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        labels:
+          component: kube-scheduler
+          tier: control-plane
+        name: kube-scheduler
+        namespace: kube-system
+      spec:
+        containers:
+        - command:
+          - kube-scheduler
+          - --authentication-kubeconfig=/etc/kubernetes/scheduler.conf
+          - --authorization-kubeconfig=/etc/kubernetes/scheduler.conf
+          - --bind-address=0.0.0.0
+          - --kubeconfig=/etc/kubernetes/scheduler.conf
+          - --leader-elect=true
+          image: registry.k8s.io/kube-scheduler:v1.37.1
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            failureThreshold: 8
+            httpGet:
+              host: 127.0.0.1
+              path: /livez
+              port: probe-port
+              scheme: HTTPS
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 15
+          name: kube-scheduler
+          ports:
+          - containerPort: 10251
+            name: probe-port
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              host: 127.0.0.1
+              path: /readyz
+              port: probe-port
+              scheme: HTTPS
+            initialDelaySeconds: 0
+            periodSeconds: 1
+            timeoutSeconds: 15
+          startupProbe:
+            failureThreshold: 24
+            httpGet:
+              host: 127.0.0.1
+              path: /livez
+              port: probe-port
+              scheme: HTTPS
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 15
+          volumeMounts:
+          - mountPath: /etc/kubernetes/scheduler.conf
+            name: kubeconfig
+            readOnly: true
+        hostNetwork: true
+        priorityClassName: system-node-critical
+        volumes:
+        - hostPath:
+            path: /etc/kubernetes/scheduler.conf
+            type: FileOrCreate
+          name: kubeconfig
+    why: 'Changing the bind address does not open port 10251; the probes still target a port nothing listens on, and the scheduler is now exposed on every interface.'
+explanation:
+  correct:
+    en: 'The probes use the named port `probe-port`, which the manifest maps to 10251, the old insecure scheduler port that no longer exists. kube-scheduler serves `/livez` and `/readyz` over HTTPS on 10259, so set `containerPort: 10259`. The startup probe fails 24 times at 10-second intervals, then the kubelet restarts the container: that is the restart every few minutes.'
+references:
+- title: Kubernetes API health endpoints
+  url: https://kubernetes.io/docs/reference/using-api/health-checks/
+- title: Implementation details
+  url: https://kubernetes.io/docs/reference/setup-tools/kubeadm/implementation-details/

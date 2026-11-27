@@ -1,0 +1,183 @@
+id: cka-5c-expose-headless-cluster-ip-none
+objective: "5.3.1"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    Deployment `cache` in namespace `shop` (manifest in `cache.yaml`) runs Redis Pods labelled `app.kubernetes.io/name=cache` that listen on port 6379. The client library does its own load balancing, so DNS must return the IP of every Pod instead of a single virtual IP.
+
+    Create a headless Service named `cache` for this Deployment on port 6379. Type the single command you would run.
+body:
+  mode: object
+  namespace: default
+  files:
+  - name: cache.yaml
+    content: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: cache
+        namespace: shop
+        labels:
+          app.kubernetes.io/name: cache
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app.kubernetes.io/name: cache
+        template:
+          metadata:
+            labels:
+              app.kubernetes.io/name: cache
+          spec:
+            containers:
+            - name: redis
+              image: redis:7.4
+              ports:
+              - containerPort: 6379
+answer:
+  checks:
+  - id: kind
+    label: The object is a Service
+    path: kind
+    op: equals
+    value: Service
+  - id: name
+    label: It is named cache
+    path: metadata.name
+    op: equals
+    value: cache
+  - id: namespace
+    label: It is created in namespace shop
+    path: metadata.namespace
+    op: equals
+    value: shop
+  - id: headless
+    label: It is headless (clusterIP None)
+    path: spec.clusterIP
+    op: equals
+    value: None
+  - id: port
+    label: It serves port 6379
+    path: spec.ports[0].port
+    op: equals
+    value: 6379
+  - id: target-port
+    label: It forwards to port 6379 of the Pods
+    path: spec.ports[0].targetPort
+    op: equals
+    value: 6379
+  - id: selector
+    label: It selects the Pods labelled app.kubernetes.io/name=cache
+    path: spec.selector
+    op: subset
+    value: {app.kubernetes.io/name: cache}
+  solution:
+  - command: kubectl expose deployment cache --port=6379 --cluster-ip=None -n shop
+    output: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        labels:
+          app.kubernetes.io/name: cache
+        name: cache
+        namespace: shop
+      spec:
+        clusterIP: None
+        ports:
+        - port: 6379
+          protocol: TCP
+          targetPort: 6379
+        selector:
+          app.kubernetes.io/name: cache
+      status:
+        loadBalancer: {}
+  - command: k -n shop expose deploy/cache --cluster-ip None --port 6379 --target-port 6379 --dry-run=client -o yaml
+    output: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        labels:
+          app.kubernetes.io/name: cache
+        name: cache
+        namespace: shop
+      spec:
+        clusterIP: None
+        ports:
+        - port: 6379
+          protocol: TCP
+          targetPort: 6379
+        selector:
+          app.kubernetes.io/name: cache
+      status:
+        loadBalancer: {}
+  negatives:
+  - command: kubectl expose deployment cache --port=6379 -n shop
+    why: Without --cluster-ip=None the Service gets a virtual IP and DNS returns that single address.
+    output: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        labels:
+          app.kubernetes.io/name: cache
+        name: cache
+        namespace: shop
+      spec:
+        ports:
+        - port: 6379
+          protocol: TCP
+          targetPort: 6379
+        selector:
+          app.kubernetes.io/name: cache
+      status:
+        loadBalancer: {}
+  - command: kubectl create service clusterip cache --clusterip=None --tcp=6379:6379 -n shop
+    why: create service sets the selector app=cache, which does not match the Pods labelled app.kubernetes.io/name=cache.
+    output: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        labels:
+          app: cache
+        name: cache
+        namespace: shop
+      spec:
+        clusterIP: None
+        ports:
+        - name: 6379-6379
+          port: 6379
+          protocol: TCP
+          targetPort: 6379
+        selector:
+          app: cache
+        type: ClusterIP
+      status:
+        loadBalancer: {}
+  - command: kubectl expose deployment cache --port=6379 --cluster-ip=None
+    why: Without -n the Service is created in the context namespace, default.
+    output: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        labels:
+          app.kubernetes.io/name: cache
+        name: cache
+      spec:
+        clusterIP: None
+        ports:
+        - port: 6379
+          protocol: TCP
+          targetPort: 6379
+        selector:
+          app.kubernetes.io/name: cache
+      status:
+        loadBalancer: {}
+explanation:
+  correct:
+    en: '`kubectl expose deployment cache --port=6379 --cluster-ip=None -n shop` copies the Deployment selector (`app.kubernetes.io/name: cache`) into the Service and sets `clusterIP: None`. A headless Service gets no virtual IP and kube-proxy ignores it; its DNS name returns the IPs of the ready Pods. `kubectl create service clusterip` would only work here after editing its default selector `app: <name>`.'
+references:
+- title: kubectl expose
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_expose/
+- title: Service
+  url: https://kubernetes.io/docs/concepts/services-networking/service/

@@ -1,0 +1,148 @@
+id: ckad-3b-grpc-probes
+objective: "3.2.1"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    The inventory server implements the gRPC Health Checking Protocol on port 9090 (plaintext). Write the manifest of a Pod named `inventory` in namespace `shop` with one container named `server` running `registry.example.com/inventory-grpc:5.0`, declaring container port 9090 with the name `grpc`.
+
+    - Readiness: a gRPC health check on port 9090 for the service name `inventory`.
+    - Liveness: a gRPC health check on port 9090 for the overall server health (no service name).
+body:
+  starter: |
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: inventory
+      namespace: shop
+    spec:
+      containers:
+      - name: server
+        image: registry.example.com/inventory-grpc:5.0
+answer:
+  checks:
+  - id: pod
+    label: A Pod named inventory in namespace shop
+    path: metadata
+    op: subset
+    value: {name: inventory, namespace: shop}
+  - id: image
+    label: Container server runs registry.example.com/inventory-grpc:5.0
+    path: spec.containers[name=server].image
+    op: equals
+    value: registry.example.com/inventory-grpc:5.0
+  - id: port
+    label: Container port 9090 is named grpc
+    path: spec.containers[name=server].ports[name=grpc].containerPort
+    op: equals
+    value: 9090
+  - id: readiness-port
+    label: The readiness probe is a gRPC check on port 9090
+    path: spec.containers[name=server].readinessProbe.grpc.port
+    op: equals
+    value: 9090
+  - id: readiness-service
+    label: The readiness probe checks the service inventory
+    path: spec.containers[name=server].readinessProbe.grpc.service
+    op: equals
+    value: inventory
+  - id: liveness-port
+    label: The liveness probe is a gRPC check on port 9090
+    path: spec.containers[name=server].livenessProbe.grpc.port
+    op: equals
+    value: 9090
+  - id: liveness-service
+    label: The liveness probe sets no service name
+    path: spec.containers[name=server].livenessProbe.grpc.service
+    op: absent
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: inventory
+        namespace: shop
+      spec:
+        containers:
+        - name: server
+          image: registry.example.com/inventory-grpc:5.0
+          ports:
+          - name: grpc
+            containerPort: 9090
+          readinessProbe:
+            grpc:
+              port: 9090
+              service: inventory
+          livenessProbe:
+            grpc:
+              port: 9090
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: inventory
+        namespace: shop
+      spec:
+        containers:
+        - name: server
+          image: registry.example.com/inventory-grpc:5.0
+          ports:
+          - name: grpc
+            containerPort: 9090
+          readinessProbe:
+            grpc:
+              port: grpc
+              service: inventory
+          livenessProbe:
+            grpc:
+              port: grpc
+    why: gRPC probes do not support named ports; grpc.port must be the port number.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: inventory
+        namespace: shop
+      spec:
+        containers:
+        - name: server
+          image: registry.example.com/inventory-grpc:5.0
+          ports:
+          - name: grpc
+            containerPort: 9090
+          readinessProbe:
+            tcpSocket:
+              port: 9090
+          livenessProbe:
+            tcpSocket:
+              port: 9090
+    why: A tcpSocket probe only checks that the port accepts connections; it never calls the gRPC health service.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: inventory
+        namespace: shop
+      spec:
+        containers:
+        - name: server
+          image: registry.example.com/inventory-grpc:5.0
+          ports:
+          - name: grpc
+            containerPort: 9090
+          readinessProbe:
+            grpc:
+              port: 9090
+          livenessProbe:
+            grpc:
+              port: 9090
+              service: inventory
+    why: The service names are swapped; readiness must check the inventory service and liveness the whole server.
+explanation:
+  correct:
+    en: 'The `grpc` probe handler (stable since v1.27) sends a gRPC HealthCheckRequest to `grpc.port`; the optional `grpc.service` puts a service name in the request, and leaving it out checks the overall server health. Unlike HTTP and TCP probes, gRPC probes do not accept a named port. Probes connect in plaintext by default.'
+references:
+- title: Configure Liveness, Readiness and Startup Probes
+  url: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/

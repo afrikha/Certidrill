@@ -1,0 +1,1242 @@
+chapter: 11-storage
+questions:
+  # ------------------------------------------------------------------ 1
+  - id: cka-qz-11-01
+    objective: "1.1.1"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        You create a StorageClass from this manifest:
+
+        ```yaml
+        apiVersion: storage.k8s.io/v1
+        kind: StorageClass
+        metadata:
+          name: bulk
+        provisioner: csi.example.com
+        parameters:
+          type: hdd
+        ```
+
+        Which reclaim policy and which volume binding mode does the class use?
+    body:
+      options:
+        - { id: a, text: { en: "`reclaimPolicy: Retain` and `volumeBindingMode: Immediate`" } }
+        - { id: b, text: { en: "`reclaimPolicy: Delete` and `volumeBindingMode: WaitForFirstConsumer`" } }
+        - { id: c, text: { en: "`reclaimPolicy: Delete` and `volumeBindingMode: Immediate`" } }
+        - { id: d, text: { en: "`reclaimPolicy: Retain` and `volumeBindingMode: WaitForFirstConsumer`" } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          A StorageClass created without `reclaimPolicy` defaults to `Delete`, and without `volumeBindingMode` it uses `Immediate`. The volumes this class provisions are therefore deleted with their claim, and they are bound or provisioned as soon as the claim exists, before any Pod is scheduled.
+      options:
+        a: { en: "`Retain` is the default of PersistentVolumes created by hand, not of a StorageClass: a class without `reclaimPolicy` gives its volumes `Delete`." }
+        b: { en: "`Delete` is right, but `WaitForFirstConsumer` must be set explicitly; an unset binding mode means `Immediate`." }
+        d: { en: "Neither value is a default: both `Retain` and `WaitForFirstConsumer` have to be written in the class." }
+    references:
+      - title: Storage Classes
+        url: https://kubernetes.io/docs/concepts/storage/storage-classes/
+
+  # ------------------------------------------------------------------ 2
+  - id: cka-qz-11-02
+    objective: "1.2.1"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        In namespace `shop`, the claim `cache` is `Bound` with the access mode `ReadWriteOnce`. A Deployment with 2 replicas mounts it read-write, and the scheduler places both Pods on the same node, `worker-1`.
+
+        What happens?
+    body:
+      options:
+        - { id: a, text: { en: "The second Pod stays `Pending` until the first one is deleted, because the volume accepts one Pod." } }
+        - { id: b, text: { en: "Both Pods start, and both of them can read and write the volume." } }
+        - { id: c, text: { en: "The second Pod starts, but the kubelet mounts the volume read-only in it." } }
+        - { id: d, text: { en: "The second Pod gets a new volume, because the claim is already in use." } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          `ReadWriteOnce` limits the volume to a single **node**, not to a single Pod: several Pods running on that node can read and write it at the same time. Only `ReadWriteOncePod` restricts a volume to one Pod in the whole cluster.
+      options:
+        a: { en: "This is the behaviour of `ReadWriteOncePod`, which allows a single Pod in the cluster; `ReadWriteOnce` allows every Pod of the node." }
+        c: { en: "Access modes are used to match claims and volumes; the kubelet doesn't switch a second Pod to read-only." }
+        d: { en: "A Pod uses the claim it names; it never gets another volume because the claim is shared." }
+    references:
+      - title: Persistent Volumes
+        url: https://kubernetes.io/docs/concepts/storage/persistent-volumes/
+
+  # ------------------------------------------------------------------ 3
+  - id: cka-qz-11-03
+    objective: "1.3.1"
+    difficulty: 2
+    status: draft
+    type: multi
+    stem:
+      en: |
+        The cluster has a default StorageClass named `standard`. The following PersistentVolume is `Available`:
+
+        ```yaml
+        apiVersion: v1
+        kind: PersistentVolume
+        metadata:
+          name: pv-gold
+          labels:
+            tier: gold
+        spec:
+          capacity:
+            storage: 10Gi
+          accessModes: ["ReadWriteMany"]
+          storageClassName: manual
+          nfs:
+            server: nfs.example.com
+            path: /exports/gold
+        ```
+
+        Which two claims, created in namespace `shop`, can bind to `pv-gold`?
+
+        NOTE: Each correct selection is worth one point.
+    body:
+      choose: 2
+      options:
+        - { id: a, text: { en: "Requests 5Gi, `ReadWriteMany`, `storageClassName: manual`." } }
+        - { id: b, text: { en: "Requests 20Gi, `ReadWriteMany`, `storageClassName: manual`." } }
+        - { id: c, text: { en: "Requests 10Gi, `ReadWriteOnce`, `storageClassName: manual`." } }
+        - { id: d, text: { en: "Requests 10Gi, `ReadWriteMany`, no `storageClassName`." } }
+        - { id: e, text: { en: "Requests 10Gi, `ReadWriteMany`, `storageClassName: manual`, selector `matchLabels: {tier: gold}`." } }
+        - { id: f, text: { en: "Requests 10Gi, `ReadWriteMany`, `storageClassName: manual`, `volumeMode: Block`." } }
+    answer: { optionIds: [a, e] }
+    explanation:
+      correct:
+        en: |
+          A claim binds to a PV when the PV's capacity is at least the request, the PV offers every access mode the claim asks for, and the class, the volume mode and any selector match. A 5Gi request fits the 10Gi PV (the claim then shows 10Gi), and the selector `tier: gold` matches the PV's label.
+      options:
+        b: { en: "The PV holds 10Gi, less than the 20Gi requested: a PV must be at least as large as the request." }
+        c: { en: "The PV offers only `ReadWriteMany`; a claim that asks for `ReadWriteOnce` needs a PV that lists that mode." }
+        d: { en: "Without `storageClassName`, the default class `standard` is written into the claim, which no longer matches the class `manual`." }
+        f: { en: "The PV has no `volumeMode`, so it is `Filesystem`; a `Block` claim only binds to a `Block` PV." }
+    references:
+      - title: Persistent Volumes
+        url: https://kubernetes.io/docs/concepts/storage/persistent-volumes/
+
+  # ------------------------------------------------------------------ 4
+  - id: cka-qz-11-04
+    objective: "1.2.2"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        An administrator wrote the PersistentVolume `pv-audit` by hand, with no `persistentVolumeReclaimPolicy` field. It is `Bound` to the claim `audit` in namespace `compliance`.
+
+        A developer deletes the claim, then immediately creates a new claim `audit` in `compliance` with exactly the same spec. No other PersistentVolume matches that spec.
+
+        What is the result?
+    body:
+      options:
+        - { id: a, text: { en: "The new claim binds to `pv-audit`, because it has the name and namespace recorded in the PV." } }
+        - { id: b, text: { en: "`pv-audit` and its data are deleted with the first claim, and the new claim gets a new volume." } }
+        - { id: c, text: { en: "`pv-audit` is scrubbed and becomes `Available` again, and then the new claim binds to it." } }
+        - { id: d, text: { en: "`pv-audit` stays `Released` with its data, and the new claim stays `Pending` instead of binding to it." } }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          A PersistentVolume created by hand defaults to the `Retain` policy. When its claim is deleted, the PV stays with its data in the `Released` phase, and its `claimRef` still points to the deleted claim, so no new claim can bind to it, even one with the same name. An administrator must remove `spec.claimRef` to make the PV `Available` again.
+      options:
+        a: { en: "The PV still refers to the deleted claim object, not just to a name: a `Released` PV isn't available to a new claim until its `claimRef` is removed." }
+        b: { en: "`Delete` is the default of dynamically provisioned PVs; a PV written by hand defaults to `Retain`, so nothing is deleted." }
+        c: { en: "Scrubbing is the deprecated `Recycle` policy, which must be set explicitly; it is never the default." }
+    references:
+      - title: Persistent Volumes
+        url: https://kubernetes.io/docs/concepts/storage/persistent-volumes/
+      - title: PersistentVolume
+        url: https://kubernetes.io/docs/reference/kubernetes-api/config-and-storage-resources/persistent-volume-v1/
+
+  # ------------------------------------------------------------------ 5
+  - id: cka-qz-11-05
+    objective: "1.2.3"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        The nodes `worker-1`, `worker-2` and `worker-3` each have an SSD at `/mnt/disks/ssd1`. You create one `local` PersistentVolume per node, each with a `nodeAffinity` on the node's hostname. The database Pods that will use the claims have a `nodeSelector` that only `worker-2` and `worker-3` match.
+
+        A claim must only bind to a PV on a node where its Pod can run. Which class setup should the PVs and the claims use?
+    body:
+      options:
+        - { id: a, text: { en: "A StorageClass with `provisioner: kubernetes.io/no-provisioner` and `volumeBindingMode: Immediate`." } }
+        - { id: b, text: { en: "A StorageClass with `volumeBindingMode: WaitForFirstConsumer` and no `provisioner`, since nothing is provisioned." } }
+        - { id: c, text: { en: "No StorageClass: `storageClassName: \"\"` on the PVs and on the claims, so that they bind statically." } }
+        - { id: d, text: { en: "A StorageClass with `provisioner: kubernetes.io/no-provisioner` and `volumeBindingMode: WaitForFirstConsumer`." } }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          Local volumes have no dynamic provisioning, so their class uses `kubernetes.io/no-provisioner`. `WaitForFirstConsumer` delays binding until a Pod that uses the claim is scheduled; the binding then takes the Pod's `nodeSelector` into account and picks a PV whose `nodeAffinity` matches the chosen node.
+      options:
+        a: { en: "`Immediate` binds the claim as soon as it is created, without knowing the Pod: it can pick the PV of `worker-1`, and the Pod can then never be scheduled." }
+        b: { en: "`provisioner` is a required field of a StorageClass; for local volumes it is set to `kubernetes.io/no-provisioner`." }
+        c: { en: "A claim with no class binds immediately, like `Immediate`; only a class with `WaitForFirstConsumer` waits for the Pod." }
+    references:
+      - title: Storage Classes
+        url: https://kubernetes.io/docs/concepts/storage/storage-classes/
+      - title: Volume Types
+        url: https://kubernetes.io/docs/reference/storage/volume-types/
+
+  # ------------------------------------------------------------------ 6
+  - id: cka-qz-11-06
+    objective: "1.1.1"
+    difficulty: 3
+    status: draft
+    type: command
+    stem:
+      en: |
+        The StorageClass `backup-hdd` was created with the default reclaim policy. The backup team needs the volumes it provisions from now on to keep their data when their claim is deleted. You saved the class to `backup-hdd.yaml` and edited the file (it is in the working directory), but `kubectl apply -f backup-hdd.yaml` is refused: the API server reports that `reclaimPolicy` can't be updated.
+
+        Volumes already provisioned by the class may keep their current policy, and no claim is created while you make the change. Make the cluster use the edited file with a single command. Type the command you would run.
+    body:
+      mode: invocation
+      namespace: default
+      files:
+        - name: backup-hdd.yaml
+          content: |
+            apiVersion: storage.k8s.io/v1
+            kind: StorageClass
+            metadata:
+              name: backup-hdd
+            provisioner: csi.example.com
+            parameters:
+              tier: cold
+            reclaimPolicy: Retain
+            allowVolumeExpansion: true
+    answer:
+      checks:
+        - id: verb
+          label: Uses kubectl replace (or apply) to recreate the object
+          path: verb
+          op: oneOf
+          value: [replace, apply]
+        - id: force
+          label: Uses --force, so that the class is deleted and created again
+          path: flags.force
+          op: equals
+          value: true
+        - id: file
+          label: Reads backup-hdd.yaml
+          path: flags.filename
+          op: oneOf
+          value: [backup-hdd.yaml, ./backup-hdd.yaml]
+      solution:
+        - command: kubectl replace --force -f backup-hdd.yaml
+        - command: k replace -f ./backup-hdd.yaml --force
+        - command: kubectl apply --force -f backup-hdd.yaml
+        - command: kubectl replace --force --grace-period=0 --filename=backup-hdd.yaml
+      negatives:
+        - command: kubectl replace -f backup-hdd.yaml
+          why: Without --force, replace sends an update, and the API server refuses it for the same reason as apply.
+        - command: kubectl apply -f backup-hdd.yaml --server-side
+          why: Server-side apply is still an update of the existing class; the immutable reclaimPolicy is refused again.
+        - command: kubectl delete -f backup-hdd.yaml
+          why: It only deletes the class; the edited class is never created, and new claims of backup-hdd would stay Pending.
+        - command: |-
+            kubectl patch storageclass backup-hdd -p '{"reclaimPolicy":"Retain"}'
+          why: A patch is an update too; the reclaim policy of a StorageClass can only be set when the class is created.
+    explanation:
+      correct:
+        en: |
+          The provisioner, parameters, reclaim policy and binding mode of a StorageClass are set when it is created, so any update of `reclaimPolicy` is refused. `kubectl replace --force -f backup-hdd.yaml` deletes the class and creates it again from the file in one command; `kubectl apply --force` falls back to the same delete-and-create when the update is refused. PVs already provisioned keep the policy they were created with, which the task allows.
+    references:
+      - title: kubectl replace
+        url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_replace/
+      - title: Storage Classes
+        url: https://kubernetes.io/docs/concepts/storage/storage-classes/
+
+  # ------------------------------------------------------------------ 7
+  - id: cka-qz-11-07
+    objective: "1.2.2"
+    difficulty: 3
+    status: draft
+    type: command
+    stem:
+      en: |
+        In namespace `shop`, the `report` application is retired and its exported data is no longer needed. An hour ago you ran `kubectl delete pvc exports -n shop`, but `kubectl describe pvc exports -n shop` still shows:
+
+        ```text
+        Name:          exports
+        Namespace:     shop
+        StorageClass:  fast-ssd
+        Status:        Terminating (lasts 62m)
+        Volume:        pvc-0c4e9b7a-2f61-4d8e-b3a5-9e7d1c2f8a40
+        Finalizers:    [kubernetes.io/pvc-protection]
+        ...
+        Used By:       report-6f7c9d8b5-x2k4q
+        ```
+
+        This Pod belongs to the ReplicaSet `report-6f7c9d8b5`, which the Deployment `report` manages. Let the deletion of the claim complete safely and remove what is no longer needed, with a single command. Your context's namespace is `default`. Type the command you would run.
+    body:
+      mode: invocation
+      namespace: default
+    answer:
+      checks:
+        - id: verb
+          label: Deletes an object
+          path: verb
+          op: equals
+          value: delete
+        - id: resource
+          label: Deletes the Deployment, which owns the Pod through its ReplicaSet
+          path: resource
+          op: equals
+          value: deployment
+        - id: name
+          label: Names the Deployment report
+          path: names
+          op: contains
+          value: report
+        - id: namespace
+          label: Runs in namespace shop
+          path: flags.namespace
+          op: equals
+          value: shop
+      solution:
+        - command: kubectl delete deployment report -n shop
+        - command: k -n shop delete deploy/report
+        - command: kubectl delete deployments.apps report --namespace=shop
+      negatives:
+        - command: kubectl delete pod report-6f7c9d8b5-x2k4q -n shop
+          why: The ReplicaSet creates a replacement Pod at once; the retired Deployment stays, with a Pod that can never use the claim.
+        - command: kubectl delete rs report-6f7c9d8b5 -n shop
+          why: The Deployment recreates its ReplicaSet, which recreates a Pod that references the claim.
+        - command: kubectl scale deployment report --replicas=0 -n shop
+          why: The claim can then be deleted, but the retired Deployment and its ReplicaSet stay in the cluster.
+        - command: |-
+            kubectl patch pvc exports -n shop -p '{"metadata":{"finalizers":null}}'
+          why: Removing the pvc-protection finalizer deletes the claim (and its Delete volume) while the Pod still uses it, and leaves the application running.
+    explanation:
+      correct:
+        en: |
+          The `kubernetes.io/pvc-protection` finalizer keeps a claim `Terminating` as long as a Pod uses it, and `Used By` names that Pod. Deleting the Pod alone doesn't help, because its ReplicaSet, managed by the Deployment, recreates it: `kubectl delete deployment report -n shop` removes the whole application. Once its Pod is gone, the claim is removed and, under the class policy, its volume and data are deleted too.
+    references:
+      - title: Persistent Volumes
+        url: https://kubernetes.io/docs/concepts/storage/persistent-volumes/
+
+  # ------------------------------------------------------------------ 8
+  - id: cka-qz-11-08
+    objective: "1.2.3"
+    difficulty: 3
+    status: draft
+    type: manifest
+    stem:
+      en: |
+        In namespace `monitoring`, write a DaemonSet `node-agent` whose Pods carry the label `app: node-agent` and run one container `agent` with the image `registry.example.com/node-agent:1.4`. The agent uses two node paths:
+
+        - The container runtime socket `/run/containerd/containerd.sock`, through a volume named `runtime-sock` mounted at the same path in the container. On a node where that path is not a UNIX socket, the Pod must fail to start.
+        - Its database file `agent.db`, which it keeps in the node directory `/var/lib/node-agent`. That directory doesn't exist yet on new nodes and must then be created automatically. Use a volume named `state` mounted at `/var/lib/node-agent`.
+
+        The file must contain the DaemonSet only.
+    body:
+      starter: ""
+    answer:
+      checks:
+        - id: kind
+          label: A DaemonSet named node-agent in namespace monitoring
+          path: metadata
+          op: subset
+          value: { name: node-agent, namespace: monitoring }
+        - id: is-ds
+          label: The object is a DaemonSet
+          path: kind
+          op: equals
+          value: DaemonSet
+        - id: selector
+          label: The selector matches app=node-agent, the Pod label
+          path: spec.selector.matchLabels
+          op: equals
+          value: { app: node-agent }
+        - id: labels
+          label: Pods carry the label app=node-agent
+          path: spec.template.metadata.labels.app
+          op: equals
+          value: node-agent
+        - id: image
+          label: Container agent runs registry.example.com/node-agent:1.4
+          path: spec.template.spec.containers[name=agent].image
+          op: equals
+          value: registry.example.com/node-agent:1.4
+        - id: sock-path
+          label: Volume runtime-sock is the node path /run/containerd/containerd.sock
+          path: spec.template.spec.volumes[name=runtime-sock].hostPath.path
+          op: equals
+          value: /run/containerd/containerd.sock
+        - id: sock-type
+          label: Volume runtime-sock has type Socket
+          path: spec.template.spec.volumes[name=runtime-sock].hostPath.type
+          op: equals
+          value: Socket
+        - id: state-path
+          label: Volume state is the node directory /var/lib/node-agent
+          path: spec.template.spec.volumes[name=state].hostPath.path
+          op: oneOf
+          value: [/var/lib/node-agent, /var/lib/node-agent/]
+        - id: state-type
+          label: Volume state has type DirectoryOrCreate
+          path: spec.template.spec.volumes[name=state].hostPath.type
+          op: equals
+          value: DirectoryOrCreate
+        - id: sock-mount
+          label: runtime-sock is mounted at /run/containerd/containerd.sock
+          path: spec.template.spec.containers[name=agent].volumeMounts[name=runtime-sock].mountPath
+          op: equals
+          value: /run/containerd/containerd.sock
+        - id: state-mount
+          label: state is mounted at /var/lib/node-agent
+          path: spec.template.spec.containers[name=agent].volumeMounts[name=state].mountPath
+          op: oneOf
+          value: [/var/lib/node-agent, /var/lib/node-agent/]
+      solution:
+        - manifest: |
+            apiVersion: apps/v1
+            kind: DaemonSet
+            metadata:
+              name: node-agent
+              namespace: monitoring
+            spec:
+              selector:
+                matchLabels:
+                  app: node-agent
+              template:
+                metadata:
+                  labels:
+                    app: node-agent
+                spec:
+                  containers:
+                  - name: agent
+                    image: registry.example.com/node-agent:1.4
+                    volumeMounts:
+                    - name: runtime-sock
+                      mountPath: /run/containerd/containerd.sock
+                    - name: state
+                      mountPath: /var/lib/node-agent
+                  volumes:
+                  - name: runtime-sock
+                    hostPath:
+                      path: /run/containerd/containerd.sock
+                      type: Socket
+                  - name: state
+                    hostPath:
+                      path: /var/lib/node-agent
+                      type: DirectoryOrCreate
+        - manifest: |
+            apiVersion: apps/v1
+            kind: DaemonSet
+            metadata:
+              namespace: monitoring
+              name: node-agent
+              labels:
+                app: node-agent
+            spec:
+              selector:
+                matchLabels: {app: node-agent}
+              template:
+                metadata:
+                  labels: {app: node-agent}
+                spec:
+                  volumes:
+                  - name: state
+                    hostPath: {path: /var/lib/node-agent/, type: DirectoryOrCreate}
+                  - name: runtime-sock
+                    hostPath: {path: /run/containerd/containerd.sock, type: Socket}
+                  containers:
+                  - name: agent
+                    image: registry.example.com/node-agent:1.4
+                    volumeMounts:
+                    - {name: state, mountPath: /var/lib/node-agent}
+                    - {name: runtime-sock, mountPath: /run/containerd/containerd.sock}
+      negatives:
+        - manifest: |
+            apiVersion: apps/v1
+            kind: DaemonSet
+            metadata:
+              name: node-agent
+              namespace: monitoring
+            spec:
+              selector:
+                matchLabels:
+                  app: node-agent
+              template:
+                metadata:
+                  labels:
+                    app: node-agent
+                spec:
+                  containers:
+                  - name: agent
+                    image: registry.example.com/node-agent:1.4
+                    volumeMounts:
+                    - name: runtime-sock
+                      mountPath: /run/containerd/containerd.sock
+                    - name: state
+                      mountPath: /var/lib/node-agent/agent.db
+                  volumes:
+                  - name: runtime-sock
+                    hostPath:
+                      path: /run/containerd/containerd.sock
+                      type: Socket
+                  - name: state
+                    hostPath:
+                      path: /var/lib/node-agent/agent.db
+                      type: FileOrCreate
+          why: FileOrCreate creates the file but not its parent directory; on a new node /var/lib/node-agent is missing and the Pod fails to start.
+        - manifest: |
+            apiVersion: apps/v1
+            kind: DaemonSet
+            metadata:
+              name: node-agent
+              namespace: monitoring
+            spec:
+              selector:
+                matchLabels:
+                  app: node-agent
+              template:
+                metadata:
+                  labels:
+                    app: node-agent
+                spec:
+                  containers:
+                  - name: agent
+                    image: registry.example.com/node-agent:1.4
+                    volumeMounts:
+                    - name: runtime-sock
+                      mountPath: /run/containerd/containerd.sock
+                    - name: state
+                      mountPath: /var/lib/node-agent
+                  volumes:
+                  - name: runtime-sock
+                    hostPath:
+                      path: /run/containerd/containerd.sock
+                  - name: state
+                    hostPath:
+                      path: /var/lib/node-agent
+                      type: DirectoryOrCreate
+          why: Without a type (the empty default), the kubelet checks nothing, so the Pod also starts on a node where the socket is missing.
+        - manifest: |
+            apiVersion: apps/v1
+            kind: DaemonSet
+            metadata:
+              name: node-agent
+              namespace: monitoring
+            spec:
+              selector:
+                matchLabels:
+                  app: node-agent
+              template:
+                metadata:
+                  labels:
+                    app: node-agent
+                spec:
+                  containers:
+                  - name: agent
+                    image: registry.example.com/node-agent:1.4
+                    volumeMounts:
+                    - name: runtime-sock
+                      mountPath: /run/containerd/containerd.sock
+                    - name: state
+                      mountPath: /var/lib/node-agent
+                  volumes:
+                  - name: runtime-sock
+                    hostPath:
+                      path: /run/containerd/containerd.sock
+                      type: File
+                  - name: state
+                    hostPath:
+                      path: /var/lib/node-agent
+                      type: Directory
+          why: A socket is not a regular file, so type File refuses the real socket; type Directory requires the directory to exist instead of creating it.
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: node-agent
+              namespace: monitoring
+            spec:
+              selector:
+                matchLabels:
+                  app: node-agent
+              template:
+                metadata:
+                  labels:
+                    app: node-agent
+                spec:
+                  containers:
+                  - name: agent
+                    image: registry.example.com/node-agent:1.4
+                    volumeMounts:
+                    - name: runtime-sock
+                      mountPath: /run/containerd/containerd.sock
+                    - name: state
+                      mountPath: /var/lib/node-agent
+                  volumes:
+                  - name: runtime-sock
+                    hostPath:
+                      path: /run/containerd/containerd.sock
+                      type: Socket
+                  - name: state
+                    hostPath:
+                      path: /var/lib/node-agent
+                      type: DirectoryOrCreate
+          why: A Deployment runs one replica somewhere in the cluster; a node agent needs a DaemonSet to get one Pod on every node.
+    explanation:
+      correct:
+        en: |
+          `hostPath.type: Socket` makes the kubelet check that a UNIX socket exists at the path before it starts the Pod. For the database, mount the **directory** with `DirectoryOrCreate`, which creates `/var/lib/node-agent` (mode 0755) when it is missing; `FileOrCreate` on `agent.db` would not create the parent directory, and the Pod would fail on new nodes. A DaemonSet runs one copy of the agent on each node.
+    references:
+      - title: Volume Types
+        url: https://kubernetes.io/docs/reference/storage/volume-types/
+
+  # ------------------------------------------------------------------ 9
+  - id: cka-qz-11-09
+    objective: "1.1.2"
+    difficulty: 3
+    status: draft
+    type: manifest
+    stem:
+      en: |
+        The same file is applied in the staging and production clusters. In each, the default StorageClass is backed by an NFS CSI driver that supports `ReadWriteMany`, but it has a different name (`nfs-csi` in staging, `files-prod` in production).
+
+        In namespace `media`, write two documents:
+
+        - a PersistentVolumeClaim `thumbnails` of 20Gi, provisioned by whichever class is the default of the cluster where the file is applied;
+        - a Deployment `thumbnailer` with 3 replicas, Pod label `app: thumbnailer`, one container `thumbnailer` running `registry.example.com/thumbnailer:2.0`. Its replicas run on different nodes and all write to the claim, through a Pod volume named `thumbnails` mounted at `/data/thumbnails`.
+    body:
+      starter: ""
+    answer:
+      checks:
+        - id: pvc-meta
+          label: The claim thumbnails in namespace media
+          select: { kind: PersistentVolumeClaim, name: thumbnails }
+          path: metadata.namespace
+          op: equals
+          value: media
+        - id: pvc-class
+          label: The claim names no class, so the default class is used
+          select: { kind: PersistentVolumeClaim, name: thumbnails }
+          path: spec.storageClassName
+          op: absent
+        - id: pvc-mode
+          label: The claim asks for ReadWriteMany
+          select: { kind: PersistentVolumeClaim, name: thumbnails }
+          path: spec.accessModes
+          op: contains
+          value: ReadWriteMany
+        - id: pvc-size
+          label: The claim requests 20Gi
+          select: { kind: PersistentVolumeClaim, name: thumbnails }
+          path: spec.resources.requests.storage
+          op: quantity
+          value: 20Gi
+        - id: deploy-meta
+          label: The Deployment thumbnailer in namespace media
+          select: { kind: Deployment, name: thumbnailer }
+          path: metadata.namespace
+          op: equals
+          value: media
+        - id: replicas
+          label: The Deployment has 3 replicas
+          select: { kind: Deployment, name: thumbnailer }
+          path: spec.replicas
+          op: equals
+          value: 3
+        - id: labels
+          label: Pods carry app=thumbnailer, matched by the selector
+          select: { kind: Deployment, name: thumbnailer }
+          path: spec
+          op: subset
+          value: { selector: { matchLabels: { app: thumbnailer } }, template: { metadata: { labels: { app: thumbnailer } } } }
+        - id: image
+          label: Container thumbnailer runs registry.example.com/thumbnailer:2.0
+          select: { kind: Deployment, name: thumbnailer }
+          path: spec.template.spec.containers[name=thumbnailer].image
+          op: equals
+          value: registry.example.com/thumbnailer:2.0
+        - id: volume
+          label: Pod volume thumbnails uses the claim thumbnails
+          select: { kind: Deployment, name: thumbnailer }
+          path: spec.template.spec.volumes[name=thumbnails].persistentVolumeClaim.claimName
+          op: equals
+          value: thumbnails
+        - id: mount
+          label: The volume is mounted at /data/thumbnails
+          select: { kind: Deployment, name: thumbnailer }
+          path: spec.template.spec.containers[name=thumbnailer].volumeMounts[name=thumbnails].mountPath
+          op: equals
+          value: /data/thumbnails
+        - id: writable
+          label: Nothing mounts the claim read-only
+          select: { kind: Deployment, name: thumbnailer }
+          path: spec.template.spec
+          op: matches
+          value: '^(?!.*"readOnly":true)'
+      solution:
+        - manifest: |
+            apiVersion: v1
+            kind: PersistentVolumeClaim
+            metadata:
+              name: thumbnails
+              namespace: media
+            spec:
+              accessModes: ["ReadWriteMany"]
+              resources:
+                requests:
+                  storage: 20Gi
+            ---
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: thumbnailer
+              namespace: media
+            spec:
+              replicas: 3
+              selector:
+                matchLabels:
+                  app: thumbnailer
+              template:
+                metadata:
+                  labels:
+                    app: thumbnailer
+                spec:
+                  containers:
+                  - name: thumbnailer
+                    image: registry.example.com/thumbnailer:2.0
+                    volumeMounts:
+                    - name: thumbnails
+                      mountPath: /data/thumbnails
+                  volumes:
+                  - name: thumbnails
+                    persistentVolumeClaim:
+                      claimName: thumbnails
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              namespace: media
+              name: thumbnailer
+              labels:
+                app: thumbnailer
+            spec:
+              replicas: 3
+              selector:
+                matchLabels: {app: thumbnailer}
+              template:
+                metadata:
+                  labels: {app: thumbnailer}
+                spec:
+                  volumes:
+                  - name: thumbnails
+                    persistentVolumeClaim: {claimName: thumbnails, readOnly: false}
+                  containers:
+                  - name: thumbnailer
+                    image: registry.example.com/thumbnailer:2.0
+                    volumeMounts:
+                    - {name: thumbnails, mountPath: /data/thumbnails}
+            ---
+            apiVersion: v1
+            kind: PersistentVolumeClaim
+            metadata:
+              namespace: media
+              name: thumbnails
+            spec:
+              accessModes:
+              - ReadWriteMany
+              volumeMode: Filesystem
+              resources:
+                requests:
+                  storage: 20480Mi
+      negatives:
+        - manifest: |
+            apiVersion: v1
+            kind: PersistentVolumeClaim
+            metadata:
+              name: thumbnails
+              namespace: media
+            spec:
+              storageClassName: ""
+              accessModes: ["ReadWriteMany"]
+              resources:
+                requests:
+                  storage: 20Gi
+            ---
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: thumbnailer
+              namespace: media
+            spec:
+              replicas: 3
+              selector:
+                matchLabels:
+                  app: thumbnailer
+              template:
+                metadata:
+                  labels:
+                    app: thumbnailer
+                spec:
+                  containers:
+                  - name: thumbnailer
+                    image: registry.example.com/thumbnailer:2.0
+                    volumeMounts:
+                    - name: thumbnails
+                      mountPath: /data/thumbnails
+                  volumes:
+                  - name: thumbnails
+                    persistentVolumeClaim:
+                      claimName: thumbnails
+          why: 'storageClassName: "" means no class: the claim only binds to a PV without a class and is never provisioned by the default class.'
+        - manifest: |
+            apiVersion: v1
+            kind: PersistentVolumeClaim
+            metadata:
+              name: thumbnails
+              namespace: media
+            spec:
+              accessModes: ["ReadWriteOnce"]
+              resources:
+                requests:
+                  storage: 20Gi
+            ---
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: thumbnailer
+              namespace: media
+            spec:
+              replicas: 3
+              selector:
+                matchLabels:
+                  app: thumbnailer
+              template:
+                metadata:
+                  labels:
+                    app: thumbnailer
+                spec:
+                  containers:
+                  - name: thumbnailer
+                    image: registry.example.com/thumbnailer:2.0
+                    volumeMounts:
+                    - name: thumbnails
+                      mountPath: /data/thumbnails
+                  volumes:
+                  - name: thumbnails
+                    persistentVolumeClaim:
+                      claimName: thumbnails
+          why: ReadWriteOnce allows one node only; replicas on other nodes can't mount the volume read-write.
+        - manifest: |
+            apiVersion: v1
+            kind: PersistentVolumeClaim
+            metadata:
+              name: thumbnails
+              namespace: media
+            spec:
+              storageClassName: nfs-csi
+              accessModes: ["ReadWriteMany"]
+              resources:
+                requests:
+                  storage: 20Gi
+            ---
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: thumbnailer
+              namespace: media
+            spec:
+              replicas: 3
+              selector:
+                matchLabels:
+                  app: thumbnailer
+              template:
+                metadata:
+                  labels:
+                    app: thumbnailer
+                spec:
+                  containers:
+                  - name: thumbnailer
+                    image: registry.example.com/thumbnailer:2.0
+                    volumeMounts:
+                    - name: thumbnails
+                      mountPath: /data/thumbnails
+                  volumes:
+                  - name: thumbnails
+                    persistentVolumeClaim:
+                      claimName: thumbnails
+          why: Naming nfs-csi works in staging only; in production that class doesn't exist and the claim stays Pending.
+        - manifest: |
+            apiVersion: v1
+            kind: PersistentVolumeClaim
+            metadata:
+              name: thumbnails
+              namespace: media
+            spec:
+              accessModes: ["ReadWriteMany"]
+              resources:
+                requests:
+                  storage: 20Gi
+            ---
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: thumbnailer
+              namespace: media
+            spec:
+              replicas: 3
+              selector:
+                matchLabels:
+                  app: thumbnailer
+              template:
+                metadata:
+                  labels:
+                    app: thumbnailer
+                spec:
+                  containers:
+                  - name: thumbnailer
+                    image: registry.example.com/thumbnailer:2.0
+                    volumeMounts:
+                    - name: thumbnails
+                      mountPath: /data/thumbnails
+                  volumes:
+                  - name: thumbnails
+                    persistentVolumeClaim:
+                      claimName: thumbnails
+                      readOnly: true
+          why: readOnly true on the Pod volume mounts the claim read-only, so the replicas can't write to it.
+    explanation:
+      correct:
+        en: |
+          A claim that **omits** `storageClassName` gets the cluster's default class written in, so the same file is provisioned by `nfs-csi` in staging and by `files-prod` in production; `storageClassName: ""` would mean "no class" and never provision. Replicas on different nodes that all write need `ReadWriteMany`, since `ReadWriteOnce` is limited to one node. The Deployment's Pod volume references the claim by `claimName`.
+    references:
+      - title: Persistent Volumes
+        url: https://kubernetes.io/docs/concepts/storage/persistent-volumes/
+      - title: Storage Classes
+        url: https://kubernetes.io/docs/concepts/storage/storage-classes/
+
+  # ------------------------------------------------------------------ 10
+  - id: cka-qz-11-10
+    objective: "1.3.2"
+    difficulty: 3
+    status: draft
+    type: manifest
+    stem:
+      en: |
+        In namespace `wiki`, the StatefulSet `docs` (manifest in the editor) was applied, and its Pod `docs-0` stayed `Pending`. `kubectl describe pvc pages-docs-0 -n wiki` showed:
+
+        ```text
+        Normal  FailedBinding  persistentvolume-controller  no persistent volumes available for this claim and no storage class is set
+        ```
+
+        `kubectl get sc` prints:
+
+        ```text
+        NAME         PROVISIONER           RECLAIMPOLICY   VOLUMEBINDINGMODE      ALLOWVOLUMEEXPANSION   AGE
+        fast-local   csi.example.com       Delete          WaitForFirstConsumer   true                   30d
+        nfs-shared   nfs.csi.example.com   Delete          Immediate              false                  30d
+        ```
+
+        The team also reports that, on the cluster where this manifest ran before, the pages nginx serves from `/usr/share/nginx/html` were lost every time a Pod was recreated.
+
+        You deleted the StatefulSet and its Pending claims. Correct the manifest so that each replica keeps its pages in its own claim from the class `fast-local`. The StorageClasses must not be changed, and the claims must keep their names (`pages-docs-0`, `pages-docs-1`).
+    body:
+      starter: |
+        apiVersion: apps/v1
+        kind: StatefulSet
+        metadata:
+          name: docs
+          namespace: wiki
+        spec:
+          serviceName: docs
+          replicas: 2
+          selector:
+            matchLabels:
+              app: docs
+          template:
+            metadata:
+              labels:
+                app: docs
+            spec:
+              containers:
+              - name: nginx
+                image: nginx:1.27
+                ports:
+                - containerPort: 80
+                volumeMounts:
+                - name: html
+                  mountPath: /usr/share/nginx/html
+              volumes:
+              - name: html
+                emptyDir: {}
+          volumeClaimTemplates:
+          - metadata:
+              name: pages
+            spec:
+              accessModes: ["ReadWriteOnce"]
+              resources:
+                requests:
+                  storage: 1Gi
+    answer:
+      checks:
+        - id: meta
+          label: The StatefulSet docs in namespace wiki
+          select: { kind: StatefulSet, name: docs }
+          path: metadata.namespace
+          op: equals
+          value: wiki
+        - id: template-name
+          label: The claim template is still named pages
+          select: { kind: StatefulSet, name: docs }
+          path: spec.volumeClaimTemplates[0].metadata.name
+          op: equals
+          value: pages
+        - id: class
+          label: The claim template uses the class fast-local
+          select: { kind: StatefulSet, name: docs }
+          path: spec.volumeClaimTemplates[0].spec.storageClassName
+          op: equals
+          value: fast-local
+        - id: mount
+          label: The claim template pages is mounted at /usr/share/nginx/html
+          select: { kind: StatefulSet, name: docs }
+          path: spec.template.spec.containers[name=nginx].volumeMounts[name=pages].mountPath
+          op: equals
+          value: /usr/share/nginx/html
+        - id: no-emptydir
+          label: The emptyDir volume html is no longer mounted
+          select: { kind: StatefulSet, name: docs }
+          path: spec.template.spec.containers[name=nginx].volumeMounts[name=html]
+          op: absent
+      solution:
+        - manifest: |
+            apiVersion: apps/v1
+            kind: StatefulSet
+            metadata:
+              name: docs
+              namespace: wiki
+            spec:
+              serviceName: docs
+              replicas: 2
+              selector:
+                matchLabels:
+                  app: docs
+              template:
+                metadata:
+                  labels:
+                    app: docs
+                spec:
+                  containers:
+                  - name: nginx
+                    image: nginx:1.27
+                    ports:
+                    - containerPort: 80
+                    volumeMounts:
+                    - name: pages
+                      mountPath: /usr/share/nginx/html
+              volumeClaimTemplates:
+              - metadata:
+                  name: pages
+                spec:
+                  accessModes: ["ReadWriteOnce"]
+                  storageClassName: fast-local
+                  resources:
+                    requests:
+                      storage: 1Gi
+        - manifest: |
+            apiVersion: apps/v1
+            kind: StatefulSet
+            metadata:
+              name: docs
+              namespace: wiki
+            spec:
+              serviceName: docs
+              replicas: 2
+              selector:
+                matchLabels:
+                  app: docs
+              template:
+                metadata:
+                  labels:
+                    app: docs
+                spec:
+                  containers:
+                  - name: nginx
+                    image: nginx:1.27
+                    ports:
+                    - containerPort: 80
+                    volumeMounts:
+                    - name: pages
+                      mountPath: /usr/share/nginx/html
+                  volumes:
+                  - name: html
+                    emptyDir: {}
+              volumeClaimTemplates:
+              - metadata:
+                  name: pages
+                spec:
+                  storageClassName: fast-local
+                  accessModes:
+                  - ReadWriteOncePod
+                  resources:
+                    requests:
+                      storage: 1Gi
+      negatives:
+        - manifest: |
+            apiVersion: apps/v1
+            kind: StatefulSet
+            metadata:
+              name: docs
+              namespace: wiki
+            spec:
+              serviceName: docs
+              replicas: 2
+              selector:
+                matchLabels:
+                  app: docs
+              template:
+                metadata:
+                  labels:
+                    app: docs
+                spec:
+                  containers:
+                  - name: nginx
+                    image: nginx:1.27
+                    ports:
+                    - containerPort: 80
+                    volumeMounts:
+                    - name: html
+                      mountPath: /usr/share/nginx/html
+                  volumes:
+                  - name: html
+                    emptyDir: {}
+              volumeClaimTemplates:
+              - metadata:
+                  name: pages
+                spec:
+                  accessModes: ["ReadWriteOnce"]
+                  storageClassName: fast-local
+                  resources:
+                    requests:
+                      storage: 1Gi
+          why: The claims now bind, but nginx still serves the emptyDir html, which is lost with the Pod; the claim is created and never mounted.
+        - manifest: |
+            apiVersion: apps/v1
+            kind: StatefulSet
+            metadata:
+              name: docs
+              namespace: wiki
+            spec:
+              serviceName: docs
+              replicas: 2
+              selector:
+                matchLabels:
+                  app: docs
+              template:
+                metadata:
+                  labels:
+                    app: docs
+                spec:
+                  containers:
+                  - name: nginx
+                    image: nginx:1.27
+                    ports:
+                    - containerPort: 80
+                    volumeMounts:
+                    - name: pages
+                      mountPath: /usr/share/nginx/html
+              volumeClaimTemplates:
+              - metadata:
+                  name: pages
+                spec:
+                  accessModes: ["ReadWriteOnce"]
+                  storageClassName: ""
+                  resources:
+                    requests:
+                      storage: 1Gi
+          why: 'storageClassName: "" means no class: the claims are never provisioned and wait for a PV without a class.'
+        - manifest: |
+            apiVersion: apps/v1
+            kind: StatefulSet
+            metadata:
+              name: docs
+              namespace: wiki
+            spec:
+              serviceName: docs
+              replicas: 2
+              selector:
+                matchLabels:
+                  app: docs
+              template:
+                metadata:
+                  labels:
+                    app: docs
+                spec:
+                  containers:
+                  - name: nginx
+                    image: nginx:1.27
+                    ports:
+                    - containerPort: 80
+                    volumeMounts:
+                    - name: pages
+                      mountPath: /usr/share/nginx/html
+              volumeClaimTemplates:
+              - metadata:
+                  name: pages
+                spec:
+                  accessModes: ["ReadWriteOnce"]
+                  resources:
+                    requests:
+                      storage: 1Gi
+          why: The mount is fixed, but the template still names no class; with no default class in the cluster the claims stay Pending again.
+        - manifest: |
+            apiVersion: apps/v1
+            kind: StatefulSet
+            metadata:
+              name: docs
+              namespace: wiki
+            spec:
+              serviceName: docs
+              replicas: 2
+              selector:
+                matchLabels:
+                  app: docs
+              template:
+                metadata:
+                  labels:
+                    app: docs
+                spec:
+                  containers:
+                  - name: nginx
+                    image: nginx:1.27
+                    ports:
+                    - containerPort: 80
+                    volumeMounts:
+                    - name: html
+                      mountPath: /usr/share/nginx/html
+              volumeClaimTemplates:
+              - metadata:
+                  name: html
+                spec:
+                  accessModes: ["ReadWriteOnce"]
+                  storageClassName: fast-local
+                  resources:
+                    requests:
+                      storage: 1Gi
+          why: Renaming the template to html makes the claims html-docs-0 and html-docs-1, not the required pages-docs-0 and pages-docs-1.
+    explanation:
+      correct:
+        en: |
+          The event says the claim has no class and the cluster has no default (neither class is marked `(default)`), so set `storageClassName: fast-local` in the claim template instead of changing a StorageClass. The second bug: the container mounts the Pod's `emptyDir` volume `html`, which dies with the Pod, while the claim `pages` is never mounted; mount the template by its name, `pages`, which keeps the claim names `pages-docs-<ordinal>`. Claim templates can't be edited on an existing StatefulSet, which is why it had to be deleted and applied again.
+    references:
+      - title: StatefulSets
+        url: https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/
+      - title: Persistent Volumes
+        url: https://kubernetes.io/docs/concepts/storage/persistent-volumes/

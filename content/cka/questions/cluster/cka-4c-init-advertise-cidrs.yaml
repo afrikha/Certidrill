@@ -1,0 +1,68 @@
+id: cka-4c-init-advertise-cidrs
+objective: "4.3.1"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    Node `cp1` has two network interfaces; the cluster network is the one with address `192.168.10.11`. Initialize a single control plane on `cp1` with kubeadm, with these settings:
+
+    - the API server advertises `192.168.10.11`;
+    - Pods get addresses from `10.244.0.0/16` (the range the Flannel manifest expects);
+    - Services get addresses from `10.112.0.0/16`.
+
+    Type the single command you would run.
+body:
+  mode: invocation
+  tools: [kubeadm, kubectl, systemctl]
+  namespace: default
+answer:
+  checks:
+  - id: tool
+    label: Uses kubeadm
+    path: tool
+    op: equals
+    value: kubeadm
+  - id: verb
+    label: Runs kubeadm init
+    path: verb
+    op: equals
+    value: init
+  - id: no-phase
+    label: Runs the whole init workflow, not a single phase
+    path: args
+    op: length
+    value: 0
+  - id: advertise
+    label: The API server advertises 192.168.10.11
+    path: flags.apiserver-advertise-address
+    op: equals
+    value: 192.168.10.11
+  - id: pod-cidr
+    label: The Pod network CIDR is 10.244.0.0/16
+    path: flags.pod-network-cidr
+    op: equals
+    value: 10.244.0.0/16
+  - id: service-cidr
+    label: The Service CIDR is 10.112.0.0/16
+    path: flags.service-cidr
+    op: equals
+    value: 10.112.0.0/16
+  solution:
+  - command: kubeadm init --apiserver-advertise-address=192.168.10.11 --pod-network-cidr=10.244.0.0/16 --service-cidr=10.112.0.0/16
+  - command: sudo kubeadm init --pod-network-cidr 10.244.0.0/16 --service-cidr 10.112.0.0/16 --apiserver-advertise-address 192.168.10.11
+  negatives:
+  - command: kubeadm init --apiserver-advertise-address=192.168.10.11 --pod-network-cidr=10.112.0.0/16 --service-cidr=10.244.0.0/16
+    why: The two ranges are swapped; Flannel would expect Pods in 10.244.0.0/16 while Services get that range.
+  - command: kubeadm init --apiserver-advertise-address=192.168.10.11 --pod-network-cidr=10.244.0.0/16
+    why: Without --service-cidr, Services use the default range 10.96.0.0/12.
+  - command: kubeadm init --control-plane-endpoint=192.168.10.11 --pod-network-cidr=10.244.0.0/16 --service-cidr=10.112.0.0/16
+    why: --control-plane-endpoint sets the shared endpoint written in kubeconfig files; the API server still advertises the address of the default interface.
+explanation:
+  correct:
+    en: '`--apiserver-advertise-address` chooses the IP the API server advertises (otherwise the default interface is used). `--pod-network-cidr` sets the Pod range and makes the control plane allocate a Pod CIDR to every node, which Flannel needs; `--service-cidr` replaces the default `10.96.0.0/12`. Then install the Pod network add-on with `kubectl apply -f <add-on.yaml>`: CoreDNS does not start before a network is installed.'
+references:
+- title: kubeadm init
+  url: https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-init/
+- title: Creating a cluster with kubeadm
+  url: https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm/

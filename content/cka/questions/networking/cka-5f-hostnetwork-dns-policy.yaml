@@ -1,0 +1,156 @@
+id: cka-5f-hostnetwork-dns-policy
+objective: "5.6.1"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    DaemonSet `node-agent` of namespace `monitoring` must use the host network, because it binds port 9100 on each node. Its Pods fail to send data to `metrics-store.monitoring.svc.cluster.local`: the name does not resolve, and `/etc/resolv.conf` inside the containers lists the node's own nameserver instead of the cluster DNS Service.
+
+    Correct the DaemonSet manifest (in the editor) so that its Pods keep the host network and resolve cluster names through the cluster DNS.
+body:
+  starter: |
+    apiVersion: apps/v1
+    kind: DaemonSet
+    metadata:
+      name: node-agent
+      namespace: monitoring
+    spec:
+      selector:
+        matchLabels:
+          app: node-agent
+      template:
+        metadata:
+          labels:
+            app: node-agent
+        spec:
+          hostNetwork: true
+          containers:
+          - name: agent
+            image: registry.example.com/monitoring/node-agent:4.2
+            ports:
+            - containerPort: 9100
+answer:
+  checks:
+  - id: ds
+    label: Still DaemonSet node-agent in namespace monitoring
+    path: metadata
+    op: subset
+    value: {name: node-agent, namespace: monitoring}
+  - id: kind
+    label: The object is still a DaemonSet
+    path: kind
+    op: equals
+    value: DaemonSet
+  - id: host-network
+    label: The Pods keep hostNetwork true
+    path: spec.template.spec.hostNetwork
+    op: equals
+    value: true
+  - id: dns-policy
+    label: The Pod template sets dnsPolicy ClusterFirstWithHostNet
+    path: spec.template.spec.dnsPolicy
+    op: equals
+    value: ClusterFirstWithHostNet
+  - id: image
+    label: Container agent still runs registry.example.com/monitoring/node-agent:4.2
+    path: spec.template.spec.containers[name=agent].image
+    op: equals
+    value: registry.example.com/monitoring/node-agent:4.2
+  solution:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: DaemonSet
+      metadata:
+        name: node-agent
+        namespace: monitoring
+      spec:
+        selector:
+          matchLabels:
+            app: node-agent
+        template:
+          metadata:
+            labels:
+              app: node-agent
+          spec:
+            hostNetwork: true
+            dnsPolicy: ClusterFirstWithHostNet
+            containers:
+            - name: agent
+              image: registry.example.com/monitoring/node-agent:4.2
+              ports:
+              - containerPort: 9100
+  negatives:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: DaemonSet
+      metadata:
+        name: node-agent
+        namespace: monitoring
+      spec:
+        selector:
+          matchLabels:
+            app: node-agent
+        template:
+          metadata:
+            labels:
+              app: node-agent
+          spec:
+            hostNetwork: true
+            dnsPolicy: ClusterFirst
+            containers:
+            - name: agent
+              image: registry.example.com/monitoring/node-agent:4.2
+              ports:
+              - containerPort: 9100
+    why: ClusterFirst is already the default; with hostNetwork it falls back to the behavior of Default, the node resolver.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: DaemonSet
+      metadata:
+        name: node-agent
+        namespace: monitoring
+      spec:
+        selector:
+          matchLabels:
+            app: node-agent
+        template:
+          metadata:
+            labels:
+              app: node-agent
+          spec:
+            containers:
+            - name: agent
+              image: registry.example.com/monitoring/node-agent:4.2
+              ports:
+              - containerPort: 9100
+    why: Removing hostNetwork fixes DNS but the agent no longer binds port 9100 on the node, which the task requires.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: DaemonSet
+      metadata:
+        name: node-agent
+        namespace: monitoring
+      spec:
+        selector:
+          matchLabels:
+            app: node-agent
+        template:
+          metadata:
+            labels:
+              app: node-agent
+          spec:
+            hostNetwork: true
+            dnsPolicy: Default
+            containers:
+            - name: agent
+              image: registry.example.com/monitoring/node-agent:4.2
+              ports:
+              - containerPort: 9100
+    why: Default explicitly uses the resolver configuration of the node, which is the current problem.
+explanation:
+  correct:
+    en: 'A Pod with `hostNetwork: true` and the default `dnsPolicy: ClusterFirst` falls back to the `Default` behavior and inherits the node resolver, which cannot resolve `*.svc.cluster.local`. Set `dnsPolicy: ClusterFirstWithHostNet` in the Pod template (`spec.template.spec`) to keep the host network and still use the cluster DNS. Changing the template rolls out new Pods on every node.'
+references:
+- title: DNS for Services and Pods
+  url: https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/

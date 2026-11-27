@@ -1,0 +1,261 @@
+id: ckad-1d-downward-resource-limits
+objective: "1.4.1"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    In namespace `batch`, write the manifest of a Pod named `worker` with one container named `worker` (`registry.example.com/batch/worker:3.0`) that sizes its thread pool and cache from its own limits:
+
+    - the container has a CPU limit of `500m` and a memory limit of `512Mi`;
+    - a `downwardAPI` volume named `limits`, mounted at `/etc/limits`, contains the file `cpu_limit` with the container's CPU limit in **millicores** (`500`) and the file `mem_limit` with its memory limit in **mebibytes** (`512`).
+body:
+  starter: |
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: worker
+      namespace: batch
+    spec:
+      containers:
+      - name: worker
+        image: registry.example.com/batch/worker:3.0
+answer:
+  checks:
+  - id: pod
+    label: A Pod named worker in namespace batch
+    path: metadata
+    op: subset
+    value: {name: worker, namespace: batch}
+  - id: image
+    label: Container worker runs registry.example.com/batch/worker:3.0
+    path: spec.containers[name=worker].image
+    op: equals
+    value: registry.example.com/batch/worker:3.0
+  - id: cpu-limit
+    label: The CPU limit of worker is 500m
+    path: spec.containers[name=worker].resources.limits.cpu
+    op: quantity
+    value: 500m
+  - id: mem-limit
+    label: The memory limit of worker is 512Mi
+    path: spec.containers[name=worker].resources.limits.memory
+    op: quantity
+    value: 512Mi
+  - id: cpu-file
+    label: cpu_limit exposes limits.cpu of container worker
+    path: spec.volumes[name=limits].downwardAPI.items
+    op: contains
+    value: {path: cpu_limit, resourceFieldRef: {containerName: worker, resource: limits.cpu}}
+  - id: cpu-divisor
+    label: cpu_limit is written in millicores (divisor 1m)
+    path: spec.volumes[name=limits].downwardAPI.items[path=cpu_limit].resourceFieldRef.divisor
+    op: quantity
+    value: 1m
+  - id: mem-file
+    label: mem_limit exposes limits.memory of container worker
+    path: spec.volumes[name=limits].downwardAPI.items
+    op: contains
+    value: {path: mem_limit, resourceFieldRef: {containerName: worker, resource: limits.memory}}
+  - id: mem-divisor
+    label: mem_limit is written in mebibytes (divisor 1Mi)
+    path: spec.volumes[name=limits].downwardAPI.items[path=mem_limit].resourceFieldRef.divisor
+    op: quantity
+    value: 1Mi
+  - id: mount
+    label: The volume limits is mounted at /etc/limits
+    path: spec.containers[name=worker].volumeMounts[name=limits].mountPath
+    op: equals
+    value: /etc/limits
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: worker
+        namespace: batch
+      spec:
+        containers:
+        - name: worker
+          image: registry.example.com/batch/worker:3.0
+          resources:
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+          - name: limits
+            mountPath: /etc/limits
+        volumes:
+        - name: limits
+          downwardAPI:
+            items:
+            - path: cpu_limit
+              resourceFieldRef:
+                containerName: worker
+                resource: limits.cpu
+                divisor: 1m
+            - path: mem_limit
+              resourceFieldRef:
+                containerName: worker
+                resource: limits.memory
+                divisor: 1Mi
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: worker
+        namespace: batch
+      spec:
+        volumes:
+        - name: limits
+          downwardAPI:
+            items:
+            - path: mem_limit
+              resourceFieldRef:
+                resource: limits.memory
+                containerName: worker
+                divisor: 1Mi
+            - path: cpu_limit
+              resourceFieldRef:
+                resource: limits.cpu
+                containerName: worker
+                divisor: 1m
+        containers:
+        - name: worker
+          image: registry.example.com/batch/worker:3.0
+          resources:
+            limits:
+              cpu: "0.5"
+              memory: 512Mi
+            requests:
+              cpu: 250m
+              memory: 256Mi
+          volumeMounts:
+          - name: limits
+            mountPath: /etc/limits
+            readOnly: true
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: worker
+        namespace: batch
+      spec:
+        containers:
+        - name: worker
+          image: registry.example.com/batch/worker:3.0
+          resources:
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+          - name: limits
+            mountPath: /etc/limits
+        volumes:
+        - name: limits
+          downwardAPI:
+            items:
+            - path: cpu_limit
+              resourceFieldRef:
+                resource: limits.cpu
+                divisor: 1m
+            - path: mem_limit
+              resourceFieldRef:
+                resource: limits.memory
+                divisor: 1Mi
+    why: In a downwardAPI volume, resourceFieldRef.containerName is required (it is optional only for environment variables), so the Pod is rejected.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: worker
+        namespace: batch
+      spec:
+        containers:
+        - name: worker
+          image: registry.example.com/batch/worker:3.0
+          resources:
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+          - name: limits
+            mountPath: /etc/limits
+        volumes:
+        - name: limits
+          downwardAPI:
+            items:
+            - path: cpu_limit
+              resourceFieldRef:
+                containerName: worker
+                resource: limits.cpu
+            - path: mem_limit
+              resourceFieldRef:
+                containerName: worker
+                resource: limits.memory
+    why: Without divisor the default is 1, which means whole cores (the 500m limit is rounded up to 1) and bytes (536870912), not millicores and mebibytes.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: worker
+        namespace: batch
+      spec:
+        containers:
+        - name: worker
+          image: registry.example.com/batch/worker:3.0
+          volumeMounts:
+          - name: limits
+            mountPath: /etc/limits
+        volumes:
+        - name: limits
+          downwardAPI:
+            items:
+            - path: cpu_limit
+              resourceFieldRef:
+                containerName: worker
+                resource: limits.cpu
+                divisor: 1m
+            - path: mem_limit
+              resourceFieldRef:
+                containerName: worker
+                resource: limits.memory
+                divisor: 1Mi
+    why: With no limits set on the container, the files contain the node's allocatable CPU and memory instead of 500 and 512.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: worker
+        namespace: batch
+      spec:
+        containers:
+        - name: worker
+          image: registry.example.com/batch/worker:3.0
+          resources:
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+          - name: limits
+            mountPath: /etc/limits
+        volumes:
+        - name: limits
+          downwardAPI:
+            items:
+            - path: cpu_limit
+              fieldRef:
+                fieldPath: limits.cpu
+            - path: mem_limit
+              fieldRef:
+                fieldPath: limits.memory
+    why: fieldRef selects Pod fields such as metadata.labels; container resources are read with resourceFieldRef.
+explanation:
+  correct:
+    en: 'Container resources reach a `downwardAPI` volume through `resourceFieldRef`, with `resource: limits.cpu` or `limits.memory` and, in a volume, a mandatory `containerName`. `divisor` sets the unit of the file: `1m` writes millicores (500), `1Mi` writes mebibytes (512); the default `1` means cores and bytes. Without a limit on the container, the kubelet writes the node''s allocatable value instead.'
+references:
+- title: Expose Pod Information to Containers Through Files
+  url: https://kubernetes.io/docs/tasks/inject-data-application/downward-api-volume-expose-pod-information/
+- title: Pod
+  url: https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/pod-v1/

@@ -1,0 +1,67 @@
+id: cka-3c-metrics-server-logs
+objective: "3.3.2"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    No HorizontalPodAutoscaler of the cluster scales. The checks so far show:
+
+    ```text
+    $ kubectl get hpa web -n shop
+    NAME   REFERENCE        TARGETS              MINPODS   MAXPODS   REPLICAS
+    web    Deployment/web   cpu: <unknown>/70%   2         10        2
+    $ kubectl get apiservice v1beta1.metrics.k8s.io
+    NAME                     SERVICE                      AVAILABLE
+    v1beta1.metrics.k8s.io   kube-system/metrics-server   False (MissingEndpoints)
+    $ kubectl get deployment metrics-server -n kube-system
+    NAME             READY   UP-TO-DATE   AVAILABLE
+    metrics-server   0/1     1            0
+    ```
+
+    Display the logs of the metrics-server Pod to find why it is not ready. Read them through the Deployment object, without looking up the Pod name.
+
+    Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Uses kubectl logs
+    path: verb
+    op: equals
+    value: logs
+  - id: target
+    label: Reads the logs through a Deployment
+    path: resource
+    op: equals
+    value: deployment
+  - id: name
+    label: Names the Deployment metrics-server
+    path: names
+    op: contains
+    value: metrics-server
+  - id: namespace
+    label: Runs in namespace kube-system
+    path: flags.namespace
+    op: equals
+    value: kube-system
+  solution:
+  - command: kubectl logs deployment/metrics-server -n kube-system
+  - command: k -n kube-system logs deploy/metrics-server
+  negatives:
+  - command: kubectl logs deployment/metrics-server
+    why: Without -n kubectl looks for the Deployment in the context namespace, default; metrics-server runs in kube-system.
+  - command: kubectl logs metrics-server -n kube-system
+    why: A bare name is read as a Pod name; the Pod is called metrics-server-<hash>-<id>, so kubectl finds no Pod named metrics-server.
+  - command: kubectl describe hpa web -n shop
+    why: The HPA events only repeat that the metrics API is unavailable; the cause is in the metrics-server logs.
+explanation:
+  correct:
+    en: 'The HPA reads CPU and memory from the `metrics.k8s.io` API, served by metrics-server through the APIService `v1beta1.metrics.k8s.io`; `MissingEndpoints` means no ready metrics-server Pod backs it. `kubectl logs deployment/metrics-server -n kube-system` picks a Pod of the Deployment. On kubeadm clusters a frequent cause is a TLS error when scraping kubelets whose serving certificates are self-signed.'
+references:
+- title: Horizontal Pod Autoscaling
+  url: https://kubernetes.io/docs/concepts/workloads/autoscaling/horizontal-pod-autoscale/
+- title: kubectl logs
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_logs/

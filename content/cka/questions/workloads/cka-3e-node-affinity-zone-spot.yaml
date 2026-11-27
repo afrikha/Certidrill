@@ -1,0 +1,265 @@
+id: cka-3e-node-affinity-zone-spot
+objective: "3.5.1"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    Complete the Deployment `api` in namespace `payments` with node affinity rules in its Pod template:
+
+    - Its Pods must run only on nodes whose `topology.kubernetes.io/zone` label is `zone-a` or `zone-b` **and** that do not carry the label key `node.example.com/spot` at all (whatever its value).
+    - Among those nodes, the scheduler should prefer nodes labelled `disktype=ssd`, with a weight of 50, but still schedule elsewhere when none is free.
+body:
+  starter: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: api
+      namespace: payments
+    spec:
+      replicas: 4
+      selector:
+        matchLabels:
+          app: api
+      template:
+        metadata:
+          labels:
+            app: api
+        spec:
+          containers:
+          - name: api
+            image: registry.example.com/payments/api:5.2
+answer:
+  checks:
+  - id: meta
+    label: Deployment api in namespace payments
+    path: metadata
+    op: subset
+    value: {name: api, namespace: payments}
+  - id: one-term
+    label: The required rule is a single node selector term (conditions ANDed)
+    path: spec.template.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms
+    op: length
+    value: 1
+  - id: zone-op
+    label: Zone expression uses operator In
+    path: spec.template.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[key=topology.kubernetes.io/zone].operator
+    op: equals
+    value: In
+  - id: zone-a
+    label: Zone zone-a is allowed
+    path: spec.template.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[key=topology.kubernetes.io/zone].values
+    op: contains
+    value: zone-a
+  - id: zone-b
+    label: Zone zone-b is allowed
+    path: spec.template.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[key=topology.kubernetes.io/zone].values
+    op: contains
+    value: zone-b
+  - id: zone-count
+    label: Only these two zones are allowed
+    path: spec.template.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[key=topology.kubernetes.io/zone].values
+    op: length
+    value: 2
+  - id: spot
+    label: Nodes with the node.example.com/spot key are excluded (DoesNotExist)
+    path: spec.template.spec.affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[key=node.example.com/spot].operator
+    op: equals
+    value: DoesNotExist
+  - id: weight
+    label: The preferred rule has weight 50
+    path: spec.template.spec.affinity.nodeAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].weight
+    op: equals
+    value: 50
+  - id: ssd
+    label: The preferred rule matches disktype In [ssd]
+    path: spec.template.spec.affinity.nodeAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].preference.matchExpressions[key=disktype]
+    op: subset
+    value: {operator: In, values: [ssd]}
+  solution:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: api
+        namespace: payments
+      spec:
+        replicas: 4
+        selector:
+          matchLabels:
+            app: api
+        template:
+          metadata:
+            labels:
+              app: api
+          spec:
+            affinity:
+              nodeAffinity:
+                requiredDuringSchedulingIgnoredDuringExecution:
+                  nodeSelectorTerms:
+                  - matchExpressions:
+                    - key: topology.kubernetes.io/zone
+                      operator: In
+                      values:
+                      - zone-a
+                      - zone-b
+                    - key: node.example.com/spot
+                      operator: DoesNotExist
+                preferredDuringSchedulingIgnoredDuringExecution:
+                - weight: 50
+                  preference:
+                    matchExpressions:
+                    - key: disktype
+                      operator: In
+                      values:
+                      - ssd
+            containers:
+            - name: api
+              image: registry.example.com/payments/api:5.2
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: api
+        namespace: payments
+      spec:
+        replicas: 4
+        selector:
+          matchLabels:
+            app: api
+        template:
+          metadata:
+            labels:
+              app: api
+          spec:
+            containers:
+            - name: api
+              image: registry.example.com/payments/api:5.2
+            affinity:
+              nodeAffinity:
+                preferredDuringSchedulingIgnoredDuringExecution:
+                - preference:
+                    matchExpressions:
+                    - {key: disktype, operator: In, values: [ssd]}
+                  weight: 50
+                requiredDuringSchedulingIgnoredDuringExecution:
+                  nodeSelectorTerms:
+                  - matchExpressions:
+                    - {key: node.example.com/spot, operator: DoesNotExist}
+                    - {key: topology.kubernetes.io/zone, operator: In, values: [zone-b, zone-a]}
+  negatives:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: api
+        namespace: payments
+      spec:
+        replicas: 4
+        selector:
+          matchLabels:
+            app: api
+        template:
+          metadata:
+            labels:
+              app: api
+          spec:
+            affinity:
+              nodeAffinity:
+                requiredDuringSchedulingIgnoredDuringExecution:
+                  nodeSelectorTerms:
+                  - matchExpressions:
+                    - key: topology.kubernetes.io/zone
+                      operator: In
+                      values: [zone-a, zone-b]
+                  - matchExpressions:
+                    - key: node.example.com/spot
+                      operator: DoesNotExist
+                preferredDuringSchedulingIgnoredDuringExecution:
+                - weight: 50
+                  preference:
+                    matchExpressions:
+                    - key: disktype
+                      operator: In
+                      values: [ssd]
+            containers:
+            - name: api
+              image: registry.example.com/payments/api:5.2
+    why: nodeSelectorTerms are ORed; with two terms a spot node in zone-a, or any non-spot node in zone-c, is accepted. Both expressions must be in the same term to be ANDed.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: api
+        namespace: payments
+      spec:
+        replicas: 4
+        selector:
+          matchLabels:
+            app: api
+        template:
+          metadata:
+            labels:
+              app: api
+          spec:
+            affinity:
+              nodeAffinity:
+                requiredDuringSchedulingIgnoredDuringExecution:
+                  nodeSelectorTerms:
+                  - matchExpressions:
+                    - key: topology.kubernetes.io/zone
+                      operator: In
+                      values: [zone-a, zone-b]
+                    - key: node.example.com/spot
+                      operator: NotIn
+                      values: ["true"]
+                preferredDuringSchedulingIgnoredDuringExecution:
+                - weight: 50
+                  preference:
+                    matchExpressions:
+                    - key: disktype
+                      operator: In
+                      values: [ssd]
+            containers:
+            - name: api
+              image: registry.example.com/payments/api:5.2
+    why: NotIn ["true"] still accepts a spot node labelled node.example.com/spot=yes; only DoesNotExist excludes the key whatever its value.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: api
+        namespace: payments
+      spec:
+        replicas: 4
+        selector:
+          matchLabels:
+            app: api
+        template:
+          metadata:
+            labels:
+              app: api
+          spec:
+            affinity:
+              nodeAffinity:
+                requiredDuringSchedulingIgnoredDuringExecution:
+                  nodeSelectorTerms:
+                  - matchExpressions:
+                    - key: topology.kubernetes.io/zone
+                      operator: In
+                      values: [zone-a, zone-b]
+                    - key: node.example.com/spot
+                      operator: DoesNotExist
+                    - key: disktype
+                      operator: In
+                      values: [ssd]
+            containers:
+            - name: api
+              image: registry.example.com/payments/api:5.2
+    why: Putting disktype in the required term makes SSD mandatory; Pods stay Pending when no SSD node is free instead of falling back to other nodes.
+explanation:
+  correct:
+    en: '`requiredDuringSchedulingIgnoredDuringExecution` is a hard filter: the expressions of one `nodeSelectorTerms` entry are ANDed, while several terms are ORed. `In` accepts a set of values and `DoesNotExist` rejects any node that carries the key. `preferredDuringSchedulingIgnoredDuringExecution` only adds its `weight` (1 to 100) to the score of matching nodes, so the Pod still runs elsewhere. Rules are evaluated at scheduling time only (IgnoredDuringExecution).'
+references:
+- title: Assigning Pods to Nodes
+  url: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/

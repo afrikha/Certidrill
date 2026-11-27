@@ -1,0 +1,111 @@
+id: cka-4e-lb-endpoint-cert-sans
+objective: "4.5.1"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    A new cluster will have three stacked control plane nodes (`cp1`, `cp2`, `cp3`, etcd on each). A TCP load balancer listens on `k8s-api.example.com:8443` and forwards to port 6443 of the three nodes. Some administrators reach the API through the load balancer's virtual IP `192.168.10.100` instead of its DNS name.
+
+    Fix the `ClusterConfiguration` (below) used for `kubeadm init` on `cp1` so that:
+
+    - every node and kubeconfig file uses the load-balanced endpoint;
+    - the API server certificate is also valid for `192.168.10.100`.
+
+    Keep the stacked etcd topology.
+body:
+  starter: |
+    apiVersion: kubeadm.k8s.io/v1beta4
+    kind: ClusterConfiguration
+    kubernetesVersion: v1.37.1
+    controlPlaneEndpoint: 192.168.10.11:6443
+    networking:
+      podSubnet: 10.244.0.0/16
+answer:
+  checks:
+  - id: kind
+    label: The document is a ClusterConfiguration
+    path: kind
+    op: equals
+    value: ClusterConfiguration
+  - id: endpoint
+    label: controlPlaneEndpoint is the load balancer, k8s-api.example.com:8443
+    path: controlPlaneEndpoint
+    op: equals
+    value: k8s-api.example.com:8443
+  - id: cert-sans
+    label: apiServer.certSANs contains 192.168.10.100
+    path: apiServer.certSANs
+    op: contains
+    value: 192.168.10.100
+  - id: stacked
+    label: No external etcd (stacked topology)
+    path: etcd.external
+    op: absent
+  solution:
+  - manifest: |
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: ClusterConfiguration
+      kubernetesVersion: v1.37.1
+      controlPlaneEndpoint: k8s-api.example.com:8443
+      apiServer:
+        certSANs:
+        - 192.168.10.100
+      networking:
+        podSubnet: 10.244.0.0/16
+  - manifest: |
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: ClusterConfiguration
+      kubernetesVersion: v1.37.1
+      controlPlaneEndpoint: "k8s-api.example.com:8443"
+      apiServer:
+        certSANs:
+        - k8s-api.example.com
+        - "192.168.10.100"
+      etcd:
+        local:
+          dataDir: /var/lib/etcd
+      networking:
+        podSubnet: 10.244.0.0/16
+  negatives:
+  - manifest: |
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: ClusterConfiguration
+      kubernetesVersion: v1.37.1
+      controlPlaneEndpoint: k8s-api.example.com:6443
+      apiServer:
+        certSANs:
+        - 192.168.10.100
+      networking:
+        podSubnet: 10.244.0.0/16
+    why: The load balancer listens on 8443; 6443 is the port of the API servers behind it.
+  - manifest: |
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: ClusterConfiguration
+      kubernetesVersion: v1.37.1
+      controlPlaneEndpoint: 192.168.10.11:6443
+      apiServer:
+        certSANs:
+        - 192.168.10.100
+        - k8s-api.example.com
+      networking:
+        podSubnet: 10.244.0.0/16
+    why: The endpoint still points at cp1 alone; if cp1 fails, nodes and clients lose the API even though cp2 and cp3 are healthy.
+  - manifest: |
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: ClusterConfiguration
+      kubernetesVersion: v1.37.1
+      controlPlaneEndpoint: k8s-api.example.com:8443
+      certSANs:
+      - 192.168.10.100
+      networking:
+        podSubnet: 10.244.0.0/16
+    why: certSANs is a field of apiServer, not a top-level ClusterConfiguration field.
+explanation:
+  correct:
+    en: 'In an HA cluster, `controlPlaneEndpoint` must be the load balancer address and port (here `k8s-api.example.com:8443`), so that kubeconfig files and joining nodes never depend on a single control plane node; the address of the load balancer must always match it. `apiServer.certSANs` adds extra names or IPs to the API server serving certificate (`--apiserver-cert-extra-sans` on the command line). Stacked etcd is the kubeadm default: no `etcd.external` section.'
+references:
+- title: Creating Highly Available Clusters with kubeadm
+  url: https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/high-availability/
+- title: kubeadm Configuration (v1beta4)
+  url: https://kubernetes.io/docs/reference/config-api/kubeadm-config.v1beta4/

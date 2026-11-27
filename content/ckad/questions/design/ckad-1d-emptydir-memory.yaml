@@ -1,0 +1,163 @@
+id: ckad-1d-emptydir-memory
+objective: "1.4.1"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    In namespace `media`, Pod `renderer` runs the container `worker` (`registry.example.com/renderer:4.0`). It needs fast scratch space:
+
+    - a volume named `scratch`, backed by RAM (tmpfs) and limited to `256Mi`, mounted at `/tmp/render`;
+    - because files in a RAM-backed volume count against the memory of the container that writes them, set the memory limit of `worker` to `1Gi`.
+body:
+  starter: |
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: renderer
+      namespace: media
+    spec:
+      containers:
+      - name: worker
+        image: registry.example.com/renderer:4.0
+answer:
+  checks:
+  - id: pod
+    label: A Pod named renderer in namespace media
+    path: metadata
+    op: subset
+    value: {name: renderer, namespace: media}
+  - id: medium
+    label: Volume scratch is an emptyDir with medium Memory
+    path: spec.volumes[name=scratch].emptyDir.medium
+    op: equals
+    value: Memory
+  - id: size
+    label: scratch is limited to 256Mi
+    path: spec.volumes[name=scratch].emptyDir.sizeLimit
+    op: quantity
+    value: 256Mi
+  - id: mount
+    label: worker mounts scratch at /tmp/render
+    path: spec.containers[name=worker].volumeMounts[name=scratch].mountPath
+    op: equals
+    value: /tmp/render
+  - id: limit
+    label: worker has a 1Gi memory limit
+    path: spec.containers[name=worker].resources.limits.memory
+    op: quantity
+    value: 1Gi
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: renderer
+        namespace: media
+      spec:
+        containers:
+        - name: worker
+          image: registry.example.com/renderer:4.0
+          resources:
+            limits:
+              memory: 1Gi
+          volumeMounts:
+          - name: scratch
+            mountPath: /tmp/render
+        volumes:
+        - name: scratch
+          emptyDir:
+            medium: Memory
+            sizeLimit: 256Mi
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: renderer
+        namespace: media
+      spec:
+        volumes:
+        - name: scratch
+          emptyDir: {medium: Memory, sizeLimit: 256Mi}
+        containers:
+        - name: worker
+          image: registry.example.com/renderer:4.0
+          volumeMounts:
+          - {name: scratch, mountPath: /tmp/render}
+          resources:
+            requests:
+              memory: 512Mi
+            limits:
+              memory: 1024Mi
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: renderer
+        namespace: media
+      spec:
+        containers:
+        - name: worker
+          image: registry.example.com/renderer:4.0
+          resources:
+            limits:
+              memory: 1Gi
+          volumeMounts:
+          - name: scratch
+            mountPath: /tmp/render
+        volumes:
+        - name: scratch
+          emptyDir:
+            sizeLimit: 256Mi
+    why: Without medium Memory the emptyDir is created on the node's disk (the kubelet root filesystem), not in RAM.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: renderer
+        namespace: media
+      spec:
+        containers:
+        - name: worker
+          image: registry.example.com/renderer:4.0
+          resources:
+            limits:
+              memory: 1Gi
+          volumeMounts:
+          - name: scratch
+            mountPath: /tmp/render
+        volumes:
+        - name: scratch
+          emptyDir:
+            medium: memory
+            sizeLimit: 256M
+    why: The medium value is case-sensitive ("Memory"), and 256M is 256,000,000 bytes, not 256Mi (268,435,456 bytes).
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: renderer
+        namespace: media
+      spec:
+        containers:
+        - name: worker
+          image: registry.example.com/renderer:4.0
+          resources:
+            requests:
+              memory: 1Gi
+          volumeMounts:
+          - name: scratch
+            mountPath: /tmp/render
+        volumes:
+        - name: scratch
+          emptyDir:
+            medium: Memory
+            sizeLimit: 256Mi
+    why: This sets a memory request, not a limit.
+explanation:
+  correct:
+    en: '`emptyDir.medium: Memory` mounts a tmpfs instead of node disk, and `sizeLimit: 256Mi` caps the volume; without a size, a memory-backed volume is sized to the node''s allocatable memory. Files written there count against the memory limit of the container that wrote them, hence `resources.limits.memory: 1Gi` on `worker`.'
+references:
+- title: Volume Types
+  url: https://kubernetes.io/docs/reference/storage/volume-types/

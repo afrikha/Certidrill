@@ -1,0 +1,184 @@
+id: cka-2a-control-plane-taints-pod
+objective: "2.1.3"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    The file `describe-cp-1.txt` is an excerpt of `kubectl describe node cp-1`.
+
+    Write the manifest of a Pod named `etcd-check` in namespace `kube-system`, with one container named `check` running `registry.example.com/tools/etcd-check:1.2`, that runs on `cp-1`:
+
+    - select the node with a `nodeSelector` on its `kubernetes.io/hostname` label (do not set `nodeName`);
+    - tolerate each taint shown on `cp-1` (key and effect, and also the value for the taint that has one).
+body:
+  starter: |
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: etcd-check
+      namespace: kube-system
+    spec:
+      containers:
+      - name: check
+        image: registry.example.com/tools/etcd-check:1.2
+  files:
+  - name: describe-cp-1.txt
+    content: |
+      Name:               cp-1
+      Roles:              control-plane
+      Labels:             kubernetes.io/arch=amd64
+                          kubernetes.io/hostname=cp-1
+                          kubernetes.io/os=linux
+                          node-role.kubernetes.io/control-plane=
+      Taints:             node-role.kubernetes.io/control-plane:NoSchedule
+                          dedicated=etcd-backup:NoSchedule
+      Unschedulable:      false
+answer:
+  checks:
+  - id: pod
+    label: A Pod named etcd-check in namespace kube-system
+    path: metadata
+    op: subset
+    value: {name: etcd-check, namespace: kube-system}
+  - id: image
+    label: Container check runs registry.example.com/tools/etcd-check:1.2
+    path: spec.containers[name=check].image
+    op: equals
+    value: registry.example.com/tools/etcd-check:1.2
+  - id: selector
+    label: nodeSelector kubernetes.io/hostname is cp-1
+    path: spec.nodeSelector["kubernetes.io/hostname"]
+    op: equals
+    value: cp-1
+  - id: no-nodename
+    label: nodeName is not set
+    path: spec.nodeName
+    op: absent
+  - id: cp-taint
+    label: Tolerates node-role.kubernetes.io/control-plane with effect NoSchedule
+    path: spec.tolerations
+    op: contains
+    value: {key: node-role.kubernetes.io/control-plane, effect: NoSchedule}
+  - id: dedicated-taint
+    label: Tolerates dedicated=etcd-backup with effect NoSchedule
+    path: spec.tolerations
+    op: contains
+    value: {key: dedicated, value: etcd-backup, effect: NoSchedule}
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: etcd-check
+        namespace: kube-system
+      spec:
+        nodeSelector:
+          kubernetes.io/hostname: cp-1
+        tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+        - key: dedicated
+          operator: Equal
+          value: etcd-backup
+          effect: NoSchedule
+        containers:
+        - name: check
+          image: registry.example.com/tools/etcd-check:1.2
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: etcd-check
+        namespace: kube-system
+      spec:
+        containers:
+        - name: check
+          image: registry.example.com/tools/etcd-check:1.2
+        nodeSelector:
+          kubernetes.io/hostname: cp-1
+        tolerations:
+        - key: dedicated
+          value: etcd-backup
+          effect: NoSchedule
+        - key: node-role.kubernetes.io/control-plane
+          effect: NoSchedule
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: etcd-check
+        namespace: kube-system
+      spec:
+        nodeSelector:
+          kubernetes.io/hostname: cp-1
+        tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+        containers:
+        - name: check
+          image: registry.example.com/tools/etcd-check:1.2
+    why: The dedicated=etcd-backup:NoSchedule taint is not tolerated, so the Pod stays Pending.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: etcd-check
+        namespace: kube-system
+      spec:
+        nodeSelector:
+          kubernetes.io/hostname: cp-1
+        tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+        - key: dedicated
+          operator: Equal
+          value: etcd-backup
+          effect: NoExecute
+        containers:
+        - name: check
+          image: registry.example.com/tools/etcd-check:1.2
+    why: A toleration with effect NoExecute does not match a NoSchedule taint.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: etcd-check
+        namespace: kube-system
+      spec:
+        nodeSelector:
+          kubernetes.io/hostname: cp-1
+        tolerations:
+        - key: node-role.kubernetes.io/master
+          operator: Exists
+          effect: NoSchedule
+        - key: dedicated
+          operator: Equal
+          value: etcd-backup
+          effect: NoSchedule
+        containers:
+        - name: check
+          image: registry.example.com/tools/etcd-check:1.2
+    why: node-role.kubernetes.io/master is the old control plane taint; cp-1 carries node-role.kubernetes.io/control-plane.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: etcd-check
+        namespace: kube-system
+      spec:
+        nodeName: cp-1
+        containers:
+        - name: check
+          image: registry.example.com/tools/etcd-check:1.2
+    why: nodeName bypasses the scheduler and the task requires a nodeSelector with tolerations for both taints.
+explanation:
+  correct:
+    en: '`Taints:` lists two `NoSchedule` taints on `cp-1`: `node-role.kubernetes.io/control-plane` (no value, so `operator: Exists` or an empty value matches) and `dedicated=etcd-backup`. The Pod needs one toleration per taint with the same key, effect and, for `dedicated`, value; `nodeSelector` on `kubernetes.io/hostname: cp-1` then lets the scheduler place it there.'
+references:
+- title: Taints and Tolerations
+  url: https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/

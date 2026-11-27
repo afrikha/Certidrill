@@ -1,0 +1,171 @@
+id: ckad-5b-fix-service-no-selector
+objective: "5.2.2"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    In namespace `stock`, clients of Service `inventory` (in the editor) get no answer, and `kubectl get endpointslices -n stock -l kubernetes.io/service-name=inventory` returns `No resources found`. The Pods of Deployment `inventory` (file `inventory-deploy.yaml`) are Running and Ready.
+
+    Deployment `inventory-worker` runs Pods labeled `app.kubernetes.io/name: inventory` and `app.kubernetes.io/component: worker`, and other applications of the namespace label their API Pods `app.kubernetes.io/component: api`.
+
+    Fix the Service so that it sends traffic only to the Pods of Deployment `inventory`, on the port the application listens on. Keep its name, namespace and Service port 80.
+body:
+  starter: |
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: inventory
+      namespace: stock
+      labels:
+        app.kubernetes.io/name: inventory
+        app.kubernetes.io/component: api
+    spec:
+      ports:
+      - port: 80
+        targetPort: api
+  files:
+  - name: inventory-deploy.yaml
+    content: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: inventory
+        namespace: stock
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app.kubernetes.io/name: inventory
+            app.kubernetes.io/component: api
+        template:
+          metadata:
+            labels:
+              app.kubernetes.io/name: inventory
+              app.kubernetes.io/component: api
+          spec:
+            containers:
+            - name: inventory
+              image: registry.example.com/stock/inventory:2.3
+              ports:
+              - name: http
+                containerPort: 8080
+answer:
+  checks:
+  - id: meta
+    label: It is still Service inventory in namespace stock
+    path: metadata
+    op: subset
+    value: {name: inventory, namespace: stock}
+  - id: kind
+    label: The object is a Service
+    path: kind
+    op: equals
+    value: Service
+  - id: selector
+    label: spec.selector requires both app.kubernetes.io/name=inventory and app.kubernetes.io/component=api
+    path: spec.selector
+    op: equals
+    value: {app.kubernetes.io/name: inventory, app.kubernetes.io/component: api}
+  - id: port
+    label: The Service still listens on port 80
+    path: spec.ports[0].port
+    op: equals
+    value: 80
+  - id: target
+    label: targetPort is the container port 8080, by number or by its name http
+    path: spec.ports[0].targetPort
+    op: oneOf
+    value: [8080, http]
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: inventory
+        namespace: stock
+        labels:
+          app.kubernetes.io/name: inventory
+          app.kubernetes.io/component: api
+      spec:
+        selector:
+          app.kubernetes.io/name: inventory
+          app.kubernetes.io/component: api
+        ports:
+        - port: 80
+          targetPort: http
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: inventory
+        namespace: stock
+      spec:
+        selector:
+          app.kubernetes.io/component: api
+          app.kubernetes.io/name: inventory
+        ports:
+        - protocol: TCP
+          port: 80
+          targetPort: 8080
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: inventory
+        namespace: stock
+        labels:
+          app.kubernetes.io/name: inventory
+          app.kubernetes.io/component: api
+      spec:
+        ports:
+        - port: 80
+          targetPort: http
+    why: The labels in metadata only describe the Service itself. Without spec.selector the control plane creates no EndpointSlice, so the Service still has no endpoints.
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: inventory
+        namespace: stock
+      spec:
+        selector:
+          app.kubernetes.io/name: inventory
+        ports:
+        - port: 80
+          targetPort: http
+    why: app.kubernetes.io/name=inventory alone also matches the Pods of inventory-worker.
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: inventory
+        namespace: stock
+      spec:
+        selector:
+          app.kubernetes.io/component: api
+        ports:
+        - port: 80
+          targetPort: http
+    why: app.kubernetes.io/component=api alone also matches the API Pods of the other applications of the namespace.
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: inventory
+        namespace: stock
+      spec:
+        selector:
+          app.kubernetes.io/name: inventory
+          app.kubernetes.io/component: api
+        ports:
+        - port: 80
+          targetPort: api
+    why: The Pods are selected, but targetPort api names no container port (the port is named http), so traffic has no port to go to.
+explanation:
+  correct:
+    en: 'A Service picks its Pods only through `spec.selector`; its own `metadata.labels` play no part, and a Service without a selector gets no EndpointSlice created automatically. Both labels of the Pod template are needed, because each one alone also matches other Pods. A named `targetPort` must match a container port name: `http`, or the number 8080.'
+references:
+- title: Service
+  url: https://kubernetes.io/docs/concepts/services-networking/service/

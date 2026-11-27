@@ -1,0 +1,186 @@
+id: cka-5b-predict-missing-label
+objective: "5.2.2"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    In namespace `analytics`, the Pod `reporter` (file `reporter.yaml`) times out when it connects to the `app: warehouse` Pods on TCP port 5432. The only NetworkPolicy of the namespace is `warehouse-ingress` (file `warehouse-ingress.yaml`); no policy restricts egress.
+
+    Without changing the policy and without changing or removing the labels the Pod already has, add the one label that lets `reporter` reach the warehouse on port 5432. Type the single command you would run.
+body:
+  mode: object
+  namespace: default
+  files:
+  - name: reporter.yaml
+    content: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        labels:
+          app: reporter
+          role: reader
+        name: reporter
+        namespace: analytics
+      spec:
+        containers:
+        - image: registry.example.com/analytics/reporter:3.2
+          name: reporter
+  - name: warehouse-ingress.yaml
+    content: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: warehouse-ingress
+        namespace: analytics
+      spec:
+        podSelector:
+          matchLabels:
+            app: warehouse
+        policyTypes:
+        - Ingress
+        ingress:
+        - from:
+          - podSelector:
+              matchLabels:
+                role: reader
+                tier: batch
+          ports:
+          - protocol: TCP
+            port: 5432
+        - from:
+          - podSelector:
+              matchLabels:
+                role: admin
+          ports:
+          - protocol: TCP
+            port: 22
+answer:
+  checks:
+  - id: kind
+    label: The object changed is a Pod
+    path: kind
+    op: equals
+    value: Pod
+  - id: name
+    label: It is Pod reporter
+    path: metadata.name
+    op: equals
+    value: reporter
+  - id: tier
+    label: The Pod carries tier=batch
+    path: metadata.labels.tier
+    op: equals
+    value: batch
+  - id: role
+    label: The Pod keeps role=reader
+    path: metadata.labels.role
+    op: equals
+    value: reader
+  - id: app
+    label: The Pod keeps app=reporter
+    path: metadata.labels.app
+    op: equals
+    value: reporter
+  solution:
+  - command: kubectl label pod reporter -n analytics tier=batch
+    output: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        labels:
+          app: reporter
+          role: reader
+          tier: batch
+        name: reporter
+        namespace: analytics
+      spec:
+        containers:
+        - image: registry.example.com/analytics/reporter:3.2
+          name: reporter
+  - command: k -n analytics label po/reporter tier=batch
+    output: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        labels:
+          app: reporter
+          role: reader
+          tier: batch
+        name: reporter
+        namespace: analytics
+      spec:
+        containers:
+        - image: registry.example.com/analytics/reporter:3.2
+          name: reporter
+  - command: kubectl label -f reporter.yaml tier=batch -n analytics --local -o yaml
+    output: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        labels:
+          app: reporter
+          role: reader
+          tier: batch
+        name: reporter
+        namespace: analytics
+      spec:
+        containers:
+        - image: registry.example.com/analytics/reporter:3.2
+          name: reporter
+  negatives:
+  - command: kubectl label pod reporter -n analytics role=admin --overwrite
+    why: role=admin only matches the second rule, which opens port 22, not 5432; it also replaces role=reader.
+    output: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        labels:
+          app: reporter
+          role: admin
+        name: reporter
+        namespace: analytics
+      spec:
+        containers:
+        - image: registry.example.com/analytics/reporter:3.2
+          name: reporter
+  - command: kubectl annotate pod reporter -n analytics tier=batch
+    why: podSelector matches labels; an annotation is ignored by the policy.
+    output: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        annotations:
+          tier: batch
+        labels:
+          app: reporter
+          role: reader
+        name: reporter
+        namespace: analytics
+      spec:
+        containers:
+        - image: registry.example.com/analytics/reporter:3.2
+          name: reporter
+  - command: kubectl label pod reporter -n analytics app=warehouse --overwrite
+    why: app=warehouse makes reporter one of the protected Pods (spec.podSelector); it does not make it an allowed client of port 5432.
+    output: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        labels:
+          app: warehouse
+          role: reader
+        name: reporter
+        namespace: analytics
+      spec:
+        containers:
+        - image: registry.example.com/analytics/reporter:3.2
+          name: reporter
+explanation:
+  correct:
+    en: 'The 5432 rule admits Pods whose labels match **all** the `matchLabels` entries of its podSelector: `role: reader` and `tier: batch`. `reporter` has only `role: reader`, so `kubectl label pod reporter -n analytics tier=batch` completes the match. The `role: admin` rule is a separate rule (OR) that only opens port 22. Because no policy selects `reporter` for egress, its outgoing connection is not restricted.'
+references:
+- title: Network Policies
+  url: https://kubernetes.io/docs/concepts/services-networking/network-policies/
+- title: kubectl label
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_label/

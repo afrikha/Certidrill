@@ -1,0 +1,69 @@
+id: cka-4e-etcd-member-list
+objective: "4.5.1"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    The cluster has three stacked control plane nodes. Node `cp3` crashed, and you want to see which members the etcd cluster still lists before replacing it.
+
+    On `cp1`, list the etcd members with `etcdctl`, connecting to the local member at `https://127.0.0.1:2379` and authenticating with the files kubeadm generated: CA `/etc/kubernetes/pki/etcd/ca.crt`, certificate `/etc/kubernetes/pki/etcd/server.crt`, key `/etc/kubernetes/pki/etcd/server.key`. Type the single command you would run.
+body:
+  mode: invocation
+  tools: [etcdctl, etcdutl, crictl, kubectl]
+  namespace: default
+answer:
+  checks:
+  - id: tool
+    label: Uses etcdctl
+    path: tool
+    op: equals
+    value: etcdctl
+  - id: member
+    label: Runs member list
+    path: verb
+    op: equals
+    value: member
+  - id: list
+    label: Lists the members
+    path: args
+    op: equals
+    value: [list]
+  - id: endpoint
+    label: Connects to https://127.0.0.1:2379
+    path: flags.endpoints
+    op: oneOf
+    value: [https://127.0.0.1:2379, 127.0.0.1:2379]
+  - id: cacert
+    label: --cacert is /etc/kubernetes/pki/etcd/ca.crt
+    path: flags.cacert
+    op: equals
+    value: /etc/kubernetes/pki/etcd/ca.crt
+  - id: cert
+    label: --cert is /etc/kubernetes/pki/etcd/server.crt
+    path: flags.cert
+    op: equals
+    value: /etc/kubernetes/pki/etcd/server.crt
+  - id: key
+    label: --key is /etc/kubernetes/pki/etcd/server.key
+    path: flags.key
+    op: equals
+    value: /etc/kubernetes/pki/etcd/server.key
+  solution:
+  - command: etcdctl --endpoints=https://127.0.0.1:2379 --cacert=/etc/kubernetes/pki/etcd/ca.crt --cert=/etc/kubernetes/pki/etcd/server.crt --key=/etc/kubernetes/pki/etcd/server.key member list
+  - command: sudo etcdctl member list --endpoints https://127.0.0.1:2379 --cacert /etc/kubernetes/pki/etcd/ca.crt --cert /etc/kubernetes/pki/etcd/server.crt --key /etc/kubernetes/pki/etcd/server.key --write-out=table
+  negatives:
+  - command: etcdctl --endpoints=https://127.0.0.1:2379 --cert=/etc/kubernetes/pki/etcd/server.crt --key=/etc/kubernetes/pki/etcd/server.key member list
+    why: Without --cacert, etcdctl cannot verify the certificate of the etcd server, which is signed by the etcd CA.
+  - command: etcdctl --endpoints=https://127.0.0.1:2380 --cacert=/etc/kubernetes/pki/etcd/ca.crt --cert=/etc/kubernetes/pki/etcd/server.crt --key=/etc/kubernetes/pki/etcd/server.key member list
+    why: 2380 is the peer port; etcdctl is a client and connects to 2379.
+  - command: kubectl get pods -n kube-system -l component=etcd
+    why: This lists the etcd static Pods known to the API server, not the members registered in the etcd cluster.
+explanation:
+  correct:
+    en: '`etcdctl member list` prints the ID, status, name, peer and client URLs of every member (`-w table` for a table). kubeadm etcd uses TLS, so pass `--endpoints`, `--cacert`, `--cert` and `--key` (the v3 API is the default). With three members, quorum is 2: losing `cp3` leaves a working cluster that tolerates no further failure, so replace the member quickly (`member remove <ID>`, then join a new control plane). A fourth member would not add fault tolerance.'
+references:
+- title: Operating etcd clusters for Kubernetes
+  url: https://kubernetes.io/docs/tasks/administer-cluster/configure-upgrade-etcd/
+- title: Options for Highly Available Topology
+  url: https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/ha-topology/

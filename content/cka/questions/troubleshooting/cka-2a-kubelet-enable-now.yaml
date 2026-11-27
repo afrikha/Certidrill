@@ -1,0 +1,54 @@
+id: cka-2a-kubelet-enable-now
+objective: "2.1.1"
+difficulty: 1
+status: draft
+type: command
+stem:
+  en: |-
+    `kubectl get nodes` shows `node-3` as `NotReady`. On `node-3`, `systemctl status kubelet` prints:
+
+    ```text
+    ○ kubelet.service - kubelet: The Kubernetes Node Agent
+         Loaded: loaded (/usr/lib/systemd/system/kubelet.service; disabled; preset: enabled)
+        Drop-In: /usr/lib/systemd/system/kubelet.service.d
+                 └─10-kubeadm.conf
+         Active: inactive (dead)
+    ```
+
+    Start the kubelet now and make it start at every boot, with a single command.
+body:
+  mode: invocation
+  tools: [systemctl]
+answer:
+  checks:
+  - id: enable
+    label: Uses systemctl enable
+    path: verb
+    op: equals
+    value: enable
+  - id: unit
+    label: Targets the kubelet unit
+    path: args
+    op: matches
+    value: '"kubelet(\.service)?"'
+  - id: now
+    label: Starts the unit immediately (--now)
+    path: flags.now
+    op: equals
+    value: true
+  solution:
+  - command: systemctl enable --now kubelet
+  - command: systemctl enable kubelet.service --now
+  negatives:
+  - command: systemctl start kubelet
+    why: start runs the kubelet now, but the unit stays disabled and the node is NotReady again after the next reboot.
+  - command: systemctl enable kubelet
+    why: enable alone only creates the boot-time links; the kubelet stays inactive until the next boot.
+  - command: systemctl restart kubelet
+    why: restart starts the service but leaves it disabled at boot.
+explanation:
+  correct:
+    en: 'The unit is `disabled` and `inactive (dead)`: the kubelet was stopped and will not start at boot. `systemctl enable --now kubelet` creates the boot-time links and starts the service in one step, which is also the command of the kubeadm installation guide. The node becomes `Ready` once the kubelet posts its status again.'
+references:
+- title: Installing kubeadm
+  url: https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-kubeadm/

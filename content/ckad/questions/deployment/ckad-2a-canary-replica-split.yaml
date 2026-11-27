@@ -1,0 +1,256 @@
+id: ckad-2a-canary-replica-split
+objective: "2.1.2"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    In namespace `shop`, Service `cart` already exists and selects `app: cart`.
+
+    Write one file with two Deployments that run **10 Pods in total**, with about **20 %** of the traffic of Service `cart` going to the canary:
+
+    - `cart-stable`: container `cart`, image `registry.example.com/shop/cart:2.0`, Pod labels `app: cart` and `track: stable`.
+    - `cart-canary`: container `cart`, image `registry.example.com/shop/cart:2.1`, Pod labels `app: cart` and `track: canary`.
+
+    The two selectors must not overlap.
+body:
+  starter: ""
+answer:
+  checks:
+  - id: stable-ns
+    label: cart-stable is in namespace shop
+    select: {kind: Deployment, name: cart-stable}
+    path: metadata.namespace
+    op: equals
+    value: shop
+  - id: stable-replicas
+    label: cart-stable runs 8 replicas
+    select: {kind: Deployment, name: cart-stable}
+    path: spec.replicas
+    op: equals
+    value: 8
+  - id: stable-image
+    label: cart-stable runs cart:2.0
+    select: {kind: Deployment, name: cart-stable}
+    path: spec.template.spec.containers[name=cart].image
+    op: equals
+    value: registry.example.com/shop/cart:2.0
+  - id: stable-labels
+    label: Stable Pods are labelled app cart and track stable
+    select: {kind: Deployment, name: cart-stable}
+    path: spec.template.metadata.labels
+    op: subset
+    value: {app: cart, track: stable}
+  - id: stable-selector
+    label: The cart-stable selector requires track stable
+    select: {kind: Deployment, name: cart-stable}
+    path: spec.selector.matchLabels.track
+    op: equals
+    value: stable
+  - id: canary-ns
+    label: cart-canary is in namespace shop
+    select: {kind: Deployment, name: cart-canary}
+    path: metadata.namespace
+    op: equals
+    value: shop
+  - id: canary-replicas
+    label: cart-canary runs 2 replicas
+    select: {kind: Deployment, name: cart-canary}
+    path: spec.replicas
+    op: equals
+    value: 2
+  - id: canary-image
+    label: cart-canary runs cart:2.1
+    select: {kind: Deployment, name: cart-canary}
+    path: spec.template.spec.containers[name=cart].image
+    op: equals
+    value: registry.example.com/shop/cart:2.1
+  - id: canary-labels
+    label: Canary Pods are labelled app cart and track canary
+    select: {kind: Deployment, name: cart-canary}
+    path: spec.template.metadata.labels
+    op: subset
+    value: {app: cart, track: canary}
+  - id: canary-selector
+    label: The cart-canary selector requires track canary
+    select: {kind: Deployment, name: cart-canary}
+    path: spec.selector.matchLabels.track
+    op: equals
+    value: canary
+  solution:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: cart-stable
+        namespace: shop
+      spec:
+        replicas: 8
+        selector:
+          matchLabels:
+            app: cart
+            track: stable
+        template:
+          metadata:
+            labels:
+              app: cart
+              track: stable
+          spec:
+            containers:
+            - name: cart
+              image: registry.example.com/shop/cart:2.0
+      ---
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: cart-canary
+        namespace: shop
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: cart
+            track: canary
+        template:
+          metadata:
+            labels:
+              app: cart
+              track: canary
+          spec:
+            containers:
+            - name: cart
+              image: registry.example.com/shop/cart:2.1
+  negatives:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: cart-stable
+        namespace: shop
+      spec:
+        replicas: 10
+        selector:
+          matchLabels:
+            app: cart
+            track: stable
+        template:
+          metadata:
+            labels:
+              app: cart
+              track: stable
+          spec:
+            containers:
+            - name: cart
+              image: registry.example.com/shop/cart:2.0
+      ---
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: cart-canary
+        namespace: shop
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: cart
+            track: canary
+        template:
+          metadata:
+            labels:
+              app: cart
+              track: canary
+          spec:
+            containers:
+            - name: cart
+              image: registry.example.com/shop/cart:2.1
+    why: 10 + 2 makes 12 Pods, and 2/12 is about 17 %. The share is computed on the total number of Pods, which must be 10.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: cart-stable
+        namespace: shop
+      spec:
+        replicas: 8
+        selector:
+          matchLabels:
+            app: cart
+        template:
+          metadata:
+            labels:
+              app: cart
+              track: stable
+          spec:
+            containers:
+            - name: cart
+              image: registry.example.com/shop/cart:2.0
+      ---
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: cart-canary
+        namespace: shop
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: cart
+        template:
+          metadata:
+            labels:
+              app: cart
+              track: canary
+          spec:
+            containers:
+            - name: cart
+              image: registry.example.com/shop/cart:2.1
+    why: Both selectors are app cart, so each Deployment also matches the other one's Pods. Overlapping selectors make the controllers conflict.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: cart-stable
+        namespace: shop
+      spec:
+        replicas: 8
+        selector:
+          matchLabels:
+            app: cart
+            track: stable
+        template:
+          metadata:
+            labels:
+              app: cart
+              track: stable
+          spec:
+            containers:
+            - name: cart
+              image: registry.example.com/shop/cart:2.0
+      ---
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: cart-canary
+        namespace: shop
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            track: canary
+        template:
+          metadata:
+            labels:
+              track: canary
+          spec:
+            containers:
+            - name: cart
+              image: registry.example.com/shop/cart:2.1
+    why: The canary Pods lack app cart, so Service cart sends them nothing and the stable Pods get 100 %.
+explanation:
+  correct:
+    en: 'With replica-based splitting, the canary share is canary Pods divided by all the Pods the Service selects: 2 out of 10 gives about 20 %, so stable runs 8 and canary 2. Both templates carry the common label `app: cart` for the Service, and each selector adds its own `track` value so that the Deployments do not overlap.'
+references:
+- title: Deploy a Release Using a Canary Deployment
+  url: https://kubernetes.io/docs/tutorials/stateless-application/canary-deployment/
+- title: Deployments
+  url: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/

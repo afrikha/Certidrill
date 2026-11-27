@@ -1,0 +1,1022 @@
+chapter: 22-monitoring-logs-networking
+questions:
+  # ------------------------------------------------------------------ 1
+  - id: cka-qz-22-01
+    objective: "2.4.2"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        On a kubeadm worker node, the kubelet configuration file does not set `podLogsDir`. A container of Pod `web-0` in namespace `shop` writes its messages to stdout.
+
+        Under which directory of the node does the file that holds these messages live?
+    body:
+      options:
+        - { id: a, text: "`/var/lib/kubelet/pods`" }
+        - { id: b, text: "`/var/log/journal`" }
+        - { id: c, text: "`/var/log/pods`" }
+        - { id: d, text: "`/etc/kubernetes/manifests`" }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          By default the kubelet directs the container runtime to write container logs under `/var/log/pods`, in a directory per Pod (`<namespace>_<pod>_<uid>`) and a sub-directory per container (`0.log`, `1.log` after restarts). The `podLogsDir` field of the kubelet configuration only changes this default path.
+      options:
+        a: { en: "`/var/lib/kubelet/pods` holds the per-Pod data of the kubelet (volumes such as `emptyDir`, projected tokens), not the stdout log files." }
+        b: { en: "`/var/log/journal` is the journald store of systemd services such as the kubelet and containerd (`journalctl -u kubelet`), not the container stdout files." }
+        d: { en: "`/etc/kubernetes/manifests` is the static Pod directory watched by the kubelet; it contains manifests, not logs." }
+    references:
+      - title: Logging Architecture
+        url: https://kubernetes.io/docs/concepts/cluster-administration/logging/
+
+  # ------------------------------------------------------------------ 2
+  - id: cka-qz-22-02
+    objective: "2.3.1"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        On a new cluster, `kubectl top node` ends with `error: Metrics API not available`, and the HorizontalPodAutoscalers report that they cannot read CPU usage.
+
+        What must the cluster run to fix both problems?
+    body:
+      options:
+        - { id: a, text: "kube-state-metrics, which exposes the state of Deployments, Pods and nodes" }
+        - { id: b, text: "metrics-server, which collects usage from the kubelets and serves the Metrics API" }
+        - { id: c, text: "The HorizontalPodAutoscaler controller of kube-controller-manager" }
+        - { id: d, text: "A kubelet restarted on each node so that it serves its resource metrics endpoint" }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          `kubectl top` and the HorizontalPodAutoscaler read the Metrics API (`metrics.k8s.io`), which is not built into the API server: an add-on must serve it through the aggregation layer. metrics-server fetches CPU and memory usage from each kubelet and registers that APIService, so both `kubectl top` and the autoscalers work once it is running and the APIService is `Available`.
+      options:
+        a: { en: "kube-state-metrics turns the state of API objects into metrics for a monitoring system; it does not serve the `metrics.k8s.io` API that `kubectl top` reads." }
+        c: { en: "The HorizontalPodAutoscaler controller consumes the Metrics API; it is already running and cannot get data while no add-on serves that API." }
+        d: { en: "The kubelets already expose resource metrics; what is missing is the component that collects them and serves them through the API server." }
+    references:
+      - title: Resource metrics pipeline
+        url: https://kubernetes.io/docs/tasks/debug/debug-cluster/resource-metrics-pipeline/
+
+  # ------------------------------------------------------------------ 3
+  - id: cka-qz-22-03
+    objective: "2.4.1"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Deployment `web` in namespace `shop` runs 4 single-container Pods labelled `app=web`. An auditor needs the complete logs of these Pods. You run:
+
+        ```bash
+        kubectl logs -n shop -l app=web --prefix
+        ```
+
+        The output contains only a few lines per Pod, although each Pod has printed thousands of lines since it started. Which flag must you add to get every line?
+    body:
+      options:
+        - { id: a, text: "`--all-containers`" }
+        - { id: b, text: "`--max-log-requests=10`" }
+        - { id: c, text: "`--timestamps`" }
+        - { id: d, text: "`--tail=-1`" }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          The default of `--tail` depends on how Pods are chosen: `-1` (every line) for a single named Pod, but `10` lines per Pod when a selector is given. `--tail=-1` removes that limit, so `kubectl logs -n shop -l app=web --prefix --tail=-1` prints the whole current log of each Pod.
+      options:
+        a: { en: "`--all-containers` adds the other containers of each Pod; these Pods have one container, and each would still be cut to 10 lines." }
+        b: { en: "`--max-log-requests` limits how many logs are followed at the same time with `-f` (default 5); it does not change how many lines are returned." }
+        c: { en: "`--timestamps` prefixes each line with its timestamp; the number of lines stays at 10 per Pod." }
+    references:
+      - title: kubectl logs
+        url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_logs/
+
+  # ------------------------------------------------------------------ 4
+  - id: cka-qz-22-04
+    objective: "2.3.1"
+    difficulty: 2
+    status: draft
+    type: multi
+    stem:
+      en: |
+        You must write to a file the name of the Pod of namespace `shop` that uses the most memory, and you plan to use `kubectl top pod`. The current context namespace is `default`, and metrics-server runs.
+
+        Which two statements about `kubectl top pod` are true?
+
+        NOTE: Each correct selection is worth one point.
+    body:
+      options:
+        - { id: a, text: "The MEMORY column shows the working set of the Pod's containers." }
+        - { id: b, text: "Without `-n` or `-A`, it lists the Pods of every namespace." }
+        - { id: c, text: "`--sort-by` accepts only `cpu` or `memory`." }
+        - { id: d, text: "The CPU column is a reading taken at the instant the command runs." }
+        - { id: e, text: "The figures are the sum of the requests set on the containers." }
+      choose: 2
+    answer: { optionIds: [a, c] }
+    explanation:
+      correct:
+        en: |
+          The Metrics API reports memory as the working set, the memory in use that cannot be freed under pressure, and `kubectl top pod --sort-by` accepts only the fields `cpu` and `memory`. So `kubectl top pod -n shop --sort-by=memory --no-headers` puts the largest consumer on the first line.
+      options:
+        b: { en: "Like other kubectl commands, `kubectl top pod` lists the Pods of the context namespace (here `default`) unless you add `-n shop` or `-A`." }
+        d: { en: "CPU is an average rate computed over a time window (the `window` field of the Metrics API, tens of seconds), not an instantaneous reading." }
+        e: { en: "`kubectl top` shows measured usage; requests and limits are in the Pod spec and in `kubectl describe node` (Allocated resources)." }
+    references:
+      - title: kubectl top pod
+        url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_top/kubectl_top_pod/
+      - title: Resource metrics pipeline
+        url: https://kubernetes.io/docs/tasks/debug/debug-cluster/resource-metrics-pipeline/
+
+  # ------------------------------------------------------------------ 5
+  - id: cka-qz-22-05
+    objective: "2.5.1"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Clients of Service `orders` in namespace `sales` get timeouts. Before you look at the selector and the Pod labels, you want to see which Pod addresses and ports the control plane has registered as endpoints of this Service.
+
+        Which command should you run?
+    body:
+      options:
+        - { id: a, text: "`kubectl get endpointslice orders -n sales`" }
+        - { id: b, text: "`kubectl get pods -n sales -l kubernetes.io/service-name=orders`" }
+        - { id: c, text: "`kubectl get endpointslices -n sales -l kubernetes.io/service-name=orders`" }
+        - { id: d, text: "`kubectl describe deployment orders -n sales`" }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          The EndpointSlice controller writes the endpoints of a Service into one or more EndpointSlices that carry the label `kubernetes.io/service-name=<service>`, so a label selector lists all of them with their addresses, ports and conditions. An empty ENDPOINTS column then points to the selector or to readiness; the older `v1` Endpoints API is deprecated since v1.33.
+      options:
+        a: { en: "EndpointSlices get a generated name made of the Service name and a suffix (for example `orders-x7k2p`), so no slice is named exactly `orders`." }
+        b: { en: "The label `kubernetes.io/service-name` is set on the EndpointSlices, not on the Pods; this selector matches no Pod." }
+        d: { en: "`describe deployment` shows the Pod template, the replicas and the rollout events, not which Pods a Service has registered as endpoints." }
+    references:
+      - title: EndpointSlices
+        url: https://kubernetes.io/docs/concepts/services-networking/endpoint-slices/
+      - title: Debug Services
+        url: https://kubernetes.io/docs/tasks/debug/debug-application/debug-service/
+
+  # ------------------------------------------------------------------ 6
+  - id: cka-qz-22-06
+    objective: "2.3.2"
+    difficulty: 3
+    status: draft
+    type: manifest
+    stem:
+      en: |
+        In namespace `analytics`, the ResourceQuota `compute-quota` tracks `requests.cpu`, `requests.memory` and `limits.memory`. Since it was created, the Jobs of CronJob `nightly-export` create no Pods: the Job events say the Pods are forbidden by `compute-quota` because their container sets no CPU request, no memory request and no memory limit. Several teams deploy into this namespace without resource values, and you must not edit their manifests.
+
+        Write a LimitRange named `container-defaults` in namespace `analytics` so that:
+
+        - every container that sets no values gets a CPU request of `200m`, a memory request of `256Mi` and a memory limit of `512Mi`;
+        - no container can set a memory limit above `1Gi`;
+        - no CPU limit is added to containers.
+    body:
+      starter: ""
+    answer:
+      checks:
+        - id: object
+          label: LimitRange container-defaults in namespace analytics
+          path: metadata
+          op: subset
+          value: { name: container-defaults, namespace: analytics }
+        - id: kind
+          label: The object is a LimitRange
+          path: kind
+          op: equals
+          value: LimitRange
+        - id: req-cpu
+          label: Default CPU request of a container is 200m
+          path: spec.limits[type=Container].defaultRequest.cpu
+          op: quantity
+          value: 200m
+        - id: req-mem
+          label: Default memory request of a container is 256Mi
+          path: spec.limits[type=Container].defaultRequest.memory
+          op: quantity
+          value: 256Mi
+        - id: lim-mem
+          label: Default memory limit of a container is 512Mi
+          path: spec.limits[type=Container].default.memory
+          op: quantity
+          value: 512Mi
+        - id: no-lim-cpu
+          label: No default CPU limit
+          path: spec.limits[type=Container].default.cpu
+          op: absent
+        - id: max-mem
+          label: Maximum memory limit of a container is 1Gi
+          path: spec.limits[type=Container].max.memory
+          op: quantity
+          value: 1Gi
+      solution:
+        - manifest: |
+            apiVersion: v1
+            kind: LimitRange
+            metadata:
+              name: container-defaults
+              namespace: analytics
+            spec:
+              limits:
+              - type: Container
+                defaultRequest:
+                  cpu: 200m
+                  memory: 256Mi
+                default:
+                  memory: 512Mi
+                max:
+                  memory: 1Gi
+        - manifest: |
+            apiVersion: v1
+            kind: LimitRange
+            metadata:
+              namespace: analytics
+              name: container-defaults
+            spec:
+              limits:
+              - max:
+                  memory: 1024Mi
+                default:
+                  memory: "536870912"
+                defaultRequest:
+                  memory: 256Mi
+                  cpu: "0.2"
+                type: Container
+      negatives:
+        - manifest: |
+            apiVersion: v1
+            kind: LimitRange
+            metadata:
+              name: container-defaults
+              namespace: analytics
+            spec:
+              limits:
+              - type: Container
+                default:
+                  cpu: 200m
+                  memory: 256Mi
+                defaultRequest:
+                  memory: 512Mi
+                max:
+                  memory: 1Gi
+          why: default and defaultRequest are swapped. `default` is the default limit, so this adds a 200m CPU limit and a 256Mi memory limit below the 512Mi request, and sets no CPU request.
+        - manifest: |
+            apiVersion: v1
+            kind: LimitRange
+            metadata:
+              name: container-defaults
+              namespace: analytics
+            spec:
+              limits:
+              - type: Container
+                min:
+                  cpu: 200m
+                  memory: 256Mi
+                max:
+                  memory: 1Gi
+          why: min and max only validate the values a container sets; they inject nothing, so the Pods without values are still refused by the quota.
+        - manifest: |
+            apiVersion: v1
+            kind: LimitRange
+            metadata:
+              name: container-defaults
+              namespace: analytics
+            spec:
+              limits:
+              - type: Container
+                defaultRequest:
+                  cpu: 200m
+                default:
+                  memory: 512Mi
+                max:
+                  memory: 1Gi
+          why: Without a memory defaultRequest the request is set equal to the injected limit, 512Mi, instead of the required 256Mi.
+        - manifest: |
+            apiVersion: v1
+            kind: LimitRange
+            metadata:
+              name: container-defaults
+              namespace: analytics
+            spec:
+              limits:
+              - type: Container
+                defaultRequest:
+                  cpu: 200m
+                  memory: 256Mi
+                default:
+                  cpu: 200m
+                  memory: 512Mi
+                max:
+                  memory: 1Gi
+          why: The task forbids adding a CPU limit; `default.cpu` would cap and throttle every container at 200m.
+    explanation:
+      correct:
+        en: |
+          A ResourceQuota on `requests.cpu`, `requests.memory` and `limits.memory` refuses every new Pod whose containers do not set these values, and the refusal shows on the Job, not on a Pod. A LimitRange item of `type: Container` injects `defaultRequest` (requests) and `default` (limits) at admission into containers that set none, and `max` caps the values a container may set. It only applies to Pods created after it, so the next Jobs are admitted without touching any team's manifest.
+    references:
+      - title: Limit Ranges
+        url: https://kubernetes.io/docs/concepts/policy/limit-range/
+      - title: Configure Default Memory Requests and Limits for a Namespace
+        url: https://kubernetes.io/docs/tasks/administer-cluster/manage-resources/memory-default-namespace/
+
+  # ------------------------------------------------------------------ 7
+  - id: cka-qz-22-07
+    objective: "2.4.1"
+    difficulty: 3
+    status: draft
+    type: command
+    stem:
+      en: |
+        Deployment `checkout` in namespace `shop` runs 3 replicas. Each Pod has two containers, `envoy` (listed first) and `app`, and no default-container annotation. An incident started on 2026-11-27 at 06:00:00 UTC, and you do not know the current time on the cluster.
+
+        Print the logs of container `app` of a single Pod of the Deployment, letting kubectl pick the Pod (do not look up the Pod names). Print only the lines written since the start of the incident, each with its timestamp. The context namespace is `default`. Type the single command you would run.
+    body:
+      mode: invocation
+      namespace: default
+    answer:
+      checks:
+        - id: verb
+          label: Uses kubectl logs
+          path: verb
+          op: equals
+          value: logs
+        - id: resource
+          label: Reads a Pod of Deployment checkout through deployment/checkout
+          path: resource
+          op: equals
+          value: deployment
+        - id: name
+          label: Targets the Deployment checkout
+          path: names
+          op: contains
+          value: checkout
+        - id: container
+          label: Reads container app
+          path: flags.container
+          op: equals
+          value: app
+        - id: since-time
+          label: Starts at 2026-11-27T06:00:00 UTC (RFC 3339)
+          path: flags.since-time
+          op: oneOf
+          value: ["2026-11-27T06:00:00Z", "2026-11-27T06:00:00+00:00", "2026-11-27T06:00:00.000Z"]
+        - id: timestamps
+          label: Prints a timestamp on each line
+          path: flags.timestamps
+          op: equals
+          value: true
+        - id: namespace
+          label: Runs in namespace shop
+          path: flags.namespace
+          op: equals
+          value: shop
+      solution:
+        - command: kubectl logs deployment/checkout -c app -n shop --since-time=2026-11-27T06:00:00Z --timestamps
+        - command: k -n shop logs deploy/checkout --container=app --since-time 2026-11-27T06:00:00Z --timestamps=true
+        - command: kubectl logs --timestamps --since-time=2026-11-27T06:00:00+00:00 --namespace=shop -c app deployments/checkout
+      negatives:
+        - command: kubectl logs deployment/checkout -n shop --since-time=2026-11-27T06:00:00Z --timestamps
+          why: Without -c and without a default-container annotation, kubectl reads the first container, envoy, not app.
+        - command: kubectl logs deployment/checkout -c app -n shop --since=6h --timestamps
+          why: --since is relative to now, which you do not know; it does not start at 06:00:00 UTC. The absolute start time needs --since-time in RFC 3339.
+        - command: kubectl logs -l app=checkout -c app -n shop --since-time=2026-11-27T06:00:00Z --timestamps
+          why: A selector reads all 3 Pods instead of one, and with a selector --tail defaults to 10 lines per Pod, so most lines since 06:00 are missing.
+        - command: kubectl logs deployment/checkout -c app -n shop --since-time=2026-11-27T06:00:00Z
+          why: Without --timestamps the lines carry no timestamp.
+    explanation:
+      correct:
+        en: |
+          `kubectl logs deployment/checkout` lets kubectl choose one Pod of the Deployment, and `-c app` is needed because without a default-container annotation kubectl uses the first container, `envoy`. `--since-time` takes an absolute RFC 3339 date (`2026-11-27T06:00:00Z`), whereas `--since` takes a duration back from now; only one of the two may be used. `--timestamps` adds the timestamp to each line.
+    references:
+      - title: kubectl logs
+        url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_logs/
+
+  # ------------------------------------------------------------------ 8
+  - id: cka-qz-22-08
+    objective: "2.4.2"
+    difficulty: 3
+    status: draft
+    type: manifest
+    stem:
+      en: |
+        Pod `legacy-app` in namespace `billing` was given a container `log-streamer` so that `kubectl logs legacy-app -c log-streamer -n billing` shows the file `/var/log/legacy/app.log` that the application writes. Twenty minutes after creation, `kubectl get pod legacy-app -n billing` still shows `Init:0/1`, and the container `app` has not started. The manifest is in the editor.
+
+        Correct the manifest so that the Pod starts and `log-streamer` prints, for the whole life of the Pod, the lines that `app` writes to its file. Keep `log-streamer` under `initContainers`, use the existing volume `app-logs`, and do not change any image, command or argument.
+    body:
+      starter: |
+        apiVersion: v1
+        kind: Pod
+        metadata:
+          name: legacy-app
+          namespace: billing
+        spec:
+          initContainers:
+          - name: log-streamer
+            image: busybox:1.37
+            args: [/bin/sh, -c, 'tail -n+1 -F /logs/app.log']
+            volumeMounts:
+            - name: app-logs
+              mountPath: /logs
+          containers:
+          - name: app
+            image: registry.example.com/billing/legacy:3.2
+            args: [--log-file=/var/log/legacy/app.log]
+          volumes:
+          - name: app-logs
+            emptyDir: {}
+    answer:
+      checks:
+        - id: pod
+          label: Pod legacy-app in namespace billing
+          path: metadata
+          op: subset
+          value: { name: legacy-app, namespace: billing }
+        - id: sidecar
+          label: log-streamer is a native sidecar (restartPolicy Always on the init container)
+          path: spec.initContainers[name=log-streamer].restartPolicy
+          op: equals
+          value: Always
+        - id: streamer-args
+          label: log-streamer still tails /logs/app.log
+          path: spec.initContainers[name=log-streamer].args
+          op: contains
+          value: tail -n+1 -F /logs/app.log
+        - id: streamer-mount
+          label: log-streamer mounts app-logs at /logs
+          path: spec.initContainers[name=log-streamer].volumeMounts[name=app-logs].mountPath
+          op: matches
+          value: '^/logs/?$'
+        - id: app-mount
+          label: app mounts app-logs at /var/log/legacy, where it writes its file
+          path: spec.containers[name=app].volumeMounts[name=app-logs].mountPath
+          op: matches
+          value: '^/var/log/legacy/?$'
+        - id: app-args
+          label: app keeps its arguments
+          path: spec.containers[name=app].args
+          op: contains
+          value: --log-file=/var/log/legacy/app.log
+        - id: volume
+          label: app-logs stays an emptyDir volume
+          path: spec.volumes[name=app-logs].emptyDir
+          op: exists
+      solution:
+        - manifest: |
+            apiVersion: v1
+            kind: Pod
+            metadata:
+              name: legacy-app
+              namespace: billing
+            spec:
+              initContainers:
+              - name: log-streamer
+                image: busybox:1.37
+                restartPolicy: Always
+                args: [/bin/sh, -c, 'tail -n+1 -F /logs/app.log']
+                volumeMounts:
+                - name: app-logs
+                  mountPath: /logs
+              containers:
+              - name: app
+                image: registry.example.com/billing/legacy:3.2
+                args: [--log-file=/var/log/legacy/app.log]
+                volumeMounts:
+                - name: app-logs
+                  mountPath: /var/log/legacy
+              volumes:
+              - name: app-logs
+                emptyDir: {}
+        - manifest: |
+            apiVersion: v1
+            kind: Pod
+            metadata:
+              name: legacy-app
+              namespace: billing
+            spec:
+              volumes:
+              - name: app-logs
+                emptyDir: {}
+              containers:
+              - name: app
+                image: registry.example.com/billing/legacy:3.2
+                args:
+                - --log-file=/var/log/legacy/app.log
+                volumeMounts:
+                - mountPath: /var/log/legacy/
+                  name: app-logs
+              initContainers:
+              - name: log-streamer
+                image: busybox:1.37
+                args:
+                - /bin/sh
+                - -c
+                - tail -n+1 -F /logs/app.log
+                restartPolicy: Always
+                volumeMounts:
+                - name: app-logs
+                  mountPath: /logs
+                  readOnly: true
+      negatives:
+        - manifest: |
+            apiVersion: v1
+            kind: Pod
+            metadata:
+              name: legacy-app
+              namespace: billing
+            spec:
+              initContainers:
+              - name: log-streamer
+                image: busybox:1.37
+                restartPolicy: Always
+                args: [/bin/sh, -c, 'tail -n+1 -F /logs/app.log']
+                volumeMounts:
+                - name: app-logs
+                  mountPath: /logs
+              containers:
+              - name: app
+                image: registry.example.com/billing/legacy:3.2
+                args: [--log-file=/var/log/legacy/app.log]
+              volumes:
+              - name: app-logs
+                emptyDir: {}
+          why: The Pod now starts, but app writes its file in its own filesystem, not on the shared volume, so log-streamer never sees /logs/app.log.
+        - manifest: |
+            apiVersion: v1
+            kind: Pod
+            metadata:
+              name: legacy-app
+              namespace: billing
+            spec:
+              initContainers:
+              - name: log-streamer
+                image: busybox:1.37
+                args: [/bin/sh, -c, 'tail -n+1 -F /logs/app.log']
+                volumeMounts:
+                - name: app-logs
+                  mountPath: /logs
+              containers:
+              - name: app
+                image: registry.example.com/billing/legacy:3.2
+                args: [--log-file=/var/log/legacy/app.log]
+                volumeMounts:
+                - name: app-logs
+                  mountPath: /var/log/legacy
+              volumes:
+              - name: app-logs
+                emptyDir: {}
+          why: A regular init container must exit before app starts; tail -F never exits, so the Pod stays in Init:0/1.
+        - manifest: |
+            apiVersion: v1
+            kind: Pod
+            metadata:
+              name: legacy-app
+              namespace: billing
+            spec:
+              restartPolicy: Always
+              initContainers:
+              - name: log-streamer
+                image: busybox:1.37
+                args: [/bin/sh, -c, 'tail -n+1 -F /logs/app.log']
+                volumeMounts:
+                - name: app-logs
+                  mountPath: /logs
+              containers:
+              - name: app
+                image: registry.example.com/billing/legacy:3.2
+                args: [--log-file=/var/log/legacy/app.log]
+                volumeMounts:
+                - name: app-logs
+                  mountPath: /var/log/legacy
+              volumes:
+              - name: app-logs
+                emptyDir: {}
+          why: The Pod-level restartPolicy (already Always by default) does not make an init container a sidecar; the field must be set on the init container itself.
+        - manifest: |
+            apiVersion: v1
+            kind: Pod
+            metadata:
+              name: legacy-app
+              namespace: billing
+            spec:
+              initContainers:
+              - name: log-streamer
+                image: busybox:1.37
+                restartPolicy: Always
+                args: [/bin/sh, -c, 'tail -n+1 -F /logs/app.log']
+                volumeMounts:
+                - name: app-logs
+                  mountPath: /logs
+              containers:
+              - name: app
+                image: registry.example.com/billing/legacy:3.2
+                args: [--log-file=/var/log/legacy/app.log]
+                volumeMounts:
+                - name: app-logs
+                  mountPath: /logs
+              volumes:
+              - name: app-logs
+                emptyDir: {}
+          why: The volume must be mounted where each container uses it. app writes to /var/log/legacy, so mounting the volume at /logs in app leaves the file outside the shared volume.
+    explanation:
+      correct:
+        en: |
+          A regular init container must exit before the next init container and the app containers start, so a `tail -F` init container blocks the Pod in `Init:0/1`. Setting `restartPolicy: Always` on that init container makes it a native sidecar (stable since v1.33): it starts, keeps running for the life of the Pod, and the kubelet goes on to start `app`. The shared `emptyDir` must also be mounted in `app` at `/var/log/legacy`, where the file is written, while the sidecar keeps reading it at its own mount path `/logs`.
+    references:
+      - title: Sidecar Containers
+        url: https://kubernetes.io/docs/concepts/workloads/pods/sidecar-containers/
+      - title: Logging Architecture
+        url: https://kubernetes.io/docs/concepts/cluster-administration/logging/
+
+  # ------------------------------------------------------------------ 9
+  - id: cka-qz-22-09
+    objective: "2.5.1"
+    difficulty: 3
+    status: draft
+    type: manifest
+    stem:
+      en: |
+        In namespace `shop`, Service `catalog` has no endpoints, although the 3 Pods of Deployment `catalog` are `Running` and ready. The Service is shared with other teams and must not be changed:
+
+        ```yaml
+        apiVersion: v1
+        kind: Service
+        metadata:
+          name: catalog
+          namespace: shop
+        spec:
+          selector:
+            app: catalog
+            tier: backend
+          ports:
+          - port: 80
+            targetPort: http
+        ```
+
+        The application listens on port 8080. The Deployment, shown in the editor, is updated in place with `kubectl apply`. Correct the Deployment so that the Service gets ready endpoints and clients of port 80 reach the application. Keep the readiness probe on `GET /ready` and do not change the image.
+    body:
+      starter: |
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: catalog
+          namespace: shop
+          labels:
+            app: catalog
+            tier: backend
+        spec:
+          replicas: 3
+          selector:
+            matchLabels:
+              app: catalog
+          template:
+            metadata:
+              labels:
+                app: catalog
+            spec:
+              containers:
+              - name: api
+                image: registry.example.com/shop/catalog:2.4
+                ports:
+                - name: web
+                  containerPort: 8080
+                readinessProbe:
+                  httpGet:
+                    path: /ready
+                    port: web
+    answer:
+      checks:
+        - id: deployment
+          label: Deployment catalog in namespace shop
+          path: metadata
+          op: subset
+          value: { name: catalog, namespace: shop }
+        - id: selector
+          label: The Deployment selector is unchanged (it is immutable)
+          path: spec.selector.matchLabels
+          op: equals
+          value: { app: catalog }
+        - id: pod-labels
+          label: The Pod template carries app=catalog and tier=backend
+          path: spec.template.metadata.labels
+          op: subset
+          value: { app: catalog, tier: backend }
+        - id: port-name
+          label: Container port 8080 is named http
+          path: spec.template.spec.containers[name=api].ports[containerPort=8080].name
+          op: equals
+          value: http
+        - id: probe-path
+          label: The readiness probe still calls GET /ready
+          path: spec.template.spec.containers[name=api].readinessProbe.httpGet.path
+          op: equals
+          value: /ready
+        - id: probe-port
+          label: The readiness probe targets port 8080 (by number or by the name http)
+          path: spec.template.spec.containers[name=api].readinessProbe.httpGet.port
+          op: oneOf
+          value: [http, 8080]
+        - id: image
+          label: The image is unchanged
+          path: spec.template.spec.containers[name=api].image
+          op: equals
+          value: registry.example.com/shop/catalog:2.4
+      solution:
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: catalog
+              namespace: shop
+              labels:
+                app: catalog
+                tier: backend
+            spec:
+              replicas: 3
+              selector:
+                matchLabels:
+                  app: catalog
+              template:
+                metadata:
+                  labels:
+                    app: catalog
+                    tier: backend
+                spec:
+                  containers:
+                  - name: api
+                    image: registry.example.com/shop/catalog:2.4
+                    ports:
+                    - name: http
+                      containerPort: 8080
+                    readinessProbe:
+                      httpGet:
+                        path: /ready
+                        port: http
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: catalog
+              namespace: shop
+              labels:
+                app: catalog
+                tier: backend
+            spec:
+              replicas: 3
+              selector:
+                matchLabels:
+                  app: catalog
+              template:
+                metadata:
+                  labels:
+                    tier: backend
+                    app: catalog
+                    version: "2.4"
+                spec:
+                  containers:
+                  - name: api
+                    image: registry.example.com/shop/catalog:2.4
+                    ports:
+                    - containerPort: 8080
+                      name: http
+                      protocol: TCP
+                    readinessProbe:
+                      httpGet:
+                        path: /ready
+                        port: 8080
+      negatives:
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: catalog
+              namespace: shop
+              labels:
+                app: catalog
+                tier: backend
+            spec:
+              replicas: 3
+              selector:
+                matchLabels:
+                  app: catalog
+              template:
+                metadata:
+                  labels:
+                    app: catalog
+                spec:
+                  containers:
+                  - name: api
+                    image: registry.example.com/shop/catalog:2.4
+                    ports:
+                    - name: http
+                      containerPort: 8080
+                    readinessProbe:
+                      httpGet:
+                        path: /ready
+                        port: http
+          why: The Service selects Pod labels; tier=backend is only on the Deployment's own metadata, so the Pods still do not match the selector.
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: catalog
+              namespace: shop
+            spec:
+              replicas: 3
+              selector:
+                matchLabels:
+                  app: catalog
+                  tier: backend
+              template:
+                metadata:
+                  labels:
+                    app: catalog
+                    tier: backend
+                spec:
+                  containers:
+                  - name: api
+                    image: registry.example.com/shop/catalog:2.4
+                    ports:
+                    - name: http
+                      containerPort: 8080
+                    readinessProbe:
+                      httpGet:
+                        path: /ready
+                        port: http
+          why: spec.selector of an apps/v1 Deployment is immutable, so kubectl apply rejects this change; the selector does not need tier=backend for the Pods to carry it.
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: catalog
+              namespace: shop
+            spec:
+              replicas: 3
+              selector:
+                matchLabels:
+                  app: catalog
+              template:
+                metadata:
+                  labels:
+                    app: catalog
+                    tier: backend
+                spec:
+                  containers:
+                  - name: api
+                    image: registry.example.com/shop/catalog:2.4
+                    ports:
+                    - name: http
+                      containerPort: 8080
+                    readinessProbe:
+                      httpGet:
+                        path: /ready
+                        port: web
+          why: After the rename, no container port is named web, so the readiness probe cannot resolve its port and the Pods never become ready.
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: catalog
+              namespace: shop
+            spec:
+              replicas: 3
+              selector:
+                matchLabels:
+                  app: catalog
+              template:
+                metadata:
+                  labels:
+                    app: catalog
+                    tier: backend
+                spec:
+                  containers:
+                  - name: api
+                    image: registry.example.com/shop/catalog:2.4
+                    ports:
+                    - name: web
+                      containerPort: 8080
+                    readinessProbe:
+                      httpGet:
+                        path: /ready
+                        port: web
+          why: The Pods now match the selector, but the Service targetPort is the name http and no container port carries that name, so the Pods get no usable endpoint.
+    explanation:
+      correct:
+        en: |
+          Two things block the Service, and both must be fixed in the Pod template since the Service cannot change. Its selector needs the Pod labels `app=catalog` and `tier=backend`: the Deployment's own `metadata.labels` do not count, and `spec.selector` cannot be changed with `kubectl apply` (it is immutable in `apps/v1`, and the narrower template still matches it). Its `targetPort: http` is a name, so the container port 8080 must be named `http`, and the readiness probe that referred to the old name `web` must follow (`http` or `8080`), otherwise the Pods never become ready.
+    references:
+      - title: Debug Services
+        url: https://kubernetes.io/docs/tasks/debug/debug-application/debug-service/
+      - title: Deployments
+        url: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/
+
+  # ------------------------------------------------------------------ 10
+  - id: cka-qz-22-10
+    objective: "2.5.2"
+    difficulty: 3
+    status: draft
+    type: command
+    stem:
+      en: |
+        Service `web` in namespace `shop` has port `80` and `targetPort: 8080`; its Pods carry `app=web`. A NetworkPolicy protects them (`netpol.yaml`). The context namespace is `default`.
+
+        Prove from inside the cluster that the Service answers through its DNS name: start a temporary Pod that this policy admits, with image `busybox:1.37`, attached to your terminal, never restarted and deleted when the command ends, that runs `wget` directly (no shell) to fetch `/healthz` from the Service by name and print it. Type the single command you would run.
+    body:
+      mode: invocation
+      namespace: default
+      files:
+        - name: netpol.yaml
+          content: |
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: web-ingress
+              namespace: shop
+            spec:
+              podSelector:
+                matchLabels:
+                  app: web
+              policyTypes:
+              - Ingress
+              ingress:
+              - from:
+                - podSelector:
+                    matchLabels:
+                      access: web-client
+                ports:
+                - protocol: TCP
+                  port: 8080
+    answer:
+      checks:
+        - id: verb
+          label: Uses kubectl run
+          path: verb
+          op: equals
+          value: run
+        - id: image
+          label: Runs busybox:1.37
+          path: flags.image
+          op: equals
+          value: busybox:1.37
+        - id: namespace
+          label: Runs in namespace shop, where the policy's podSelector looks for clients
+          path: flags.namespace
+          op: equals
+          value: shop
+        - id: labels
+          label: The Pod carries the label access=web-client
+          path: flags.labels
+          op: matches
+          value: '(^|,)access=web-client(,|$)'
+        - id: rm
+          label: Deletes the Pod when the command ends (--rm)
+          path: flags.rm
+          op: equals
+          value: true
+        - id: attach
+          label: Attaches to the Pod (-i or --attach)
+          path: flags
+          op: matches
+          value: '"(stdin|attach)":(true|"true")'
+        - id: restart
+          label: The Pod is never restarted
+          path: flags.restart
+          op: equals
+          value: Never
+        - id: wget
+          label: Runs wget as the command
+          path: rest[0]
+          op: equals
+          value: wget
+        - id: url
+          label: Fetches /healthz from the Service name on the Service port (80)
+          path: rest
+          op: matches
+          value: '"http://web(\.shop(\.svc(\.cluster\.local)?)?)?(:80)?/healthz"'
+      solution:
+        - command: kubectl run probe --rm -it --restart=Never --image=busybox:1.37 -n shop -l access=web-client -- wget -qO- -T 3 http://web/healthz
+        - command: k -n shop run probe --labels=access=web-client --image busybox:1.37 --restart Never --rm -i -- wget -q -O - http://web.shop.svc.cluster.local:80/healthz
+        - command: kubectl run probe --namespace=shop --labels="access=web-client,purpose=debug" --image=busybox:1.37 --restart=Never --rm --attach -- wget -qO- http://web.shop/healthz
+      negatives:
+        - command: kubectl run probe --rm -it --restart=Never --image=busybox:1.37 -n shop -- wget -qO- -T 3 http://web/healthz
+          why: Without the label access=web-client the policy does not admit the Pod, so wget times out although the Service works.
+        - command: kubectl run probe --rm -it --restart=Never --image=busybox:1.37 -l access=web-client -- wget -qO- -T 3 http://web.shop/healthz
+          why: The Pod runs in namespace default; a podSelector without namespaceSelector only admits Pods of the policy's namespace, shop.
+        - command: kubectl run probe --rm -it --restart=Never --image=busybox:1.37 -n shop -l access=web-client -- wget -qO- -T 3 http://web:8080/healthz
+          why: 8080 is the Pod port (the one in the policy); the Service listens only on port 80, so a connection to the Service IP on 8080 fails.
+        - command: kubectl run probe -it --restart=Never --image=busybox:1.37 -n shop -l access=web-client -- wget -qO- -T 3 http://web/healthz
+          why: Without --rm the Pod stays in namespace shop after the test.
+    explanation:
+      correct:
+        en: |
+          The policy isolates the `app=web` Pods for ingress and admits only Pods labelled `access=web-client`; a `podSelector` without `namespaceSelector` matches Pods of the policy's own namespace, so the test Pod needs `-n shop` and `--labels` (`-l` on `kubectl run`). Clients call the Service port, 80, while the policy names the Pod port, 8080, that traffic reaches after kube-proxy translates the Service address. `--rm` works only when attached (`-i` or `--attach`), and `--restart` defaults to `Always`.
+    references:
+      - title: Network Policies
+        url: https://kubernetes.io/docs/concepts/services-networking/network-policies/
+      - title: kubectl run
+        url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_run/

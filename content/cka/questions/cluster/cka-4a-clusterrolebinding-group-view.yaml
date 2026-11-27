@@ -1,0 +1,116 @@
+id: cka-4a-clusterrolebinding-group-view
+objective: "4.1.1"
+difficulty: 1
+status: draft
+type: command
+stem:
+  en: |-
+    Members of the group `sre` (the `O` field of their client certificates) must get read-only access in every namespace through the built-in ClusterRole `view`. Create a binding named `sre-view`.
+
+    Type the single command you would run.
+body:
+  mode: object
+  namespace: default
+answer:
+  checks:
+  - id: kind
+    label: The object is a ClusterRoleBinding
+    path: kind
+    op: equals
+    value: ClusterRoleBinding
+  - id: name
+    label: It is named sre-view
+    path: metadata.name
+    op: equals
+    value: sre-view
+  - id: roleref
+    label: It references the ClusterRole view
+    path: roleRef
+    op: subset
+    value: {kind: ClusterRole, name: view}
+  - id: subject
+    label: Its subject is the group sre
+    path: subjects
+    op: contains
+    value: {kind: Group, name: sre}
+  solution:
+  - command: kubectl create clusterrolebinding sre-view --clusterrole=view --group=sre
+    output: |
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRoleBinding
+      metadata:
+        name: sre-view
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: view
+      subjects:
+      - apiGroup: rbac.authorization.k8s.io
+        kind: Group
+        name: sre
+  - command: k create clusterrolebinding sre-view --group sre --clusterrole view --dry-run=client -o yaml
+    output: |
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRoleBinding
+      metadata:
+        name: sre-view
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: view
+      subjects:
+      - apiGroup: rbac.authorization.k8s.io
+        kind: Group
+        name: sre
+  negatives:
+  - command: kubectl create clusterrolebinding sre-view --clusterrole=view --user=sre
+    why: --user binds a single user named sre, not the members of the group sre.
+    output: |
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRoleBinding
+      metadata:
+        name: sre-view
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: view
+      subjects:
+      - apiGroup: rbac.authorization.k8s.io
+        kind: User
+        name: sre
+  - command: kubectl create rolebinding sre-view --clusterrole=view --group=sre
+    why: A RoleBinding grants the ClusterRole only inside its own namespace (here default), not in every namespace.
+    output: |
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: RoleBinding
+      metadata:
+        name: sre-view
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: view
+      subjects:
+      - apiGroup: rbac.authorization.k8s.io
+        kind: Group
+        name: sre
+  - command: kubectl create clusterrolebinding sre-view --clusterrole=edit --group=sre
+    why: edit allows changes; the task asks for read-only access with view.
+    output: |
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRoleBinding
+      metadata:
+        name: sre-view
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: edit
+      subjects:
+      - apiGroup: rbac.authorization.k8s.io
+        kind: Group
+        name: sre
+explanation:
+  correct:
+    en: 'A ClusterRoleBinding applies its ClusterRole in every namespace: `kubectl create clusterrolebinding sre-view --clusterrole=view --group=sre`. With client certificates, the `O` (organization) fields become the user''s groups, so `--group=sre` matches every member. `--user` names one user, and a RoleBinding to the same ClusterRole would be limited to its namespace.'
+references:
+- title: Using RBAC Authorization
+  url: https://kubernetes.io/docs/reference/access-authn-authz/rbac/

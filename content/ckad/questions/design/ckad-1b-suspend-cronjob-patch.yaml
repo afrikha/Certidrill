@@ -1,0 +1,64 @@
+id: ckad-1b-suspend-cronjob-patch
+objective: "1.2.4"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    During a two-day maintenance window, the CronJob `nightly-report` in namespace `finance` must not start any new Job. Its definition must be kept for later, and the Job it started an hour ago must keep running. The context namespace is `default`.
+
+    Suspend the CronJob with a single non-interactive command (no editor). Type the command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Uses kubectl patch
+    path: verb
+    op: equals
+    value: patch
+  - id: resource
+    label: Patches a CronJob
+    path: resource
+    op: equals
+    value: cronjob
+  - id: name
+    label: Targets the CronJob nightly-report
+    path: names
+    op: contains
+    value: nightly-report
+  - id: namespace
+    label: Runs in namespace finance
+    path: flags.namespace
+    op: equals
+    value: finance
+  - id: suspend
+    label: Sets spec.suspend to true
+    path: flags.patch
+    op: matches
+    value: '"suspend"\s*:\s*true|"/spec/suspend"[^}]*"value"\s*:\s*true|"value"\s*:\s*true[^}]*"/spec/suspend"'
+  - id: not-template
+    label: Does not change the Job template
+    path: flags.patch
+    op: matches
+    value: '^(?![\s\S]*jobTemplate)'
+  solution:
+  - command: kubectl patch cronjob nightly-report -n finance -p '{"spec":{"suspend":true}}'
+  - command: k -n finance patch cj/nightly-report --type=merge -p '{"spec":{"suspend":true}}'
+  - command: kubectl patch cronjob/nightly-report -n finance --type=json -p '[{"op":"replace","path":"/spec/suspend","value":true}]'
+  negatives:
+  - command: kubectl delete cronjob nightly-report -n finance
+    why: Deleting the CronJob loses its definition, and the cascading deletion also removes the Jobs it owns, including the running one.
+  - command: kubectl patch cronjob nightly-report -n finance -p '{"spec":{"jobTemplate":{"spec":{"suspend":true}}}}'
+    why: This suspends each Job the CronJob creates, but the CronJob still creates a new Job on every schedule.
+  - command: kubectl patch cronjob nightly-report -p '{"spec":{"suspend":true}}'
+    why: Without -n the command looks for nightly-report in the context namespace, default.
+explanation:
+  correct:
+    en: '`spec.suspend: true` stops the CronJob controller from starting new Jobs; the runs stay scheduled but are skipped, and Jobs already started keep running. `kubectl patch cronjob nightly-report -n finance -p ''{"spec":{"suspend":true}}''` sets it without an editor (`kubectl edit` would be interactive). When `suspend` goes back to `false`, missed runs count as missed: without `startingDeadlineSeconds`, a Job for the most recent missed schedule starts at once.'
+references:
+- title: CronJob
+  url: https://kubernetes.io/docs/concepts/workloads/controllers/cron-jobs/
+- title: Update API Objects in Place Using kubectl patch
+  url: https://kubernetes.io/docs/tasks/manage-kubernetes-objects/update-api-object-kubectl-patch/

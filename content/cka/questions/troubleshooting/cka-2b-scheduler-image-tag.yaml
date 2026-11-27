@@ -1,0 +1,369 @@
+id: cka-2b-scheduler-image-tag
+objective: "2.2.1"
+difficulty: 1
+status: draft
+type: manifest
+stem:
+  en: |-
+    New Pods stay `Pending` with no scheduling events. In `kube-system`, Pod `kube-scheduler-cp-1` shows `ImagePullBackOff`, and its events contain `Failed to pull image "registry.k8s.io/kube-scheduler:v1.73.1": ... not found`. All other control plane components run images tagged `v1.37.1`.
+
+    The editor contains `/etc/kubernetes/manifests/kube-scheduler.yaml`. Write the corrected manifest. Change nothing else.
+body:
+  starter: |
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      labels:
+        component: kube-scheduler
+        tier: control-plane
+      name: kube-scheduler
+      namespace: kube-system
+    spec:
+      containers:
+      - command:
+        - kube-scheduler
+        - --authentication-kubeconfig=/etc/kubernetes/scheduler.conf
+        - --authorization-kubeconfig=/etc/kubernetes/scheduler.conf
+        - --bind-address=127.0.0.1
+        - --kubeconfig=/etc/kubernetes/scheduler.conf
+        - --leader-elect=true
+        image: registry.k8s.io/kube-scheduler:v1.73.1
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          failureThreshold: 8
+          httpGet:
+            host: 127.0.0.1
+            path: /livez
+            port: probe-port
+            scheme: HTTPS
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 15
+        name: kube-scheduler
+        ports:
+        - containerPort: 10259
+          name: probe-port
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            host: 127.0.0.1
+            path: /readyz
+            port: probe-port
+            scheme: HTTPS
+          initialDelaySeconds: 0
+          periodSeconds: 1
+          timeoutSeconds: 15
+        startupProbe:
+          failureThreshold: 24
+          httpGet:
+            host: 127.0.0.1
+            path: /livez
+            port: probe-port
+            scheme: HTTPS
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 15
+        volumeMounts:
+        - mountPath: /etc/kubernetes/scheduler.conf
+          name: kubeconfig
+          readOnly: true
+      hostNetwork: true
+      priorityClassName: system-node-critical
+      volumes:
+      - hostPath:
+          path: /etc/kubernetes/scheduler.conf
+          type: FileOrCreate
+        name: kubeconfig
+answer:
+  checks:
+  - id: image
+    label: The image is registry.k8s.io/kube-scheduler:v1.37.1
+    path: spec.containers[name=kube-scheduler].image
+    op: equals
+    value: registry.k8s.io/kube-scheduler:v1.37.1
+  - id: kubeconfig
+    label: --kubeconfig is unchanged
+    path: spec.containers[name=kube-scheduler].command
+    op: contains
+    value: --kubeconfig=/etc/kubernetes/scheduler.conf
+  - id: volume
+    label: The kubeconfig volume is unchanged
+    path: spec.volumes[name=kubeconfig].hostPath.path
+    op: equals
+    value: /etc/kubernetes/scheduler.conf
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        labels:
+          component: kube-scheduler
+          tier: control-plane
+        name: kube-scheduler
+        namespace: kube-system
+      spec:
+        containers:
+        - command:
+          - kube-scheduler
+          - --authentication-kubeconfig=/etc/kubernetes/scheduler.conf
+          - --authorization-kubeconfig=/etc/kubernetes/scheduler.conf
+          - --bind-address=127.0.0.1
+          - --kubeconfig=/etc/kubernetes/scheduler.conf
+          - --leader-elect=true
+          image: registry.k8s.io/kube-scheduler:v1.37.1
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            failureThreshold: 8
+            httpGet:
+              host: 127.0.0.1
+              path: /livez
+              port: probe-port
+              scheme: HTTPS
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 15
+          name: kube-scheduler
+          ports:
+          - containerPort: 10259
+            name: probe-port
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              host: 127.0.0.1
+              path: /readyz
+              port: probe-port
+              scheme: HTTPS
+            initialDelaySeconds: 0
+            periodSeconds: 1
+            timeoutSeconds: 15
+          startupProbe:
+            failureThreshold: 24
+            httpGet:
+              host: 127.0.0.1
+              path: /livez
+              port: probe-port
+              scheme: HTTPS
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 15
+          volumeMounts:
+          - mountPath: /etc/kubernetes/scheduler.conf
+            name: kubeconfig
+            readOnly: true
+        hostNetwork: true
+        priorityClassName: system-node-critical
+        volumes:
+        - hostPath:
+            path: /etc/kubernetes/scheduler.conf
+            type: FileOrCreate
+          name: kubeconfig
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        labels:
+          component: kube-scheduler
+          tier: control-plane
+        name: kube-scheduler
+        namespace: kube-system
+      spec:
+        containers:
+        - command:
+          - kube-scheduler
+          - --authentication-kubeconfig=/etc/kubernetes/scheduler.conf
+          - --authorization-kubeconfig=/etc/kubernetes/scheduler.conf
+          - --bind-address=127.0.0.1
+          - --kubeconfig=/etc/kubernetes/scheduler.conf
+          - --leader-elect=true
+          image: registry.k8s.io/kube-apiserver:v1.37.1
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            failureThreshold: 8
+            httpGet:
+              host: 127.0.0.1
+              path: /livez
+              port: probe-port
+              scheme: HTTPS
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 15
+          name: kube-scheduler
+          ports:
+          - containerPort: 10259
+            name: probe-port
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              host: 127.0.0.1
+              path: /readyz
+              port: probe-port
+              scheme: HTTPS
+            initialDelaySeconds: 0
+            periodSeconds: 1
+            timeoutSeconds: 15
+          startupProbe:
+            failureThreshold: 24
+            httpGet:
+              host: 127.0.0.1
+              path: /livez
+              port: probe-port
+              scheme: HTTPS
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 15
+          volumeMounts:
+          - mountPath: /etc/kubernetes/scheduler.conf
+            name: kubeconfig
+            readOnly: true
+        hostNetwork: true
+        priorityClassName: system-node-critical
+        volumes:
+        - hostPath:
+            path: /etc/kubernetes/scheduler.conf
+            type: FileOrCreate
+          name: kubeconfig
+    why: 'This is the API server image; the container would run the wrong binary.'
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        labels:
+          component: kube-scheduler
+          tier: control-plane
+        name: kube-scheduler
+        namespace: kube-system
+      spec:
+        containers:
+        - command:
+          - kube-scheduler
+          - --authentication-kubeconfig=/etc/kubernetes/scheduler.conf
+          - --authorization-kubeconfig=/etc/kubernetes/scheduler.conf
+          - --bind-address=127.0.0.1
+          - --kubeconfig=/etc/kubernetes/scheduler.conf
+          - --leader-elect=true
+          image: registry.k8s.io/kube-scheduler:latest
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            failureThreshold: 8
+            httpGet:
+              host: 127.0.0.1
+              path: /livez
+              port: probe-port
+              scheme: HTTPS
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 15
+          name: kube-scheduler
+          ports:
+          - containerPort: 10259
+            name: probe-port
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              host: 127.0.0.1
+              path: /readyz
+              port: probe-port
+              scheme: HTTPS
+            initialDelaySeconds: 0
+            periodSeconds: 1
+            timeoutSeconds: 15
+          startupProbe:
+            failureThreshold: 24
+            httpGet:
+              host: 127.0.0.1
+              path: /livez
+              port: probe-port
+              scheme: HTTPS
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 15
+          volumeMounts:
+          - mountPath: /etc/kubernetes/scheduler.conf
+            name: kubeconfig
+            readOnly: true
+        hostNetwork: true
+        priorityClassName: system-node-critical
+        volumes:
+        - hostPath:
+            path: /etc/kubernetes/scheduler.conf
+            type: FileOrCreate
+          name: kubeconfig
+    why: 'The task requires the same version as the other components, v1.37.1; latest is not a pinned version tag.'
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        labels:
+          component: kube-scheduler
+          tier: control-plane
+        name: kube-scheduler
+        namespace: kube-system
+      spec:
+        containers:
+        - command:
+          - kube-scheduler
+          - --authentication-kubeconfig=/etc/kubernetes/admin.conf
+          - --authorization-kubeconfig=/etc/kubernetes/admin.conf
+          - --bind-address=127.0.0.1
+          - --kubeconfig=/etc/kubernetes/admin.conf
+          - --leader-elect=true
+          image: registry.k8s.io/kube-scheduler:v1.73.1
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            failureThreshold: 8
+            httpGet:
+              host: 127.0.0.1
+              path: /livez
+              port: probe-port
+              scheme: HTTPS
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 15
+          name: kube-scheduler
+          ports:
+          - containerPort: 10259
+            name: probe-port
+            protocol: TCP
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              host: 127.0.0.1
+              path: /readyz
+              port: probe-port
+              scheme: HTTPS
+            initialDelaySeconds: 0
+            periodSeconds: 1
+            timeoutSeconds: 15
+          startupProbe:
+            failureThreshold: 24
+            httpGet:
+              host: 127.0.0.1
+              path: /livez
+              port: probe-port
+              scheme: HTTPS
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 15
+          volumeMounts:
+          - mountPath: /etc/kubernetes/admin.conf
+            name: kubeconfig
+            readOnly: true
+        hostNetwork: true
+        priorityClassName: system-node-critical
+        volumes:
+        - hostPath:
+            path: /etc/kubernetes/admin.conf
+            type: FileOrCreate
+          name: kubeconfig
+    why: 'The image tag is still wrong, so the image still cannot be pulled; the kubeconfig was not the problem.'
+explanation:
+  correct:
+    en: 'The tag `v1.73.1` does not exist, so the kubelet cannot pull the scheduler image and no Pod is scheduled. Set `image: registry.k8s.io/kube-scheduler:v1.37.1` in `/etc/kubernetes/manifests/kube-scheduler.yaml` on `cp-1`; the kubelet sees the change and recreates the static Pod.'
+references:
+- title: Create static Pods
+  url: https://kubernetes.io/docs/tasks/configure-pod-container/static-pod/

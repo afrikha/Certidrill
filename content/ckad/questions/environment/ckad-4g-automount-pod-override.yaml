@@ -1,0 +1,155 @@
+id: ckad-4g-automount-pod-override
+objective: "4.7.2"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    In namespace `ops`, several Pods run with the ServiceAccount `metrics`, and most of them never call the Kubernetes API. Write one file with:
+
+    - the ServiceAccount `metrics`, configured so that Pods using it do **not** get an API token mounted automatically;
+    - a Pod `scraper` (one container `scraper`, image `registry.example.com/ops/scraper:2.0`) that runs with `metrics` and is the one Pod that **must** still get the token mounted automatically at `/var/run/secrets/kubernetes.io/serviceaccount`.
+
+    Do not add any volume yourself.
+body:
+  starter: |
+    apiVersion: v1
+    kind: ServiceAccount
+    metadata:
+      name: metrics
+      namespace: ops
+    ---
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: scraper
+      namespace: ops
+    spec:
+      containers:
+      - name: scraper
+        image: registry.example.com/ops/scraper:2.0
+answer:
+  checks:
+  - id: sa-ns
+    label: ServiceAccount metrics is in namespace ops
+    select: {kind: ServiceAccount, name: metrics}
+    path: metadata.namespace
+    op: equals
+    value: ops
+  - id: sa-automount
+    label: The ServiceAccount disables token automounting
+    select: {kind: ServiceAccount, name: metrics}
+    path: automountServiceAccountToken
+    op: equals
+    value: false
+  - id: pod-sa
+    label: Pod scraper runs with ServiceAccount metrics
+    select: {kind: Pod, name: scraper}
+    path: spec.serviceAccountName
+    op: equals
+    value: metrics
+  - id: pod-automount
+    label: Pod scraper explicitly enables token automounting
+    select: {kind: Pod, name: scraper}
+    path: spec.automountServiceAccountToken
+    op: equals
+    value: true
+  - id: pod-ns
+    label: Pod scraper is in namespace ops
+    select: {kind: Pod, name: scraper}
+    path: metadata.namespace
+    op: equals
+    value: ops
+  - id: image
+    label: Container scraper runs registry.example.com/ops/scraper:2.0
+    select: {kind: Pod, name: scraper}
+    path: spec.containers[name=scraper].image
+    op: equals
+    value: registry.example.com/ops/scraper:2.0
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: ServiceAccount
+      metadata:
+        name: metrics
+        namespace: ops
+      automountServiceAccountToken: false
+      ---
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: scraper
+        namespace: ops
+      spec:
+        serviceAccountName: metrics
+        automountServiceAccountToken: true
+        containers:
+        - name: scraper
+          image: registry.example.com/ops/scraper:2.0
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: ServiceAccount
+      metadata:
+        name: metrics
+        namespace: ops
+      automountServiceAccountToken: false
+      ---
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: scraper
+        namespace: ops
+      spec:
+        serviceAccountName: metrics
+        containers:
+        - name: scraper
+          image: registry.example.com/ops/scraper:2.0
+    why: With no value in the Pod spec, the Pod inherits automountServiceAccountToken false from the ServiceAccount and scraper gets no token.
+  - manifest: |
+      apiVersion: v1
+      kind: ServiceAccount
+      metadata:
+        name: metrics
+        namespace: ops
+      spec:
+        automountServiceAccountToken: false
+      ---
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: scraper
+        namespace: ops
+      spec:
+        serviceAccountName: metrics
+        automountServiceAccountToken: true
+        containers:
+        - name: scraper
+          image: registry.example.com/ops/scraper:2.0
+    why: A ServiceAccount has no spec; automountServiceAccountToken is a top-level field of the ServiceAccount, so here the other Pods still get the token.
+  - manifest: |
+      apiVersion: v1
+      kind: ServiceAccount
+      metadata:
+        name: metrics
+        namespace: ops
+      automountServiceAccountToken: false
+      ---
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: scraper
+        namespace: ops
+      spec:
+        serviceAccountName: metrics
+        containers:
+        - name: scraper
+          image: registry.example.com/ops/scraper:2.0
+          automountServiceAccountToken: true
+    why: automountServiceAccountToken is a Pod spec field, not a container field; the Pod still inherits false from the ServiceAccount.
+explanation:
+  correct:
+    en: '`automountServiceAccountToken: false` at the top level of the ServiceAccount stops the kubelet from mounting its API credentials in the Pods that use it. The same field exists in the Pod spec, and when both are set the Pod spec takes precedence, so `spec.automountServiceAccountToken: true` gives the token back to `scraper` only. A Pod that leaves the field unset follows the ServiceAccount.'
+references:
+- title: Configure Service Accounts for Pods
+  url: https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/

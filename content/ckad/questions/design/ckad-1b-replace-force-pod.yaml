@@ -1,0 +1,65 @@
+id: ckad-1b-replace-force-pod
+objective: "1.2.1"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    In namespace `ops`, the Pod `toolbox` is running. You exported it with `kubectl get pod toolbox -n ops -o yaml > toolbox.yaml`, then edited the file: you changed the container `command` and added the environment variable `MODE=debug`. A running Pod does not accept changes to these fields.
+
+    The running Pod must be replaced by a Pod built from the edited `toolbox.yaml`, deleted and created again by one command. Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+  files:
+  - name: toolbox.yaml
+    content: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        labels:
+          run: toolbox
+        name: toolbox
+        namespace: ops
+      spec:
+        containers:
+        - name: toolbox
+          image: busybox:1.36
+          command: ["sh", "-c", "sleep 7200"]
+          env:
+          - name: MODE
+            value: debug
+answer:
+  checks:
+  - id: verb
+    label: Uses kubectl replace
+    path: verb
+    op: equals
+    value: replace
+  - id: force
+    label: Deletes and re-creates the Pod with --force
+    path: flags.force
+    op: equals
+    value: true
+  - id: file
+    label: Reads the edited file toolbox.yaml
+    path: flags.filename
+    op: oneOf
+    value: [toolbox.yaml, ./toolbox.yaml]
+  solution:
+  - command: kubectl replace --force -f toolbox.yaml
+  - command: k replace -f ./toolbox.yaml --force
+  - command: kubectl replace --force --grace-period=0 -f toolbox.yaml -n ops
+  negatives:
+  - command: kubectl apply -f toolbox.yaml
+    why: apply sends an update; the API server rejects it because a Pod's command and env cannot be changed in place.
+  - command: kubectl replace -f toolbox.yaml
+    why: Without --force, replace also updates the existing Pod in place, and the same rule rejects the change.
+  - command: kubectl create -f toolbox.yaml
+    why: The Pod toolbox still exists, so create fails with AlreadyExists.
+explanation:
+  correct:
+    en: 'Most fields of a running Pod''s spec cannot be changed in place, so `kubectl apply` or a plain `kubectl replace` is refused. `kubectl replace --force -f toolbox.yaml` deletes the Pod and creates it again from the file; the namespace comes from `metadata.namespace` in the exported file. `--grace-period=0` is optional and only shortens the deletion. On a Deployment you would edit the Pod template instead, and a rollout replaces the Pods.'
+references:
+- title: kubectl replace
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_replace/

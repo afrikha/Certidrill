@@ -1,0 +1,55 @@
+id: cka-2c-top-nodes-sort-cpu
+objective: "2.3.1"
+difficulty: 1
+status: draft
+type: command
+stem:
+  en: |-
+    metrics-server is running in the cluster. The worker nodes of the batch pool carry the label `pool=batch`.
+
+    Show the current CPU and memory usage of these nodes only, with the node that uses the most CPU first. Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Uses kubectl top
+    path: verb
+    op: equals
+    value: top
+  - id: resource
+    label: Reports usage of nodes
+    path: resource
+    op: equals
+    value: node
+  - id: selector
+    label: Selects the nodes with label pool=batch
+    path: flags.selector
+    op: matches
+    value: '^pool==?batch$'
+  - id: sort
+    label: Sorts by CPU usage
+    path: flags.sort-by
+    op: equals
+    value: cpu
+  solution:
+  - command: kubectl top node -l pool=batch --sort-by=cpu
+  - command: k top nodes --selector=pool=batch --sort-by cpu
+  - command: kubectl top no --sort-by=cpu -l pool==batch
+  negatives:
+  - command: kubectl top node -l pool=batch --sort-by=memory
+    why: The task asks for the node using the most CPU first; this sorts by memory.
+  - command: kubectl top node --sort-by=cpu
+    why: Without the selector every node of the cluster is listed, not only the batch pool.
+  - command: kubectl get nodes -l pool=batch --sort-by=.status.capacity.cpu
+    why: kubectl get sorts by declared capacity, not by measured usage from the Metrics API.
+explanation:
+  correct:
+    en: >-
+      `kubectl top node` reads current CPU and memory usage from the Metrics API served by metrics-server.
+      `-l pool=batch` (`--selector`) keeps only the matching nodes and `--sort-by=cpu` puts the heaviest CPU user first;
+      the only accepted values are `cpu` and `memory`. Percentages are relative to allocatable resources unless `--show-capacity` is set.
+references:
+- title: kubectl top node
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_top/kubectl_top_node/

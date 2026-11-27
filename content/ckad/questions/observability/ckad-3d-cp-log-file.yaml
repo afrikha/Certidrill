@@ -1,0 +1,52 @@
+id: ckad-3d-cp-log-file
+objective: "3.4.2"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    The current namespace is `shop`. Pod `web` has two containers: `proxy` (listed first) and `app`. Container `app` writes its log to the file `/var/log/app/app.log` in its own filesystem (no shared volume), not to stdout.
+
+    For the incident ticket, copy this file to `/opt/evidence/web-app.log` on the machine you are working on. Type the single command you would run.
+body:
+  mode: invocation
+  namespace: shop
+answer:
+  checks:
+  - id: verb
+    label: Uses kubectl cp
+    path: verb
+    op: equals
+    value: cp
+  - id: source
+    label: Source is /var/log/app/app.log in Pod web
+    path: args[0]
+    op: matches
+    value: '^(shop/)?web:/var/log/app/app\.log$'
+  - id: destination
+    label: Destination is /opt/evidence/web-app.log
+    path: args[1]
+    op: equals
+    value: /opt/evidence/web-app.log
+  - id: container
+    label: Copies from container app
+    path: flags.container
+    op: equals
+    value: app
+  solution:
+  - command: kubectl cp web:/var/log/app/app.log /opt/evidence/web-app.log -c app
+  - command: k cp -c app shop/web:/var/log/app/app.log /opt/evidence/web-app.log
+  - command: kubectl cp web:/var/log/app/app.log /opt/evidence/web-app.log --container=app -n shop
+  negatives:
+  - command: kubectl cp web:/var/log/app/app.log /opt/evidence/web-app.log
+    why: Without -c, kubectl cp uses the first container, proxy, whose filesystem does not have the file.
+  - command: kubectl cp /opt/evidence/web-app.log web:/var/log/app/app.log -c app
+    why: The arguments are reversed; this would copy a local file into the container.
+  - command: kubectl logs web -c app
+    why: kubectl logs prints the container's stdout and stderr, which do not contain this file, and saves nothing.
+explanation:
+  correct:
+    en: '`kubectl cp [NAMESPACE/]POD:SRC DEST -c CONTAINER` copies a file out of a container, source first and destination second. Without `-c` kubectl uses the `kubectl.kubernetes.io/default-container` annotation or the first container. kubectl cp needs the `tar` binary in the container image.'
+references:
+- title: kubectl cp
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_cp/

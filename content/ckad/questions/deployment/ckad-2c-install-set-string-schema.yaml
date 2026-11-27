@@ -1,0 +1,67 @@
+id: ckad-2c-install-set-string-schema
+objective: "2.3.2"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    The chart `acme/webapp`, version `2.3.1`, ships a `values.schema.json` that declares `image.tag` as a **string**. The CI pipeline tags images with the build number, here `20261127`.
+
+    Install the chart at version `2.3.1` as the release `web` in the existing namespace `shop`, with `image.tag` set to `20261127` on the command line (no values file). The context namespace is `default`.
+
+    Type the single command you would run.
+body:
+  mode: invocation
+  tools: [helm]
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Uses helm install
+    path: verb
+    op: equals
+    value: install
+  - id: release
+    label: The release is named web
+    path: args[0]
+    op: equals
+    value: web
+  - id: chart
+    label: Installs the chart acme/webapp
+    path: args[1]
+    op: equals
+    value: acme/webapp
+  - id: version
+    label: Pins chart version 2.3.1
+    path: flags.version
+    op: equals
+    value: 2.3.1
+  - id: namespace
+    label: Installs into namespace shop
+    path: flags.namespace
+    op: equals
+    value: shop
+  - id: string
+    label: Sets image.tag as a string (--set-string, --set-literal or --set-json)
+    path: flags
+    op: matches
+    value: '"set-(string|literal)":(\[("[^"]*",)*)?"([^"]*,)?image\.tag=20261127[",]|"set-json":\[?"([^"]*,)?image\.tag=\\"20261127\\"'
+  solution:
+  - command: helm install web acme/webapp --version 2.3.1 -n shop --set-string image.tag=20261127
+  - command: helm install web acme/webapp -n shop --version=2.3.1 --set-literal image.tag=20261127
+  - command: helm install web acme/webapp --namespace shop --version 2.3.1 --set-json 'image.tag="20261127"'
+  negatives:
+  - command: helm install web acme/webapp --version 2.3.1 -n shop --set image.tag=20261127
+    why: --set turns 20261127 into an integer, so the values fail the chart's schema and the install is refused.
+  - command: helm install web acme/webapp --version 2.3.1 -n shop --set image.tag="20261127"
+    why: The shell removes the double quotes before Helm sees them, so --set still receives an integer.
+  - command: helm install web acme/webapp -n shop --set-string image.tag=20261127
+    why: Without --version Helm installs the latest chart version, not 2.3.1.
+explanation:
+  correct:
+    en: '`--set` gives typed values: `true`, `false`, `null` and integers such as `20261127` become booleans, null and numbers. Helm validates the values against `values.schema.json` on `install`, `upgrade`, `lint` and `template`, so an integer `image.tag` is rejected. `--set-string image.tag=20261127` forces a string; `--set-literal` (one literal string value) and `--set-json ''image.tag="20261127"''` (a JSON string) work too.'
+references:
+- title: helm install
+  url: https://helm.sh/docs/helm/helm_install/
+- title: Charts
+  url: https://helm.sh/docs/topics/charts/

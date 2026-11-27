@@ -1,0 +1,220 @@
+id: cka-3e-noexecute-toleration-seconds
+objective: "3.5.2"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    When a node fails, the Pods of the Deployment `edge-cache` in namespace `cdn` stay bound to it for 5 minutes before they are evicted and recreated elsewhere. That is too long for this service.
+
+    Edit the Deployment so that its Pods are evicted 30 seconds after their node gets the built-in taint for a node that is not ready (Ready condition `False`) or for a node that is unreachable (Ready condition `Unknown`). Do not change anything else.
+body:
+  starter: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: edge-cache
+      namespace: cdn
+    spec:
+      replicas: 4
+      selector:
+        matchLabels:
+          app: edge-cache
+      template:
+        metadata:
+          labels:
+            app: edge-cache
+        spec:
+          containers:
+          - name: cache
+            image: registry.example.com/cdn/edge-cache:4.0
+answer:
+  checks:
+  - id: meta
+    label: Deployment edge-cache in namespace cdn
+    path: metadata
+    op: subset
+    value: {name: edge-cache, namespace: cdn}
+  - id: not-ready
+    label: Tolerates node.kubernetes.io/not-ready (NoExecute) for 30 seconds
+    path: spec.template.spec.tolerations[key=node.kubernetes.io/not-ready]
+    op: subset
+    value: {effect: NoExecute, tolerationSeconds: 30}
+  - id: unreachable
+    label: Tolerates node.kubernetes.io/unreachable (NoExecute) for 30 seconds
+    path: spec.template.spec.tolerations[key=node.kubernetes.io/unreachable]
+    op: subset
+    value: {effect: NoExecute, tolerationSeconds: 30}
+  - id: replicas
+    label: The Deployment keeps 4 replicas
+    path: spec.replicas
+    op: equals
+    value: 4
+  solution:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: edge-cache
+        namespace: cdn
+      spec:
+        replicas: 4
+        selector:
+          matchLabels:
+            app: edge-cache
+        template:
+          metadata:
+            labels:
+              app: edge-cache
+          spec:
+            tolerations:
+            - key: node.kubernetes.io/not-ready
+              operator: Exists
+              effect: NoExecute
+              tolerationSeconds: 30
+            - key: node.kubernetes.io/unreachable
+              operator: Exists
+              effect: NoExecute
+              tolerationSeconds: 30
+            containers:
+            - name: cache
+              image: registry.example.com/cdn/edge-cache:4.0
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: edge-cache
+        namespace: cdn
+      spec:
+        replicas: 4
+        selector:
+          matchLabels:
+            app: edge-cache
+        template:
+          metadata:
+            labels:
+              app: edge-cache
+          spec:
+            containers:
+            - name: cache
+              image: registry.example.com/cdn/edge-cache:4.0
+            tolerations:
+            - {key: node.kubernetes.io/unreachable, operator: Exists, effect: NoExecute, tolerationSeconds: 30}
+            - {key: node.kubernetes.io/not-ready, operator: Exists, effect: NoExecute, tolerationSeconds: 30}
+  negatives:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: edge-cache
+        namespace: cdn
+      spec:
+        replicas: 4
+        selector:
+          matchLabels:
+            app: edge-cache
+        template:
+          metadata:
+            labels:
+              app: edge-cache
+          spec:
+            tolerations:
+            - key: node.kubernetes.io/unreachable
+              operator: Exists
+              effect: NoExecute
+              tolerationSeconds: 30
+            containers:
+            - name: cache
+              image: registry.example.com/cdn/edge-cache:4.0
+    why: Only the unreachable case is covered; for a not-ready node the automatically added toleration still keeps the Pods for 300 seconds.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: edge-cache
+        namespace: cdn
+      spec:
+        replicas: 4
+        selector:
+          matchLabels:
+            app: edge-cache
+        template:
+          metadata:
+            labels:
+              app: edge-cache
+          spec:
+            tolerations:
+            - key: node.kubernetes.io/not-ready
+              operator: Exists
+              effect: NoExecute
+            - key: node.kubernetes.io/unreachable
+              operator: Exists
+              effect: NoExecute
+            containers:
+            - name: cache
+              image: registry.example.com/cdn/edge-cache:4.0
+    why: A NoExecute toleration without tolerationSeconds keeps the Pods bound to the failed node forever.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: edge-cache
+        namespace: cdn
+      spec:
+        replicas: 4
+        selector:
+          matchLabels:
+            app: edge-cache
+        template:
+          metadata:
+            labels:
+              app: edge-cache
+          spec:
+            tolerations:
+            - key: node.kubernetes.io/not-ready
+              operator: Exists
+              effect: NoSchedule
+              tolerationSeconds: 30
+            - key: node.kubernetes.io/unreachable
+              operator: Exists
+              effect: NoSchedule
+              tolerationSeconds: 30
+            containers:
+            - name: cache
+              image: registry.example.com/cdn/edge-cache:4.0
+    why: tolerationSeconds applies only to NoExecute tolerations; the eviction is driven by the NoExecute taints, which these NoSchedule tolerations do not match.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: edge-cache
+        namespace: cdn
+      spec:
+        replicas: 4
+        selector:
+          matchLabels:
+            app: edge-cache
+        template:
+          metadata:
+            labels:
+              app: edge-cache
+          spec:
+            tolerations:
+            - key: node.kubernetes.io/not-ready
+              operator: Exists
+              effect: NoExecute
+              tolerationSeconds: 300
+            - key: node.kubernetes.io/unreachable
+              operator: Exists
+              effect: NoExecute
+              tolerationSeconds: 300
+            containers:
+            - name: cache
+              image: registry.example.com/cdn/edge-cache:4.0
+    why: 300 seconds is the value Kubernetes adds automatically, the current 5 minutes; the task asks for 30.
+explanation:
+  correct:
+    en: 'The node lifecycle controller taints a failed node with `node.kubernetes.io/not-ready` (Ready `False`) or `node.kubernetes.io/unreachable` (Ready `Unknown`), effect `NoExecute`. Kubernetes adds tolerations for both with `tolerationSeconds: 300` unless the Pod sets them, which is why Pods stay 5 minutes. Declaring both tolerations with `operator: Exists`, `effect: NoExecute` and `tolerationSeconds: 30` in the Pod template evicts the Pods 30 seconds after the taint appears.'
+references:
+- title: Taints and Tolerations
+  url: https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/

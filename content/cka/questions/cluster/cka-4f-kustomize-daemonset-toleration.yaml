@@ -1,0 +1,160 @@
+id: cka-4f-kustomize-daemonset-toleration
+objective: "4.6.2"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    The base `/opt/observability/base` installs two node agents, the DaemonSets `log-agent` and `node-exporter` (`apps/v1`, namespace `observability`). Neither has tolerations, so they do not run on the control plane nodes, which carry the taint `node-role.kubernetes.io/control-plane:NoSchedule`.
+
+    Write `/opt/observability/overlays/all-nodes/kustomization.yaml`, an overlay built on the base, with **one** inline entry in `patches` (no patch file) that targets every DaemonSet of the build and adds a toleration of that taint, so that both agents also run on the control plane nodes.
+body:
+  starter: |
+    apiVersion: kustomize.config.k8s.io/v1beta1
+    kind: Kustomization
+    resources:
+    - ../../base
+answer:
+  checks:
+  - id: base
+    label: Builds on the base (../../base)
+    path: resources
+    op: contains
+    value: ../../base
+  - id: one-patch
+    label: Has a single entry in patches
+    path: patches
+    op: length
+    value: 1
+  - id: target-kind
+    label: The patch targets the kind DaemonSet
+    path: patches[0].target.kind
+    op: equals
+    value: DaemonSet
+  - id: target-all
+    label: The target names no single DaemonSet, so both are patched
+    path: patches[0].target.name
+    op: absent
+  - id: inline
+    label: The patch is inline (patch), not a file (path)
+    path: patches[0].path
+    op: absent
+  - id: tolerations
+    label: The patch sets Pod template tolerations
+    path: patches[0].patch
+    op: matches
+    value: tolerations
+  - id: taint-key
+    label: The toleration key is node-role.kubernetes.io/control-plane
+    path: patches[0].patch
+    op: matches
+    value: node-role\.kubernetes\.io/control-plane
+  - id: effect
+    label: The toleration covers the NoSchedule effect
+    path: patches[0].patch
+    op: matches
+    value: NoSchedule
+  solution:
+  - manifest: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      resources:
+      - ../../base
+      patches:
+      - target:
+          kind: DaemonSet
+        patch: |-
+          - op: add
+            path: /spec/template/spec/tolerations
+            value:
+            - key: node-role.kubernetes.io/control-plane
+              operator: Exists
+              effect: NoSchedule
+  - manifest: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      resources:
+      - ../../base
+      patches:
+      - target:
+          group: apps
+          version: v1
+          kind: DaemonSet
+        patch: |-
+          apiVersion: apps/v1
+          kind: DaemonSet
+          metadata:
+            name: not-used
+          spec:
+            template:
+              spec:
+                tolerations:
+                - key: node-role.kubernetes.io/control-plane
+                  operator: Exists
+                  effect: NoSchedule
+  negatives:
+  - manifest: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      resources:
+      - ../../base
+      patches:
+      - target:
+          kind: DaemonSet
+          name: log-agent
+        patch: |-
+          - op: add
+            path: /spec/template/spec/tolerations
+            value:
+            - key: node-role.kubernetes.io/control-plane
+              operator: Exists
+              effect: NoSchedule
+    why: A target with a name matches only log-agent; node-exporter stays off the control plane nodes.
+  - manifest: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      resources:
+      - ../../base
+      patches:
+      - patch: |-
+          - op: add
+            path: /spec/template/spec/tolerations
+            value:
+            - key: node-role.kubernetes.io/control-plane
+              operator: Exists
+              effect: NoSchedule
+    why: A JSON 6902 patch always needs a target; kustomize cannot tell which objects to patch.
+  - manifest: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      resources:
+      - ../../base
+      patches:
+      - target:
+          kind: DaemonSet
+        patch: |-
+          - op: add
+            path: /spec/template/spec/tolerations
+            value:
+            - key: node-role.kubernetes.io/master
+              operator: Exists
+              effect: NoSchedule
+    why: node-role.kubernetes.io/master is the deprecated taint key, which kubeadm no longer sets; control plane nodes carry node-role.kubernetes.io/control-plane.
+  - manifest: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      resources:
+      - ../../base
+      patches:
+      - target:
+          kind: DaemonSet
+        path: tolerations-patch.yaml
+    why: The task asks for an inline patch, with no patch file.
+explanation:
+  correct:
+    en: 'A `patches` entry with a `target` applies to every object that matches all the fields given, so `kind: DaemonSet` without a name patches both agents. The patch can be a JSON 6902 list (`op: add` on `/spec/template/spec/tolerations`) or a strategic merge patch, whose `metadata.name` is required but not used when a target is set. The toleration needs the key `node-role.kubernetes.io/control-plane` with `operator: Exists` and `effect: NoSchedule`.'
+references:
+- title: Declarative Management of Kubernetes Objects Using Kustomize
+  url: https://kubernetes.io/docs/tasks/manage-kubernetes-objects/kustomization/
+- title: Well-Known Labels, Annotations and Taints
+  url: https://kubernetes.io/docs/reference/labels-annotations-taints/

@@ -1,0 +1,73 @@
+id: ckad-3e-debug-ephemeral-target
+objective: "3.5.2"
+difficulty: 3
+status: draft
+type: command
+stem:
+  en: |-
+    Pod `api-7c9d4` in namespace `payments` runs a distroless image in its container `api`: there is no shell or debugging tool in it. Without restarting or copying the Pod, start an interactive debugging container from image `busybox:1.36` inside this Pod, able to see the processes of container `api`, and attach to it.
+
+    Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Uses kubectl debug
+    path: verb
+    op: equals
+    value: debug
+  - id: name
+    label: Targets Pod api-7c9d4
+    path: names
+    op: contains
+    value: api-7c9d4
+  - id: image
+    label: Debug image is busybox:1.36
+    path: flags.image
+    op: equals
+    value: busybox:1.36
+  - id: target
+    label: Targets the process namespace of container api
+    path: flags.target
+    op: equals
+    value: api
+  - id: stdin
+    label: Interactive (-i)
+    path: flags.stdin
+    op: equals
+    value: true
+  - id: tty
+    label: Allocates a TTY (-t)
+    path: flags.tty
+    op: equals
+    value: true
+  - id: no-copy
+    label: Debugs the running Pod, not a copy
+    path: flags.copy-to
+    op: absent
+  - id: namespace
+    label: Runs in namespace payments
+    path: flags.namespace
+    op: equals
+    value: payments
+  solution:
+  - command: kubectl debug -it api-7c9d4 --image=busybox:1.36 --target=api -n payments
+  - command: k debug api-7c9d4 -n payments -it --image busybox:1.36 --target api
+  - command: kubectl debug pod/api-7c9d4 --stdin --tty --image=busybox:1.36 --target=api --namespace=payments
+  negatives:
+  - command: kubectl debug -it api-7c9d4 --image=busybox:1.36 -n payments
+    why: Without --target the ephemeral container has its own process namespace and cannot see the processes of api.
+  - command: kubectl debug -it api-7c9d4 --image=busybox:1.36 --copy-to=api-debug -n payments
+    why: --copy-to creates a new Pod, a copy, instead of debugging the running Pod.
+  - command: kubectl exec -it api-7c9d4 -c api -n payments -- sh
+    why: The distroless image has no shell, so exec fails with executable file not found.
+explanation:
+  correct:
+    en: '`kubectl debug -it POD --image=busybox:1.36 --target=api` adds an ephemeral container to the running Pod and attaches to it; `--target` places it in the process namespace of container `api` (the runtime must support it), so `ps` shows the app''s processes. `kubectl exec` needs a shell in the image, and `--copy-to` debugs a copy of the Pod.'
+references:
+- title: Debug Running Pods
+  url: https://kubernetes.io/docs/tasks/debug/debug-application/debug-running-pod/
+- title: kubectl debug
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_debug/

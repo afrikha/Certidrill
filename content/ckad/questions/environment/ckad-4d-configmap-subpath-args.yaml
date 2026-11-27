@@ -1,0 +1,211 @@
+id: ckad-4d-configmap-subpath-args
+objective: "4.4.2"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    The image `registry.example.com/shop/worker:2.0` ships files in `/etc/worker/` that must stay visible. ConfigMap `worker-config` in namespace `shop` has the keys `worker.ini` and `queue`.
+
+    Write the manifest of a Pod named `worker` in namespace `shop` with one container named `worker` running that image:
+
+    - through a volume named `config`, the key `worker.ini` appears as the single file `/etc/worker/worker.ini`, without hiding the other files of `/etc/worker/`;
+    - the environment variable `QUEUE_NAME` takes the value of the key `queue`;
+    - the container keeps the image entrypoint and receives exactly one argument, `--queue=` followed by the value of `QUEUE_NAME`, expanded by Kubernetes (no shell).
+body:
+  starter: |
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: worker
+      namespace: shop
+    spec:
+      containers:
+      - name: worker
+        image: registry.example.com/shop/worker:2.0
+answer:
+  checks:
+  - id: pod
+    label: A Pod named worker in namespace shop
+    path: metadata
+    op: subset
+    value: {name: worker, namespace: shop}
+  - id: image
+    label: Container worker runs registry.example.com/shop/worker:2.0
+    path: spec.containers[name=worker].image
+    op: equals
+    value: registry.example.com/shop/worker:2.0
+  - id: volume
+    label: Volume config comes from ConfigMap worker-config
+    path: spec.volumes[name=config].configMap.name
+    op: equals
+    value: worker-config
+  - id: mount-path
+    label: Volume config is mounted at /etc/worker/worker.ini
+    path: spec.containers[name=worker].volumeMounts[name=config].mountPath
+    op: equals
+    value: /etc/worker/worker.ini
+  - id: sub-path
+    label: The mount uses subPath worker.ini
+    path: spec.containers[name=worker].volumeMounts[name=config].subPath
+    op: equals
+    value: worker.ini
+  - id: env
+    label: QUEUE_NAME reads key queue of ConfigMap worker-config
+    path: spec.containers[name=worker].env[name=QUEUE_NAME].valueFrom.configMapKeyRef
+    op: subset
+    value: {name: worker-config, key: queue}
+  - id: args
+    label: The only argument is --queue=$(QUEUE_NAME)
+    path: spec.containers[name=worker].args
+    op: equals
+    value: ["--queue=$(QUEUE_NAME)"]
+  - id: entrypoint
+    label: The image entrypoint is kept (no command)
+    path: spec.containers[name=worker].command
+    op: absent
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: worker
+        namespace: shop
+      spec:
+        containers:
+        - name: worker
+          image: registry.example.com/shop/worker:2.0
+          args: ["--queue=$(QUEUE_NAME)"]
+          env:
+          - name: QUEUE_NAME
+            valueFrom:
+              configMapKeyRef:
+                name: worker-config
+                key: queue
+          volumeMounts:
+          - name: config
+            mountPath: /etc/worker/worker.ini
+            subPath: worker.ini
+        volumes:
+        - name: config
+          configMap:
+            name: worker-config
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: worker
+        namespace: shop
+      spec:
+        volumes:
+        - name: config
+          configMap:
+            name: worker-config
+            items:
+            - key: worker.ini
+              path: worker.ini
+        containers:
+        - name: worker
+          image: registry.example.com/shop/worker:2.0
+          env:
+          - name: QUEUE_NAME
+            valueFrom:
+              configMapKeyRef:
+                key: queue
+                name: worker-config
+          args:
+          - --queue=$(QUEUE_NAME)
+          volumeMounts:
+          - name: config
+            mountPath: /etc/worker/worker.ini
+            subPath: worker.ini
+            readOnly: true
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: worker
+        namespace: shop
+      spec:
+        containers:
+        - name: worker
+          image: registry.example.com/shop/worker:2.0
+          args: ["--queue=$(QUEUE_NAME)"]
+          env:
+          - name: QUEUE_NAME
+            valueFrom:
+              configMapKeyRef:
+                name: worker-config
+                key: queue
+          volumeMounts:
+          - name: config
+            mountPath: /etc/worker
+        volumes:
+        - name: config
+          configMap:
+            name: worker-config
+            items:
+            - key: worker.ini
+              path: worker.ini
+    why: Mounting the volume on /etc/worker replaces the directory, so the files shipped in the image are hidden.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: worker
+        namespace: shop
+      spec:
+        containers:
+        - name: worker
+          image: registry.example.com/shop/worker:2.0
+          args: ["--queue=${QUEUE_NAME}"]
+          env:
+          - name: QUEUE_NAME
+            valueFrom:
+              configMapKeyRef:
+                name: worker-config
+                key: queue
+          volumeMounts:
+          - name: config
+            mountPath: /etc/worker/worker.ini
+            subPath: worker.ini
+        volumes:
+        - name: config
+          configMap:
+            name: worker-config
+    why: Kubernetes only expands $(VAR); without a shell, ${QUEUE_NAME} is passed literally.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: worker
+        namespace: shop
+      spec:
+        containers:
+        - name: worker
+          image: registry.example.com/shop/worker:2.0
+          command: ["--queue=$(QUEUE_NAME)"]
+          env:
+          - name: QUEUE_NAME
+            valueFrom:
+              configMapKeyRef:
+                name: worker-config
+                key: queue
+          volumeMounts:
+          - name: config
+            mountPath: /etc/worker/worker.ini
+            subPath: worker.ini
+        volumes:
+        - name: config
+          configMap:
+            name: worker-config
+    why: command replaces the image ENTRYPOINT; the argument belongs in args.
+explanation:
+  correct:
+    en: 'A volume mounted on a directory hides what the image had there; `subPath: worker.ini` with `mountPath: /etc/worker/worker.ini` mounts only that file and keeps the rest of `/etc/worker/` (such a mount does not receive later ConfigMap updates). `$(QUEUE_NAME)` in `args` is expanded by Kubernetes from the container environment, while `${QUEUE_NAME}` needs a shell. `args` overrides the image CMD and keeps its ENTRYPOINT.'
+references:
+- title: Configure a Pod to Use a ConfigMap
+  url: https://kubernetes.io/docs/tasks/configure-pod-container/configure-pod-configmap/
+- title: ConfigMaps
+  url: https://kubernetes.io/docs/concepts/configuration/configmap/

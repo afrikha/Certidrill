@@ -1,0 +1,135 @@
+id: ckad-4c-limitrange-defaults
+objective: "4.3.2"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    Write the manifest of a LimitRange named `container-defaults` in namespace `dev`.
+
+    Every container created in `dev` without its own values must get a request of 100m CPU and 128Mi of memory, and a limit of 500m CPU and 256Mi of memory.
+body:
+  starter: |
+    apiVersion: v1
+    kind: LimitRange
+    metadata:
+      name: container-defaults
+      namespace: dev
+    spec:
+      limits:
+answer:
+  checks:
+  - id: meta
+    label: A LimitRange named container-defaults in namespace dev
+    path: metadata
+    op: subset
+    value: {name: container-defaults, namespace: dev}
+  - id: kind
+    label: The object is a LimitRange
+    path: kind
+    op: equals
+    value: LimitRange
+  - id: req-cpu
+    label: Default CPU request (defaultRequest) is 100m for type Container
+    path: spec.limits[type=Container].defaultRequest.cpu
+    op: quantity
+    value: 100m
+  - id: req-mem
+    label: Default memory request (defaultRequest) is 128Mi for type Container
+    path: spec.limits[type=Container].defaultRequest.memory
+    op: quantity
+    value: 128Mi
+  - id: lim-cpu
+    label: Default CPU limit (default) is 500m for type Container
+    path: spec.limits[type=Container].default.cpu
+    op: quantity
+    value: 500m
+  - id: lim-mem
+    label: Default memory limit (default) is 256Mi for type Container
+    path: spec.limits[type=Container].default.memory
+    op: quantity
+    value: 256Mi
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: LimitRange
+      metadata:
+        name: container-defaults
+        namespace: dev
+      spec:
+        limits:
+        - type: Container
+          defaultRequest:
+            cpu: 100m
+            memory: 128Mi
+          default:
+            cpu: 500m
+            memory: 256Mi
+  - manifest: |
+      apiVersion: v1
+      kind: LimitRange
+      metadata:
+        name: container-defaults
+        namespace: dev
+      spec:
+        limits:
+        - default: {cpu: "0.5", memory: 256Mi}
+          defaultRequest: {cpu: "0.1", memory: 128Mi}
+          type: Container
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: LimitRange
+      metadata:
+        name: container-defaults
+        namespace: dev
+      spec:
+        limits:
+        - type: Container
+          default:
+            cpu: 100m
+            memory: 128Mi
+          defaultRequest:
+            cpu: 500m
+            memory: 256Mi
+    why: default holds the default limits and defaultRequest the default requests; here they are swapped (and requests would exceed limits).
+  - manifest: |
+      apiVersion: v1
+      kind: LimitRange
+      metadata:
+        name: container-defaults
+        namespace: dev
+      spec:
+        limits:
+        - type: Pod
+          defaultRequest:
+            cpu: 100m
+            memory: 128Mi
+          default:
+            cpu: 500m
+            memory: 256Mi
+    why: Defaults are injected into containers; they belong to an item of type Container, not Pod.
+  - manifest: |
+      apiVersion: v1
+      kind: LimitRange
+      metadata:
+        name: container-defaults
+        namespace: dev
+      spec:
+        limits:
+        - type: Container
+          defaultRequest:
+            cpu: 100m
+            memory: 128Mi
+          max:
+            cpu: 500m
+            memory: 256Mi
+    why: max is a constraint, not a default; containers without a limit would not get 500m and 256Mi from the field the task asks for.
+explanation:
+  correct:
+    en: 'In a LimitRange item of `type: Container`, `defaultRequest` is injected as the request and `default` as the limit of every container that omits them, when the Pod is admitted. Existing Pods are not changed. A container that sets only a limit gets a request equal to that limit, not the `defaultRequest`.'
+references:
+- title: Limit Ranges
+  url: https://kubernetes.io/docs/concepts/policy/limit-range/
+- title: Configure Default Memory Requests and Limits for a Namespace
+  url: https://kubernetes.io/docs/tasks/administer-cluster/manage-resources/memory-default-namespace/

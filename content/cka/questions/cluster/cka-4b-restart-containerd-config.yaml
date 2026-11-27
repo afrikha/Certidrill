@@ -1,0 +1,47 @@
+id: cka-4b-restart-containerd-config
+objective: "4.2.1"
+difficulty: 1
+status: draft
+type: command
+stem:
+  en: |-
+    You are preparing node `node01` before it joins a kubeadm cluster. containerd 2.1 is installed and running. You have just set `SystemdCgroup = true` in the runc options of `/etc/containerd/config.toml`, so that runc uses the systemd cgroup driver.
+
+    Make containerd load its new configuration. Type the single command you would run.
+body:
+  mode: invocation
+  tools: [systemctl, crictl, kubeadm]
+  namespace: default
+answer:
+  checks:
+  - id: tool
+    label: Uses systemctl
+    path: tool
+    op: equals
+    value: systemctl
+  - id: verb
+    label: Restarts the service
+    path: verb
+    op: equals
+    value: restart
+  - id: unit
+    label: Targets the containerd unit
+    path: args
+    op: matches
+    value: '^\["containerd(\.service)?"\]$'
+  solution:
+  - command: systemctl restart containerd
+  - command: sudo systemctl restart containerd.service
+  negatives:
+  - command: systemctl restart kubelet
+    why: Restarting the kubelet does not make containerd reread config.toml; the runtime keeps its old settings.
+  - command: systemctl daemon-reload
+    why: daemon-reload only reloads systemd unit files; containerd reads config.toml when it starts, so it must be restarted.
+  - command: systemctl enable containerd
+    why: enable only starts containerd at boot; the running daemon keeps its old configuration.
+explanation:
+  correct:
+    en: 'containerd reads `/etc/containerd/config.toml` when it starts, so after changing `SystemdCgroup` you run `systemctl restart containerd`. For containerd 2.x the setting lives under `[plugins.''io.containerd.cri.v1.runtime''.containerd.runtimes.runc.options]`. The systemd driver is the recommended one when systemd is the init system and with cgroup v2; with containerd 2.x the kubelet detects the driver from the runtime. `daemon-reload` only reloads unit files.'
+references:
+- title: Container Runtimes
+  url: https://kubernetes.io/docs/setup/production-environment/container-runtimes/

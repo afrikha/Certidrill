@@ -1,0 +1,129 @@
+id: ckad-4d-configmap-from-file-key
+objective: "4.4.1"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    The file `nginx.conf` in the current directory contains an NGINX server block. In namespace `web`, create a ConfigMap named `proxy-conf` that stores the content of this file under the key `default.conf` (not under the file name).
+
+    Type the single command you would run.
+body:
+  mode: object
+  namespace: default
+  files:
+  - name: nginx.conf
+    content: |
+      server {
+          listen 8080;
+          location / {
+              root /usr/share/nginx/html;
+          }
+      }
+answer:
+  checks:
+  - id: kind
+    label: The object is a ConfigMap
+    path: kind
+    op: equals
+    value: ConfigMap
+  - id: name
+    label: It is named proxy-conf
+    path: metadata.name
+    op: equals
+    value: proxy-conf
+  - id: namespace
+    label: It is created in namespace web
+    path: metadata.namespace
+    op: equals
+    value: web
+  - id: key
+    label: Key default.conf holds the content of nginx.conf
+    path: data["default.conf"]
+    op: contains
+    value: listen 8080;
+  - id: no-basename-key
+    label: There is no key named after the file (nginx.conf)
+    path: data["nginx.conf"]
+    op: absent
+  solution:
+  - command: kubectl create configmap proxy-conf --from-file=default.conf=nginx.conf -n web
+    output: |
+      apiVersion: v1
+      data:
+        default.conf: |
+          server {
+              listen 8080;
+              location / {
+                  root /usr/share/nginx/html;
+              }
+          }
+      kind: ConfigMap
+      metadata:
+        name: proxy-conf
+        namespace: web
+  - command: k create cm proxy-conf -n web --from-file default.conf=./nginx.conf --dry-run=client -o yaml
+    output: |
+      apiVersion: v1
+      data:
+        default.conf: |
+          server {
+              listen 8080;
+              location / {
+                  root /usr/share/nginx/html;
+              }
+          }
+      kind: ConfigMap
+      metadata:
+        name: proxy-conf
+        namespace: web
+  negatives:
+  - command: kubectl create configmap proxy-conf --from-file=nginx.conf -n web
+    why: Without KEY= the key defaults to the file basename, nginx.conf.
+    output: |
+      apiVersion: v1
+      data:
+        nginx.conf: |
+          server {
+              listen 8080;
+              location / {
+                  root /usr/share/nginx/html;
+              }
+          }
+      kind: ConfigMap
+      metadata:
+        name: proxy-conf
+        namespace: web
+  - command: kubectl create configmap proxy-conf --from-literal=default.conf=nginx.conf -n web
+    why: --from-literal stores the string "nginx.conf" itself, not the content of the file.
+    output: |
+      apiVersion: v1
+      data:
+        default.conf: nginx.conf
+      kind: ConfigMap
+      metadata:
+        name: proxy-conf
+        namespace: web
+  - command: kubectl create configmap proxy-conf --from-file=default.conf=nginx.conf
+    why: Without -n the ConfigMap is created in the context namespace, default.
+    output: |
+      apiVersion: v1
+      data:
+        default.conf: |
+          server {
+              listen 8080;
+              location / {
+                  root /usr/share/nginx/html;
+              }
+          }
+      kind: ConfigMap
+      metadata:
+        name: proxy-conf
+explanation:
+  correct:
+    en: '`--from-file=KEY=PATH` stores the whole content of the file under the key you choose; with `--from-file=PATH` alone the key defaults to the basename of the file (`nginx.conf`). `--from-literal` would store the text after `=` as the value, not read the file. Choosing the key matters when the ConfigMap is later mounted as a volume, because each key becomes a file name.'
+references:
+- title: Configure a Pod to Use a ConfigMap
+  url: https://kubernetes.io/docs/tasks/configure-pod-container/configure-pod-configmap/
+- title: kubectl create configmap
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_create/kubectl_create_configmap/

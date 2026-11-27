@@ -1,0 +1,221 @@
+id: ckad-2b-resume-paused-manifest
+objective: "2.2.3"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    The editor contains the manifest of Deployment `api` in namespace `payments`, which was paused with `kubectl rollout pause`. Update the manifest so that applying it makes **one** rollout with both changes below, and the Deployment is no longer paused:
+
+    - container `api` runs `registry.example.com/payments/api:3.4`;
+    - container `api` has a memory limit of **512 MiB**.
+body:
+  starter: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: api
+      namespace: payments
+    spec:
+      paused: true
+      replicas: 4
+      selector:
+        matchLabels:
+          app: api
+      template:
+        metadata:
+          labels:
+            app: api
+        spec:
+          containers:
+          - name: api
+            image: registry.example.com/payments/api:3.3
+            resources:
+              requests:
+                memory: 256Mi
+answer:
+  checks:
+  - id: meta
+    label: Deployment api in namespace payments
+    path: metadata
+    op: subset
+    value: {name: api, namespace: payments}
+  - id: not-paused
+    label: spec.paused is set to false
+    path: spec.paused
+    op: equals
+    value: false
+  - id: image
+    label: Container api runs api:3.4
+    path: spec.template.spec.containers[name=api].image
+    op: equals
+    value: registry.example.com/payments/api:3.4
+  - id: limit
+    label: Container api has a memory limit of 512Mi
+    path: spec.template.spec.containers[name=api].resources.limits.memory
+    op: quantity
+    value: 512Mi
+  - id: request
+    label: The memory request of 256Mi is kept
+    path: spec.template.spec.containers[name=api].resources.requests.memory
+    op: quantity
+    value: 256Mi
+  solution:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: api
+        namespace: payments
+      spec:
+        paused: false
+        replicas: 4
+        selector:
+          matchLabels:
+            app: api
+        template:
+          metadata:
+            labels:
+              app: api
+          spec:
+            containers:
+            - name: api
+              image: registry.example.com/payments/api:3.4
+              resources:
+                requests:
+                  memory: 256Mi
+                limits:
+                  memory: 512Mi
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: api
+        namespace: payments
+      spec:
+        replicas: 4
+        paused: false
+        selector:
+          matchLabels:
+            app: api
+        template:
+          metadata:
+            labels:
+              app: api
+          spec:
+            containers:
+            - name: api
+              image: registry.example.com/payments/api:3.4
+              resources:
+                limits:
+                  memory: 0.5Gi
+                requests:
+                  memory: 256Mi
+  negatives:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: api
+        namespace: payments
+      spec:
+        replicas: 4
+        selector:
+          matchLabels:
+            app: api
+        template:
+          metadata:
+            labels:
+              app: api
+          spec:
+            containers:
+            - name: api
+              image: registry.example.com/payments/api:3.4
+              resources:
+                requests:
+                  memory: 256Mi
+                limits:
+                  memory: 512Mi
+    why: paused was set by kubectl rollout pause, not by a previous apply, so kubectl apply does not remove a field that is simply missing from the file. The Deployment stays paused.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: api
+        namespace: payments
+      spec:
+        paused: true
+        replicas: 4
+        selector:
+          matchLabels:
+            app: api
+        template:
+          metadata:
+            labels:
+              app: api
+          spec:
+            containers:
+            - name: api
+              image: registry.example.com/payments/api:3.4
+              resources:
+                requests:
+                  memory: 256Mi
+                limits:
+                  memory: 512Mi
+    why: With paused still true, the template changes are stored but no rollout starts.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: api
+        namespace: payments
+      spec:
+        paused: false
+        replicas: 4
+        selector:
+          matchLabels:
+            app: api
+        template:
+          metadata:
+            labels:
+              app: api
+          spec:
+            containers:
+            - name: api
+              image: registry.example.com/payments/api:3.4
+              resources:
+                requests:
+                  memory: 256Mi
+                limits:
+                  memory: 512M
+    why: 512M is 512,000,000 bytes (decimal), not 512 MiB (536,870,912 bytes); the binary suffix is Mi.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: api
+        namespace: payments
+      spec:
+        paused: false
+        replicas: 4
+        selector:
+          matchLabels:
+            app: api
+        template:
+          metadata:
+            labels:
+              app: api
+          spec:
+            containers:
+            - name: api
+              image: registry.example.com/payments/api:3.4
+              resources:
+                requests:
+                  memory: 512Mi
+    why: The value went into requests, replacing the 256Mi request, and no limit is set.
+explanation:
+  correct:
+    en: '`kubectl rollout pause` sets `spec.paused: true`; while it is true, changes to the Pod template are recorded but trigger no rollout. Setting `paused: false` explicitly in the same apply as the new image and the `limits.memory: 512Mi` resumes the Deployment, and both changes go out in a single rollout. Merely deleting the field is not enough: `kubectl apply` only removes fields it applied before, and `paused` was set by `rollout pause`.'
+references:
+- title: Deployments
+  url: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/

@@ -1,0 +1,93 @@
+id: cka-4f-kustomize-image-mirror
+objective: "4.6.2"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    The cluster has no Internet access. The base `/opt/metrics-server/base` contains the upstream metrics-server manifests; its Deployment `metrics-server` (namespace `kube-system`) runs the image `registry.k8s.io/metrics-server/metrics-server:v0.8.0`. The image has been copied to the internal registry as `registry.example.com/mirror/metrics-server:v0.8.0`.
+
+    Write `/opt/metrics-server/overlays/airgap/kustomization.yaml`, an overlay built on the base, so that `kubectl apply -k /opt/metrics-server/overlays/airgap` runs the mirrored image with the same tag. Do not edit the base and do not use patches.
+body:
+  starter: |
+    apiVersion: kustomize.config.k8s.io/v1beta1
+    kind: Kustomization
+answer:
+  checks:
+  - id: base
+    label: Builds on the base (../../base)
+    path: resources
+    op: contains
+    value: ../../base
+  - id: image-name
+    label: The images entry matches the image name used in the base, without the tag
+    path: images
+    op: contains
+    value: {name: registry.k8s.io/metrics-server/metrics-server}
+  - id: new-name
+    label: Replaces it with registry.example.com/mirror/metrics-server
+    path: images[name=registry.k8s.io/metrics-server/metrics-server].newName
+    op: equals
+    value: registry.example.com/mirror/metrics-server
+  - id: tag
+    label: Keeps tag v0.8.0 (no newTag, or newTag v0.8.0)
+    path: images[name=registry.k8s.io/metrics-server/metrics-server]
+    op: matches
+    value: ^(?!.*"newTag":"(?!v0\.8\.0")).*$
+  - id: no-patches
+    label: Uses no patches
+    path: patches
+    op: absent
+  solution:
+  - manifest: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      resources:
+      - ../../base
+      images:
+      - name: registry.k8s.io/metrics-server/metrics-server
+        newName: registry.example.com/mirror/metrics-server
+        newTag: v0.8.0
+  - manifest: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      images:
+      - name: registry.k8s.io/metrics-server/metrics-server
+        newName: registry.example.com/mirror/metrics-server
+      resources:
+      - ../../base
+  negatives:
+  - manifest: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      resources:
+      - ../../base
+      images:
+      - name: metrics-server
+        newName: registry.example.com/mirror/metrics-server
+        newTag: v0.8.0
+    why: name must match the image as written in the base, registry and path included; metrics-server alone matches nothing.
+  - manifest: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      resources:
+      - ../../base
+      images:
+      - name: registry.k8s.io/metrics-server/metrics-server
+        newTag: registry.example.com/mirror/metrics-server
+    why: newTag replaces only the tag; the registry and repository change with newName.
+  - manifest: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      resources:
+      - ../base
+      images:
+      - name: registry.k8s.io/metrics-server/metrics-server
+        newName: registry.example.com/mirror/metrics-server
+    why: The overlay is two levels below /opt/metrics-server, so ../base points to /opt/metrics-server/overlays/base, which does not exist.
+explanation:
+  correct:
+    en: 'The `images` field changes image names, tags or digests without a patch. `name` must match the image in the base without its tag (`registry.k8s.io/metrics-server/metrics-server`), `newName` replaces the registry and repository, and `newTag` the tag; without `newTag` the tag of the base (`v0.8.0`) is kept. The overlay refers to the base with `resources: [../../base]`.'
+references:
+- title: Declarative Management of Kubernetes Objects Using Kustomize
+  url: https://kubernetes.io/docs/tasks/manage-kubernetes-objects/kustomization/

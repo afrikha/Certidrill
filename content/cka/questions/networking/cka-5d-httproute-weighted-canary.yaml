@@ -1,0 +1,224 @@
+id: cka-5d-httproute-weighted-canary
+objective: "5.4.2"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    The Gateway `public` in namespace `infra` has two listeners, `http` (port 80) and `https` (port 443), both for `shop.example.com`, and accepts routes from namespace `shop`.
+
+    In namespace `shop`, write an HTTPRoute named `checkout` that:
+
+    - attaches only to the `https` listener of Gateway `public`;
+    - serves the hostname `shop.example.com` and the path prefix `/checkout`;
+    - sends 80 % of these requests to Service `checkout-v1` and 20 % to Service `checkout-v2`, both on port 8080, using the weights 80 and 20.
+body:
+  starter: |
+    apiVersion: gateway.networking.k8s.io/v1
+    kind: HTTPRoute
+    metadata:
+      name: checkout
+      namespace: shop
+    spec:
+answer:
+  checks:
+  - id: route
+    label: An HTTPRoute named checkout in namespace shop
+    path: metadata
+    op: subset
+    value: {name: checkout, namespace: shop}
+  - id: kind
+    label: The object is an HTTPRoute
+    path: kind
+    op: equals
+    value: HTTPRoute
+  - id: parent
+    label: It attaches to listener https of Gateway public in namespace infra
+    path: spec.parentRefs
+    op: contains
+    value: {name: public, namespace: infra, sectionName: https}
+  - id: hostname
+    label: It serves shop.example.com
+    path: spec.hostnames
+    op: contains
+    value: shop.example.com
+  - id: path
+    label: The rule matches the path prefix /checkout
+    path: spec.rules[0].matches[0].path
+    op: matches
+    value: '^\{("type":"PathPrefix",)?"value":"/checkout"(,"type":"PathPrefix")?\}$'
+  - id: v1
+    label: checkout-v1 port 8080 gets weight 80 in the same rule
+    path: spec.rules[0].backendRefs
+    op: contains
+    value: {name: checkout-v1, port: 8080, weight: 80}
+  - id: v2
+    label: checkout-v2 port 8080 gets weight 20 in the same rule
+    path: spec.rules[0].backendRefs
+    op: contains
+    value: {name: checkout-v2, port: 8080, weight: 20}
+  solution:
+  - manifest: |
+      apiVersion: gateway.networking.k8s.io/v1
+      kind: HTTPRoute
+      metadata:
+        name: checkout
+        namespace: shop
+      spec:
+        parentRefs:
+        - name: public
+          namespace: infra
+          sectionName: https
+        hostnames:
+        - shop.example.com
+        rules:
+        - matches:
+          - path:
+              type: PathPrefix
+              value: /checkout
+          backendRefs:
+          - name: checkout-v1
+            port: 8080
+            weight: 80
+          - name: checkout-v2
+            port: 8080
+            weight: 20
+  - manifest: |
+      apiVersion: gateway.networking.k8s.io/v1
+      kind: HTTPRoute
+      metadata:
+        name: checkout
+        namespace: shop
+      spec:
+        hostnames: ["shop.example.com"]
+        parentRefs:
+        - group: gateway.networking.k8s.io
+          kind: Gateway
+          name: public
+          namespace: infra
+          sectionName: https
+        rules:
+        - backendRefs:
+          - kind: Service
+            name: checkout-v2
+            port: 8080
+            weight: 20
+          - kind: Service
+            name: checkout-v1
+            port: 8080
+            weight: 80
+          matches:
+          - path:
+              value: /checkout
+  negatives:
+  - manifest: |
+      apiVersion: gateway.networking.k8s.io/v1
+      kind: HTTPRoute
+      metadata:
+        name: checkout
+        namespace: shop
+      spec:
+        parentRefs:
+        - name: public
+          sectionName: https
+        hostnames:
+        - shop.example.com
+        rules:
+        - matches:
+          - path:
+              type: PathPrefix
+              value: /checkout
+          backendRefs:
+          - name: checkout-v1
+            port: 8080
+            weight: 80
+          - name: checkout-v2
+            port: 8080
+            weight: 20
+    why: Without namespace in parentRefs the route looks for a Gateway public in its own namespace, shop, and never attaches.
+  - manifest: |
+      apiVersion: gateway.networking.k8s.io/v1
+      kind: HTTPRoute
+      metadata:
+        name: checkout
+        namespace: shop
+      spec:
+        parentRefs:
+        - name: public
+          namespace: infra
+          sectionName: https
+        hostnames:
+        - shop.example.com
+        rules:
+        - matches:
+          - path:
+              value: /checkout
+          backendRefs:
+          - name: checkout-v1
+            port: 8080
+            weight: 80
+        - matches:
+          - path:
+              value: /checkout
+          backendRefs:
+          - name: checkout-v2
+            port: 8080
+            weight: 20
+    why: Weights only split traffic between the backendRefs of one rule; with two identical rules a request matches only one of them, so there is no 80/20 split.
+  - manifest: |
+      apiVersion: gateway.networking.k8s.io/v1
+      kind: HTTPRoute
+      metadata:
+        name: checkout
+        namespace: shop
+      spec:
+        parentRefs:
+        - name: public
+          namespace: infra
+        hostnames:
+        - shop.example.com
+        rules:
+        - matches:
+          - path:
+              value: /checkout
+          backendRefs:
+          - name: checkout-v1
+            port: 8080
+            weight: 80
+          - name: checkout-v2
+            port: 8080
+            weight: 20
+    why: Without sectionName the route attaches to every listener of the Gateway, including http, not only https.
+  - manifest: |
+      apiVersion: gateway.networking.k8s.io/v1
+      kind: HTTPRoute
+      metadata:
+        name: checkout
+        namespace: shop
+      spec:
+        parentRefs:
+        - name: public
+          namespace: infra
+          sectionName: https
+        hostnames:
+        - shop.example.com
+        rules:
+        - matches:
+          - path:
+              value: /checkout
+          backendRefs:
+          - name: checkout-v1
+            port: 8080
+            weight: 20
+          - name: checkout-v2
+            port: 8080
+            weight: 80
+    why: The weights are swapped; the new version checkout-v2 would get 80 % of the traffic.
+explanation:
+  correct:
+    en: '`parentRefs` names the Gateway, its `namespace` (default: the route namespace) and the listener with `sectionName`. In one rule, the `weight` of each backendRef is proportional: each backend gets its weight divided by the sum of the weights of the rule (default weight 1, 0 sends nothing). A match without `type` is a `PathPrefix` match, so `/checkout` also matches `/checkout/cart`.'
+references:
+- title: HTTP traffic splitting
+  url: https://gateway-api.sigs.k8s.io/guides/traffic-splitting/
+- title: HTTPRoute
+  url: https://gateway-api.sigs.k8s.io/api-types/httproute/

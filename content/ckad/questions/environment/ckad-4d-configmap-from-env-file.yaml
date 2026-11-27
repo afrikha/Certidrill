@@ -1,0 +1,113 @@
+id: ckad-4d-configmap-from-env-file
+objective: "4.4.1"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    The file `app.env` in the current directory holds `KEY=VALUE` lines, a comment and a blank line. In namespace `shop`, create a ConfigMap named `shop-env` in which **each variable** of the file becomes its own key (`DB_HOST`, `DB_PORT`, `FEATURE_FLAGS`).
+
+    Type the single command you would run.
+body:
+  mode: object
+  namespace: default
+  files:
+  - name: app.env
+    content: |
+      # shop settings
+      DB_HOST=db.shop.svc.cluster.local
+      DB_PORT=5432
+
+      FEATURE_FLAGS=search,cart
+answer:
+  checks:
+  - id: kind
+    label: The object is a ConfigMap
+    path: kind
+    op: equals
+    value: ConfigMap
+  - id: name
+    label: It is named shop-env
+    path: metadata.name
+    op: equals
+    value: shop-env
+  - id: namespace
+    label: It is created in namespace shop
+    path: metadata.namespace
+    op: equals
+    value: shop
+  - id: db-host
+    label: Key DB_HOST holds db.shop.svc.cluster.local
+    path: data.DB_HOST
+    op: equals
+    value: db.shop.svc.cluster.local
+  - id: db-port
+    label: Key DB_PORT holds 5432
+    path: data.DB_PORT
+    op: equals
+    value: "5432"
+  - id: flags
+    label: Key FEATURE_FLAGS holds search,cart
+    path: data.FEATURE_FLAGS
+    op: equals
+    value: search,cart
+  - id: no-file-key
+    label: There is no single key named app.env
+    path: data["app.env"]
+    op: absent
+  solution:
+  - command: kubectl create configmap shop-env --from-env-file=app.env -n shop
+    output: |
+      apiVersion: v1
+      data:
+        DB_HOST: db.shop.svc.cluster.local
+        DB_PORT: "5432"
+        FEATURE_FLAGS: search,cart
+      kind: ConfigMap
+      metadata:
+        name: shop-env
+        namespace: shop
+  - command: k create cm shop-env --namespace shop --from-env-file ./app.env --dry-run=client -o yaml
+    output: |
+      apiVersion: v1
+      data:
+        DB_HOST: db.shop.svc.cluster.local
+        DB_PORT: "5432"
+        FEATURE_FLAGS: search,cart
+      kind: ConfigMap
+      metadata:
+        name: shop-env
+        namespace: shop
+  negatives:
+  - command: kubectl create configmap shop-env --from-file=app.env -n shop
+    why: --from-file stores the whole file under one key, app.env, instead of one key per variable.
+    output: |
+      apiVersion: v1
+      data:
+        app.env: |
+          # shop settings
+          DB_HOST=db.shop.svc.cluster.local
+          DB_PORT=5432
+
+          FEATURE_FLAGS=search,cart
+      kind: ConfigMap
+      metadata:
+        name: shop-env
+        namespace: shop
+  - command: kubectl create configmap shop-env --from-env-file=app.env
+    why: Without -n the ConfigMap is created in the context namespace, default.
+    output: |
+      apiVersion: v1
+      data:
+        DB_HOST: db.shop.svc.cluster.local
+        DB_PORT: "5432"
+        FEATURE_FLAGS: search,cart
+      kind: ConfigMap
+      metadata:
+        name: shop-env
+explanation:
+  correct:
+    en: '`--from-env-file` reads `VAR=VAL` lines and creates one key per variable; lines starting with `#` and blank lines are ignored, and quotes would be kept as part of the value. `--from-file=app.env` instead stores the whole file as a single key named `app.env`. Since kubectl v1.23, `--from-env-file` can be repeated to merge several env files.'
+references:
+- title: Configure a Pod to Use a ConfigMap
+  url: https://kubernetes.io/docs/tasks/configure-pod-container/configure-pod-configmap/

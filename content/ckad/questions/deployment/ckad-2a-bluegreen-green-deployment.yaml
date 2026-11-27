@@ -1,0 +1,198 @@
+id: ckad-2a-bluegreen-green-deployment
+objective: "2.1.1"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    In namespace `shop`, Deployment `web-blue` (file `web-blue.yaml`) runs 3 replicas of `registry.example.com/shop/web:1.4` with Pod labels `app: web` and `version: blue`. Service `web` selects `app: web` and `version: blue`.
+
+    Write the manifest of the green side of a blue/green deployment: a Deployment `web-green` in namespace `shop` with 3 replicas and one container named `web` running `registry.example.com/shop/web:1.5`.
+
+    - Its Pods carry the labels `app: web` and `version: green`.
+    - Its selector must not match the blue Pods.
+    - The Service is not changed yet.
+body:
+  starter: ""
+  files:
+  - name: web-blue.yaml
+    content: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: web-blue
+        namespace: shop
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: web
+            version: blue
+        template:
+          metadata:
+            labels:
+              app: web
+              version: blue
+          spec:
+            containers:
+            - name: web
+              image: registry.example.com/shop/web:1.4
+              ports:
+              - containerPort: 8080
+answer:
+  checks:
+  - id: api
+    label: The object is an apps/v1 Deployment
+    path: apiVersion
+    op: equals
+    value: apps/v1
+  - id: kind
+    label: The object is a Deployment
+    path: kind
+    op: equals
+    value: Deployment
+  - id: meta
+    label: It is named web-green in namespace shop
+    path: metadata
+    op: subset
+    value: {name: web-green, namespace: shop}
+  - id: replicas
+    label: It runs 3 replicas, the same capacity as blue
+    path: spec.replicas
+    op: equals
+    value: 3
+  - id: image
+    label: Container web runs registry.example.com/shop/web:1.5
+    path: spec.template.spec.containers[name=web].image
+    op: equals
+    value: registry.example.com/shop/web:1.5
+  - id: pod-labels
+    label: Pods are labelled app web and version green
+    path: spec.template.metadata.labels
+    op: subset
+    value: {app: web, version: green}
+  - id: selector
+    label: The selector requires version green, so it does not match blue Pods
+    path: spec.selector.matchLabels.version
+    op: equals
+    value: green
+  solution:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: web-green
+        namespace: shop
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: web
+            version: green
+        template:
+          metadata:
+            labels:
+              app: web
+              version: green
+          spec:
+            containers:
+            - name: web
+              image: registry.example.com/shop/web:1.5
+              ports:
+              - containerPort: 8080
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: web-green
+        namespace: shop
+        labels:
+          app: web
+          version: green
+      spec:
+        selector:
+          matchLabels:
+            version: green
+            app: web
+        replicas: 3
+        template:
+          metadata:
+            labels:
+              version: green
+              app: web
+          spec:
+            containers:
+            - image: registry.example.com/shop/web:1.5
+              name: web
+  negatives:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: web-green
+        namespace: shop
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: web
+        template:
+          metadata:
+            labels:
+              app: web
+              version: green
+          spec:
+            containers:
+            - name: web
+              image: registry.example.com/shop/web:1.5
+    why: A selector of app=web alone also matches the blue Pods. Two Deployments with overlapping selectors can fight over the same Pods.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: web-green
+        namespace: shop
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: web
+            version: blue
+        template:
+          metadata:
+            labels:
+              app: web
+              version: blue
+          spec:
+            containers:
+            - name: web
+              image: registry.example.com/shop/web:1.5
+    why: The labels were copied from blue. The new Pods would receive live traffic at once, and the Service could no longer tell the two versions apart.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: web-green
+        namespace: shop
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            version: green
+        template:
+          metadata:
+            labels:
+              version: green
+          spec:
+            containers:
+            - name: web
+              image: registry.example.com/shop/web:1.5
+    why: Without the app web label, the Service would select no green Pod once its selector is switched to app=web,version=green.
+explanation:
+  correct:
+    en: 'The green Deployment runs the new image at full size next to blue, and receives no traffic while the Service still selects `version: blue`. Its selector and Pod template must both carry `version: green`: the API rejects a selector that does not match the template labels, and a selector of `app: web` alone would overlap with `web-blue`. Keeping `app: web` lets the Service switch with a single selector change.'
+references:
+- title: Deployments
+  url: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/
+- title: Labels and Selectors
+  url: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/

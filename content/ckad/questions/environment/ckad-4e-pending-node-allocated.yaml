@@ -1,0 +1,47 @@
+id: ckad-4e-pending-node-allocated
+objective: "4.5.2"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    Pod `etl` in namespace `analytics` is pinned to node `worker-2` by a `nodeSelector` and stays `Pending` with the event `FailedScheduling ... Insufficient cpu`.
+
+    Display the node's allocatable CPU and the total CPU requests of the Pods already placed on `worker-2`, with a single command.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Uses kubectl describe
+    path: verb
+    op: equals
+    value: describe
+  - id: resource
+    label: Describes a node
+    path: resource
+    op: equals
+    value: node
+  - id: name
+    label: Describes node worker-2
+    path: names
+    op: contains
+    value: worker-2
+  solution:
+  - command: kubectl describe node worker-2
+  - command: k describe no/worker-2
+  - command: kubectl describe nodes worker-2
+  negatives:
+  - command: kubectl top node worker-2
+    why: top shows the CPU actually used (from the metrics API); the scheduler compares requests with allocatable capacity, not usage.
+  - command: kubectl describe pod etl -n analytics
+    why: The Pod's events confirm the failure but do not show what the other Pods already request on the node.
+  - command: kubectl get node worker-2 -o wide
+    why: get -o wide shows status, roles, version and addresses, not allocatable capacity or allocated requests.
+explanation:
+  correct:
+    en: '`kubectl describe node worker-2` prints `Capacity`, `Allocatable` and an `Allocated resources` table with the sum of CPU and memory requests and limits of the Pods on the node. The scheduler places a Pod only where its requests fit in allocatable minus the requests already allocated, whatever the real usage shown by `kubectl top`.'
+references:
+- title: Resource Management for Pods and Containers
+  url: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/

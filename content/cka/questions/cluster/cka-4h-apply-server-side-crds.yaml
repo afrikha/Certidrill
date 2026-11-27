@@ -1,0 +1,48 @@
+id: cka-4h-apply-server-side-crds
+objective: "4.8.1"
+difficulty: 3
+status: draft
+type: command
+stem:
+  en: |-
+    The directory `setup/` holds the namespace and the CustomResourceDefinitions of a monitoring operator. `kubectl apply -f setup/` creates the namespace but fails for two large CRDs: the API server rejects them because `metadata.annotations` would exceed the 262144-byte limit. The annotation that is too large is `kubectl.kubernetes.io/last-applied-configuration`, which client-side apply writes.
+
+    Apply the directory again, still with `kubectl apply`, so that this annotation is not written. Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Uses kubectl apply
+    path: verb
+    op: equals
+    value: apply
+  - id: server-side
+    label: Uses server-side apply (--server-side)
+    path: flags.server-side
+    op: equals
+    value: true
+  - id: file
+    label: Applies the directory setup/
+    path: flags.filename
+    op: oneOf
+    value: [setup/, setup, ./setup/, ./setup]
+  solution:
+  - command: kubectl apply --server-side -f setup/
+  - command: k apply -f setup --server-side=true
+  negatives:
+  - command: kubectl apply -f setup/
+    why: Client-side apply stores the whole object in the last-applied-configuration annotation, which is what exceeds the limit.
+  - command: kubectl apply --server-side -f setup/0namespace.yaml
+    why: This applies only the namespace file; the CRDs in setup/ are still not created.
+  - command: kubectl apply -f setup/ --force
+    why: --force deletes and re-creates objects that fail to update; it is still client-side apply and writes the same annotation.
+explanation:
+  correct:
+    en: 'Server-side apply (`kubectl apply --server-side`) records field ownership in `metadata.managedFields` on the API server instead of relying on the `kubectl.kubernetes.io/last-applied-configuration` annotation; kubectl only keeps that annotation up to date on objects that already carry it, so the new CRDs are created without it and fit. Operator projects such as kube-prometheus install their CRDs with `kubectl apply --server-side -f manifests/setup` for this reason; `kubectl create -f` would also work, but the task asks for apply.'
+references:
+- title: Server-Side Apply
+  url: https://kubernetes.io/docs/reference/using-api/server-side-apply/
+- title: kube-prometheus
+  url: https://github.com/prometheus-operator/kube-prometheus

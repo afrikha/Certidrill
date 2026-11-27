@@ -1,0 +1,79 @@
+id: cka-4e-join-control-plane
+objective: "4.5.2"
+difficulty: 3
+status: draft
+type: command
+stem:
+  en: |-
+    Node `cp3` (containerd, kubeadm and kubelet 1.37.1 ready) must join the stacked HA cluster as a **control plane** node. It has two network interfaces; its API server must advertise `192.168.10.13`. You have:
+
+    - load-balanced endpoint `k8s-api.example.com:6443`;
+    - bootstrap token `r4t8w2.k9d3j6h1p5s7q0yb`;
+    - CA hash `sha256:9e1d7c3b5a0f2e4d6c8b1a3f5e7d9c0b2a4f6e8d1c3b5a7f9e0d2c4b6a8f1e3d`;
+    - certificate key `b7e4c1a9d3f60825e19c7b4a3d2f8e6c5b0a9f1e2d3c4b5a6f7e8d9c0b1a2f3e`, printed by `kubeadm init phase upload-certs --upload-certs` 20 minutes ago.
+
+    Type the single command you would run on `cp3`.
+body:
+  mode: invocation
+  tools: [kubeadm, kubectl, systemctl]
+  namespace: default
+answer:
+  checks:
+  - id: tool
+    label: Uses kubeadm
+    path: tool
+    op: equals
+    value: kubeadm
+  - id: verb
+    label: Runs kubeadm join
+    path: verb
+    op: equals
+    value: join
+  - id: endpoint
+    label: Joins through k8s-api.example.com:6443
+    path: args
+    op: contains
+    value: k8s-api.example.com:6443
+  - id: token
+    label: Uses the token r4t8w2.k9d3j6h1p5s7q0yb
+    path: flags.token
+    op: equals
+    value: r4t8w2.k9d3j6h1p5s7q0yb
+  - id: ca-hash
+    label: Pins the CA hash
+    path: flags.discovery-token-ca-cert-hash
+    op: equals
+    value: sha256:9e1d7c3b5a0f2e4d6c8b1a3f5e7d9c0b2a4f6e8d1c3b5a7f9e0d2c4b6a8f1e3d
+  - id: control-plane
+    label: Creates a control plane instance (--control-plane)
+    path: flags.control-plane
+    op: exists
+  - id: certificate-key
+    label: Downloads the certificates with --certificate-key b7e4…2f3e
+    path: flags.certificate-key
+    op: equals
+    value: b7e4c1a9d3f60825e19c7b4a3d2f8e6c5b0a9f1e2d3c4b5a6f7e8d9c0b1a2f3e
+  - id: advertise
+    label: The new API server advertises 192.168.10.13
+    path: flags.apiserver-advertise-address
+    op: equals
+    value: 192.168.10.13
+  solution:
+  - command: kubeadm join k8s-api.example.com:6443 --token r4t8w2.k9d3j6h1p5s7q0yb --discovery-token-ca-cert-hash sha256:9e1d7c3b5a0f2e4d6c8b1a3f5e7d9c0b2a4f6e8d1c3b5a7f9e0d2c4b6a8f1e3d --control-plane --certificate-key b7e4c1a9d3f60825e19c7b4a3d2f8e6c5b0a9f1e2d3c4b5a6f7e8d9c0b1a2f3e --apiserver-advertise-address 192.168.10.13
+  - command: sudo kubeadm join k8s-api.example.com:6443 --control-plane --apiserver-advertise-address=192.168.10.13 --certificate-key=b7e4c1a9d3f60825e19c7b4a3d2f8e6c5b0a9f1e2d3c4b5a6f7e8d9c0b1a2f3e --token=r4t8w2.k9d3j6h1p5s7q0yb --discovery-token-ca-cert-hash=sha256:9e1d7c3b5a0f2e4d6c8b1a3f5e7d9c0b2a4f6e8d1c3b5a7f9e0d2c4b6a8f1e3d
+  - command: kubeadm join --control-plane k8s-api.example.com:6443 --token r4t8w2.k9d3j6h1p5s7q0yb --discovery-token-ca-cert-hash sha256:9e1d7c3b5a0f2e4d6c8b1a3f5e7d9c0b2a4f6e8d1c3b5a7f9e0d2c4b6a8f1e3d --certificate-key b7e4c1a9d3f60825e19c7b4a3d2f8e6c5b0a9f1e2d3c4b5a6f7e8d9c0b1a2f3e --apiserver-advertise-address 192.168.10.13
+  negatives:
+  - command: kubeadm join k8s-api.example.com:6443 --token r4t8w2.k9d3j6h1p5s7q0yb --discovery-token-ca-cert-hash sha256:9e1d7c3b5a0f2e4d6c8b1a3f5e7d9c0b2a4f6e8d1c3b5a7f9e0d2c4b6a8f1e3d --control-plane --apiserver-advertise-address 192.168.10.13
+    why: Without --certificate-key the shared certificates (CA, service account keys, front-proxy CA, etcd CA) are not downloaded, and they were not copied by hand.
+  - command: kubeadm join k8s-api.example.com:6443 --token r4t8w2.k9d3j6h1p5s7q0yb --discovery-token-ca-cert-hash sha256:9e1d7c3b5a0f2e4d6c8b1a3f5e7d9c0b2a4f6e8d1c3b5a7f9e0d2c4b6a8f1e3d --certificate-key b7e4c1a9d3f60825e19c7b4a3d2f8e6c5b0a9f1e2d3c4b5a6f7e8d9c0b1a2f3e --apiserver-advertise-address 192.168.10.13
+    why: Without --control-plane the node joins as a worker; no API server or etcd member is created.
+  - command: kubeadm join k8s-api.example.com:6443 --token r4t8w2.k9d3j6h1p5s7q0yb --discovery-token-ca-cert-hash sha256:9e1d7c3b5a0f2e4d6c8b1a3f5e7d9c0b2a4f6e8d1c3b5a7f9e0d2c4b6a8f1e3d --control-plane --certificate-key b7e4c1a9d3f60825e19c7b4a3d2f8e6c5b0a9f1e2d3c4b5a6f7e8d9c0b1a2f3e
+    why: Without --apiserver-advertise-address, the new API server advertises the address of the default interface, not 192.168.10.13.
+explanation:
+  correct:
+    en: '`--control-plane` makes `kubeadm join` create a control plane instance (and, in the stacked topology, a local etcd member); `--certificate-key` decrypts the certificates uploaded in the `kubeadm-certs` Secret, which expires two hours after the upload. `--apiserver-advertise-address` chooses the address of the new API server. The token and CA hash play the same role as for a worker.'
+references:
+- title: Creating Highly Available Clusters with kubeadm
+  url: https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/high-availability/
+- title: kubeadm join
+  url: https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-join/

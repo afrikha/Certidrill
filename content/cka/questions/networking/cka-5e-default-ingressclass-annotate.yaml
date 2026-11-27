@@ -1,0 +1,111 @@
+id: cka-5e-default-ingressclass-annotate
+objective: "5.5.2"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    The cluster has two IngressClasses, `edge` (manifest in `edge-class.yaml`) and `legacy`; neither is marked as the default. Developers create Ingresses without `ingressClassName`, and no controller serves them.
+
+    Mark the IngressClass `edge` as the cluster default so that new Ingresses created without `ingressClassName` get the class `edge`. Type the single command you would run.
+body:
+  mode: object
+  namespace: default
+  files:
+  - name: edge-class.yaml
+    content: |
+      apiVersion: networking.k8s.io/v1
+      kind: IngressClass
+      metadata:
+        name: edge
+      spec:
+        controller: example.com/edge-ingress
+answer:
+  checks:
+  - id: kind
+    label: The object is an IngressClass
+    path: kind
+    op: equals
+    value: IngressClass
+  - id: name
+    label: It is the class edge
+    path: metadata.name
+    op: equals
+    value: edge
+  - id: default
+    label: Annotation ingressclass.kubernetes.io/is-default-class is "true"
+    path: metadata.annotations["ingressclass.kubernetes.io/is-default-class"]
+    op: equals
+    value: "true"
+  - id: no-label
+    label: The marker is not stored as a label
+    path: metadata.labels["ingressclass.kubernetes.io/is-default-class"]
+    op: absent
+  - id: controller
+    label: The controller is unchanged
+    path: spec.controller
+    op: equals
+    value: example.com/edge-ingress
+  solution:
+  - command: kubectl annotate ingressclass edge ingressclass.kubernetes.io/is-default-class=true
+    output: |
+      apiVersion: networking.k8s.io/v1
+      kind: IngressClass
+      metadata:
+        annotations:
+          ingressclass.kubernetes.io/is-default-class: "true"
+        name: edge
+      spec:
+        controller: example.com/edge-ingress
+  - command: k annotate ingressclasses/edge 'ingressclass.kubernetes.io/is-default-class=true'
+    output: |
+      apiVersion: networking.k8s.io/v1
+      kind: IngressClass
+      metadata:
+        annotations:
+          ingressclass.kubernetes.io/is-default-class: "true"
+        name: edge
+      spec:
+        controller: example.com/edge-ingress
+  negatives:
+  - command: kubectl label ingressclass edge ingressclass.kubernetes.io/is-default-class=true
+    why: The default marker is an annotation; a label with the same key is ignored by the admission controller.
+    output: |
+      apiVersion: networking.k8s.io/v1
+      kind: IngressClass
+      metadata:
+        labels:
+          ingressclass.kubernetes.io/is-default-class: "true"
+        name: edge
+      spec:
+        controller: example.com/edge-ingress
+  - command: kubectl annotate ingressclass edge storageclass.kubernetes.io/is-default-class=true
+    why: storageclass.kubernetes.io/is-default-class marks the default StorageClass; IngressClasses use ingressclass.kubernetes.io/is-default-class.
+    output: |
+      apiVersion: networking.k8s.io/v1
+      kind: IngressClass
+      metadata:
+        annotations:
+          storageclass.kubernetes.io/is-default-class: "true"
+        name: edge
+      spec:
+        controller: example.com/edge-ingress
+  - command: kubectl annotate ingressclass edge ingressclass.kubernetes.io/is-default-class=yes
+    why: Only the string "true" marks the default class.
+    output: |
+      apiVersion: networking.k8s.io/v1
+      kind: IngressClass
+      metadata:
+        annotations:
+          ingressclass.kubernetes.io/is-default-class: "yes"
+        name: edge
+      spec:
+        controller: example.com/edge-ingress
+explanation:
+  correct:
+    en: 'Setting the annotation `ingressclass.kubernetes.io/is-default-class` to `"true"` on an IngressClass makes the admission controller assign that class to new Ingresses created without `ingressClassName`; existing Ingresses are not changed. Keep at most one default: with two default classes, new Ingresses without `ingressClassName` are rejected. IngressClass is cluster-scoped, so no `-n` is needed.'
+references:
+- title: Ingress
+  url: https://kubernetes.io/docs/concepts/services-networking/ingress/
+- title: Ingress Controllers
+  url: https://kubernetes.io/docs/concepts/services-networking/ingress-controllers/

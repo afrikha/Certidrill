@@ -1,0 +1,61 @@
+id: ckad-4b-auth-can-i-sa
+objective: "4.2.2"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    The ServiceAccount `billing` lives in namespace `payments`. A RoleBinding was just created in namespace `finance` for it.
+
+    Check whether this ServiceAccount can list Secrets in namespace `finance`. You are allowed to impersonate. Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Uses kubectl auth
+    path: verb
+    op: equals
+    value: auth
+  - id: subverb
+    label: Uses can-i
+    path: subverb
+    op: equals
+    value: can-i
+  - id: action
+    label: Checks the verb list
+    path: args[1]
+    op: equals
+    value: list
+  - id: resource
+    label: Checks Secrets
+    path: args[2]
+    op: oneOf
+    value: [secrets, secret]
+  - id: as
+    label: Impersonates system:serviceaccount:payments:billing
+    path: flags.as
+    op: equals
+    value: system:serviceaccount:payments:billing
+  - id: namespace
+    label: Checks in namespace finance
+    path: flags.namespace
+    op: equals
+    value: finance
+  solution:
+  - command: kubectl auth can-i list secrets --as=system:serviceaccount:payments:billing -n finance
+  - command: k auth can-i list secret -n finance --as system:serviceaccount:payments:billing
+  negatives:
+  - command: kubectl auth can-i list secrets --as=system:serviceaccount:payments:billing -n payments
+    why: -n is the namespace being checked; this tests access in payments, not in finance.
+  - command: kubectl auth can-i list secrets --as=billing -n finance
+    why: --as=billing impersonates a user named billing; a ServiceAccount is identified as system:serviceaccount:<namespace>:<name>.
+  - command: kubectl auth can-i list secrets --as=system:serviceaccount:finance:billing -n finance
+    why: The ServiceAccount lives in payments; system:serviceaccount:finance:billing is a different, non-existent account.
+explanation:
+  correct:
+    en: '`kubectl auth can-i VERB RESOURCE` answers yes or no for the current identity; `--as=system:serviceaccount:<namespace>:<name>` impersonates a ServiceAccount, and `-n` sets the namespace in which access is tested. Here the account comes from `payments` and the check runs in `finance`, so the two namespaces differ.'
+references:
+- title: kubectl auth can-i
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_auth/kubectl_auth_can-i/

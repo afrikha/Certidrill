@@ -1,0 +1,61 @@
+id: cka-4f-apply-k-server-side
+objective: "4.6.2"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    The directory `/opt/monitoring` contains a `kustomization.yaml` that installs a monitoring operator with its CRDs. A first `kubectl apply -k /opt/monitoring` created some of the objects, then failed with:
+
+    ```text
+    The CustomResourceDefinition "prometheuses.monitoring.coreos.com" is invalid: metadata.annotations: Too long: must have at most 262144 bytes
+    ```
+
+    Install every object that the kustomization produces, CRDs included, with a command that you can run again later to update them.
+
+    Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: apply
+    label: Uses kubectl apply
+    path: verb
+    op: equals
+    value: apply
+  - id: kustomize
+    label: Builds the kustomization in /opt/monitoring (-k)
+    path: flags.kustomize
+    op: oneOf
+    value: [/opt/monitoring, /opt/monitoring/]
+  - id: server-side
+    label: Uses server-side apply (--server-side)
+    path: flags.server-side
+    op: equals
+    value: true
+  - id: no-filename
+    label: Does not read the directory as plain manifests (-f)
+    path: flags.filename
+    op: absent
+  solution:
+  - command: kubectl apply -k /opt/monitoring --server-side
+  - command: k apply --server-side=true -k /opt/monitoring/
+  - command: kubectl apply --server-side --kustomize=/opt/monitoring
+  negatives:
+  - command: kubectl apply -k /opt/monitoring
+    why: Client-side apply writes the last-applied-configuration annotation again and fails on the same CRD.
+  - command: kubectl create -k /opt/monitoring
+    why: create fails with AlreadyExists on the objects that the first attempt created, and it cannot be rerun to update them.
+  - command: kubectl apply -f /opt/monitoring --server-side
+    why: -f applies the YAML files of the directory as they are; the kustomization is not built.
+  - command: kubectl kustomize /opt/monitoring
+    why: kubectl kustomize only prints the rendered objects; nothing is applied.
+explanation:
+  correct:
+    en: '`kubectl apply -k DIR` builds the kustomization and applies the result. With `--server-side`, the API server tracks field ownership in `managedFields` instead of kubectl storing the whole object in the `last-applied-configuration` annotation, so very large objects such as big CRDs can be applied, and the same command updates them later. `kubectl create -k` stops on objects that already exist.'
+references:
+- title: Server-Side Apply
+  url: https://kubernetes.io/docs/reference/using-api/server-side-apply/
+- title: Declarative Management of Kubernetes Objects Using Kustomize
+  url: https://kubernetes.io/docs/tasks/manage-kubernetes-objects/kustomization/

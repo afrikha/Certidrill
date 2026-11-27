@@ -1,0 +1,217 @@
+id: cka-5f-corefile-upstream-cache
+objective: "5.6.2"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    A new security rule forbids CoreDNS from using the nodes' resolvers. Every name outside the cluster domain must be sent to the resolvers `172.16.0.10` and `172.16.0.11`, and answers must be kept in cache for up to 300 seconds to reduce the load on them.
+
+    Edit the `coredns` ConfigMap of namespace `kube-system` (current version in the editor) accordingly. Keep all the other plugins.
+body:
+  starter: |
+    apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: coredns
+      namespace: kube-system
+    data:
+      Corefile: |
+        .:53 {
+            errors
+            health {
+                lameduck 5s
+            }
+            ready
+            kubernetes cluster.local in-addr.arpa ip6.arpa {
+                pods insecure
+                fallthrough in-addr.arpa ip6.arpa
+                ttl 30
+            }
+            prometheus :9153
+            forward . /etc/resolv.conf
+            cache 30
+            loop
+            reload
+            loadbalance
+        }
+answer:
+  checks:
+  - id: cm
+    label: Still ConfigMap coredns in namespace kube-system
+    path: metadata
+    op: subset
+    value: {name: coredns, namespace: kube-system}
+  - id: upstream-1
+    label: forward . sends external names to 172.16.0.10
+    path: data.Corefile
+    op: matches
+    value: '\bforward\s+\.\s+[^\n{]*\b172\.16\.0\.10\b'
+  - id: upstream-2
+    label: forward . sends external names to 172.16.0.11
+    path: data.Corefile
+    op: matches
+    value: '\bforward\s+\.\s+[^\n{]*\b172\.16\.0\.11\b'
+  - id: no-node-resolver
+    label: /etc/resolv.conf is no longer used
+    path: data.Corefile
+    op: matches
+    value: '^(?![\s\S]*/etc/resolv\.conf)'
+  - id: cache
+    label: The cache plugin keeps answers up to 300 seconds
+    path: data.Corefile
+    op: matches
+    value: '\bcache\s+300\b'
+  - id: kubernetes
+    label: The kubernetes plugin still serves cluster.local
+    path: data.Corefile
+    op: matches
+    value: 'kubernetes\s+cluster\.local'
+  - id: reload
+    label: The loop and reload plugins are kept
+    path: data.Corefile
+    op: matches
+    value: '\bloop\b[\s\S]*\breload\b|\breload\b[\s\S]*\bloop\b'
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: coredns
+        namespace: kube-system
+      data:
+        Corefile: |
+          .:53 {
+              errors
+              health {
+                  lameduck 5s
+              }
+              ready
+              kubernetes cluster.local in-addr.arpa ip6.arpa {
+                  pods insecure
+                  fallthrough in-addr.arpa ip6.arpa
+                  ttl 30
+              }
+              prometheus :9153
+              forward . 172.16.0.10 172.16.0.11
+              cache 300
+              loop
+              reload
+              loadbalance
+          }
+  - manifest: |
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: coredns
+        namespace: kube-system
+      data:
+        Corefile: |
+          .:53 {
+              errors
+              health {
+                  lameduck 5s
+              }
+              ready
+              kubernetes cluster.local in-addr.arpa ip6.arpa {
+                  pods insecure
+                  fallthrough in-addr.arpa ip6.arpa
+                  ttl 30
+              }
+              prometheus :9153
+              forward . 172.16.0.11 172.16.0.10 {
+                  policy sequential
+              }
+              cache 300
+              loop
+              reload
+              loadbalance
+          }
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: coredns
+        namespace: kube-system
+      data:
+        Corefile: |
+          .:53 {
+              errors
+              health {
+                  lameduck 5s
+              }
+              ready
+              kubernetes cluster.local in-addr.arpa ip6.arpa {
+                  pods insecure
+                  fallthrough in-addr.arpa ip6.arpa
+                  ttl 30
+              }
+              prometheus :9153
+              forward . /etc/resolv.conf 172.16.0.10 172.16.0.11
+              cache 300
+              loop
+              reload
+              loadbalance
+          }
+    why: The node resolvers from /etc/resolv.conf are still in the upstream list, which the rule forbids.
+  - manifest: |
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: coredns
+        namespace: kube-system
+      data:
+        Corefile: |
+          .:53 {
+              errors
+              health {
+                  lameduck 5s
+              }
+              ready
+              kubernetes cluster.local in-addr.arpa ip6.arpa {
+                  pods insecure
+                  fallthrough in-addr.arpa ip6.arpa
+                  ttl 30
+              }
+              prometheus :9153
+              proxy . 172.16.0.10 172.16.0.11
+              cache 300
+              loop
+              reload
+              loadbalance
+          }
+    why: proxy is the old CoreDNS plugin that forward replaced; current CoreDNS releases do not have it and refuse the Corefile.
+  - manifest: |
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: coredns
+        namespace: kube-system
+      data:
+        Corefile: |
+          .:53 {
+              errors
+              health {
+                  lameduck 5s
+              }
+              ready
+              kubernetes cluster.local in-addr.arpa ip6.arpa {
+                  pods insecure
+                  fallthrough in-addr.arpa ip6.arpa
+                  ttl 300
+              }
+              prometheus :9153
+              forward . 172.16.0.10 172.16.0.11
+              cache 30
+              loop
+              reload
+              loadbalance
+          }
+    why: ttl 300 in the kubernetes block changes the TTL of cluster records; the cache plugin still keeps answers only 30 seconds.
+explanation:
+  correct:
+    en: '`forward . 172.16.0.10 172.16.0.11` replaces `forward . /etc/resolv.conf`, so names outside `cluster.local` go to those resolvers instead of the ones CoreDNS inherits from the node; `cache 300` sets the maximum TTL of cached answers. Keep `kubernetes`, `loop` and `reload`: with `reload` the change is applied without restarting the Pods, after up to about two minutes.'
+references:
+- title: Customizing DNS Service
+  url: https://kubernetes.io/docs/tasks/administer-cluster/dns-custom-nameservers/

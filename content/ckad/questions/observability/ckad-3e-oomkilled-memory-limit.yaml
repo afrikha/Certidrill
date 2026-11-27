@@ -1,0 +1,132 @@
+id: ckad-3e-oomkilled-memory-limit
+objective: "3.5.1"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    Pod `thumbnailer` in namespace `media` restarts every few minutes. `kubectl describe pod thumbnailer -n media` shows:
+
+    ```text
+        Last State:     Terminated
+          Reason:       OOMKilled
+          Exit Code:    137
+        Restart Count:  9
+        Limits:
+          memory:  128Mi
+        Requests:
+          memory:  128Mi
+    ```
+
+    The application needs up to 400Mi at peak. Fix the manifest below so the container is no longer killed: keep its memory request at `128Mi` and let it use up to `512Mi`.
+body:
+  starter: |
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: thumbnailer
+      namespace: media
+    spec:
+      containers:
+      - name: thumbnailer
+        image: registry.example.com/thumbnailer:2.0
+        resources:
+          requests:
+            memory: 128Mi
+          limits:
+            memory: 128Mi
+answer:
+  checks:
+  - id: pod
+    label: A Pod named thumbnailer in namespace media
+    path: metadata
+    op: subset
+    value: {name: thumbnailer, namespace: media}
+  - id: limit
+    label: Memory limit is 512Mi
+    path: spec.containers[name=thumbnailer].resources.limits.memory
+    op: quantity
+    value: 512Mi
+  - id: request
+    label: Memory request stays 128Mi
+    path: spec.containers[name=thumbnailer].resources.requests.memory
+    op: quantity
+    value: 128Mi
+  - id: image
+    label: Image is unchanged
+    path: spec.containers[name=thumbnailer].image
+    op: equals
+    value: registry.example.com/thumbnailer:2.0
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: thumbnailer
+        namespace: media
+      spec:
+        containers:
+        - name: thumbnailer
+          image: registry.example.com/thumbnailer:2.0
+          resources:
+            requests:
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: thumbnailer
+        namespace: media
+      spec:
+        containers:
+        - name: thumbnailer
+          image: registry.example.com/thumbnailer:2.0
+          resources:
+            requests:
+              memory: 512Mi
+            limits:
+              memory: 128Mi
+    why: The limit, not the request, caps memory; a request above the limit is also rejected by validation.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: thumbnailer
+        namespace: media
+      spec:
+        containers:
+        - name: thumbnailer
+          image: registry.example.com/thumbnailer:2.0
+          resources:
+            requests:
+              memory: 128Mi
+            limits:
+              memory: 512M
+    why: 512M is 512,000,000 bytes (decimal), not 512Mi (536,870,912 bytes).
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: thumbnailer
+        namespace: media
+      spec:
+        containers:
+        - name: thumbnailer
+          image: registry.example.com/thumbnailer:2.0
+          resources:
+            requests:
+              memory: 128Mi
+              cpu: 250m
+            limits:
+              memory: 128Mi
+              cpu: "1"
+    why: OOMKilled is about memory; a CPU limit is enforced by throttling and does not change the memory cap of 128Mi.
+explanation:
+  correct:
+    en: '`Reason: OOMKilled` with exit code 137 means the container used more memory than its limit and the kernel killed it. Raising `limits.memory` to `512Mi` gives it room above the 400Mi peak while the request stays `128Mi` for scheduling. `Mi` is a power of two; `M` is a power of ten.'
+references:
+- title: Assign Memory Resources to Containers and Pods
+  url: https://kubernetes.io/docs/tasks/configure-pod-container/assign-memory-resource/

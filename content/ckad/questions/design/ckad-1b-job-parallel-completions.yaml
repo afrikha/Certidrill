@@ -1,0 +1,126 @@
+id: ckad-1b-job-parallel-completions
+objective: "1.2.3"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    Write the manifest of a Job named `thumbnails` in namespace `media` with one container named `resize` running `registry.example.com/media/resize:2.0`:
+
+    - the Job is complete after 12 Pods have succeeded;
+    - at most 3 Pods run at the same time;
+    - the Job is marked failed after 4 retries;
+    - a failed container is not restarted in place: the Job creates a new Pod instead.
+body:
+  starter: ""
+answer:
+  checks:
+  - id: kind
+    label: A batch/v1 Job
+    path: apiVersion
+    op: equals
+    value: batch/v1
+  - id: metadata
+    label: Named thumbnails in namespace media
+    path: metadata
+    op: subset
+    value: {name: thumbnails, namespace: media}
+  - id: image
+    label: Container resize runs registry.example.com/media/resize:2.0
+    path: spec.template.spec.containers[name=resize].image
+    op: equals
+    value: registry.example.com/media/resize:2.0
+  - id: completions
+    label: completions is 12
+    path: spec.completions
+    op: equals
+    value: 12
+  - id: parallelism
+    label: parallelism is 3
+    path: spec.parallelism
+    op: equals
+    value: 3
+  - id: backoff
+    label: backoffLimit is 4
+    path: spec.backoffLimit
+    op: equals
+    value: 4
+  - id: restart
+    label: restartPolicy is Never
+    path: spec.template.spec.restartPolicy
+    op: equals
+    value: Never
+  solution:
+  - manifest: |
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: thumbnails
+        namespace: media
+      spec:
+        completions: 12
+        parallelism: 3
+        backoffLimit: 4
+        template:
+          spec:
+            containers:
+            - name: resize
+              image: registry.example.com/media/resize:2.0
+            restartPolicy: Never
+  negatives:
+  - manifest: |
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: thumbnails
+        namespace: media
+      spec:
+        completions: 3
+        parallelism: 12
+        backoffLimit: 4
+        template:
+          spec:
+            containers:
+            - name: resize
+              image: registry.example.com/media/resize:2.0
+            restartPolicy: Never
+    why: The values are swapped; completions counts successes, parallelism caps concurrent Pods.
+  - manifest: |
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: thumbnails
+        namespace: media
+      spec:
+        completions: 12
+        parallelism: 3
+        template:
+          spec:
+            containers:
+            - name: resize
+              image: registry.example.com/media/resize:2.0
+            restartPolicy: Never
+    why: Without backoffLimit the default is 6 retries, not 4.
+  - manifest: |
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: thumbnails
+        namespace: media
+      spec:
+        completions: 12
+        parallelism: 3
+        backoffLimit: 4
+        template:
+          spec:
+            containers:
+            - name: resize
+              image: registry.example.com/media/resize:2.0
+            restartPolicy: OnFailure
+    why: OnFailure restarts the failed container inside the same Pod; Never makes the Job create a new Pod.
+explanation:
+  correct:
+    en: '`completions: 12` is the number of successful Pods needed, `parallelism: 3` the maximum running at once, and `backoffLimit: 4` the retries before the Job fails (default 6). With `restartPolicy: Never` each failure leaves a failed Pod and the controller creates a replacement; `OnFailure` restarts the container in place.'
+references:
+- title: Jobs
+  url: https://kubernetes.io/docs/concepts/workloads/controllers/job/

@@ -1,0 +1,1161 @@
+chapter: 51-services-connectivity-dns
+questions:
+  # ------------------------------------------------------------------ 1
+  - id: cka-qz-51-01
+    objective: "5.1.1"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        Pod `client` has the IP address `10.244.1.7` and runs on node `node-1`, whose InternalIP is `192.168.10.11`. It opens a TCP connection straight to `10.244.2.15`, the IP address of Pod `api-0` on node `node-2`, without going through a Service. The CNI plugin of the cluster implements the Kubernetes network model.
+
+        Which source IP address does `api-0` see for this connection?
+    body:
+      options:
+        - { id: a, text: "`192.168.10.11`, the InternalIP of `node-1`" }
+        - { id: b, text: "`10.244.1.7`, the IP address of Pod `client`" }
+        - { id: c, text: "`10.244.1.1`, the gateway of the Pod range of `node-1`" }
+        - { id: d, text: "`10.96.0.1`, the ClusterIP of the `kubernetes` Service" }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          The Kubernetes network model requires that every Pod can reach every other Pod, on the same node or on another one, directly and without NAT. The packet therefore keeps the address of Pod `client` as its source, and `api-0` sees `10.244.1.7`.
+      options:
+        a: { en: "Seeing the node address would mean the traffic was source-NATed on `node-1`, which the network model rules out for Pod-to-Pod traffic. It does happen for some traffic that comes in through a node port." }
+        c: { en: "The gateway of the node's Pod range may route the packet, but routing does not rewrite the source address. Without NAT the source is still the client Pod's IP." }
+        d: { en: "`10.96.0.1` is a virtual IP from the Service range. No packet carries it as a source, and this connection does not use a Service at all." }
+    references:
+      - title: Services, Load Balancing, and Networking
+        url: https://kubernetes.io/docs/concepts/services-networking/
+
+  # ------------------------------------------------------------------ 2
+  - id: cka-qz-51-02
+    objective: "5.6.1"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        The manifest of Pod `report` in namespace `finance` sets neither `dnsPolicy` nor `hostNetwork`.
+
+        Which DNS policy does the Pod get?
+    body:
+      options:
+        - { id: a, text: "`Default`" }
+        - { id: b, text: "`ClusterFirstWithHostNet`" }
+        - { id: c, text: "`None`" }
+        - { id: d, text: "`ClusterFirst`" }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          When `dnsPolicy` is not set, the Pod gets `ClusterFirst`. The kubelet writes a `/etc/resolv.conf` that points to the cluster DNS Service and searches `finance.svc.cluster.local`, `svc.cluster.local` and `cluster.local`. Names outside the cluster domain are forwarded upstream by CoreDNS.
+      options:
+        a: { en: "Despite its name, `Default` is not the default. It makes the Pod inherit the resolver configuration of its node, so Service names no longer resolve." }
+        b: { en: "`ClusterFirstWithHostNet` has to be set explicitly, and only Pods that run with `hostNetwork: true` need it. This Pod does not use the host network." }
+        c: { en: "`None` has to be set explicitly. It ignores the cluster DNS settings and takes everything from `dnsConfig`." }
+    references:
+      - title: DNS for Services and Pods
+        url: https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/
+
+  # ------------------------------------------------------------------ 3
+  - id: cka-qz-51-03
+    objective: "5.3.1"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Deployment `web` in namespace `shop` selects its Pods with the single label `app=web`, and their container listens on port 8080. An external load balancer will send traffic to port 30080 of every node.
+
+        You need a Service named `web` of type NodePort, with Service port 80, that sends traffic to these Pods and uses node port 30080. Which single command creates it?
+    body:
+      options:
+        - { id: a, text: "`kubectl expose deployment web -n shop --type=NodePort --port=80 --target-port=8080 --node-port=30080`" }
+        - { id: b, text: "`kubectl create service nodeport web -n shop --tcp=80:8080 --node-port=30080`" }
+        - { id: c, text: "`kubectl create service nodeport web -n shop --tcp=30080:8080`" }
+        - { id: d, text: "`kubectl expose deployment web -n shop --type=NodePort --port=80 --target-port=30080`" }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          `kubectl create service nodeport` takes the port pair `<port>:<targetPort>` in `--tcp` and a fixed node port in `--node-port`. It sets the selector `app=<service name>`, here `app=web`, which matches the Pods of the Deployment. Port 30080 is inside the default range 30000-32767.
+      options:
+        a: { en: "`kubectl expose` has no `--node-port` flag, so kubectl refuses the command. A fixed node port needs `create service nodeport --node-port`, a patch or a manifest." }
+        c: { en: "The first number of `--tcp` is the Service port, so clients inside the cluster would have to call 30080. Without `--node-port`, the node port is picked at random from the range." }
+        d: { en: "`--target-port` is the container port. Traffic would be sent to port 30080 of the Pods, where nothing listens, and the node port would still be random." }
+    references:
+      - title: kubectl create service nodeport
+        url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_create/kubectl_create_service_nodeport/
+      - title: kubectl expose
+        url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_expose/
+
+  # ------------------------------------------------------------------ 4
+  - id: cka-qz-51-04
+    objective: "5.3.2"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Every request to Service `orders` in namespace `sales` fails. The Service has a selector, and its EndpointSlice contains two endpoints. The first one reads as follows, and the second shows the same conditions:
+
+        ```text
+        endpoints:
+        - addresses:
+          - 10.244.1.12
+          conditions:
+            ready: false
+            serving: false
+            terminating: false
+          targetRef:
+            kind: Pod
+            name: orders-7d9c5-x2k8q
+        ports:
+        - name: http
+          port: 8080
+          protocol: TCP
+        ```
+
+        What is the most likely cause?
+    body:
+      options:
+        - { id: a, text: "The selector of the Service matches no Pod of namespace `sales`." }
+        - { id: b, text: "The `targetPort` of the Service names a port that the containers do not define." }
+        - { id: c, text: "The Pods are being deleted and are waiting for their containers to stop." }
+        - { id: d, text: "The Pods are running but not Ready, for example because their readiness probe fails." }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          For an endpoint backed by a Pod, `serving` follows the Pod's `Ready` condition, and `ready` means serving and not terminating. Both are `false` while `terminating` is `false`, so the Pods exist and are not being deleted, but they are not Ready. Normally only ready endpoints get traffic. Check the readiness probe with `kubectl describe pod`.
+      options:
+        a: { en: "If the selector matched no Pod, the EndpointSlice would have no endpoints. Here it lists the Pod `orders-7d9c5-x2k8q` in `targetRef`." }
+        b: { en: "The slice resolved a port, `http` on 8080. A port problem would give ready endpoints and refused connections, not `ready: false`." }
+        c: { en: "A Pod being deleted is shown with `terminating: true`. Here `terminating` is `false`." }
+    references:
+      - title: EndpointSlices
+        url: https://kubernetes.io/docs/concepts/services-networking/endpoint-slices/
+
+  # ------------------------------------------------------------------ 5
+  - id: cka-qz-51-05
+    objective: "5.6.2"
+    difficulty: 2
+    status: draft
+    type: multi
+    stem:
+      en: |
+        The `coredns` ConfigMap of namespace `kube-system` holds the Corefile created by kubeadm, which loads the `reload` plugin. You are about to save a change to it with `kubectl -n kube-system edit configmap coredns` and you do not plan to restart anything.
+
+        Which two statements are true?
+
+        NOTE: Each correct selection is worth one point.
+    body:
+      options:
+        - { id: a, text: "The running CoreDNS Pods load the new Corefile on their own once the ConfigMap update reaches them, which can take a minute or two." }
+        - { id: b, text: "Each CoreDNS Pod reads the Corefile from a file on its node's disk, so the change must also be copied to every node." }
+        - { id: c, text: "If the saved Corefile is invalid, the running CoreDNS Pods keep answering with their previous configuration and log an error." }
+        - { id: d, text: "If the saved Corefile is invalid, a CoreDNS Pod restarted later starts with the last valid configuration." }
+        - { id: e, text: "The change takes effect only after you also edit the `coredns` Deployment, because the Corefile is passed in its container arguments." }
+      choose: 2
+    answer: { optionIds: [a, c] }
+    explanation:
+      correct:
+        en: |
+          The ConfigMap is mounted into the CoreDNS Pods, and the `reload` plugin checks the Corefile periodically, so a saved change is applied without a restart after the ConfigMap propagates. The documentation advises allowing about two minutes. When the new Corefile does not load, `reload` keeps the running configuration and logs the error. This is why the CoreDNS logs must be checked after every edit.
+      options:
+        b: { en: "The Corefile comes from the ConfigMap, which is mounted as a volume into the Pods. Nothing is read from the node, and the fix is always made in the ConfigMap." }
+        d: { en: "A Pod that restarts has no previous configuration in memory. It parses the invalid Corefile, fails to start and goes into a restart loop." }
+        e: { en: "The container arguments only give the path of the mounted Corefile. Editing the Deployment does not change the Corefile, which comes from the ConfigMap." }
+    references:
+      - title: Customizing DNS Service
+        url: https://kubernetes.io/docs/tasks/administer-cluster/dns-custom-nameservers/
+
+  # ------------------------------------------------------------------ 6
+  - id: cka-qz-51-06
+    objective: "5.1.2"
+    difficulty: 3
+    status: draft
+    type: command
+    stem:
+      en: |
+        Deployment `frontend` in namespace `shop` runs Pods with two containers. `proxy`, listed first, is built on a distroless image with no shell and no `wget`. `web` includes BusyBox `wget`. Service `inventory` in namespace `stock` listens on port 9000 and forwards to container port 8080 of its Pods. The `frontend` Pods log errors when they call it.
+
+        Test the connection from a Pod of `frontend`, going through the Deployment so that kubectl picks the Pod: do not create any Pod and do not look up Pod names. Fetch `/healthz` from Service `inventory` with `wget`. Print the response in your terminal and give up after 3 seconds. The context namespace is `default`. Type the single command you would run.
+    body:
+      mode: invocation
+      namespace: default
+    answer:
+      checks:
+        - id: verb
+          label: Uses kubectl exec
+          path: verb
+          op: equals
+          value: exec
+        - id: resource
+          label: Targets a Pod of the Deployment through deployment/frontend
+          path: resource
+          op: equals
+          value: deployment
+        - id: name
+          label: The Deployment is frontend
+          path: names
+          op: contains
+          value: frontend
+        - id: namespace
+          label: Runs in namespace shop
+          path: flags.namespace
+          op: equals
+          value: shop
+        - id: container
+          label: Runs in container web, which has wget
+          path: flags.container
+          op: equals
+          value: web
+        - id: wget
+          label: The command run in the container is wget
+          path: rest
+          op: matches
+          value: '^\["(sh","-c","|/bin/sh","-c","|busybox",")?wget[ ",]'
+        - id: url
+          label: Calls Service inventory of namespace stock on its Service port 9000, path /healthz
+          path: rest
+          op: matches
+          value: '(^|[ "/])inventory\.stock(\.svc(\.cluster\.local)?)?:9000/healthz'
+        - id: stdout
+          label: Prints the response to the terminal (-O -)
+          path: rest
+          op: matches
+          value: '(^|[ "])-[a-zA-Z]*O( |",")?(-|/dev/stdout)[ "]'
+        - id: timeout
+          label: Gives up after 3 seconds
+          path: rest
+          op: matches
+          value: '(-T|--timeout)( |=|",")?3[ "]'
+      solution:
+        - command: kubectl exec -n shop deploy/frontend -c web -- wget -qO- -T 3 http://inventory.stock:9000/healthz
+        - command: k exec deployment/frontend --namespace=shop --container=web -- wget -O- --timeout=3 http://inventory.stock.svc.cluster.local:9000/healthz
+        - command: kubectl -n shop exec -it deployments/frontend -c web -- sh -c "wget -q -O - -T 3 inventory.stock.svc:9000/healthz"
+      negatives:
+        - command: kubectl exec -n shop deploy/frontend -- wget -qO- -T 3 http://inventory.stock:9000/healthz
+          why: Without -c and without a default-container annotation, kubectl uses the first container, proxy, which has no wget.
+        - command: kubectl exec -n shop deploy/frontend -c web -- wget -qO- -T 3 http://inventory.stock:8080/healthz
+          why: 8080 is the container port of the inventory Pods; the Service listens on 9000, and its ClusterIP has no rule for port 8080.
+        - command: kubectl exec -n shop deploy/frontend -c web -- wget -qO- -T 3 http://inventory:9000/healthz
+          why: From namespace shop the short name inventory is searched as inventory.shop.svc.cluster.local, not as the Service of namespace stock.
+        - command: kubectl exec deploy/frontend -c web -- wget -qO- -T 3 http://inventory.stock:9000/healthz
+          why: Without -n kubectl looks for Deployment frontend in the context namespace, default.
+    explanation:
+      correct:
+        en: |
+          `kubectl exec deploy/frontend` runs the command in a Pod that kubectl picks from the Deployment. `-c web` is required because, without a default-container annotation, kubectl uses the first container, `proxy`, which has no `wget`. A Pod-to-Service test calls the Service name qualified with its namespace (`inventory.stock`) on the **Service** port 9000, not the container port 8080. `-O-` writes the body to stdout and `-T 3` sets the timeout.
+    references:
+      - title: kubectl exec
+        url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_exec/
+      - title: DNS for Services and Pods
+        url: https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/
+
+  # ------------------------------------------------------------------ 7
+  - id: cka-qz-51-07
+    objective: "5.6.1"
+    difficulty: 3
+    status: draft
+    type: manifest
+    stem:
+      en: |
+        In namespace `finance`, StatefulSet `ledger` runs 3 replicas governed by the headless Service `ledger-hl`, and only the first replica accepts writes. The cluster domain is `cluster.local`. An application in namespace `shop`, which you cannot change, sends its writes to the host name `ledger-primary` on port 7000.
+
+        Write a Service named `ledger-primary` in namespace `shop` so that this name resolves, through the cluster DNS, to the Pod of the first replica of `ledger`. No traffic may be proxied, and nothing may need updating when that Pod is recreated with a new IP address.
+    body:
+      starter: ""
+    answer:
+      checks:
+        - id: object
+          label: Service ledger-primary in namespace shop
+          path: metadata
+          op: subset
+          value: { name: ledger-primary, namespace: shop }
+        - id: kind
+          label: The object is a Service
+          path: kind
+          op: equals
+          value: Service
+        - id: type
+          label: The Service is a DNS alias (type ExternalName)
+          path: spec.type
+          op: equals
+          value: ExternalName
+        - id: target
+          label: The alias points to the fully qualified name ledger-0.ledger-hl.finance.svc.cluster.local
+          path: spec.externalName
+          op: oneOf
+          value: ["ledger-0.ledger-hl.finance.svc.cluster.local", "ledger-0.ledger-hl.finance.svc.cluster.local."]
+      solution:
+        - manifest: |
+            apiVersion: v1
+            kind: Service
+            metadata:
+              name: ledger-primary
+              namespace: shop
+            spec:
+              type: ExternalName
+              externalName: ledger-0.ledger-hl.finance.svc.cluster.local
+        - manifest: |
+            apiVersion: v1
+            kind: Service
+            metadata:
+              namespace: shop
+              name: ledger-primary
+            spec:
+              externalName: ledger-0.ledger-hl.finance.svc.cluster.local
+              type: ExternalName
+              ports:
+              - name: ledger
+                port: 7000
+      negatives:
+        - manifest: |
+            apiVersion: v1
+            kind: Service
+            metadata:
+              name: ledger-primary
+              namespace: shop
+            spec:
+              type: ExternalName
+              externalName: ledger-0.ledger.finance.svc.cluster.local
+          why: The Pod records of a StatefulSet live under its governing Service, ledger-hl, not under the StatefulSet name, so this target does not exist.
+        - manifest: |
+            apiVersion: v1
+            kind: Service
+            metadata:
+              name: ledger-primary
+              namespace: shop
+            spec:
+              type: ExternalName
+              externalName: ledger-0.ledger-hl.finance
+          why: The CNAME target is taken as an absolute name, and the client's search list does not apply to it. ledger-0.ledger-hl.finance is not a name of the cluster domain and does not resolve.
+        - manifest: |
+            apiVersion: v1
+            kind: Service
+            metadata:
+              name: ledger-primary
+              namespace: shop
+            spec:
+              clusterIP: None
+              selector:
+                statefulset.kubernetes.io/pod-name: ledger-0
+              ports:
+              - port: 7000
+          why: A Service selects Pods only in its own namespace. In shop no Pod carries this label, so the name gets no record.
+        - manifest: |
+            apiVersion: v1
+            kind: Service
+            metadata:
+              name: ledger-primary
+              namespace: shop
+            spec:
+              ports:
+              - name: ledger
+                port: 7000
+            ---
+            apiVersion: discovery.k8s.io/v1
+            kind: EndpointSlice
+            metadata:
+              name: ledger-primary-1
+              namespace: shop
+              labels:
+                kubernetes.io/service-name: ledger-primary
+            addressType: IPv4
+            ports:
+            - name: ledger
+              port: 7000
+            endpoints:
+            - addresses:
+              - "10.244.3.21"
+          why: kube-proxy proxies the traffic through a ClusterIP, and the fixed Pod IP must be updated by hand every time ledger-0 is recreated.
+    explanation:
+      correct:
+        en: |
+          An `ExternalName` Service makes the cluster DNS answer `ledger-primary.shop.svc.cluster.local` with a CNAME, without any ClusterIP or proxying. The client in `shop` reaches that name through its search list. A StatefulSet Pod is named `<pod>.<governing service>.<namespace>.svc.<cluster domain>`, so the first replica is `ledger-0.ledger-hl.finance.svc.cluster.local`. The CNAME must be fully qualified because the search list does not apply to it. The record follows the Pod's new IP by itself.
+    references:
+      - title: Service
+        url: https://kubernetes.io/docs/concepts/services-networking/service/
+      - title: StatefulSets
+        url: https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/
+
+  # ------------------------------------------------------------------ 8
+  - id: cka-qz-51-08
+    objective: "5.3.1"
+    difficulty: 3
+    status: draft
+    type: manifest
+    stem:
+      en: |
+        In namespace `shop`, two Deployments run the same application side by side (files `web-stable.yaml` and `web-canary.yaml`):
+
+        - `web-stable` Pods are labelled `app=web,track=stable` and serve HTTP on container port 8080;
+        - `web-canary` Pods are labelled `app=web,track=canary` and serve HTTP on container port 8081.
+
+        In both Deployments the HTTP container port is named `http`, and the metrics are exposed on container port 9102, named `metrics`.
+
+        Write a Service `web` in namespace `shop` that sends traffic to the Pods of both Deployments. HTTP must be reachable on Service port 80 and on port 30080 of every node, and the metrics on Service port 9100.
+    body:
+      starter: ""
+      files:
+        - name: web-stable.yaml
+          content: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: web-stable
+              namespace: shop
+            spec:
+              replicas: 3
+              selector:
+                matchLabels:
+                  app: web
+                  track: stable
+              template:
+                metadata:
+                  labels:
+                    app: web
+                    track: stable
+                spec:
+                  containers:
+                  - name: web
+                    image: registry.example.com/shop/web:4.1
+                    ports:
+                    - name: http
+                      containerPort: 8080
+                    - name: metrics
+                      containerPort: 9102
+        - name: web-canary.yaml
+          content: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: web-canary
+              namespace: shop
+            spec:
+              replicas: 1
+              selector:
+                matchLabels:
+                  app: web
+                  track: canary
+              template:
+                metadata:
+                  labels:
+                    app: web
+                    track: canary
+                spec:
+                  containers:
+                  - name: web
+                    image: registry.example.com/shop/web:4.2
+                    ports:
+                    - name: http
+                      containerPort: 8081
+                    - name: metrics
+                      containerPort: 9102
+    answer:
+      checks:
+        - id: object
+          label: Service web in namespace shop
+          path: metadata
+          op: subset
+          value: { name: web, namespace: shop }
+        - id: kind
+          label: The object is a Service
+          path: kind
+          op: equals
+          value: Service
+        - id: type
+          label: The Service type is NodePort
+          path: spec.type
+          op: equals
+          value: NodePort
+        - id: selector
+          label: Selects app=web only, so both tracks are backends
+          path: spec.selector
+          op: equals
+          value: { app: web }
+        - id: ports
+          label: The Service has two ports
+          path: spec.ports
+          op: length
+          value: 2
+        - id: http-port
+          label: Port http is Service port 80
+          path: spec.ports[name=http].port
+          op: equals
+          value: 80
+        - id: http-target
+          label: Port http targets the container port named http (8080 or 8081 depending on the Pod)
+          path: spec.ports[name=http].targetPort
+          op: equals
+          value: http
+        - id: http-nodeport
+          label: Port http uses node port 30080
+          path: spec.ports[name=http].nodePort
+          op: equals
+          value: 30080
+        - id: metrics-port
+          label: Port metrics is Service port 9100
+          path: spec.ports[name=metrics].port
+          op: equals
+          value: 9100
+        - id: metrics-target
+          label: Port metrics targets container port 9102
+          path: spec.ports[name=metrics].targetPort
+          op: oneOf
+          value: [metrics, 9102]
+      solution:
+        - manifest: |
+            apiVersion: v1
+            kind: Service
+            metadata:
+              name: web
+              namespace: shop
+            spec:
+              type: NodePort
+              selector:
+                app: web
+              ports:
+              - name: http
+                protocol: TCP
+                port: 80
+                targetPort: http
+                nodePort: 30080
+              - name: metrics
+                protocol: TCP
+                port: 9100
+                targetPort: metrics
+        - manifest: |
+            apiVersion: v1
+            kind: Service
+            metadata:
+              namespace: shop
+              name: web
+            spec:
+              ports:
+              - port: 9100
+                name: metrics
+                targetPort: 9102
+              - nodePort: 30080
+                targetPort: http
+                port: 80
+                name: http
+              selector:
+                app: web
+              type: NodePort
+      negatives:
+        - manifest: |
+            apiVersion: v1
+            kind: Service
+            metadata:
+              name: web
+              namespace: shop
+            spec:
+              type: NodePort
+              selector:
+                app: web
+              ports:
+              - name: http
+                port: 80
+                targetPort: 8080
+                nodePort: 30080
+              - name: metrics
+                port: 9100
+                targetPort: 9102
+          why: A numeric targetPort sends HTTP to port 8080 of every Pod, but the canary Pods listen on 8081. Only the port name follows each Pod's own number.
+        - manifest: |
+            apiVersion: v1
+            kind: Service
+            metadata:
+              name: web
+              namespace: shop
+            spec:
+              type: NodePort
+              selector:
+                app: web
+                track: stable
+              ports:
+              - name: http
+                port: 80
+                targetPort: http
+                nodePort: 30080
+              - name: metrics
+                port: 9100
+                targetPort: metrics
+          why: The selector copied from web-stable also requires track=stable, so the canary Pods are not backends.
+        - manifest: |
+            apiVersion: v1
+            kind: Service
+            metadata:
+              name: web
+              namespace: shop
+            spec:
+              type: NodePort
+              selector:
+                app: web
+              ports:
+              - name: http
+                port: 80
+                targetPort: http
+                nodePort: 30080
+              - name: metrics
+                port: 9100
+          why: Without targetPort the target defaults to the Service port, 9100, where the containers do not listen; the metrics are on 9102.
+        - manifest: |
+            apiVersion: v1
+            kind: Service
+            metadata:
+              name: web
+              namespace: shop
+            spec:
+              type: NodePort
+              selector:
+                app: web
+              ports:
+              - name: http
+                port: 30080
+                targetPort: http
+                nodePort: 80
+              - name: metrics
+                port: 9100
+                targetPort: metrics
+          why: port and nodePort are swapped; 80 is outside the node port range 30000-32767, so the API server rejects the Service.
+    explanation:
+      correct:
+        en: |
+          The selector `app=web` is the label both tracks share. A `targetPort` given by name is resolved Pod by Pod, so port `http` reaches 8080 on the stable Pods and 8081 on the canary Pods. A Service with several ports must name every port. With `type: NodePort`, `nodePort: 30080` fixes the node port of `http`, and `metrics` gets one allocated from the range. Without `targetPort`, the target defaults to `port`, so `metrics` needs 9102 or `metrics`.
+    references:
+      - title: Service
+        url: https://kubernetes.io/docs/concepts/services-networking/service/
+
+  # ------------------------------------------------------------------ 9
+  - id: cka-qz-51-09
+    objective: "5.3.2"
+    difficulty: 3
+    status: draft
+    type: manifest
+    stem:
+      en: |
+        Service `reports` in namespace `bi` (file `reports-svc.yaml`) selects the Pods of Deployment `reports` (label `app=reports`) and maps its port 443, named `https`, to container port 8443. The application has moved to a virtual machine outside the cluster, at `192.0.2.40`, where it listens on port 9443. Deployment `reports` must keep running, unchanged and with its labels, for one week in case of rollback, but its Pods must no longer receive any traffic from the Service. Clients keep calling `reports.bi.svc.cluster.local:443`.
+
+        Write the manifest to apply. It contains the updated Service `reports` and an IPv4 EndpointSlice named `reports-vm` that sends the traffic of the Service to the virtual machine.
+    body:
+      starter: ""
+      files:
+        - name: reports-svc.yaml
+          content: |
+            apiVersion: v1
+            kind: Service
+            metadata:
+              name: reports
+              namespace: bi
+            spec:
+              selector:
+                app: reports
+              ports:
+              - name: https
+                protocol: TCP
+                port: 443
+                targetPort: 8443
+    answer:
+      checks:
+        - id: svc-ns
+          label: Service reports is in namespace bi
+          select: { kind: Service, name: reports }
+          path: metadata.namespace
+          op: equals
+          value: bi
+        - id: svc-no-selector
+          label: The Service has no selector, so the old Pods are no longer its endpoints
+          select: { kind: Service, name: reports }
+          path: spec.selector
+          op: absent
+        - id: svc-port
+          label: The Service keeps port https on 443
+          select: { kind: Service, name: reports }
+          path: spec.ports[name=https].port
+          op: equals
+          value: 443
+        - id: svc-not-alias
+          label: The Service is not an ExternalName alias
+          select: { kind: Service, name: reports }
+          path: spec.externalName
+          op: absent
+        - id: eps-ns
+          label: EndpointSlice reports-vm is in namespace bi
+          select: { kind: EndpointSlice, name: reports-vm }
+          path: metadata.namespace
+          op: equals
+          value: bi
+        - id: eps-label
+          label: The slice is linked to Service reports by the label kubernetes.io/service-name
+          select: { kind: EndpointSlice, name: reports-vm }
+          path: metadata.labels["kubernetes.io/service-name"]
+          op: equals
+          value: reports
+        - id: eps-type
+          label: Address type IPv4
+          select: { kind: EndpointSlice, name: reports-vm }
+          path: addressType
+          op: equals
+          value: IPv4
+        - id: eps-port
+          label: The slice port named https is 9443, the port of the virtual machine
+          select: { kind: EndpointSlice, name: reports-vm }
+          path: ports[name=https].port
+          op: equals
+          value: 9443
+        - id: eps-address
+          label: The endpoint address is 192.0.2.40
+          select: { kind: EndpointSlice, name: reports-vm }
+          path: endpoints
+          op: contains
+          value: { addresses: ["192.0.2.40"] }
+      solution:
+        - manifest: |
+            apiVersion: v1
+            kind: Service
+            metadata:
+              name: reports
+              namespace: bi
+            spec:
+              ports:
+              - name: https
+                protocol: TCP
+                port: 443
+                targetPort: 9443
+            ---
+            apiVersion: discovery.k8s.io/v1
+            kind: EndpointSlice
+            metadata:
+              name: reports-vm
+              namespace: bi
+              labels:
+                kubernetes.io/service-name: reports
+                endpointslice.kubernetes.io/managed-by: bi-admins
+            addressType: IPv4
+            ports:
+            - name: https
+              protocol: TCP
+              port: 9443
+            endpoints:
+            - addresses:
+              - "192.0.2.40"
+        - manifest: |
+            apiVersion: discovery.k8s.io/v1
+            kind: EndpointSlice
+            metadata:
+              namespace: bi
+              name: reports-vm
+              labels:
+                kubernetes.io/service-name: reports
+            addressType: IPv4
+            endpoints:
+            - addresses: ["192.0.2.40"]
+            ports:
+            - port: 9443
+              name: https
+            ---
+            apiVersion: v1
+            kind: Service
+            metadata:
+              namespace: bi
+              name: reports
+            spec:
+              ports:
+              - port: 443
+                name: https
+      negatives:
+        - manifest: |
+            apiVersion: v1
+            kind: Service
+            metadata:
+              name: reports
+              namespace: bi
+            spec:
+              selector:
+                app: reports
+              ports:
+              - name: https
+                port: 443
+                targetPort: 8443
+            ---
+            apiVersion: discovery.k8s.io/v1
+            kind: EndpointSlice
+            metadata:
+              name: reports-vm
+              namespace: bi
+              labels:
+                kubernetes.io/service-name: reports
+            addressType: IPv4
+            ports:
+            - name: https
+              port: 9443
+            endpoints:
+            - addresses:
+              - "192.0.2.40"
+          why: With the selector kept, the EndpointSlice controller still lists the running reports Pods, so part of the traffic keeps going to them.
+        - manifest: |
+            apiVersion: v1
+            kind: Service
+            metadata:
+              name: reports
+              namespace: bi
+            spec:
+              ports:
+              - name: https
+                port: 443
+                targetPort: 9443
+            ---
+            apiVersion: discovery.k8s.io/v1
+            kind: EndpointSlice
+            metadata:
+              name: reports-vm
+              namespace: bi
+              labels:
+                kubernetes.io/service-name: reports
+            addressType: IPv4
+            ports:
+            - name: https
+              port: 443
+            endpoints:
+            - addresses:
+              - "192.0.2.40"
+          why: Without a selector, targetPort is not used to reach the backends. Traffic goes to the port listed in the EndpointSlice, here 443, where the virtual machine does not listen.
+        - manifest: |
+            apiVersion: v1
+            kind: Service
+            metadata:
+              name: reports
+              namespace: bi
+            spec:
+              ports:
+              - name: https
+                port: 443
+            ---
+            apiVersion: discovery.k8s.io/v1
+            kind: EndpointSlice
+            metadata:
+              name: reports-vm
+              namespace: bi
+              labels:
+                kubernetes.io/service-name: reports
+            addressType: IPv4
+            ports:
+            - name: tls
+              port: 9443
+            endpoints:
+            - addresses:
+              - "192.0.2.40"
+          why: The slice port must carry the name of the Service port, https. With tls, kube-proxy finds no backend for port https.
+        - manifest: |
+            apiVersion: v1
+            kind: Service
+            metadata:
+              name: reports
+              namespace: bi
+            spec:
+              type: ExternalName
+              externalName: 192.0.2.40
+          why: ExternalName treats the value as a DNS name made of digits, not as an IP address, and it cannot map port 443 to 9443.
+    explanation:
+      correct:
+        en: |
+          To send a Service to a backend outside the cluster, remove its selector. The EndpointSlice controller then stops listing the old Pods, and you provide the backend in an EndpointSlice labelled `kubernetes.io/service-name: reports` in the same namespace. Its port carries the name of the Service port (`https`), and its number is the port traffic is sent to, 9443. For a Service without a selector, `targetPort` does not choose the backend port. Give a hand-written slice a `managed-by` value of your own.
+    references:
+      - title: Service
+        url: https://kubernetes.io/docs/concepts/services-networking/service/
+      - title: EndpointSlices
+        url: https://kubernetes.io/docs/concepts/services-networking/endpoint-slices/
+
+  # ------------------------------------------------------------------ 10
+  - id: cka-qz-51-10
+    objective: "5.6.2"
+    difficulty: 3
+    status: draft
+    type: manifest
+    stem:
+      en: |
+        Cluster `prod-eu` was initialized with a custom cluster domain. A colleague replaced the Corefile of the `coredns` ConfigMap with the example from the Kubernetes documentation and restarted CoreDNS. Pods still resolve external names, but no Service name resolves any more: from a Pod of namespace `shop`, `nslookup web.shop` returns `NXDOMAIN`, and the CoreDNS logs show no error. The files show the kubelet configuration of the nodes (`kubelet-config.yaml`) and the `/etc/resolv.conf` of a Pod of `shop` (`resolv.conf`).
+
+        Correct the `coredns` ConfigMap (current version in the editor) so that the names of the cluster's Services and Pods resolve again. Also turn on query logging: CoreDNS must log every query it receives. Do not change the kubelet configuration, and keep every other plugin and setting of the Corefile.
+    body:
+      starter: |
+        apiVersion: v1
+        kind: ConfigMap
+        metadata:
+          name: coredns
+          namespace: kube-system
+        data:
+          Corefile: |
+            .:53 {
+                errors
+                health {
+                    lameduck 5s
+                }
+                ready
+                kubernetes cluster.local in-addr.arpa ip6.arpa {
+                    pods insecure
+                    fallthrough in-addr.arpa ip6.arpa
+                    ttl 30
+                }
+                prometheus :9153
+                forward . /etc/resolv.conf
+                cache 30
+                loop
+                reload
+                loadbalance
+            }
+      files:
+        - name: kubelet-config.yaml
+          content: |
+            apiVersion: kubelet.config.k8s.io/v1beta1
+            kind: KubeletConfiguration
+            authentication:
+              webhook:
+                enabled: true
+            authorization:
+              mode: Webhook
+            cgroupDriver: systemd
+            clusterDNS:
+            - 10.96.0.10
+            clusterDomain: k8s.internal
+            staticPodPath: /etc/kubernetes/manifests
+        - name: resolv.conf
+          content: |
+            search shop.svc.k8s.internal svc.k8s.internal k8s.internal
+            nameserver 10.96.0.10
+            options ndots:5
+    answer:
+      checks:
+        - id: object
+          label: ConfigMap coredns in namespace kube-system
+          path: metadata
+          op: subset
+          value: { name: coredns, namespace: kube-system }
+        - id: kind
+          label: The object is a ConfigMap
+          path: kind
+          op: equals
+          value: ConfigMap
+        - id: zone
+          label: The kubernetes plugin serves the cluster domain k8s.internal
+          path: data.Corefile
+          op: matches
+          value: '(^|\n)[ \t]*kubernetes[ \t]+([^\n{]*[ \t])?k8s\.internal\.?(?=[ \t{\n])'
+        - id: reverse
+          label: The kubernetes plugin keeps the reverse zones in-addr.arpa and ip6.arpa
+          path: data.Corefile
+          op: matches
+          value: '(^|\n)[ \t]*kubernetes[ \t][^\n{]*in-addr\.arpa[^\n{]*ip6\.arpa'
+        - id: log
+          label: The log plugin is enabled
+          path: data.Corefile
+          op: matches
+          value: '(^|\n)[ \t]*log([ \t][^\n]*)?(\n|$)'
+        - id: errors
+          label: The errors plugin is kept
+          path: data.Corefile
+          op: matches
+          value: '(^|\n)[ \t]*errors[ \t]*(\n|$)'
+        - id: pods
+          label: Pod records stay enabled (pods insecure)
+          path: data.Corefile
+          op: matches
+          value: 'pods[ \t]+insecure'
+        - id: forward
+          label: External names are still forwarded to the node resolvers
+          path: data.Corefile
+          op: matches
+          value: 'forward[ \t]+\.[ \t]+/etc/resolv\.conf'
+        - id: cache
+          label: The cache is kept at 30 seconds
+          path: data.Corefile
+          op: matches
+          value: 'cache[ \t]+30[ \t]*(\n|$)'
+        - id: reload
+          label: The reload plugin is kept
+          path: data.Corefile
+          op: matches
+          value: '(^|\n)[ \t]*reload[ \t]*(\n|$)'
+      solution:
+        - manifest: |
+            apiVersion: v1
+            kind: ConfigMap
+            metadata:
+              name: coredns
+              namespace: kube-system
+            data:
+              Corefile: |
+                .:53 {
+                    errors
+                    log
+                    health {
+                        lameduck 5s
+                    }
+                    ready
+                    kubernetes k8s.internal in-addr.arpa ip6.arpa {
+                        pods insecure
+                        fallthrough in-addr.arpa ip6.arpa
+                        ttl 30
+                    }
+                    prometheus :9153
+                    forward . /etc/resolv.conf
+                    cache 30
+                    loop
+                    reload
+                    loadbalance
+                }
+        - manifest: |
+            apiVersion: v1
+            kind: ConfigMap
+            metadata:
+              namespace: kube-system
+              name: coredns
+            data:
+              Corefile: |
+                .:53 {
+                    errors
+                    health {
+                        lameduck 5s
+                    }
+                    ready
+                    kubernetes k8s.internal. in-addr.arpa ip6.arpa {
+                        pods insecure
+                        fallthrough in-addr.arpa ip6.arpa
+                        ttl 30
+                    }
+                    prometheus :9153
+                    forward . /etc/resolv.conf
+                    cache 30
+                    loop
+                    reload
+                    loadbalance
+                    log
+                }
+      negatives:
+        - manifest: |
+            apiVersion: v1
+            kind: ConfigMap
+            metadata:
+              name: coredns
+              namespace: kube-system
+            data:
+              Corefile: |
+                .:53 {
+                    errors
+                    log
+                    health {
+                        lameduck 5s
+                    }
+                    ready
+                    kubernetes cluster.local in-addr.arpa ip6.arpa {
+                        pods insecure
+                        fallthrough in-addr.arpa ip6.arpa
+                        ttl 30
+                    }
+                    prometheus :9153
+                    forward . /etc/resolv.conf
+                    cache 30
+                    loop
+                    reload
+                    loadbalance
+                }
+          why: The plugin still serves cluster.local, while the kubelet gives Pods the domain k8s.internal (clusterDomain and the search list), so Service names are forwarded upstream and fail.
+        - manifest: |
+            apiVersion: v1
+            kind: ConfigMap
+            metadata:
+              name: coredns
+              namespace: kube-system
+            data:
+              Corefile: |
+                .:53 {
+                    errors
+                    log
+                    health {
+                        lameduck 5s
+                    }
+                    ready
+                    kubernetes svc.k8s.internal in-addr.arpa ip6.arpa {
+                        pods insecure
+                        fallthrough in-addr.arpa ip6.arpa
+                        ttl 30
+                    }
+                    prometheus :9153
+                    forward . /etc/resolv.conf
+                    cache 30
+                    loop
+                    reload
+                    loadbalance
+                }
+          why: The zone of the kubernetes plugin is the cluster domain itself, k8s.internal. The plugin reads <service>.<namespace>.svc below that zone, so with svc.k8s.internal it does not find the Services, and the Pod records (namespace.pod.k8s.internal) fall outside the zone.
+        - manifest: |
+            apiVersion: v1
+            kind: ConfigMap
+            metadata:
+              name: coredns
+              namespace: kube-system
+            data:
+              Corefile: |
+                .:53 {
+                    errors
+                    log
+                    health {
+                        lameduck 5s
+                    }
+                    ready
+                    kubernetes k8s.internal {
+                        pods insecure
+                        ttl 30
+                    }
+                    prometheus :9153
+                    forward . /etc/resolv.conf
+                    cache 30
+                    loop
+                    reload
+                    loadbalance
+                }
+          why: The reverse zones in-addr.arpa and ip6.arpa and their fallthrough were removed, so reverse lookups of Service and Pod IPs are no longer answered by the cluster, which the task forbids.
+        - manifest: |
+            apiVersion: v1
+            kind: ConfigMap
+            metadata:
+              name: coredns
+              namespace: kube-system
+            data:
+              Corefile: |
+                .:53 {
+                    errors
+                    log
+                    health {
+                        lameduck 5s
+                    }
+                    ready
+                    kubernetes k8s.internal in-addr.arpa ip6.arpa {
+                        pods insecure
+                        fallthrough in-addr.arpa ip6.arpa
+                        ttl 30
+                    }
+                    prometheus :9153
+                    forward . 10.96.0.10
+                    cache 30
+                    loop
+                    reload
+                    loadbalance
+                }
+          why: 10.96.0.10 is the kube-dns Service, CoreDNS itself. Forwarding external names to it creates a loop, which the loop plugin detects and stops CoreDNS.
+    explanation:
+      correct:
+        en: |
+          The kubelet gives Pods the domain from `clusterDomain`, here `k8s.internal`, both in the search list and in every Service FQDN. The first zone of the `kubernetes` plugin must be that same domain. With `cluster.local`, every `*.k8s.internal` query falls through to `forward` and gets `NXDOMAIN` without any error being logged. Replace the zone, keep the reverse zones, and add the `log` plugin to the `.:53` block. Then apply the change with `kubectl -n kube-system rollout restart deployment coredns`, or wait for `reload`.
+    references:
+      - title: Customizing DNS Service
+        url: https://kubernetes.io/docs/tasks/administer-cluster/dns-custom-nameservers/
+      - title: DNS for Services and Pods
+        url: https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/

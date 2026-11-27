@@ -1,0 +1,304 @@
+id: cka-3e-set-resources-limitrange-max
+objective: "3.5.3"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    After a LimitRange was added to namespace `analytics` (maximum per container: 1 CPU and 1Gi of memory), the Deployment `warehouse-api` (manifest in `warehouse-api.yaml`) creates no new Pods. Its ReplicaSet reports:
+
+    `Error creating: pods "warehouse-api-6d9f7c8b5-" is forbidden: [maximum cpu usage per Container is 1, but limit is 2, maximum memory usage per Container is 1Gi, but limit is 2Gi]`
+
+    Lower the limits of container `api` to exactly the maximum the LimitRange allows. Keep its requests, and leave container `metrics` unchanged. Type the single command you would run.
+body:
+  mode: object
+  namespace: analytics
+  files:
+  - name: warehouse-api.yaml
+    content: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: warehouse-api
+        namespace: analytics
+        labels:
+          app: warehouse-api
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: warehouse-api
+        template:
+          metadata:
+            labels:
+              app: warehouse-api
+          spec:
+            containers:
+            - name: api
+              image: registry.example.com/analytics/warehouse-api:1.12
+              resources:
+                requests:
+                  cpu: 500m
+                  memory: 768Mi
+                limits:
+                  cpu: "2"
+                  memory: 2Gi
+            - name: metrics
+              image: registry.example.com/tools/metrics-agent:0.4
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 32Mi
+                limits:
+                  cpu: 100m
+                  memory: 64Mi
+answer:
+  checks:
+  - id: name
+    label: The object is the Deployment warehouse-api
+    path: metadata.name
+    op: equals
+    value: warehouse-api
+  - id: lim-cpu
+    label: api is limited to 1 CPU
+    path: spec.template.spec.containers[name=api].resources.limits.cpu
+    op: quantity
+    value: "1"
+  - id: lim-mem
+    label: api is limited to 1Gi of memory
+    path: spec.template.spec.containers[name=api].resources.limits.memory
+    op: quantity
+    value: 1Gi
+  - id: req-cpu
+    label: api still requests 500m CPU
+    path: spec.template.spec.containers[name=api].resources.requests.cpu
+    op: quantity
+    value: 500m
+  - id: req-mem
+    label: api still requests 768Mi of memory
+    path: spec.template.spec.containers[name=api].resources.requests.memory
+    op: quantity
+    value: 768Mi
+  - id: metrics-cpu
+    label: metrics keeps its 100m CPU limit
+    path: spec.template.spec.containers[name=metrics].resources.limits.cpu
+    op: quantity
+    value: 100m
+  - id: metrics-mem
+    label: metrics keeps its 64Mi memory limit
+    path: spec.template.spec.containers[name=metrics].resources.limits.memory
+    op: quantity
+    value: 64Mi
+  solution:
+  - command: kubectl set resources deployment warehouse-api -c api --limits=cpu=1,memory=1Gi
+    output: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        labels:
+          app: warehouse-api
+        name: warehouse-api
+        namespace: analytics
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: warehouse-api
+        strategy: {}
+        template:
+          metadata:
+            labels:
+              app: warehouse-api
+          spec:
+            containers:
+            - image: registry.example.com/analytics/warehouse-api:1.12
+              name: api
+              resources:
+                limits:
+                  cpu: "1"
+                  memory: 1Gi
+                requests:
+                  cpu: 500m
+                  memory: 768Mi
+            - image: registry.example.com/tools/metrics-agent:0.4
+              name: metrics
+              resources:
+                limits:
+                  cpu: 100m
+                  memory: 64Mi
+                requests:
+                  cpu: 50m
+                  memory: 32Mi
+      status: {}
+  - command: k set resources -f warehouse-api.yaml --containers=api --limits=memory=1024Mi,cpu=1000m --local -o yaml
+    output: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        labels:
+          app: warehouse-api
+        name: warehouse-api
+        namespace: analytics
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: warehouse-api
+        strategy: {}
+        template:
+          metadata:
+            labels:
+              app: warehouse-api
+          spec:
+            containers:
+            - image: registry.example.com/analytics/warehouse-api:1.12
+              name: api
+              resources:
+                limits:
+                  cpu: "1"
+                  memory: 1Gi
+                requests:
+                  cpu: 500m
+                  memory: 768Mi
+            - image: registry.example.com/tools/metrics-agent:0.4
+              name: metrics
+              resources:
+                limits:
+                  cpu: 100m
+                  memory: 64Mi
+                requests:
+                  cpu: 50m
+                  memory: 32Mi
+      status: {}
+  negatives:
+  - command: kubectl set resources deployment warehouse-api --limits=cpu=1,memory=1Gi
+    why: Without -c every container is changed (the default is "*"), so metrics also gets a 1 CPU and 1Gi limit.
+    output: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        labels:
+          app: warehouse-api
+        name: warehouse-api
+        namespace: analytics
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: warehouse-api
+        strategy: {}
+        template:
+          metadata:
+            labels:
+              app: warehouse-api
+          spec:
+            containers:
+            - image: registry.example.com/analytics/warehouse-api:1.12
+              name: api
+              resources:
+                limits:
+                  cpu: "1"
+                  memory: 1Gi
+                requests:
+                  cpu: 500m
+                  memory: 768Mi
+            - image: registry.example.com/tools/metrics-agent:0.4
+              name: metrics
+              resources:
+                limits:
+                  cpu: "1"
+                  memory: 1Gi
+                requests:
+                  cpu: 50m
+                  memory: 32Mi
+      status: {}
+  - command: kubectl set resources deployment warehouse-api -c api --limits=cpu=1,memory=1G
+    why: 1G is 10^9 bytes, smaller than the 1Gi (2^30 bytes) maximum the LimitRange allows; the task asks for exactly the maximum.
+    output: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        labels:
+          app: warehouse-api
+        name: warehouse-api
+        namespace: analytics
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: warehouse-api
+        strategy: {}
+        template:
+          metadata:
+            labels:
+              app: warehouse-api
+          spec:
+            containers:
+            - image: registry.example.com/analytics/warehouse-api:1.12
+              name: api
+              resources:
+                limits:
+                  cpu: "1"
+                  memory: 1G
+                requests:
+                  cpu: 500m
+                  memory: 768Mi
+            - image: registry.example.com/tools/metrics-agent:0.4
+              name: metrics
+              resources:
+                limits:
+                  cpu: 100m
+                  memory: 64Mi
+                requests:
+                  cpu: 50m
+                  memory: 32Mi
+      status: {}
+  - command: kubectl set resources deployment warehouse-api -c api --requests=cpu=1,memory=1Gi
+    why: The LimitRange rejects the limits; raising the requests leaves the 2 CPU and 2Gi limits in place.
+    output: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        labels:
+          app: warehouse-api
+        name: warehouse-api
+        namespace: analytics
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: warehouse-api
+        strategy: {}
+        template:
+          metadata:
+            labels:
+              app: warehouse-api
+          spec:
+            containers:
+            - image: registry.example.com/analytics/warehouse-api:1.12
+              name: api
+              resources:
+                limits:
+                  cpu: "2"
+                  memory: 2Gi
+                requests:
+                  cpu: "1"
+                  memory: 1Gi
+            - image: registry.example.com/tools/metrics-agent:0.4
+              name: metrics
+              resources:
+                limits:
+                  cpu: 100m
+                  memory: 64Mi
+                requests:
+                  cpu: 50m
+                  memory: 32Mi
+      status: {}
+explanation:
+  correct:
+    en: 'A LimitRange is checked when a Pod is admitted: a container whose limit is above `max` is rejected, so the ReplicaSet cannot create Pods until the template changes. `kubectl set resources deployment warehouse-api -c api --limits=cpu=1,memory=1Gi` changes only container `api` and starts a new rollout; requests that are not given are kept. `1000m` equals `1` and `1024Mi` equals `1Gi`, but `1G` is a smaller decimal quantity.'
+references:
+- title: kubectl set resources
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_set/kubectl_set_resources/
+- title: Limit Ranges
+  url: https://kubernetes.io/docs/concepts/policy/limit-range/

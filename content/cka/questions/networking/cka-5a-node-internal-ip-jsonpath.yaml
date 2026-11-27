@@ -1,0 +1,54 @@
+id: cka-5a-node-internal-ip-jsonpath
+objective: "5.1.1"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    A firewall team asks for the internal IP addresses of all the nodes of the cluster, without any other column or text.
+
+    Print only the `InternalIP` address of every node, using a JSONPath output. Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Uses kubectl get
+    path: verb
+    op: equals
+    value: get
+  - id: resource
+    label: Reads the Node objects
+    path: resource
+    op: equals
+    value: node
+  - id: jsonpath
+    label: Uses a JSONPath output
+    path: flags.output
+    op: matches
+    value: '^jsonpath='
+  - id: internal-ip
+    label: Filters status.addresses on type InternalIP and prints .address
+    path: flags.output
+    op: matches
+    value: 'status\.addresses\[\?\(@\.type==["'']InternalIP["'']\)\]\.address'
+  solution:
+  - command: kubectl get nodes -o jsonpath='{.items[*].status.addresses[?(@.type=="InternalIP")].address}'
+  - command: k get no -o=jsonpath='{range .items[*]}{.status.addresses[?(@.type=="InternalIP")].address}{"\n"}{end}'
+  - command: kubectl get node --output=jsonpath='{.items[*].status.addresses[?(@.type=="InternalIP")].address}'
+  negatives:
+  - command: kubectl get nodes -o wide
+    why: The wide table shows the INTERNAL-IP column, but together with every other column and a header.
+  - command: kubectl get nodes -o jsonpath='{.items[*].spec.podCIDR}'
+    why: spec.podCIDR is the Pod range allocated to each node, not the node's own address.
+  - command: kubectl get nodes -o jsonpath='{.items[*].status.addresses[?(@.type=="ExternalIP")].address}'
+    why: ExternalIP is the address reachable from outside the cluster (often absent on bare-metal nodes), not the internal one.
+explanation:
+  correct:
+    en: 'Node addresses are in `status.addresses`, a list of `{type, address}` entries (`InternalIP`, `ExternalIP`, `Hostname`). The JSONPath filter `?(@.type=="InternalIP")` keeps the internal entry and `.address` prints its value; the single quotes keep the shell from interpreting the braces and brackets. Node IPs, Pod IPs and Service IPs come from three ranges that must not overlap.'
+references:
+- title: JSONPath Support
+  url: https://kubernetes.io/docs/reference/kubectl/jsonpath/
+- title: Cluster Networking
+  url: https://kubernetes.io/docs/concepts/cluster-administration/networking/

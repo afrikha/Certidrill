@@ -1,0 +1,72 @@
+id: cka-2b-etcdctl-endpoint-health
+objective: "2.2.3"
+difficulty: 3
+status: draft
+type: command
+stem:
+  en: |-
+    On control plane node `cp-1` (stacked etcd created by kubeadm), check the health of the local etcd member with `etcdctl`:
+
+    - endpoint `https://127.0.0.1:2379`;
+    - trust the etcd CA in `/etc/kubernetes/pki/etcd`;
+    - authenticate with the health check client certificate pair that kubeadm created in `/etc/kubernetes/pki/etcd`.
+
+    `etcdctl` uses the v3 API by default: do not prefix the command with environment variables. Type the single command you would run.
+body:
+  mode: invocation
+  tools: [etcdctl]
+answer:
+  checks:
+  - id: tool
+    label: Uses etcdctl
+    path: tool
+    op: equals
+    value: etcdctl
+  - id: endpoint-verb
+    label: Uses the endpoint command
+    path: verb
+    op: equals
+    value: endpoint
+  - id: health
+    label: Runs endpoint health
+    path: args
+    op: contains
+    value: health
+  - id: endpoints
+    label: --endpoints is https://127.0.0.1:2379
+    path: flags.endpoints
+    op: equals
+    value: https://127.0.0.1:2379
+  - id: cacert
+    label: --cacert is the etcd CA /etc/kubernetes/pki/etcd/ca.crt
+    path: flags.cacert
+    op: equals
+    value: /etc/kubernetes/pki/etcd/ca.crt
+  - id: cert
+    label: --cert is /etc/kubernetes/pki/etcd/healthcheck-client.crt
+    path: flags.cert
+    op: equals
+    value: /etc/kubernetes/pki/etcd/healthcheck-client.crt
+  - id: key
+    label: --key is /etc/kubernetes/pki/etcd/healthcheck-client.key
+    path: flags.key
+    op: equals
+    value: /etc/kubernetes/pki/etcd/healthcheck-client.key
+  solution:
+  - command: etcdctl --endpoints=https://127.0.0.1:2379 --cacert=/etc/kubernetes/pki/etcd/ca.crt --cert=/etc/kubernetes/pki/etcd/healthcheck-client.crt --key=/etc/kubernetes/pki/etcd/healthcheck-client.key endpoint health
+  - command: etcdctl endpoint health --endpoints https://127.0.0.1:2379 --cacert /etc/kubernetes/pki/etcd/ca.crt --cert /etc/kubernetes/pki/etcd/healthcheck-client.crt --key /etc/kubernetes/pki/etcd/healthcheck-client.key
+  negatives:
+  - command: etcdctl --endpoints=https://127.0.0.1:2379 --cacert=/etc/kubernetes/pki/ca.crt --cert=/etc/kubernetes/pki/etcd/healthcheck-client.crt --key=/etc/kubernetes/pki/etcd/healthcheck-client.key endpoint health
+    why: /etc/kubernetes/pki/ca.crt is the cluster CA; the etcd server certificate is signed by the separate etcd CA in pki/etcd.
+  - command: etcdctl --endpoints=https://127.0.0.1:2379 --cacert=/etc/kubernetes/pki/etcd/ca.crt --cert-file=/etc/kubernetes/pki/etcd/healthcheck-client.crt --key-file=/etc/kubernetes/pki/etcd/healthcheck-client.key endpoint health
+    why: --cert-file and --key-file are flags of the etcd server (and of the old v2 etcdctl); etcdctl v3 uses --cert and --key.
+  - command: etcdctl --endpoints=https://127.0.0.1:2380 --cacert=/etc/kubernetes/pki/etcd/ca.crt --cert=/etc/kubernetes/pki/etcd/healthcheck-client.crt --key=/etc/kubernetes/pki/etcd/healthcheck-client.key endpoint health
+    why: 2380 is the peer port used between etcd members; clients connect on 2379.
+  - command: etcdctl --endpoints=https://127.0.0.1:2379 --cacert=/etc/kubernetes/pki/etcd/ca.crt --cert=/etc/kubernetes/pki/etcd/healthcheck-client.crt --key=/etc/kubernetes/pki/etcd/healthcheck-client.key member list
+    why: member list shows the members of the cluster, not whether the endpoint is healthy.
+explanation:
+  correct:
+    en: 'kubeadm''s etcd requires TLS client certificates on the client port 2379. `etcdctl endpoint health` with `--endpoints=https://127.0.0.1:2379`, `--cacert=/etc/kubernetes/pki/etcd/ca.crt`, `--cert` and `--key` pointing to `healthcheck-client.crt` and `.key` prints whether the member is healthy and how long the check took. The server pair `server.crt`/`server.key` would also authenticate, but the task asks for the health check client.'
+references:
+- title: Operating etcd clusters for Kubernetes
+  url: https://kubernetes.io/docs/tasks/administer-cluster/configure-upgrade-etcd/

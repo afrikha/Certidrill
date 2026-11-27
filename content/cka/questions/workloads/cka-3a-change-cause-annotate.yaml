@@ -1,0 +1,164 @@
+id: cka-3a-change-cause-annotate
+objective: "3.1.1"
+difficulty: 1
+status: draft
+type: command
+stem:
+  en: |-
+    You have just run `kubectl set image` on Deployment `orders` in namespace `shop` (current manifest in `orders.yaml`) to move it to `registry.example.com/shop/orders:2.0`.
+
+    Record the change cause `image updated to 2.0` so that `kubectl rollout history deployment/orders -n shop` shows it in the CHANGE-CAUSE column.
+
+    Type the single command you would run.
+body:
+  mode: object
+  namespace: default
+  files:
+  - name: orders.yaml
+    content: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        labels:
+          app: orders
+        name: orders
+        namespace: shop
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: orders
+        template:
+          metadata:
+            labels:
+              app: orders
+          spec:
+            containers:
+            - image: registry.example.com/shop/orders:2.0
+              name: orders
+answer:
+  checks:
+  - id: kind
+    label: The object is the Deployment orders
+    path: metadata.name
+    op: equals
+    value: orders
+  - id: namespace
+    label: It is in namespace shop
+    path: metadata.namespace
+    op: equals
+    value: shop
+  - id: change-cause
+    label: Annotation kubernetes.io/change-cause is "image updated to 2.0"
+    path: metadata.annotations["kubernetes.io/change-cause"]
+    op: equals
+    value: image updated to 2.0
+  - id: no-label
+    label: The change cause is not stored as a label
+    path: metadata.labels["kubernetes.io/change-cause"]
+    op: absent
+  solution:
+  - command: kubectl annotate deployment/orders kubernetes.io/change-cause="image updated to 2.0" -n shop
+    output: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        annotations:
+          kubernetes.io/change-cause: image updated to 2.0
+        labels:
+          app: orders
+        name: orders
+        namespace: shop
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: orders
+        template:
+          metadata:
+            labels:
+              app: orders
+          spec:
+            containers:
+            - image: registry.example.com/shop/orders:2.0
+              name: orders
+  - command: k -n shop annotate deploy orders 'kubernetes.io/change-cause=image updated to 2.0'
+    output: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        annotations:
+          kubernetes.io/change-cause: image updated to 2.0
+        labels:
+          app: orders
+        name: orders
+        namespace: shop
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: orders
+        template:
+          metadata:
+            labels:
+              app: orders
+          spec:
+            containers:
+            - image: registry.example.com/shop/orders:2.0
+              name: orders
+  negatives:
+  - command: kubectl annotate deployment/orders change-cause="image updated to 2.0" -n shop
+    why: rollout history reads the annotation key kubernetes.io/change-cause; a plain change-cause key is ignored.
+    output: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        annotations:
+          change-cause: image updated to 2.0
+        labels:
+          app: orders
+        name: orders
+        namespace: shop
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: orders
+        template:
+          metadata:
+            labels:
+              app: orders
+          spec:
+            containers:
+            - image: registry.example.com/shop/orders:2.0
+              name: orders
+  - command: kubectl label deployment/orders kubernetes.io/change-cause=image-updated-to-2.0 -n shop
+    why: CHANGE-CAUSE comes from an annotation, not a label (and label values cannot contain spaces).
+    output: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        labels:
+          app: orders
+          kubernetes.io/change-cause: image-updated-to-2.0
+        name: orders
+        namespace: shop
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: orders
+        template:
+          metadata:
+            labels:
+              app: orders
+          spec:
+            containers:
+            - image: registry.example.com/shop/orders:2.0
+              name: orders
+explanation:
+  correct:
+    en: '`kubectl annotate deployment/orders kubernetes.io/change-cause="image updated to 2.0" -n shop` sets the annotation that the Deployment controller copies to the revision (its ReplicaSet); `rollout history` prints it in CHANGE-CAUSE. The `--record` flag that used to fill it automatically is deprecated. Add `--overwrite` when the annotation already has a value from an earlier rollout.'
+references:
+- title: Deployments
+  url: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/

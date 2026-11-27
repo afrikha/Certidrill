@@ -1,0 +1,157 @@
+id: cka-4a-nodes-cluster-scope-fix
+objective: "4.1.2"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    The Pods of the DaemonSet `metrics-agent` run with the ServiceAccount `metrics-agent` in namespace `monitoring`. A colleague applied `agent-rbac.yaml`, but the agent still logs that it is forbidden to list resource `nodes` in API group `""` at the cluster scope.
+
+    Write the manifests that fix it: a ClusterRole named `metrics-agent-nodes` allowing `get`, `list` and `watch` on Nodes, and the binding, also named `metrics-agent-nodes`, that grants it to the ServiceAccount.
+body:
+  starter: ""
+  files:
+  - name: agent-rbac.yaml
+    content: |
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: Role
+      metadata:
+        name: metrics-agent-nodes
+        namespace: monitoring
+      rules:
+      - apiGroups: [""]
+        resources: ["nodes"]
+        verbs: ["get", "list", "watch"]
+      ---
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: RoleBinding
+      metadata:
+        name: metrics-agent-nodes
+        namespace: monitoring
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: Role
+        name: metrics-agent-nodes
+      subjects:
+      - kind: ServiceAccount
+        name: metrics-agent
+        namespace: monitoring
+answer:
+  checks:
+  - id: cr-rule
+    label: The ClusterRole metrics-agent-nodes allows get, list and watch on nodes in the core group
+    select: {kind: ClusterRole, name: metrics-agent-nodes}
+    path: rules
+    op: contains
+    value: {apiGroups: [""], resources: [nodes], verbs: [get, list, watch]}
+  - id: crb-roleref
+    label: The ClusterRoleBinding metrics-agent-nodes references the ClusterRole metrics-agent-nodes
+    select: {kind: ClusterRoleBinding, name: metrics-agent-nodes}
+    path: roleRef
+    op: subset
+    value: {kind: ClusterRole, name: metrics-agent-nodes}
+  - id: crb-subject
+    label: Its subject is the ServiceAccount metrics-agent of namespace monitoring
+    select: {kind: ClusterRoleBinding, name: metrics-agent-nodes}
+    path: subjects
+    op: contains
+    value: {kind: ServiceAccount, name: metrics-agent, namespace: monitoring}
+  solution:
+  - manifest: |
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRole
+      metadata:
+        name: metrics-agent-nodes
+      rules:
+      - apiGroups: [""]
+        resources: ["nodes"]
+        verbs: ["get", "list", "watch"]
+      ---
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRoleBinding
+      metadata:
+        name: metrics-agent-nodes
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: metrics-agent-nodes
+      subjects:
+      - kind: ServiceAccount
+        name: metrics-agent
+        namespace: monitoring
+  negatives:
+  - manifest: |
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRole
+      metadata:
+        name: metrics-agent-nodes
+      rules:
+      - apiGroups: [""]
+        resources: ["nodes"]
+        verbs: ["get", "list", "watch"]
+      ---
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: RoleBinding
+      metadata:
+        name: metrics-agent-nodes
+        namespace: monitoring
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: metrics-agent-nodes
+      subjects:
+      - kind: ServiceAccount
+        name: metrics-agent
+        namespace: monitoring
+    why: A RoleBinding grants the ClusterRole only inside monitoring; Nodes are cluster-scoped, so listing them still fails.
+  - manifest: |
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRole
+      metadata:
+        name: metrics-agent-nodes
+      rules:
+      - apiGroups: [""]
+        resources: ["nodes"]
+        verbs: ["get", "list", "watch"]
+      ---
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRoleBinding
+      metadata:
+        name: metrics-agent-nodes
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: metrics-agent-nodes
+      subjects:
+      - kind: ServiceAccount
+        name: metrics-agent
+    why: A ServiceAccount subject of a ClusterRoleBinding must name its namespace; the API server rejects it without one.
+  - manifest: |
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRole
+      metadata:
+        name: metrics-agent-nodes
+      rules:
+      - apiGroups: ["apps"]
+        resources: ["nodes"]
+        verbs: ["get", "list", "watch"]
+      ---
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRoleBinding
+      metadata:
+        name: metrics-agent-nodes
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: metrics-agent-nodes
+      subjects:
+      - kind: ServiceAccount
+        name: metrics-agent
+        namespace: monitoring
+    why: Nodes belong to the core API group "", as the error message says; the apps group has no nodes resource.
+explanation:
+  correct:
+    en: 'Nodes are cluster-scoped: a Role or a RoleBinding only grants access to namespaced objects of its namespace, so the existing pair can never allow `list nodes`. The fix is a ClusterRole with a rule on `nodes` in the core group `""`, bound with a ClusterRoleBinding whose ServiceAccount subject names its namespace (`monitoring`). Verify with `kubectl auth can-i list nodes --as=system:serviceaccount:monitoring:metrics-agent`.'
+references:
+- title: Using RBAC Authorization
+  url: https://kubernetes.io/docs/reference/access-authn-authz/rbac/

@@ -1,0 +1,93 @@
+id: cka-1b-storageclass-retain
+objective: "1.2.2"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    The class `fast-ssd` (provisioner `csi.example.com`, parameter `type: ssd`) uses the default reclaim policy. The finance team needs a second class, `ssd-retain`, with the same provisioner and parameter, whose dynamically provisioned volumes are kept with their data when their claim is deleted.
+
+    Write the manifest of the StorageClass `ssd-retain`.
+body:
+  starter: ""
+answer:
+  checks:
+  - id: api
+    label: A storage.k8s.io/v1 StorageClass
+    path: apiVersion
+    op: equals
+    value: storage.k8s.io/v1
+  - id: kind
+    label: The kind is StorageClass
+    path: kind
+    op: equals
+    value: StorageClass
+  - id: name
+    label: It is named ssd-retain
+    path: metadata.name
+    op: equals
+    value: ssd-retain
+  - id: provisioner
+    label: The provisioner is csi.example.com
+    path: provisioner
+    op: equals
+    value: csi.example.com
+  - id: parameters
+    label: The parameter type is ssd
+    path: parameters.type
+    op: equals
+    value: ssd
+  - id: reclaim
+    label: reclaimPolicy is Retain
+    path: reclaimPolicy
+    op: equals
+    value: Retain
+  solution:
+  - manifest: |
+      apiVersion: storage.k8s.io/v1
+      kind: StorageClass
+      metadata:
+        name: ssd-retain
+      provisioner: csi.example.com
+      parameters:
+        type: ssd
+      reclaimPolicy: Retain
+  negatives:
+  - manifest: |
+      apiVersion: storage.k8s.io/v1
+      kind: StorageClass
+      metadata:
+        name: ssd-retain
+      provisioner: csi.example.com
+      parameters:
+        type: ssd
+    why: Without reclaimPolicy a class uses Delete, the same as fast-ssd.
+  - manifest: |
+      apiVersion: storage.k8s.io/v1
+      kind: StorageClass
+      metadata:
+        name: ssd-retain
+      provisioner: csi.example.com
+      parameters:
+        type: ssd
+      persistentVolumeReclaimPolicy: Retain
+    why: persistentVolumeReclaimPolicy is the PersistentVolume field; the StorageClass field is reclaimPolicy.
+  - manifest: |
+      apiVersion: storage.k8s.io/v1
+      kind: StorageClass
+      metadata:
+        name: ssd-retain
+      provisioner: csi.example.com
+      parameters:
+        type: ssd
+        reclaimPolicy: Retain
+    why: Under parameters the value is passed to the driver as an opaque setting; it is not the reclaim policy of the class.
+explanation:
+  correct:
+    en: |-
+      Dynamically provisioned PVs take the `reclaimPolicy` of their StorageClass, `Delete` when it is not set. `reclaimPolicy: Retain` (top-level field of the class) gives them `persistentVolumeReclaimPolicy: Retain`, so after the claim is deleted the PV is `Released` and keeps its data. The policy cannot be changed on the existing class, and changing it would not affect volumes already provisioned: create a new class.
+references:
+- title: Storage Classes
+  url: https://kubernetes.io/docs/concepts/storage/storage-classes/
+- title: Persistent Volumes
+  url: https://kubernetes.io/docs/concepts/storage/persistent-volumes/

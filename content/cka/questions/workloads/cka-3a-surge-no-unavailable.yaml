@@ -1,0 +1,181 @@
+id: cka-3a-surge-no-unavailable
+objective: "3.1.2"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    Deployment `cart` in namespace `shop` runs 4 replicas of `registry.example.com/shop/cart:5.2`. During rolling updates it must never have fewer than 4 available Pods, and it may create at most 1 extra Pod at a time.
+
+    Complete the manifest with the update strategy. Use absolute numbers.
+body:
+  starter: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: cart
+      namespace: shop
+    spec:
+      replicas: 4
+      selector:
+        matchLabels:
+          app: cart
+      template:
+        metadata:
+          labels:
+            app: cart
+        spec:
+          containers:
+          - name: cart
+            image: registry.example.com/shop/cart:5.2
+answer:
+  checks:
+  - id: meta
+    label: A Deployment named cart in namespace shop
+    path: metadata
+    op: subset
+    value: {name: cart, namespace: shop}
+  - id: replicas
+    label: 4 replicas
+    path: spec.replicas
+    op: equals
+    value: 4
+  - id: not-recreate
+    label: The strategy is not Recreate
+    path: spec.strategy
+    op: matches
+    value: '^(?!.*"type":"Recreate")'
+  - id: surge
+    label: maxSurge is 1
+    path: spec.strategy.rollingUpdate.maxSurge
+    op: equals
+    value: 1
+  - id: unavailable
+    label: maxUnavailable is 0
+    path: spec.strategy.rollingUpdate.maxUnavailable
+    op: equals
+    value: 0
+  solution:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: cart
+        namespace: shop
+      spec:
+        replicas: 4
+        strategy:
+          type: RollingUpdate
+          rollingUpdate:
+            maxSurge: 1
+            maxUnavailable: 0
+        selector:
+          matchLabels:
+            app: cart
+        template:
+          metadata:
+            labels:
+              app: cart
+          spec:
+            containers:
+            - name: cart
+              image: registry.example.com/shop/cart:5.2
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: cart
+        namespace: shop
+      spec:
+        replicas: 4
+        strategy:
+          rollingUpdate:
+            maxUnavailable: 0
+            maxSurge: 1
+        selector:
+          matchLabels:
+            app: cart
+        template:
+          metadata:
+            labels:
+              app: cart
+          spec:
+            containers:
+            - name: cart
+              image: registry.example.com/shop/cart:5.2
+  negatives:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: cart
+        namespace: shop
+      spec:
+        replicas: 4
+        strategy:
+          rollingUpdate:
+            maxSurge: 1
+        selector:
+          matchLabels:
+            app: cart
+        template:
+          metadata:
+            labels:
+              app: cart
+          spec:
+            containers:
+            - name: cart
+              image: registry.example.com/shop/cart:5.2
+    why: maxUnavailable then keeps its default of 25%, so 1 of the 4 Pods may be unavailable during the update.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: cart
+        namespace: shop
+      spec:
+        replicas: 4
+        strategy:
+          rollingUpdate:
+            maxSurge: 0
+            maxUnavailable: 1
+        selector:
+          matchLabels:
+            app: cart
+        template:
+          metadata:
+            labels:
+              app: cart
+          spec:
+            containers:
+            - name: cart
+              image: registry.example.com/shop/cart:5.2
+    why: The values are swapped; this kills one old Pod before starting each new one, dropping to 3 available Pods.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: cart
+        namespace: shop
+      spec:
+        replicas: 4
+        strategy:
+          type: Recreate
+        selector:
+          matchLabels:
+            app: cart
+        template:
+          metadata:
+            labels:
+              app: cart
+          spec:
+            containers:
+            - name: cart
+              image: registry.example.com/shop/cart:5.2
+    why: Recreate kills all 4 old Pods before creating new ones, so the application is down during the update.
+explanation:
+  correct:
+    en: '`maxUnavailable: 0` keeps the 4 desired Pods available, and `maxSurge: 1` lets the controller run at most 5 Pods while it brings up each new one. Both fields default to 25% and cannot both be 0. `RollingUpdate` is the default `type`, so it may be omitted.'
+references:
+- title: Deployments
+  url: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/

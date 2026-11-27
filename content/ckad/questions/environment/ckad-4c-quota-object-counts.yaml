@@ -1,0 +1,128 @@
+id: ckad-4c-quota-object-counts
+objective: "4.3.1"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    In namespace `staging`, create a ResourceQuota named `objects` that allows at most 10 Pods, 4 Deployments and 20 ConfigMaps, and forbids any Service of type `LoadBalancer`.
+
+    Type the single command you would run.
+body:
+  mode: object
+  namespace: default
+answer:
+  checks:
+  - id: kind
+    label: The object is a ResourceQuota
+    path: kind
+    op: equals
+    value: ResourceQuota
+  - id: meta
+    label: It is named objects in namespace staging
+    path: metadata
+    op: subset
+    value: {name: objects, namespace: staging}
+  - id: pods
+    label: At most 10 Pods (pods or count/pods)
+    path: spec.hard
+    op: matches
+    value: '(^|[{,])"(count/)?pods":"10"'
+  - id: deployments
+    label: At most 4 Deployments (count/deployments.apps)
+    path: 'spec.hard["count/deployments.apps"]'
+    op: quantity
+    value: "4"
+  - id: configmaps
+    label: At most 20 ConfigMaps (configmaps or count/configmaps)
+    path: spec.hard
+    op: matches
+    value: '(^|[{,])"(count/)?configmaps":"20"'
+  - id: lb
+    label: No Service of type LoadBalancer (services.loadbalancers is 0)
+    path: 'spec.hard["services.loadbalancers"]'
+    op: quantity
+    value: "0"
+  solution:
+  - command: kubectl create quota objects --hard=pods=10,count/deployments.apps=4,configmaps=20,services.loadbalancers=0 -n staging
+    output: |
+      apiVersion: v1
+      kind: ResourceQuota
+      metadata:
+        name: objects
+        namespace: staging
+      spec:
+        hard:
+          configmaps: "20"
+          count/deployments.apps: "4"
+          pods: "10"
+          services.loadbalancers: "0"
+      status: {}
+  - command: k create quota objects -n staging --hard=count/pods=10,count/configmaps=20,count/deployments.apps=4,services.loadbalancers=0
+    output: |
+      apiVersion: v1
+      kind: ResourceQuota
+      metadata:
+        name: objects
+        namespace: staging
+      spec:
+        hard:
+          count/configmaps: "20"
+          count/deployments.apps: "4"
+          count/pods: "10"
+          services.loadbalancers: "0"
+      status: {}
+  negatives:
+  - command: kubectl create quota objects --hard=pods=10,count/deployments=4,configmaps=20,services.loadbalancers=0 -n staging
+    why: Deployments belong to the apps group; count/deployments (core group) never counts them. The name is count/deployments.apps.
+    output: |
+      apiVersion: v1
+      kind: ResourceQuota
+      metadata:
+        name: objects
+        namespace: staging
+      spec:
+        hard:
+          configmaps: "20"
+          count/deployments: "4"
+          pods: "10"
+          services.loadbalancers: "0"
+      status: {}
+  - command: kubectl create quota objects --hard=pods=10,count/deployments.apps=4,configmaps=20,services.nodeports=0 -n staging
+    why: services.nodeports limits allocated NodePorts; LoadBalancer Services are counted by services.loadbalancers.
+    output: |
+      apiVersion: v1
+      kind: ResourceQuota
+      metadata:
+        name: objects
+        namespace: staging
+      spec:
+        hard:
+          configmaps: "20"
+          count/deployments.apps: "4"
+          pods: "10"
+          services.nodeports: "0"
+      status: {}
+  - command: kubectl create quota objects --hard=pods=10,count/deployments.apps=4,configmaps=20,services=0 -n staging
+    why: services=0 forbids every Service, including ClusterIP ones, not only LoadBalancer Services.
+    output: |
+      apiVersion: v1
+      kind: ResourceQuota
+      metadata:
+        name: objects
+        namespace: staging
+      spec:
+        hard:
+          configmaps: "20"
+          count/deployments.apps: "4"
+          pods: "10"
+          services: "0"
+      status: {}
+explanation:
+  correct:
+    en: 'Object counts use `count/<resource>` for core resources and `count/<resource>.<group>` for other groups, so Deployments are `count/deployments.apps`; core resources such as `pods` and `configmaps` also keep their short names. `services.loadbalancers=0` forbids Services of type LoadBalancer only, while `services=0` would forbid every Service and `services.nodeports` counts NodePorts.'
+references:
+- title: Resource Quotas
+  url: https://kubernetes.io/docs/concepts/policy/resource-quotas/
+- title: kubectl create quota
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_create/kubectl_create_quota/

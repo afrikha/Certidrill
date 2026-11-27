@@ -1,0 +1,234 @@
+id: cka-3c-scaleup-policies-tolerance
+objective: "3.3.2"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    Write a HorizontalPodAutoscaler named `checkout` in namespace `shop` for Deployment `checkout` (3 to 30 replicas, 60 % average CPU utilization) with this behavior:
+
+    - on scale-up, add in each 30-second period whichever is larger: 100 % of the current replicas or 5 Pods;
+    - ignore metric variations below 5 % for scale-up decisions;
+    - never scale down automatically.
+body:
+  starter: ""
+answer:
+  checks:
+  - id: meta
+    label: A HorizontalPodAutoscaler named checkout in namespace shop
+    path: metadata
+    op: subset
+    value: {name: checkout, namespace: shop}
+  - id: target
+    label: Scales Deployment checkout between 3 and 30 replicas
+    path: spec
+    op: subset
+    value: {scaleTargetRef: {kind: Deployment, name: checkout}, minReplicas: 3, maxReplicas: 30}
+  - id: cpu
+    label: CPU target is 60% average utilization
+    path: spec.metrics
+    op: contains
+    value: {type: Resource, resource: {name: cpu, target: {type: Utilization, averageUtilization: 60}}}
+  - id: up-percent
+    label: Scale-up policy Percent 100 per 30 seconds
+    path: spec.behavior.scaleUp.policies
+    op: contains
+    value: {type: Percent, value: 100, periodSeconds: 30}
+  - id: up-pods
+    label: Scale-up policy Pods 5 per 30 seconds
+    path: spec.behavior.scaleUp.policies
+    op: contains
+    value: {type: Pods, value: 5, periodSeconds: 30}
+  - id: up-two
+    label: Exactly these two scale-up policies
+    path: spec.behavior.scaleUp.policies
+    op: length
+    value: 2
+  - id: up-select
+    label: Scale-up selects the larger change (Max, the default)
+    path: spec.behavior.scaleUp
+    op: matches
+    value: '^(?!.*"selectPolicy":"(Min|Disabled)")'
+  - id: tolerance
+    label: Scale-up tolerance is 0.05 (5 %)
+    path: spec.behavior.scaleUp.tolerance
+    op: quantity
+    value: "0.05"
+  - id: down-disabled
+    label: Scale-down is disabled
+    path: spec.behavior.scaleDown.selectPolicy
+    op: equals
+    value: Disabled
+  solution:
+  - manifest: |
+      apiVersion: autoscaling/v2
+      kind: HorizontalPodAutoscaler
+      metadata:
+        name: checkout
+        namespace: shop
+      spec:
+        scaleTargetRef:
+          apiVersion: apps/v1
+          kind: Deployment
+          name: checkout
+        minReplicas: 3
+        maxReplicas: 30
+        metrics:
+        - type: Resource
+          resource:
+            name: cpu
+            target:
+              type: Utilization
+              averageUtilization: 60
+        behavior:
+          scaleUp:
+            tolerance: 0.05
+            selectPolicy: Max
+            policies:
+            - type: Percent
+              value: 100
+              periodSeconds: 30
+            - type: Pods
+              value: 5
+              periodSeconds: 30
+          scaleDown:
+            selectPolicy: Disabled
+  - manifest: |
+      apiVersion: autoscaling/v2
+      kind: HorizontalPodAutoscaler
+      metadata:
+        name: checkout
+        namespace: shop
+      spec:
+        scaleTargetRef:
+          apiVersion: apps/v1
+          kind: Deployment
+          name: checkout
+        minReplicas: 3
+        maxReplicas: 30
+        metrics:
+        - type: Resource
+          resource:
+            name: cpu
+            target:
+              type: Utilization
+              averageUtilization: 60
+        behavior:
+          scaleDown:
+            selectPolicy: Disabled
+          scaleUp:
+            tolerance: 50m
+            policies:
+            - type: Pods
+              value: 5
+              periodSeconds: 30
+            - type: Percent
+              value: 100
+              periodSeconds: 30
+  negatives:
+  - manifest: |
+      apiVersion: autoscaling/v2
+      kind: HorizontalPodAutoscaler
+      metadata:
+        name: checkout
+        namespace: shop
+      spec:
+        scaleTargetRef:
+          apiVersion: apps/v1
+          kind: Deployment
+          name: checkout
+        minReplicas: 3
+        maxReplicas: 30
+        metrics:
+        - type: Resource
+          resource:
+            name: cpu
+            target:
+              type: Utilization
+              averageUtilization: 60
+        behavior:
+          scaleUp:
+            tolerance: 0.05
+            selectPolicy: Min
+            policies:
+            - type: Percent
+              value: 100
+              periodSeconds: 30
+            - type: Pods
+              value: 5
+              periodSeconds: 30
+          scaleDown:
+            selectPolicy: Disabled
+    why: Min picks the policy allowing the smaller change; the task asks for the larger one.
+  - manifest: |
+      apiVersion: autoscaling/v2
+      kind: HorizontalPodAutoscaler
+      metadata:
+        name: checkout
+        namespace: shop
+      spec:
+        scaleTargetRef:
+          apiVersion: apps/v1
+          kind: Deployment
+          name: checkout
+        minReplicas: 3
+        maxReplicas: 30
+        metrics:
+        - type: Resource
+          resource:
+            name: cpu
+            target:
+              type: Utilization
+              averageUtilization: 60
+        behavior:
+          scaleUp:
+            tolerance: 5
+            policies:
+            - type: Percent
+              value: 100
+              periodSeconds: 30
+            - type: Pods
+              value: 5
+              periodSeconds: 30
+          scaleDown:
+            selectPolicy: Disabled
+    why: tolerance is a ratio, so 5 means 500 %; 5 % is 0.05.
+  - manifest: |
+      apiVersion: autoscaling/v2
+      kind: HorizontalPodAutoscaler
+      metadata:
+        name: checkout
+        namespace: shop
+      spec:
+        scaleTargetRef:
+          apiVersion: apps/v1
+          kind: Deployment
+          name: checkout
+        minReplicas: 3
+        maxReplicas: 30
+        metrics:
+        - type: Resource
+          resource:
+            name: cpu
+            target:
+              type: Utilization
+              averageUtilization: 60
+        behavior:
+          scaleUp:
+            tolerance: 0.05
+            policies:
+            - type: Percent
+              value: 100
+              periodSeconds: 30
+            - type: Pods
+              value: 5
+              periodSeconds: 30
+          scaleDown:
+            stabilizationWindowSeconds: 3600
+    why: A one-hour stabilization window only delays scale-down; selectPolicy Disabled is what turns it off.
+explanation:
+  correct:
+    en: 'With several policies, `selectPolicy: Max` (the default) applies the one allowing the larger change, so the HPA adds max(100 %, 5 Pods) per 30 seconds. `scaleDown.selectPolicy: Disabled` turns off scaling in that direction. `tolerance` (stable since v1.37) is a ratio quantity: `0.05` (or `50m`) ignores variations under 5 %; without it the cluster-wide default of 10 % applies.'
+references:
+- title: Horizontal Pod Autoscaling
+  url: https://kubernetes.io/docs/concepts/workloads/autoscaling/horizontal-pod-autoscale/

@@ -1,0 +1,54 @@
+id: ckad-1d-pv-claimref-jsonpath
+objective: "1.4.3"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    `kubectl get pv` shows the PersistentVolume `pv-archive` with status `Released`: its claim has been deleted, but the volume (reclaim policy Retain) still records which claim it was bound to.
+
+    Print only the **name** of that former claim, using a JSONPath output. Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Uses kubectl get
+    path: verb
+    op: equals
+    value: get
+  - id: resource
+    label: Reads a PersistentVolume
+    path: resource
+    op: equals
+    value: persistentvolume
+  - id: name
+    label: Names pv-archive
+    path: names
+    op: contains
+    value: pv-archive
+  - id: jsonpath
+    label: Prints .spec.claimRef.name with JSONPath
+    path: flags.output
+    op: matches
+    value: '^jsonpath=\{\.?spec\.claimRef\.name\}'
+  solution:
+  - command: kubectl get pv pv-archive -o jsonpath='{.spec.claimRef.name}'
+  - command: k get persistentvolume/pv-archive -o=jsonpath="{.spec.claimRef.name}"
+  - command: kubectl get pv pv-archive --output=jsonpath='{.spec.claimRef.name}{"\n"}'
+  negatives:
+  - command: kubectl get pv pv-archive -o jsonpath='{.status.phase}'
+    why: status.phase prints Released, not the claim name.
+  - command: kubectl get pvc pv-archive -o jsonpath='{.spec.volumeName}'
+    why: pv-archive is a PersistentVolume, not a claim, and the claim has been deleted anyway.
+  - command: kubectl get pv pv-archive -o jsonpath='{.spec.claimRef.namespace}'
+    why: This prints the namespace of the former claim, not its name.
+explanation:
+  correct:
+    en: 'A bound volume records its claim in `spec.claimRef` (name, namespace, uid). After the claim is deleted, a volume with reclaim policy Retain moves to `Released` and keeps that `claimRef`, so it is not available to another claim until an administrator reclaims it. `kubectl get pv pv-archive -o jsonpath=''{.spec.claimRef.name}''` prints only the name.'
+references:
+- title: Persistent Volumes
+  url: https://kubernetes.io/docs/concepts/storage/persistent-volumes/
+- title: JSONPath Support
+  url: https://kubernetes.io/docs/reference/kubectl/jsonpath/

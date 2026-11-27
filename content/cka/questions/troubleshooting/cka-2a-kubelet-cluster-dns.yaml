@@ -1,0 +1,148 @@
+id: cka-2a-kubelet-cluster-dns
+objective: "2.1.2"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    Pods scheduled on `node-6` cannot resolve Service names, while Pods on the other nodes can. The file `findings.txt` shows what you collected.
+
+    The editor contains `/var/lib/kubelet/config.yaml` of `node-6`. Write the corrected file so that new Pods on `node-6` use the cluster DNS Service. Change nothing else.
+body:
+  starter: |
+    apiVersion: kubelet.config.k8s.io/v1beta1
+    kind: KubeletConfiguration
+    authentication:
+      x509:
+        clientCAFile: /etc/kubernetes/pki/ca.crt
+    authorization:
+      mode: Webhook
+    cgroupDriver: systemd
+    clusterDNS:
+    - 10.96.0.100
+    clusterDomain: cluster.local
+    containerRuntimeEndpoint: unix:///var/run/containerd/containerd.sock
+    staticPodPath: /etc/kubernetes/manifests
+  files:
+  - name: findings.txt
+    content: |
+      # kubectl exec web-7d9f-x2kq -- cat /etc/resolv.conf     (Pod on node-6)
+      search default.svc.cluster.local svc.cluster.local cluster.local
+      nameserver 10.96.0.100
+      options ndots:5
+
+      # kubectl -n kube-system get svc kube-dns
+      NAME       TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)                  AGE
+      kube-dns   ClusterIP   10.96.0.10   <none>        53/UDP,53/TCP,9153/TCP   41d
+
+      # kubectl -n kube-system get pods -l k8s-app=kube-dns -o wide
+      NAME                       READY   STATUS    RESTARTS   AGE   IP            NODE
+      coredns-6f6b679f8f-4tq8z   1/1     Running   0          41d   10.244.0.5    cp-1
+      coredns-6f6b679f8f-9xw2m   1/1     Running   0          41d   10.244.0.6    cp-1
+answer:
+  checks:
+  - id: kind
+    label: The document is a KubeletConfiguration
+    path: kind
+    op: equals
+    value: KubeletConfiguration
+  - id: dns
+    label: clusterDNS lists only the kube-dns Service IP 10.96.0.10
+    path: clusterDNS
+    op: equals
+    value: [10.96.0.10]
+  - id: domain
+    label: clusterDomain stays cluster.local
+    path: clusterDomain
+    op: equals
+    value: cluster.local
+  - id: endpoint
+    label: containerRuntimeEndpoint is unchanged
+    path: containerRuntimeEndpoint
+    op: equals
+    value: unix:///var/run/containerd/containerd.sock
+  - id: static-pods
+    label: staticPodPath is unchanged
+    path: staticPodPath
+    op: equals
+    value: /etc/kubernetes/manifests
+  solution:
+  - manifest: |
+      apiVersion: kubelet.config.k8s.io/v1beta1
+      kind: KubeletConfiguration
+      authentication:
+        x509:
+          clientCAFile: /etc/kubernetes/pki/ca.crt
+      authorization:
+        mode: Webhook
+      cgroupDriver: systemd
+      clusterDNS:
+      - 10.96.0.10
+      clusterDomain: cluster.local
+      containerRuntimeEndpoint: unix:///var/run/containerd/containerd.sock
+      staticPodPath: /etc/kubernetes/manifests
+  - manifest: |
+      apiVersion: kubelet.config.k8s.io/v1beta1
+      kind: KubeletConfiguration
+      authentication:
+        x509:
+          clientCAFile: /etc/kubernetes/pki/ca.crt
+      authorization:
+        mode: Webhook
+      cgroupDriver: systemd
+      clusterDNS: ["10.96.0.10"]
+      clusterDomain: cluster.local
+      containerRuntimeEndpoint: unix:///var/run/containerd/containerd.sock
+      staticPodPath: /etc/kubernetes/manifests
+  negatives:
+  - manifest: |
+      apiVersion: kubelet.config.k8s.io/v1beta1
+      kind: KubeletConfiguration
+      authentication:
+        x509:
+          clientCAFile: /etc/kubernetes/pki/ca.crt
+      authorization:
+        mode: Webhook
+      cgroupDriver: systemd
+      clusterDNS:
+      - 10.244.0.5
+      - 10.244.0.6
+      clusterDomain: cluster.local
+      containerRuntimeEndpoint: unix:///var/run/containerd/containerd.sock
+      staticPodPath: /etc/kubernetes/manifests
+    why: These are CoreDNS Pod IPs, which change when the Pods are recreated; Pods must use the stable ClusterIP of the kube-dns Service.
+  - manifest: |
+      apiVersion: kubelet.config.k8s.io/v1beta1
+      kind: KubeletConfiguration
+      authentication:
+        x509:
+          clientCAFile: /etc/kubernetes/pki/ca.crt
+      authorization:
+        mode: Webhook
+      cgroupDriver: systemd
+      clusterDNS: 10.96.0.10
+      clusterDomain: cluster.local
+      containerRuntimeEndpoint: unix:///var/run/containerd/containerd.sock
+      staticPodPath: /etc/kubernetes/manifests
+    why: clusterDNS is a list of strings; a plain scalar does not have the expected type and the kubelet rejects the file.
+  - manifest: |
+      apiVersion: kubelet.config.k8s.io/v1beta1
+      kind: KubeletConfiguration
+      authentication:
+        x509:
+          clientCAFile: /etc/kubernetes/pki/ca.crt
+      authorization:
+        mode: Webhook
+      cgroupDriver: systemd
+      clusterDNS:
+      - 10.96.0.100
+      clusterDomain: svc.cluster.local
+      containerRuntimeEndpoint: unix:///var/run/containerd/containerd.sock
+      staticPodPath: /etc/kubernetes/manifests
+    why: The search domains were correct; the nameserver 10.96.0.100 is still wrong and clusterDomain must stay cluster.local.
+explanation:
+  correct:
+    en: 'The kubelet writes `clusterDNS` as the `nameserver` of every Pod it starts. On `node-6` it points to 10.96.0.100, but the kube-dns Service has ClusterIP 10.96.0.10. Set `clusterDNS: [10.96.0.10]`, restart the kubelet, then recreate the Pods of `node-6`: running Pods keep their old `/etc/resolv.conf`.'
+references:
+- title: Kubelet Configuration (v1beta1)
+  url: https://kubernetes.io/docs/reference/config-api/kubelet-config.v1beta1/

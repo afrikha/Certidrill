@@ -1,0 +1,133 @@
+id: cka-4d-upgrade-config-no-renewal
+objective: "4.4.1"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    The control plane nodes `cp1`, `cp2` and `cp3` of a kubeadm cluster will be upgraded to v1.37.2 by a script. On `cp1` it runs `kubeadm upgrade apply --config /root/upgrade.yaml`; on `cp2` and `cp3` it runs `kubeadm upgrade node --config /root/upgrade.yaml` with the same file.
+
+    Write `/root/upgrade.yaml` (kubeadm configuration API `v1beta4`) so that:
+
+    - `upgrade apply` targets v1.37.2 and does not prompt for confirmation;
+    - neither `upgrade apply` nor `upgrade node` renews certificates (an external tool manages them);
+    - neither `upgrade apply` nor `upgrade node` upgrades etcd (it is upgraded separately).
+body:
+  starter: |
+    apiVersion: kubeadm.k8s.io/v1beta4
+    kind: UpgradeConfiguration
+answer:
+  checks:
+  - id: api
+    label: Uses the kubeadm configuration API v1beta4
+    path: apiVersion
+    op: equals
+    value: kubeadm.k8s.io/v1beta4
+  - id: kind
+    label: The document is an UpgradeConfiguration
+    path: kind
+    op: equals
+    value: UpgradeConfiguration
+  - id: version
+    label: apply.kubernetesVersion is v1.37.2
+    path: apply.kubernetesVersion
+    op: equals
+    value: v1.37.2
+  - id: force
+    label: apply.forceUpgrade is true (no confirmation prompt)
+    path: apply.forceUpgrade
+    op: equals
+    value: true
+  - id: apply-certs
+    label: apply.certificateRenewal is false
+    path: apply.certificateRenewal
+    op: equals
+    value: false
+  - id: apply-etcd
+    label: apply.etcdUpgrade is false
+    path: apply.etcdUpgrade
+    op: equals
+    value: false
+  - id: node-certs
+    label: node.certificateRenewal is false
+    path: node.certificateRenewal
+    op: equals
+    value: false
+  - id: node-etcd
+    label: node.etcdUpgrade is false
+    path: node.etcdUpgrade
+    op: equals
+    value: false
+  solution:
+  - manifest: |
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: UpgradeConfiguration
+      apply:
+        kubernetesVersion: v1.37.2
+        forceUpgrade: true
+        certificateRenewal: false
+        etcdUpgrade: false
+      node:
+        certificateRenewal: false
+        etcdUpgrade: false
+  - manifest: |
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: UpgradeConfiguration
+      node:
+        etcdUpgrade: false
+        certificateRenewal: false
+      apply:
+        etcdUpgrade: false
+        certificateRenewal: false
+        forceUpgrade: true
+        kubernetesVersion: v1.37.2
+  negatives:
+  - manifest: |
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: UpgradeConfiguration
+      apply:
+        kubernetesVersion: v1.37.2
+        forceUpgrade: true
+        certificateRenewal: false
+        etcdUpgrade: false
+    why: Without a node section, kubeadm upgrade node on cp2 and cp3 keeps the defaults (certificateRenewal and etcdUpgrade are true).
+  - manifest: |
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: UpgradeConfiguration
+      kubernetesVersion: v1.37.2
+      forceUpgrade: true
+      certificateRenewal: false
+      etcdUpgrade: false
+    why: UpgradeConfiguration has no such top-level fields; the options belong under apply (and node).
+  - manifest: |
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: UpgradeConfiguration
+      apply:
+        kubernetesVersion: v1.37.2
+        forceUpgrade: true
+        certificateRenewal: false
+        etcdUpgrade: false
+      node:
+        kubernetesVersion: v1.37.2
+        certificateRenewal: false
+    why: UpgradeNodeConfiguration has no kubernetesVersion field (upgrade node uses the version stored in the cluster), and etcdUpgrade still defaults to true on cp2 and cp3.
+  - manifest: |
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: UpgradeConfiguration
+      apply:
+        kubernetesVersion: v1.37.2
+        dryRun: true
+        certificateRenewal: false
+        etcdUpgrade: false
+      node:
+        certificateRenewal: false
+        etcdUpgrade: false
+    why: dryRun only prints what would be done; the option that skips the confirmation prompt is forceUpgrade.
+explanation:
+  correct:
+    en: '`kubeadm upgrade` accepts `--config` with an `UpgradeConfiguration` (`kubeadm.k8s.io/v1beta4`) whose `apply` section holds the options of `upgrade apply` and whose `node` section holds those of `upgrade node`. `apply.kubernetesVersion` sets the target, `apply.forceUpgrade: true` skips the confirmation, and `certificateRenewal` and `etcdUpgrade` both default to true, so they must be set to false in both sections. `UpgradeNodeConfiguration` has no `kubernetesVersion`: the other nodes follow the version that `upgrade apply` stored in the cluster.'
+references:
+- title: kubeadm Configuration (v1beta4)
+  url: https://kubernetes.io/docs/reference/config-api/kubeadm-config.v1beta4/
+- title: Upgrading kubeadm clusters
+  url: https://kubernetes.io/docs/tasks/administer-cluster/kubeadm/kubeadm-upgrade/

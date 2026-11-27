@@ -1,0 +1,171 @@
+id: cka-1c-fix-pending-claim
+objective: "1.3.1"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    The claim `media` in namespace `shop` (in the editor) stays `Pending` and `kubectl describe pvc media -n shop` shows:
+
+    ```text
+    Warning  ProvisioningFailed  persistentvolume-controller  storageclass.storage.k8s.io "nfs-client" not found
+    ```
+
+    It must bind to the PersistentVolume in `pv-media.yaml`. The application writes to it from Pods on several nodes and needs 20Gi. Correct the claim.
+body:
+  starter: |
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: media
+      namespace: shop
+    spec:
+      storageClassName: nfs-client
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 30Gi
+      selector:
+        matchLabels:
+          app: medias
+  files:
+  - name: pv-media.yaml
+    content: |
+      apiVersion: v1
+      kind: PersistentVolume
+      metadata:
+        name: pv-media
+        labels:
+          app: media
+      spec:
+        capacity:
+          storage: 20Gi
+        accessModes:
+        - ReadWriteMany
+        persistentVolumeReclaimPolicy: Retain
+        storageClassName: nfs
+        nfs:
+          server: nfs.example.com
+          path: /exports/media
+answer:
+  checks:
+  - id: meta
+    label: The claim media in namespace shop
+    path: metadata
+    op: subset
+    value: {name: media, namespace: shop}
+  - id: class
+    label: storageClassName is nfs, like the PV
+    path: spec.storageClassName
+    op: equals
+    value: nfs
+  - id: mode
+    label: Asks for ReadWriteMany
+    path: spec.accessModes
+    op: contains
+    value: ReadWriteMany
+  - id: no-rwo
+    label: Asks for no mode the PV lacks (ReadWriteMany only)
+    path: spec.accessModes
+    op: equals
+    value: [ReadWriteMany]
+  - id: size
+    label: Requests 20Gi, no more than the PV capacity
+    path: spec.resources.requests.storage
+    op: quantity
+    value: 20Gi
+  - id: selector
+    label: The selector no longer requires app=medias
+    path: spec
+    op: matches
+    value: '^(?!.*medias)'
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: media
+        namespace: shop
+      spec:
+        storageClassName: nfs
+        accessModes:
+        - ReadWriteMany
+        resources:
+          requests:
+            storage: 20Gi
+        selector:
+          matchLabels:
+            app: media
+  - manifest: |
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: media
+        namespace: shop
+      spec:
+        storageClassName: nfs
+        volumeName: pv-media
+        accessModes: ["ReadWriteMany"]
+        resources:
+          requests:
+            storage: 20Gi
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: media
+        namespace: shop
+      spec:
+        storageClassName: nfs
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 20Gi
+        selector:
+          matchLabels:
+            app: media
+    why: The PV offers only ReadWriteMany, so a ReadWriteOnce claim does not match it; the writers also run on several nodes.
+  - manifest: |
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: media
+        namespace: shop
+      spec:
+        storageClassName: nfs
+        accessModes:
+        - ReadWriteMany
+        resources:
+          requests:
+            storage: 30Gi
+        selector:
+          matchLabels:
+            app: media
+    why: A 30Gi request is larger than the 20Gi PV, which therefore does not match.
+  - manifest: |
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: media
+        namespace: shop
+      spec:
+        storageClassName: nfs
+        accessModes:
+        - ReadWriteMany
+        resources:
+          requests:
+            storage: 20Gi
+        selector:
+          matchLabels:
+            app: medias
+    why: The PV is labelled app=media; the selector app=medias still matches no volume.
+explanation:
+  correct:
+    en: |-
+      A static PV binds to a claim only when every criterion matches: the same `storageClassName` (`nfs`, not the missing class `nfs-client`), access modes the PV offers (`ReadWriteMany`), a request no larger than the capacity (20Gi) and a selector that the PV labels satisfy (`app: media`, or no selector). In a real cluster, the class, access modes and selector of an existing claim cannot be edited: delete the claim and apply the corrected file.
+references:
+- title: Persistent Volumes
+  url: https://kubernetes.io/docs/concepts/storage/persistent-volumes/

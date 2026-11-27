@@ -1,0 +1,213 @@
+id: ckad-3e-not-ready-readiness-port
+objective: "3.5.1"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    The Pods of Deployment `search` in namespace `shop` are `Running` but stay `0/1 READY`, and Service `search` has no ready endpoints. `kubectl describe` on one Pod shows, repeated:
+
+    ```text
+    Warning  Unhealthy  kubelet  Readiness probe failed: Get "http://10.244.1.17:80/healthz": dial tcp 10.244.1.17:80: connect: connection refused
+    ```
+
+    The application listens on port 8080 and answers `GET /healthz` there. Fix the manifest below so the Pods become Ready, keeping a readiness probe on `/healthz`.
+body:
+  starter: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: search
+      namespace: shop
+    spec:
+      replicas: 3
+      selector:
+        matchLabels:
+          app: search
+      template:
+        metadata:
+          labels:
+            app: search
+        spec:
+          containers:
+          - name: search
+            image: registry.example.com/search:5.1
+            ports:
+            - name: http
+              containerPort: 8080
+            readinessProbe:
+              httpGet:
+                path: /healthz
+                port: 80
+answer:
+  checks:
+  - id: deployment
+    label: Deployment search in namespace shop
+    path: metadata
+    op: subset
+    value: {name: search, namespace: shop}
+  - id: replicas
+    label: Still 3 replicas
+    path: spec.replicas
+    op: equals
+    value: 3
+  - id: probe-path
+    label: Readiness probe still checks /healthz
+    path: spec.template.spec.containers[name=search].readinessProbe.httpGet.path
+    op: equals
+    value: /healthz
+  - id: probe-port
+    label: Readiness probe targets port 8080 (or the named port http)
+    path: spec.template.spec.containers[name=search].readinessProbe.httpGet.port
+    op: oneOf
+    value: [8080, http]
+  - id: container-port
+    label: containerPort stays 8080
+    path: spec.template.spec.containers[name=search].ports[0].containerPort
+    op: equals
+    value: 8080
+  - id: image
+    label: Image is unchanged
+    path: spec.template.spec.containers[name=search].image
+    op: equals
+    value: registry.example.com/search:5.1
+  solution:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: search
+        namespace: shop
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: search
+        template:
+          metadata:
+            labels:
+              app: search
+          spec:
+            containers:
+            - name: search
+              image: registry.example.com/search:5.1
+              ports:
+              - name: http
+                containerPort: 8080
+              readinessProbe:
+                httpGet:
+                  path: /healthz
+                  port: 8080
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: search
+        namespace: shop
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: search
+        template:
+          metadata:
+            labels:
+              app: search
+          spec:
+            containers:
+            - name: search
+              image: registry.example.com/search:5.1
+              ports:
+              - name: http
+                containerPort: 8080
+              readinessProbe:
+                httpGet:
+                  path: /healthz
+                  port: http
+  negatives:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: search
+        namespace: shop
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: search
+        template:
+          metadata:
+            labels:
+              app: search
+          spec:
+            containers:
+            - name: search
+              image: registry.example.com/search:5.1
+              ports:
+              - name: http
+                containerPort: 80
+              readinessProbe:
+                httpGet:
+                  path: /healthz
+                  port: 80
+    why: containerPort is informational; the application still listens on 8080, so the probe on port 80 keeps failing.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: search
+        namespace: shop
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: search
+        template:
+          metadata:
+            labels:
+              app: search
+          spec:
+            containers:
+            - name: search
+              image: registry.example.com/search:5.1
+              ports:
+              - name: http
+                containerPort: 8080
+    why: Removing the probe makes the Pods Ready even when the application cannot serve; the task keeps a readiness probe on /healthz.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: search
+        namespace: shop
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: search
+        template:
+          metadata:
+            labels:
+              app: search
+          spec:
+            containers:
+            - name: search
+              image: registry.example.com/search:5.1
+              ports:
+              - name: http
+                containerPort: 8080
+              readinessProbe:
+                httpGet:
+                  path: /healthz
+                  port: 80
+                initialDelaySeconds: 30
+    why: Waiting longer does not help; the probe still connects to port 80, where nothing listens.
+explanation:
+  correct:
+    en: 'Running but not Ready with "Readiness probe failed ... connection refused" means the probe reaches a port where nothing listens. The readiness probe must target 8080, either by number or by the named port `http`. A failing readiness probe never restarts the container: it only keeps the Pod out of the Service endpoints.'
+references:
+- title: Configure Liveness, Readiness and Startup Probes
+  url: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/
+- title: Debug Running Pods
+  url: https://kubernetes.io/docs/tasks/debug/debug-application/debug-running-pod/

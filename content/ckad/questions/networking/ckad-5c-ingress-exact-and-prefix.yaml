@@ -1,0 +1,220 @@
+id: ckad-5c-ingress-exact-and-prefix
+objective: "5.3.1"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    Write the manifest of an Ingress named `docs` in namespace `kb`, handled by the IngressClass `nginx`, for host `kb.example.com`:
+
+    - the request for the path `/docs` itself (the index page) goes to Service `docs-index` on port 80;
+    - every other request whose path starts with the segment `/docs` (`/docs/`, `/docs/intro`, `/docs/api/v2`…) goes to Service `docs` on port 8080;
+    - requests for other paths, such as `/about`, must not be routed by this Ingress.
+
+    Use the path `/docs` in both entries.
+body:
+  starter: |
+    apiVersion: networking.k8s.io/v1
+    kind: Ingress
+    metadata:
+      name: docs
+      namespace: kb
+    spec:
+answer:
+  checks:
+  - id: kind
+    label: The object is a networking.k8s.io/v1 Ingress
+    path: apiVersion
+    op: equals
+    value: networking.k8s.io/v1
+  - id: meta
+    label: It is named docs in namespace kb
+    path: metadata
+    op: subset
+    value: {name: docs, namespace: kb}
+  - id: class
+    label: ingressClassName is nginx
+    path: spec.ingressClassName
+    op: equals
+    value: nginx
+  - id: exact
+    label: Path /docs with pathType Exact goes to docs-index:80
+    path: spec.rules[host=kb.example.com].http.paths
+    op: contains
+    value: {path: /docs, pathType: Exact, backend: {service: {name: docs-index, port: {number: 80}}}}
+  - id: prefix
+    label: Path /docs with pathType Prefix goes to docs:8080
+    path: spec.rules[host=kb.example.com].http.paths
+    op: contains
+    value: {path: /docs, pathType: Prefix, backend: {service: {name: docs, port: {number: 8080}}}}
+  - id: only-two
+    label: The host has only these two paths
+    path: spec.rules[host=kb.example.com].http.paths
+    op: length
+    value: 2
+  - id: no-default
+    label: No default backend catches the other paths
+    path: spec.defaultBackend
+    op: absent
+  solution:
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: docs
+        namespace: kb
+      spec:
+        ingressClassName: nginx
+        rules:
+        - host: kb.example.com
+          http:
+            paths:
+            - path: /docs
+              pathType: Exact
+              backend:
+                service:
+                  name: docs-index
+                  port:
+                    number: 80
+            - path: /docs
+              pathType: Prefix
+              backend:
+                service:
+                  name: docs
+                  port:
+                    number: 8080
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: docs
+        namespace: kb
+      spec:
+        ingressClassName: nginx
+        rules:
+        - host: kb.example.com
+          http:
+            paths:
+            - pathType: Prefix
+              path: /docs
+              backend:
+                service: {name: docs, port: {number: 8080}}
+            - pathType: Exact
+              path: /docs
+              backend:
+                service: {name: docs-index, port: {number: 80}}
+  negatives:
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: docs
+        namespace: kb
+      spec:
+        ingressClassName: nginx
+        rules:
+        - host: kb.example.com
+          http:
+            paths:
+            - path: /docs
+              pathType: Prefix
+              backend:
+                service:
+                  name: docs-index
+                  port:
+                    number: 80
+            - path: /docs
+              pathType: Prefix
+              backend:
+                service:
+                  name: docs
+                  port:
+                    number: 8080
+    why: Two Prefix paths /docs match exactly the same requests, so nothing sends the index page alone to docs-index. Only an Exact path wins over an equal Prefix path.
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: docs
+        namespace: kb
+      spec:
+        ingressClassName: nginx
+        rules:
+        - host: kb.example.com
+          http:
+            paths:
+            - path: /docs
+              pathType: Prefix
+              backend:
+                service:
+                  name: docs-index
+                  port:
+                    number: 80
+            - path: /docs
+              pathType: Exact
+              backend:
+                service:
+                  name: docs
+                  port:
+                    number: 8080
+    why: The types are swapped. /docs goes to docs, and every page below /docs goes to docs-index.
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: docs
+        namespace: kb
+      spec:
+        ingressClassName: nginx
+        rules:
+        - host: kb.example.com
+          http:
+            paths:
+            - path: /docs
+              pathType: Exact
+              backend:
+                service:
+                  name: docs-index
+                  port:
+                    number: 80
+            - path: /
+              pathType: Prefix
+              backend:
+                service:
+                  name: docs
+                  port:
+                    number: 8080
+    why: Prefix / matches every path, so /about is also sent to docs; the task allows only paths under /docs.
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: docs
+        namespace: kb
+      spec:
+        ingressClassName: nginx
+        rules:
+        - host: kb.example.com
+          http:
+            paths:
+            - path: /docs
+              pathType: ImplementationSpecific
+              backend:
+                service:
+                  name: docs-index
+                  port:
+                    number: 80
+            - path: /docs
+              pathType: Prefix
+              backend:
+                service:
+                  name: docs
+                  port:
+                    number: 8080
+    why: With ImplementationSpecific, matching is up to the IngressClass; nothing guarantees that only the exact path /docs reaches docs-index.
+explanation:
+  correct:
+    en: 'When several paths match a request, the longest matching path wins, and between equally long paths `Exact` wins over `Prefix`. So the request `/docs` goes to the `Exact` entry, while `/docs/` and `/docs/intro` match only the `Prefix` entry, which works element by element on the `/`-separated path. The rule has no `/` path and the Ingress no default backend, so `/about` is not routed.'
+references:
+- title: Ingress
+  url: https://kubernetes.io/docs/concepts/services-networking/ingress/

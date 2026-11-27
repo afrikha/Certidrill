@@ -1,0 +1,76 @@
+id: cka-4f-helm-install-cert-manager
+objective: "4.6.1"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    The chart repository `https://charts.jetstack.io` is registered in your Helm client as `jetstack`. Using `helm install`, install cert-manager as a cluster component:
+
+    - release `cert-manager`, chart `jetstack/cert-manager`, chart version `v1.21.3`;
+    - in namespace `cert-manager`, which does not exist yet and must be created by the same command;
+    - the chart must also install the cert-manager CRDs, which it does when the value `crds.enabled` is `true`.
+
+    Type the single command you would run.
+body:
+  mode: invocation
+  tools: [helm]
+  namespace: default
+answer:
+  checks:
+  - id: install
+    label: Uses helm install
+    path: verb
+    op: equals
+    value: install
+  - id: release
+    label: The release is named cert-manager
+    path: args[0]
+    op: equals
+    value: cert-manager
+  - id: chart
+    label: Installs the cert-manager chart of Jetstack
+    path: args[1]
+    op: oneOf
+    value: [jetstack/cert-manager, oci://quay.io/jetstack/charts/cert-manager]
+  - id: version
+    label: Pins chart version v1.21.3
+    path: flags.version
+    op: oneOf
+    value: [v1.21.3, 1.21.3]
+  - id: namespace
+    label: Installs into namespace cert-manager
+    path: flags.namespace
+    op: equals
+    value: cert-manager
+  - id: create-namespace
+    label: Creates the namespace (--create-namespace)
+    path: flags.create-namespace
+    op: equals
+    value: true
+  - id: crds
+    label: Sets crds.enabled=true
+    path: flags.set
+    op: contains
+    value: crds.enabled=true
+  solution:
+  - command: helm install cert-manager jetstack/cert-manager --namespace cert-manager --create-namespace --version v1.21.3 --set crds.enabled=true
+  - command: helm install cert-manager jetstack/cert-manager -n cert-manager --create-namespace --version=v1.21.3 --set=crds.enabled=true
+  - command: helm install cert-manager oci://quay.io/jetstack/charts/cert-manager --version v1.21.3 --namespace cert-manager --create-namespace --set crds.enabled=true
+  negatives:
+  - command: helm install cert-manager jetstack/cert-manager --namespace cert-manager --version v1.21.3 --set crds.enabled=true
+    why: Without --create-namespace the install fails because the namespace cert-manager does not exist.
+  - command: helm install cert-manager jetstack/cert-manager --namespace cert-manager --create-namespace --version v1.21.3
+    why: Without crds.enabled=true the chart does not install the CRDs (Certificate, Issuer…), which the task requires.
+  - command: helm install jetstack/cert-manager cert-manager --namespace cert-manager --create-namespace --version v1.21.3 --set crds.enabled=true
+    why: The release name comes first, then the chart; here Helm would look for a chart named cert-manager in the working directory.
+  - command: helm install cert-manager jetstack/cert-manager --create-namespace --version v1.21.3 --set crds.enabled=true
+    why: Without --namespace the release and its objects go to the namespace of the context, default.
+explanation:
+  correct:
+    en: '`helm install RELEASE CHART` takes the release name first; `--namespace` selects the release namespace and `--create-namespace` creates it if it is missing. `--version` pins the chart version (otherwise the latest is used) and `--set crds.enabled=true` makes the cert-manager chart install its CRDs. cert-manager also publishes the same chart as an OCI artifact, `oci://quay.io/jetstack/charts/cert-manager`, which its documentation recommends.'
+references:
+- title: Helm - cert-manager Documentation
+  url: https://cert-manager.io/docs/installation/helm/
+- title: helm install
+  url: https://helm.sh/docs/helm/helm_install/

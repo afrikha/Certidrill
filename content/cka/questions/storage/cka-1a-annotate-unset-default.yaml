@@ -1,0 +1,106 @@
+id: cka-1a-annotate-unset-default
+objective: "1.1.1"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    `kubectl get sc` shows both `standard (default)` and `fast-ssd (default)`. Claims that name no class must use `fast-ssd` only. The class `standard` must stay in the cluster, but it must no longer be a default class. Its manifest is in `standard-sc.yaml`.
+
+    With a single `kubectl annotate` command, set the default-class annotation of `standard` to `false`. Type the command you would run.
+body:
+  mode: object
+  namespace: default
+  files:
+  - name: standard-sc.yaml
+    content: |
+      apiVersion: storage.k8s.io/v1
+      kind: StorageClass
+      metadata:
+        name: standard
+        annotations:
+          storageclass.kubernetes.io/is-default-class: "true"
+      provisioner: csi.example.com
+      reclaimPolicy: Delete
+      volumeBindingMode: Immediate
+answer:
+  checks:
+  - id: kind
+    label: The object is a StorageClass
+    path: kind
+    op: equals
+    value: StorageClass
+  - id: name
+    label: It is the class standard
+    path: metadata.name
+    op: equals
+    value: standard
+  - id: default-false
+    label: storageclass.kubernetes.io/is-default-class is "false"
+    path: metadata.annotations["storageclass.kubernetes.io/is-default-class"]
+    op: equals
+    value: "false"
+  - id: provisioner
+    label: The class itself is unchanged (provisioner csi.example.com)
+    path: provisioner
+    op: equals
+    value: csi.example.com
+  solution:
+  - command: kubectl annotate storageclass standard storageclass.kubernetes.io/is-default-class=false --overwrite
+    output: |
+      apiVersion: storage.k8s.io/v1
+      kind: StorageClass
+      metadata:
+        annotations:
+          storageclass.kubernetes.io/is-default-class: "false"
+        name: standard
+      provisioner: csi.example.com
+      reclaimPolicy: Delete
+      volumeBindingMode: Immediate
+  - command: k annotate --overwrite sc/standard storageclass.kubernetes.io/is-default-class="false"
+    output: |
+      apiVersion: storage.k8s.io/v1
+      kind: StorageClass
+      metadata:
+        annotations:
+          storageclass.kubernetes.io/is-default-class: "false"
+        name: standard
+      provisioner: csi.example.com
+      reclaimPolicy: Delete
+      volumeBindingMode: Immediate
+  negatives:
+  - command: kubectl annotate storageclass standard storageclass.beta.kubernetes.io/is-default-class=false --overwrite
+    why: This adds the old beta annotation; storageclass.kubernetes.io/is-default-class stays "true", so standard is still a default.
+    output: |
+      apiVersion: storage.k8s.io/v1
+      kind: StorageClass
+      metadata:
+        annotations:
+          storageclass.beta.kubernetes.io/is-default-class: "false"
+          storageclass.kubernetes.io/is-default-class: "true"
+        name: standard
+      provisioner: csi.example.com
+      reclaimPolicy: Delete
+      volumeBindingMode: Immediate
+  - command: kubectl annotate storageclass standard is-default-class=false --overwrite
+    why: The key needs its storageclass.kubernetes.io/ prefix; this adds an unrelated annotation and leaves the real one "true".
+    output: |
+      apiVersion: storage.k8s.io/v1
+      kind: StorageClass
+      metadata:
+        annotations:
+          is-default-class: "false"
+          storageclass.kubernetes.io/is-default-class: "true"
+        name: standard
+      provisioner: csi.example.com
+      reclaimPolicy: Delete
+      volumeBindingMode: Immediate
+explanation:
+  correct:
+    en: |-
+      `kubectl annotate sc standard storageclass.kubernetes.io/is-default-class=false --overwrite` turns the default flag off; any value other than `"true"` means "not default". The annotation already exists, so kubectl refuses to change it without `--overwrite`. Removing it (`storageclass.kubernetes.io/is-default-class-`) would also work. With two defaults, a claim without a class gets the most recently created one, so keep exactly one.
+references:
+- title: kubectl annotate
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_annotate/
+- title: Change the default StorageClass
+  url: https://kubernetes.io/docs/tasks/administer-cluster/change-default-storage-class/

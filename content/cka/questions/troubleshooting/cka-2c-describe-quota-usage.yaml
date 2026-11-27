@@ -1,0 +1,60 @@
+id: cka-2c-describe-quota-usage
+objective: "2.3.2"
+difficulty: 1
+status: draft
+type: command
+stem:
+  en: |-
+    Deployment `report` in namespace `analytics` shows `2/5` ready Pods. Its ReplicaSet has this event:
+
+    ```text
+    Warning  FailedCreate  replicaset-controller  Error creating: pods "report-7d9f6c5b8-k2xqp" is forbidden: exceeded quota: compute-quota, requested: requests.cpu=500m, used: requests.cpu=3800m, limited: requests.cpu=4
+    ```
+
+    Display the ResourceQuota `compute-quota` with the amount used and the hard limit of each resource it tracks. Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Reads the quota (describe or get)
+    path: verb
+    op: oneOf
+    value: [describe, get]
+  - id: resource
+    label: Targets a ResourceQuota
+    path: resource
+    op: equals
+    value: resourcequota
+  - id: name
+    label: Names the quota compute-quota
+    path: names
+    op: contains
+    value: compute-quota
+  - id: namespace
+    label: Runs in namespace analytics
+    path: flags.namespace
+    op: equals
+    value: analytics
+  solution:
+  - command: kubectl describe resourcequota compute-quota -n analytics
+  - command: k describe quota compute-quota -n analytics
+  - command: kubectl get quota/compute-quota --namespace analytics -o yaml
+  negatives:
+  - command: kubectl top pod -n analytics
+    why: kubectl top shows measured usage; the quota counts the requests declared by the Pods.
+  - command: kubectl describe resourcequota compute-quota
+    why: Without -n kubectl looks for the quota in the context namespace, default.
+  - command: kubectl describe limitrange -n analytics
+    why: A LimitRange sets per-container defaults and bounds; the refusal comes from the ResourceQuota.
+explanation:
+  correct:
+    en: >-
+      `kubectl describe resourcequota compute-quota -n analytics` (short name `quota`) prints a Used and a Hard column
+      for each tracked resource; `get … -o yaml` shows the same data in `status.used` and `status.hard`. The quota
+      counts declared requests, not the usage reported by `kubectl top`: 3800m are already requested out of 4, so a Pod
+      requesting 500m is rejected with 403 Forbidden and never appears in `kubectl get pods`.
+references:
+- title: Resource Quotas
+  url: https://kubernetes.io/docs/concepts/policy/resource-quotas/

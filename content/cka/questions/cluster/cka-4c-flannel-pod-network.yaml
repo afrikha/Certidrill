@@ -1,0 +1,222 @@
+id: cka-4c-flannel-pod-network
+objective: "4.3.1"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    The control plane was initialized with `kubeadm init --pod-network-cidr=10.50.0.0/16`, because `10.244.0.0/16` overlaps a corporate network. You downloaded `kube-flannel.yml` to install Flannel as the Pod network add-on.
+
+    Before running `kubectl apply -f kube-flannel.yml`, fix its ConfigMap `kube-flannel-cfg` (below) so that Flannel uses the cluster's Pod network. Keep the VXLAN backend and the CNI configuration.
+body:
+  starter: |
+    kind: ConfigMap
+    apiVersion: v1
+    metadata:
+      name: kube-flannel-cfg
+      namespace: kube-flannel
+      labels:
+        tier: node
+        k8s-app: flannel
+        app: flannel
+    data:
+      cni-conf.json: |
+        {
+          "name": "cbr0",
+          "cniVersion": "1.0.0",
+          "plugins": [
+            {
+              "type": "flannel",
+              "delegate": {
+                "hairpinMode": true,
+                "isDefaultGateway": true
+              }
+            },
+            {
+              "type": "portmap",
+              "capabilities": {
+                "portMappings": true
+              }
+            }
+          ]
+        }
+      net-conf.json: |
+        {
+          "Network": "10.244.0.0/16",
+          "EnableNFTables": false,
+          "Backend": {
+            "Type": "vxlan"
+          }
+        }
+answer:
+  checks:
+  - id: configmap
+    label: ConfigMap kube-flannel-cfg in namespace kube-flannel
+    path: metadata
+    op: subset
+    value: {name: kube-flannel-cfg, namespace: kube-flannel}
+  - id: network
+    label: net-conf.json sets Network to 10.50.0.0/16
+    path: data["net-conf.json"]
+    op: matches
+    value: '"Network"\s*:\s*"10\.50\.0\.0/16"'
+  - id: backend
+    label: net-conf.json keeps the vxlan backend
+    path: data["net-conf.json"]
+    op: matches
+    value: '"Type"\s*:\s*"vxlan"'
+  - id: cni-conf
+    label: cni-conf.json still defines the flannel plugin
+    path: data["cni-conf.json"]
+    op: matches
+    value: '"type"\s*:\s*"flannel"'
+  solution:
+  - manifest: |
+      kind: ConfigMap
+      apiVersion: v1
+      metadata:
+        name: kube-flannel-cfg
+        namespace: kube-flannel
+        labels:
+          tier: node
+          k8s-app: flannel
+          app: flannel
+      data:
+        cni-conf.json: |
+          {
+            "name": "cbr0",
+            "cniVersion": "1.0.0",
+            "plugins": [
+              {
+                "type": "flannel",
+                "delegate": {
+                  "hairpinMode": true,
+                  "isDefaultGateway": true
+                }
+              },
+              {
+                "type": "portmap",
+                "capabilities": {
+                  "portMappings": true
+                }
+              }
+            ]
+          }
+        net-conf.json: |
+          {
+            "Network": "10.50.0.0/16",
+            "EnableNFTables": false,
+            "Backend": {
+              "Type": "vxlan"
+            }
+          }
+  negatives:
+  - manifest: |
+      kind: ConfigMap
+      apiVersion: v1
+      metadata:
+        name: kube-flannel-cfg
+        namespace: kube-flannel
+      data:
+        cni-conf.json: |
+          {
+            "name": "cbr0",
+            "cniVersion": "1.0.0",
+            "plugins": [
+              {
+                "type": "flannel",
+                "delegate": {
+                  "hairpinMode": true,
+                  "isDefaultGateway": true
+                }
+              },
+              {
+                "type": "portmap",
+                "capabilities": {
+                  "portMappings": true
+                }
+              }
+            ]
+          }
+        net-conf.json: |
+          {
+            "Network": "10.96.0.0/12",
+            "EnableNFTables": false,
+            "Backend": {
+              "Type": "vxlan"
+            }
+          }
+    why: 10.96.0.0/12 is the default Service range, not the Pod network given to kubeadm init.
+  - manifest: |
+      kind: ConfigMap
+      apiVersion: v1
+      metadata:
+        name: kube-flannel-cfg
+        namespace: kube-system
+      data:
+        cni-conf.json: |
+          {
+            "name": "cbr0",
+            "cniVersion": "1.0.0",
+            "plugins": [
+              {
+                "type": "flannel",
+                "delegate": {
+                  "hairpinMode": true,
+                  "isDefaultGateway": true
+                }
+              },
+              {
+                "type": "portmap",
+                "capabilities": {
+                  "portMappings": true
+                }
+              }
+            ]
+          }
+        net-conf.json: |
+          {
+            "Network": "10.50.0.0/16",
+            "EnableNFTables": false,
+            "Backend": {
+              "Type": "vxlan"
+            }
+          }
+    why: The Flannel DaemonSet of this manifest runs in namespace kube-flannel and reads its ConfigMap there, not in kube-system.
+  - manifest: |
+      kind: ConfigMap
+      apiVersion: v1
+      metadata:
+        name: kube-flannel-cfg
+        namespace: kube-flannel
+      data:
+        cni-conf.json: |
+          {
+            "name": "cbr0",
+            "cniVersion": "1.0.0",
+            "Network": "10.50.0.0/16",
+            "plugins": [
+              {
+                "type": "flannel",
+                "delegate": {
+                  "hairpinMode": true,
+                  "isDefaultGateway": true
+                }
+              }
+            ]
+          }
+        net-conf.json: |
+          {
+            "Network": "10.244.0.0/16",
+            "EnableNFTables": false,
+            "Backend": {
+              "Type": "vxlan"
+            }
+          }
+    why: Flannel reads its network from net-conf.json, which still says 10.244.0.0/16; cni-conf.json is the CNI plugin configuration.
+explanation:
+  correct:
+    en: 'The Pod network of the CNI plugin must match `--pod-network-cidr` (or `networking.podSubnet`). Flannel expects `10.244.0.0/16` by default; for another range, edit `"Network"` in `net-conf.json` of the `kube-flannel-cfg` ConfigMap before applying the manifest. With `--pod-network-cidr`, the controller manager allocates a Pod CIDR to each node from that range, and Flannel (`--kube-subnet-mgr`) uses it. Only one Pod network can be installed per cluster.'
+references:
+- title: Creating a cluster with kubeadm
+  url: https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm/

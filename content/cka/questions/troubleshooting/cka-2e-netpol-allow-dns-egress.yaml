@@ -1,0 +1,248 @@
+id: cka-2e-netpol-allow-dns-egress
+objective: "2.5.2"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    In namespace `payments`, `kubectl run tmp --rm -it --restart=Never --image=busybox:1.37 -n payments -- nslookup kubernetes.default` ends with `;; connection timed out; no servers could be reached`. The same command works from namespace `default`. CoreDNS runs and its Pods carry the label `k8s-app=kube-dns` in namespace `kube-system`. The NetworkPolicies of `payments` are in `policies.yaml`.
+
+    Write a NetworkPolicy named `allow-dns` in namespace `payments` that lets every Pod of the namespace reach the CoreDNS Pods (and only them) on port 53, over UDP and TCP. Write both protocols explicitly.
+body:
+  starter: ""
+  files:
+  - name: policies.yaml
+    content: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: default-deny-egress
+        namespace: payments
+      spec:
+        podSelector: {}
+        policyTypes:
+        - Egress
+      ---
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: allow-db-egress
+        namespace: payments
+      spec:
+        podSelector:
+          matchLabels:
+            app: api
+        policyTypes:
+        - Egress
+        egress:
+        - to:
+          - podSelector:
+              matchLabels:
+                app: postgres
+          ports:
+          - protocol: TCP
+            port: 5432
+answer:
+  checks:
+  - id: policy
+    label: The NetworkPolicy allow-dns in namespace payments
+    path: metadata
+    op: subset
+    value: {name: allow-dns, namespace: payments}
+  - id: kind
+    label: The object is a NetworkPolicy
+    path: kind
+    op: equals
+    value: NetworkPolicy
+  - id: all-pods
+    label: It applies to every Pod of the namespace (empty podSelector)
+    path: spec.podSelector
+    op: length
+    value: 0
+  - id: egress-type
+    label: It is an Egress policy
+    path: spec.policyTypes
+    op: contains
+    value: Egress
+  - id: to-coredns
+    label: The destination is the k8s-app=kube-dns Pods of namespace kube-system (one to entry with both selectors)
+    path: spec.egress
+    op: contains
+    value:
+      to:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: kube-system
+        podSelector:
+          matchLabels:
+            k8s-app: kube-dns
+  - id: udp
+    label: UDP port 53 is allowed
+    path: spec.egress
+    op: contains
+    value:
+      ports:
+      - protocol: UDP
+        port: 53
+  - id: tcp
+    label: TCP port 53 is allowed
+    path: spec.egress
+    op: contains
+    value:
+      ports:
+      - protocol: TCP
+        port: 53
+  solution:
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: allow-dns
+        namespace: payments
+      spec:
+        podSelector: {}
+        policyTypes:
+        - Egress
+        egress:
+        - to:
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: kube-system
+            podSelector:
+              matchLabels:
+                k8s-app: kube-dns
+          ports:
+          - protocol: UDP
+            port: 53
+          - protocol: TCP
+            port: 53
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: allow-dns
+        namespace: payments
+      spec:
+        podSelector: {}
+        policyTypes: [Egress]
+        egress:
+        - ports:
+          - {port: 53, protocol: UDP}
+          to:
+          - podSelector:
+              matchLabels: {k8s-app: kube-dns}
+            namespaceSelector:
+              matchLabels: {kubernetes.io/metadata.name: kube-system}
+        - ports:
+          - {port: 53, protocol: TCP}
+          to:
+          - podSelector:
+              matchLabels: {k8s-app: kube-dns}
+            namespaceSelector:
+              matchLabels: {kubernetes.io/metadata.name: kube-system}
+  negatives:
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: allow-dns
+        namespace: payments
+      spec:
+        podSelector: {}
+        policyTypes:
+        - Egress
+        egress:
+        - to:
+          - podSelector:
+              matchLabels:
+                k8s-app: kube-dns
+          ports:
+          - protocol: UDP
+            port: 53
+          - protocol: TCP
+            port: 53
+    why: A podSelector alone selects Pods in the policy's own namespace, payments, where no CoreDNS Pod runs.
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: allow-dns
+        namespace: payments
+      spec:
+        podSelector: {}
+        policyTypes:
+        - Egress
+        egress:
+        - to:
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: kube-system
+          - podSelector:
+              matchLabels:
+                k8s-app: kube-dns
+          ports:
+          - protocol: UDP
+            port: 53
+          - protocol: TCP
+            port: 53
+    why: Two separate to entries are ORed; this allows port 53 to every Pod of kube-system, not only the CoreDNS Pods.
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: allow-dns
+        namespace: payments
+      spec:
+        podSelector: {}
+        policyTypes:
+        - Egress
+        egress:
+        - to:
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: kube-system
+            podSelector:
+              matchLabels:
+                k8s-app: kube-dns
+          ports:
+          - protocol: UDP
+            port: 53
+    why: Without TCP port 53, answers too large for UDP, which resolvers retry over TCP, still fail.
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: allow-dns
+        namespace: payments
+      spec:
+        podSelector:
+          matchLabels:
+            app: api
+        policyTypes:
+        - Egress
+        egress:
+        - to:
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: kube-system
+            podSelector:
+              matchLabels:
+                k8s-app: kube-dns
+          ports:
+          - protocol: UDP
+            port: 53
+          - protocol: TCP
+            port: 53
+    why: Selecting app=api only fixes DNS for the api Pods; the other Pods of payments, such as the test Pod, still time out.
+explanation:
+  correct:
+    en: >-
+      The `default-deny-egress` policy selects every Pod of `payments` and allows no egress, which also blocks DNS. The
+      new policy selects all Pods (`podSelector: {}`) and allows egress on UDP and TCP 53 to one `to` entry combining
+      `namespaceSelector` (the immutable `kubernetes.io/metadata.name: kube-system` label) and `podSelector`
+      (`k8s-app: kube-dns`): in a single entry both must match. As separate entries they would be ORed.
+references:
+- title: Network Policies
+  url: https://kubernetes.io/docs/concepts/services-networking/network-policies/
+- title: Debugging DNS Resolution
+  url: https://kubernetes.io/docs/tasks/administer-cluster/dns-debugging-resolution/

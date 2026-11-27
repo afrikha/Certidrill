@@ -1,0 +1,304 @@
+id: cka-3b-config-and-tls-volumes
+objective: "3.2.2"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    Complete Deployment `gateway` in namespace `shop` (container `proxy`) with two volumes:
+
+    - volume `config` from ConfigMap `gateway-config`, mounted as the directory `/etc/gateway`; changes to the ConfigMap must reach the running Pods without a restart;
+    - volume `tls` from Secret `gateway-tls` (keys `tls.crt` and `tls.key`), exposing only the key `tls.key` as the file `/etc/gateway-tls/server.key`, with `defaultMode` 0400; mount it read-only.
+body:
+  starter: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: gateway
+      namespace: shop
+    spec:
+      replicas: 2
+      selector:
+        matchLabels:
+          app: gateway
+      template:
+        metadata:
+          labels:
+            app: gateway
+        spec:
+          containers:
+          - name: proxy
+            image: registry.example.com/shop/gateway:3.2
+answer:
+  checks:
+  - id: cm-volume
+    label: Volume config comes from ConfigMap gateway-config
+    path: spec.template.spec.volumes[name=config].configMap.name
+    op: equals
+    value: gateway-config
+  - id: cm-mount
+    label: Volume config is mounted at /etc/gateway
+    path: spec.template.spec.containers[name=proxy].volumeMounts[name=config].mountPath
+    op: equals
+    value: /etc/gateway
+  - id: cm-no-subpath
+    label: The config mount does not use subPath (it would block updates)
+    path: spec.template.spec.containers[name=proxy].volumeMounts[name=config].subPath
+    op: absent
+  - id: secret-volume
+    label: Volume tls comes from Secret gateway-tls
+    path: spec.template.spec.volumes[name=tls].secret.secretName
+    op: equals
+    value: gateway-tls
+  - id: secret-item
+    label: Key tls.key is projected as server.key
+    path: spec.template.spec.volumes[name=tls].secret.items
+    op: contains
+    value: {key: tls.key, path: server.key}
+  - id: secret-one-item
+    label: No other key is projected
+    path: spec.template.spec.volumes[name=tls].secret.items
+    op: length
+    value: 1
+  - id: secret-mode
+    label: defaultMode is 0400
+    path: spec.template.spec.volumes[name=tls].secret.defaultMode
+    op: oneOf
+    value: [256, 400]
+  - id: tls-mount
+    label: Volume tls is mounted at /etc/gateway-tls
+    path: spec.template.spec.containers[name=proxy].volumeMounts[name=tls].mountPath
+    op: oneOf
+    value: [/etc/gateway-tls, /etc/gateway-tls/]
+  - id: tls-ro
+    label: The tls mount is read-only
+    path: spec.template.spec.containers[name=proxy].volumeMounts[name=tls].readOnly
+    op: equals
+    value: true
+  solution:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: gateway
+        namespace: shop
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: gateway
+        template:
+          metadata:
+            labels:
+              app: gateway
+          spec:
+            containers:
+            - name: proxy
+              image: registry.example.com/shop/gateway:3.2
+              volumeMounts:
+              - name: config
+                mountPath: /etc/gateway
+              - name: tls
+                mountPath: /etc/gateway-tls
+                readOnly: true
+            volumes:
+            - name: config
+              configMap:
+                name: gateway-config
+            - name: tls
+              secret:
+                secretName: gateway-tls
+                defaultMode: 0400
+                items:
+                - key: tls.key
+                  path: server.key
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: gateway
+        namespace: shop
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: gateway
+        template:
+          metadata:
+            labels:
+              app: gateway
+          spec:
+            volumes:
+            - name: tls
+              secret:
+                secretName: gateway-tls
+                items:
+                - path: server.key
+                  key: tls.key
+                defaultMode: 256
+            - name: config
+              configMap:
+                name: gateway-config
+            containers:
+            - name: proxy
+              image: registry.example.com/shop/gateway:3.2
+              volumeMounts:
+              - name: tls
+                readOnly: true
+                mountPath: /etc/gateway-tls/
+              - name: config
+                mountPath: /etc/gateway
+  negatives:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: gateway
+        namespace: shop
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: gateway
+        template:
+          metadata:
+            labels:
+              app: gateway
+          spec:
+            containers:
+            - name: proxy
+              image: registry.example.com/shop/gateway:3.2
+              volumeMounts:
+              - name: config
+                mountPath: /etc/gateway/gateway.yaml
+                subPath: gateway.yaml
+              - name: tls
+                mountPath: /etc/gateway-tls
+                readOnly: true
+            volumes:
+            - name: config
+              configMap:
+                name: gateway-config
+            - name: tls
+              secret:
+                secretName: gateway-tls
+                defaultMode: 0400
+                items:
+                - key: tls.key
+                  path: server.key
+    why: A subPath mount never receives ConfigMap updates, and it mounts one file instead of the directory.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: gateway
+        namespace: shop
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: gateway
+        template:
+          metadata:
+            labels:
+              app: gateway
+          spec:
+            containers:
+            - name: proxy
+              image: registry.example.com/shop/gateway:3.2
+              volumeMounts:
+              - name: config
+                mountPath: /etc/gateway
+              - name: tls
+                mountPath: /etc/gateway-tls
+                readOnly: true
+            volumes:
+            - name: config
+              configMap:
+                name: gateway-config
+            - name: tls
+              secret:
+                secretName: gateway-tls
+                defaultMode: 0400
+    why: Without items, both keys are projected under their own names (tls.crt and tls.key); there is no server.key file.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: gateway
+        namespace: shop
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: gateway
+        template:
+          metadata:
+            labels:
+              app: gateway
+          spec:
+            containers:
+            - name: proxy
+              image: registry.example.com/shop/gateway:3.2
+              volumeMounts:
+              - name: config
+                mountPath: /etc/gateway
+              - name: tls
+                mountPath: /etc/gateway-tls
+                readOnly: true
+            volumes:
+            - name: config
+              configMap:
+                name: gateway-config
+            - name: tls
+              secret:
+                name: gateway-tls
+                defaultMode: 0400
+                items:
+                - key: tls.key
+                  path: server.key
+    why: A secret volume names its Secret with secretName; name is the field of a configMap volume.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: gateway
+        namespace: shop
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: gateway
+        template:
+          metadata:
+            labels:
+              app: gateway
+          spec:
+            containers:
+            - name: proxy
+              image: registry.example.com/shop/gateway:3.2
+              volumeMounts:
+              - name: config
+                mountPath: /etc/gateway
+              - name: tls
+                mountPath: /etc/gateway-tls
+                readOnly: true
+            volumes:
+            - name: config
+              configMap:
+                name: gateway-config
+            - name: tls
+              secret:
+                secretName: gateway-tls
+                items:
+                - key: tls.key
+                  path: server.key
+    why: Without defaultMode the file gets the default permissions 0644, readable by every user in the container.
+explanation:
+  correct:
+    en: 'A ConfigMap mounted as a whole directory is refreshed by the kubelet after a delay; a `subPath` mount never is. In a `secret` volume, `secretName` names the Secret, `items` projects only the listed keys under the given `path`, and `defaultMode: 0400` (octal in YAML, 256 in JSON) replaces the default 0644. `readOnly: true` goes on the volumeMount.'
+references:
+- title: Distribute Credentials Securely Using Secrets
+  url: https://kubernetes.io/docs/tasks/inject-data-application/distribute-credentials-secure/
+- title: ConfigMaps
+  url: https://kubernetes.io/docs/concepts/configuration/configmap/

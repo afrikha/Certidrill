@@ -1,0 +1,248 @@
+id: cka-2e-readiness-probe-port
+objective: "2.5.1"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    Service `inventory` in namespace `shop` selects the Pods of Deployment `inventory`, but clients get no answer. The Pods are `Running` and `0/1` ready, and `diagnosis.txt` shows what you collected.
+
+    Correct the Deployment so that its Pods become ready and the Service gets serving endpoints. Keep a readiness probe on `GET /healthz`. Write the corrected manifest.
+body:
+  starter: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: inventory
+      namespace: shop
+    spec:
+      replicas: 2
+      selector:
+        matchLabels:
+          app: inventory
+      template:
+        metadata:
+          labels:
+            app: inventory
+        spec:
+          containers:
+          - name: app
+            image: registry.example.com/shop/inventory:1.9
+            ports:
+            - name: http
+              containerPort: 8080
+            readinessProbe:
+              httpGet:
+                path: /healthz
+                port: 8081
+              periodSeconds: 5
+            livenessProbe:
+              tcpSocket:
+                port: http
+              periodSeconds: 10
+  files:
+  - name: diagnosis.txt
+    content: |
+      $ kubectl logs deploy/inventory -n shop
+      2026-11-27T08:02:11Z INFO inventory 1.9 listening on :8080 (health endpoint /healthz)
+
+      $ kubectl describe pod inventory-5d8c7b9f4-q7wzn -n shop | tail -2
+        Warning  Unhealthy  4s (x40 over 3m)  kubelet  Readiness probe failed: Get "http://10.244.2.14:8081/healthz": dial tcp 10.244.2.14:8081: connect: connection refused
+
+      $ kubectl get endpointslice -n shop -l kubernetes.io/service-name=inventory -o jsonpath='{.items[0].endpoints[*].conditions}'
+      {"ready":false,"serving":false,"terminating":false} {"ready":false,"serving":false,"terminating":false}
+answer:
+  checks:
+  - id: deployment
+    label: The Deployment inventory in namespace shop
+    path: metadata
+    op: subset
+    value: {name: inventory, namespace: shop}
+  - id: probe-port
+    label: The readiness probe checks port 8080 (by number or by its name http)
+    path: spec.template.spec.containers[name=app].readinessProbe.httpGet.port
+    op: oneOf
+    value: [8080, http]
+  - id: probe-path
+    label: The readiness probe still calls /healthz
+    path: spec.template.spec.containers[name=app].readinessProbe.httpGet.path
+    op: equals
+    value: /healthz
+  - id: container-port
+    label: The container port stays 8080
+    path: spec.template.spec.containers[name=app].ports[name=http].containerPort
+    op: equals
+    value: 8080
+  - id: liveness
+    label: The liveness probe is kept
+    path: spec.template.spec.containers[name=app].livenessProbe.tcpSocket.port
+    op: oneOf
+    value: [8080, http]
+  solution:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: inventory
+        namespace: shop
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: inventory
+        template:
+          metadata:
+            labels:
+              app: inventory
+          spec:
+            containers:
+            - name: app
+              image: registry.example.com/shop/inventory:1.9
+              ports:
+              - name: http
+                containerPort: 8080
+              readinessProbe:
+                httpGet:
+                  path: /healthz
+                  port: 8080
+                periodSeconds: 5
+              livenessProbe:
+                tcpSocket:
+                  port: http
+                periodSeconds: 10
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: inventory
+        namespace: shop
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: inventory
+        template:
+          metadata:
+            labels:
+              app: inventory
+          spec:
+            containers:
+            - name: app
+              image: registry.example.com/shop/inventory:1.9
+              ports:
+              - name: http
+                containerPort: 8080
+              readinessProbe:
+                httpGet:
+                  path: /healthz
+                  port: http
+                periodSeconds: 5
+              livenessProbe:
+                tcpSocket:
+                  port: http
+                periodSeconds: 10
+  negatives:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: inventory
+        namespace: shop
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: inventory
+        template:
+          metadata:
+            labels:
+              app: inventory
+          spec:
+            containers:
+            - name: app
+              image: registry.example.com/shop/inventory:1.9
+              ports:
+              - name: http
+                containerPort: 8081
+              readinessProbe:
+                httpGet:
+                  path: /healthz
+                  port: 8081
+                periodSeconds: 5
+              livenessProbe:
+                tcpSocket:
+                  port: http
+                periodSeconds: 10
+    why: containerPort is informational; the application still listens on 8080, so the probe on 8081 keeps failing (and the liveness probe on http now fails too).
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: inventory
+        namespace: shop
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: inventory
+        template:
+          metadata:
+            labels:
+              app: inventory
+          spec:
+            containers:
+            - name: app
+              image: registry.example.com/shop/inventory:1.9
+              ports:
+              - name: http
+                containerPort: 8080
+              livenessProbe:
+                tcpSocket:
+                  port: http
+                periodSeconds: 10
+    why: Removing the readiness probe makes the Pods ready, but the task requires keeping a readiness check on /healthz.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: inventory
+        namespace: shop
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: inventory
+        template:
+          metadata:
+            labels:
+              app: inventory
+          spec:
+            containers:
+            - name: app
+              image: registry.example.com/shop/inventory:1.9
+              ports:
+              - name: http
+                containerPort: 8080
+              readinessProbe:
+                httpGet:
+                  path: /healthz
+                  port: 8081
+                periodSeconds: 5
+              livenessProbe:
+                httpGet:
+                  path: /healthz
+                  port: 8080
+                periodSeconds: 10
+    why: Only the liveness probe was changed; the readiness probe still calls port 8081, so the endpoints stay not ready.
+explanation:
+  correct:
+    en: >-
+      The EndpointSlice lists both Pods with `ready: false`, so the Service has no serving endpoint; the events show why:
+      the readiness probe calls port 8081 while the application listens on 8080. Point `readinessProbe.httpGet.port` to
+      8080 or to the named port `http`. Changing `containerPort` does not move the port the process listens on, and a
+      failing readiness probe never restarts the container: it only keeps the Pod out of the endpoints.
+references:
+- title: EndpointSlices
+  url: https://kubernetes.io/docs/concepts/services-networking/endpoint-slices/
+- title: Debug Services
+  url: https://kubernetes.io/docs/tasks/debug/debug-application/debug-service/

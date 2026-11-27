@@ -1,0 +1,113 @@
+id: ckad-3e-temp-test-pod
+objective: "3.5.2"
+difficulty: 1
+status: draft
+type: manifest
+stem:
+  en: |-
+    Write the manifest of a throwaway test Pod named `net-test` in namespace `shop` that checks Service `catalog` (port 8080) from inside the cluster:
+
+    - one container named `test`, image `busybox:1.36`, runs `wget -qO- http://catalog.shop.svc.cluster.local:8080/health` once;
+    - the Pod is never restarted after the command exits, so you can read the result with `kubectl logs net-test -n shop`.
+body:
+  starter: ""
+answer:
+  checks:
+  - id: kind
+    label: The object is a Pod
+    path: kind
+    op: equals
+    value: Pod
+  - id: pod
+    label: A Pod named net-test in namespace shop
+    path: metadata
+    op: subset
+    value: {name: net-test, namespace: shop}
+  - id: image
+    label: Container test runs busybox:1.36
+    path: spec.containers[name=test].image
+    op: equals
+    value: busybox:1.36
+  - id: wget
+    label: Runs wget against catalog on port 8080, path /health
+    path: spec.containers[name=test]
+    op: matches
+    value: 'wget.*catalog[.a-z]*:8080/health'
+  - id: restart
+    label: restartPolicy is Never
+    path: spec.restartPolicy
+    op: equals
+    value: Never
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: net-test
+        namespace: shop
+      spec:
+        restartPolicy: Never
+        containers:
+        - name: test
+          image: busybox:1.36
+          command: ["wget", "-qO-", "http://catalog.shop.svc.cluster.local:8080/health"]
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: net-test
+        namespace: shop
+      spec:
+        containers:
+        - name: test
+          image: busybox:1.36
+          command:
+          - sh
+          - -c
+          - wget -qO- http://catalog.shop.svc.cluster.local:8080/health
+        restartPolicy: Never
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: net-test
+        namespace: shop
+      spec:
+        containers:
+        - name: test
+          image: busybox:1.36
+          command: ["wget", "-qO-", "http://catalog.shop.svc.cluster.local:8080/health"]
+    why: The default restartPolicy is Always, so the container is restarted every time wget exits.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: net-test
+        namespace: shop
+      spec:
+        restartPolicy: OnFailure
+        containers:
+        - name: test
+          image: busybox:1.36
+          command: ["wget", "-qO-", "http://catalog.shop.svc.cluster.local:8080/health"]
+    why: With OnFailure a failed check is retried in a loop; the test must run once.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: net-test
+        namespace: shop
+      spec:
+        restartPolicy: Never
+        containers:
+        - name: test
+          image: busybox:1.36
+          command: ["wget", "-qO-", "http://catalog.shop.svc.cluster.local/health"]
+    why: Without :8080 wget connects to port 80, which is not the Service port.
+explanation:
+  correct:
+    en: 'A Pod with `restartPolicy: Never` runs its command once and stays Completed or Error, so its output remains readable with `kubectl logs`. The Service is reached by its DNS name `<service>.<namespace>.svc.cluster.local` on the Service port. The imperative equivalent is `kubectl run net-test -n shop --image=busybox:1.36 --restart=Never -- wget -qO- ...`.'
+references:
+- title: Debug Services
+  url: https://kubernetes.io/docs/tasks/debug/debug-application/debug-service/

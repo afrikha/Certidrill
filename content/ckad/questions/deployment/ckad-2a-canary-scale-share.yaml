@@ -1,0 +1,61 @@
+id: ckad-2a-canary-scale-share
+objective: "2.1.2"
+difficulty: 1
+status: draft
+type: command
+stem:
+  en: |-
+    In namespace `payments`, Service `checkout` selects `app: checkout`. Deployment `checkout-stable` runs 3 replicas and Deployment `checkout-canary` runs 1 replica; both sets of Pods carry `app: checkout`, so the canary gets about 25 % of the traffic.
+
+    The canary looks healthy. Raise its share to about 50 % without changing `checkout-stable`.
+
+    Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Uses kubectl scale
+    path: verb
+    op: equals
+    value: scale
+  - id: resource
+    label: Targets a Deployment
+    path: resource
+    op: equals
+    value: deployment
+  - id: name
+    label: Scales checkout-canary
+    path: names
+    op: contains
+    value: checkout-canary
+  - id: replicas
+    label: Sets 3 replicas (3 canary Pods next to 3 stable Pods)
+    path: flags.replicas
+    op: equals
+    value: "3"
+  - id: namespace
+    label: Runs in namespace payments
+    path: flags.namespace
+    op: equals
+    value: payments
+  solution:
+  - command: kubectl scale deployment checkout-canary --replicas=3 -n payments
+  - command: k -n payments scale deploy/checkout-canary --replicas 3
+  - command: kubectl scale --replicas=3 deployment/checkout-canary --namespace=payments
+  negatives:
+  - command: kubectl scale deployment checkout-canary --replicas=2 -n payments
+    why: 2 canary Pods next to 3 stable Pods give 40 %, not 50 %.
+  - command: kubectl scale deployment checkout-stable --replicas=1 -n payments
+    why: This changes the stable Deployment, which the task forbids, and cuts capacity.
+  - command: kubectl scale deployment checkout-canary --replicas=3
+    why: Without -n the command looks for checkout-canary in the context namespace, default.
+explanation:
+  correct:
+    en: 'The Service spreads requests across every Pod that matches `app: checkout`, so the canary share is canary Pods divided by all Pods. With 3 stable Pods, 3 canary Pods give 3/6, about 50 %. `kubectl scale deployment checkout-canary --replicas=3 -n payments` changes only the canary; scaling does not create a new rollout revision.'
+references:
+- title: Deploy a Release Using a Canary Deployment
+  url: https://kubernetes.io/docs/tutorials/stateless-application/canary-deployment/
+- title: kubectl scale
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_scale/

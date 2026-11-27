@@ -1,0 +1,1035 @@
+chapter: 22-helm-kustomize
+questions:
+  # ------------------------------------------------------------------ 1
+  - id: ckad-qz-22-01
+    objective: "2.3.1"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        The repository `acme` is registered in your Helm client and you refreshed it a minute ago with `helm repo update`. Its index contains three versions of the chart `acme/storefront`: `2.3.0`, `2.4.0` and `3.0.0-rc.1`. The command `helm search repo acme/storefront --versions` prints only `2.4.0` and `2.3.0`.
+
+        Which command also lists `3.0.0-rc.1`?
+    body:
+      options:
+        - { id: a, text: "`helm search repo acme/storefront --versions --regexp`" }
+        - { id: b, text: "`helm search hub storefront`" }
+        - { id: c, text: "`helm search repo acme/storefront --versions --devel`" }
+        - { id: d, text: "`helm search repo acme --versions`" }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          `helm search repo` shows stable versions only, even with `--versions`. `3.0.0-rc.1` is a pre-release (release candidate), and `--devel` adds development versions (alpha, beta, rc) to the search, which is the same as the constraint `>0.0.0-0`. The local index is already current, so no other change is needed.
+      options:
+        a: { en: "`--regexp` only changes how the search term is matched (as a regular expression); pre-release versions are still filtered out." }
+        b: { en: "`helm search hub` queries Artifact Hub, not the `acme` repository registered in your client." }
+        d: { en: "Searching by repository name matches every chart of `acme`, but the stable-only filter still hides `3.0.0-rc.1`." }
+    references:
+      - title: helm search repo
+        url: https://helm.sh/docs/helm/helm_search_repo/
+
+  # ------------------------------------------------------------------ 2
+  - id: ckad-qz-22-02
+    objective: "2.4.2"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        `/opt/web/kustomization.yaml` lists `deployment.yaml` under `resources` and contains this generator, with no `generatorOptions`:
+
+        ```yaml
+        configMapGenerator:
+        - name: web-config
+          literals:
+          - LOG_LEVEL=info
+        ```
+
+        The Deployment `web` in `deployment.yaml` mounts a volume whose source is `configMap: {name: web-config}`. What does `kubectl kustomize /opt/web` print?
+    body:
+      options:
+        - { id: a, text: "A ConfigMap named `web-config-<hash>`, and a Deployment whose volume refers to `web-config-<hash>`" }
+        - { id: b, text: "A ConfigMap named `web-config-<hash>`, and a Deployment whose volume still refers to `web-config`" }
+        - { id: c, text: "A ConfigMap named `web-config`, the hash suffix being added by the API server when it is applied" }
+        - { id: d, text: "Two ConfigMaps, `web-config` and `web-config-<hash>`, so that both names can be referenced" }
+    answer: { optionId: a }
+    explanation:
+      correct:
+        en: |
+          A generator appends a hash of the content to the name of the ConfigMap it builds, and Kustomize replaces every reference to the generator name in the same build (volumes, `envFrom`, `valueFrom`) with the generated name. Because a content change produces a new name, the Pod template changes too and the Deployment rolls out.
+      options:
+        b: { en: "References inside the build are rewritten to the generated name; the Pods do not point at a ConfigMap that does not exist." }
+        c: { en: "The hash is computed by Kustomize at build time and is already in the output of `kubectl kustomize`; the API server adds nothing to the name." }
+        d: { en: "The generator produces one ConfigMap per entry, with the suffixed name only." }
+    references:
+      - title: Declarative Management of Kubernetes Objects Using Kustomize
+        url: https://kubernetes.io/docs/tasks/manage-kubernetes-objects/kustomization/
+
+  # ------------------------------------------------------------------ 3
+  - id: ckad-qz-22-03
+    objective: "2.3.3"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        `helm history web -n shop` prints (UPDATED column omitted):
+
+        ```text
+        REVISION  STATUS      CHART      APP VERSION  DESCRIPTION
+        1         superseded  web-1.4.2  1.27.0       Install complete
+        2         superseded  web-1.5.0  1.28.0       Upgrade complete
+        3         deployed    web-1.6.0  1.29.0       Upgrade complete
+        ```
+
+        You run `helm rollback web 1 -n shop` and it succeeds. What does `helm history web -n shop` show now?
+    body:
+      options:
+        - { id: a, text: "Three revisions: revision 1 is `deployed` again, revisions 2 and 3 are `superseded`" }
+        - { id: b, text: "Four revisions: revision 4 is `deployed` with chart `web-1.6.0`, because a rollback restores only the values of revision 1" }
+        - { id: c, text: "One revision: revisions 2 and 3 are deleted and revision 1 is `deployed`" }
+        - { id: d, text: "Four revisions: revision 4 is `deployed` with chart `web-1.4.2` and description `Rollback to 1`, revision 3 is `superseded`" }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          Every install, upgrade and rollback increments the revision number by one. The rollback therefore creates revision 4, which carries the chart, values and manifest of revision 1 (`web-1.4.2`) with the description `Rollback to 1`, and the previously deployed revision 3 becomes `superseded`.
+      options:
+        a: { en: "Helm never reuses a revision number: the rollback is recorded as a new revision, not by changing the status of revision 1." }
+        b: { en: "A rollback restores the whole release of revision 1, chart version included, not only its values." }
+        c: { en: "A rollback keeps the history; revisions are only pruned by the history limit (`--history-max`) or removed by `helm uninstall`." }
+    references:
+      - title: helm rollback
+        url: https://helm.sh/docs/helm/helm_rollback/
+      - title: Using Helm
+        url: https://helm.sh/docs/intro/using_helm/
+
+  # ------------------------------------------------------------------ 4
+  - id: ckad-qz-22-04
+    objective: "2.3.2"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        The release `web` in namespace `shop` was installed with:
+
+        ```bash
+        helm install web example/web -n shop --version 1.4.2 --set replicaCount=3 --set service.type=NodePort
+        ```
+
+        The chart defaults are `replicaCount: 1` and `service.type: ClusterIP`. You must change the image tag to `1.28`, stay on chart version `1.4.2`, and keep the 3 replicas and the NodePort Service. Which command should you run?
+    body:
+      options:
+        - { id: a, text: "`helm upgrade web example/web -n shop --version 1.4.2 --set image.tag=1.28`" }
+        - { id: b, text: "`helm upgrade web example/web -n shop --version 1.4.2 --reset-values --set image.tag=1.28`" }
+        - { id: c, text: "`helm upgrade --install web example/web -n shop --version 1.4.2 --set image.tag=1.28`" }
+        - { id: d, text: "`helm upgrade web example/web -n shop --version 1.4.2 --reuse-values --set image.tag=1.28`" }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          `--reuse-values` takes the values of the last release (`replicaCount=3`, `service.type=NodePort`) and merges the new `--set image.tag=1.28` on top of them. Without it, an upgrade that passes any `--set` or `-f` uses only the values given on that command line plus the chart defaults, so the earlier overrides are lost.
+      options:
+        a: { en: "Because a new `--set` is given, the values of the previous release are not carried over: the release goes back to 1 replica and a ClusterIP Service." }
+        b: { en: "`--reset-values` explicitly discards the previous values and returns to the chart's built-in ones, the opposite of what is required." }
+        c: { en: "`--install` only makes the command install the release when it does not exist; it does not change how values are handled, so the earlier overrides are still lost." }
+    references:
+      - title: helm upgrade
+        url: https://helm.sh/docs/helm/helm_upgrade/
+
+  # ------------------------------------------------------------------ 5
+  - id: ckad-qz-22-05
+    objective: "2.4.1"
+    difficulty: 2
+    status: draft
+    type: multi
+    stem:
+      en: |
+        The directory `/opt/shop` contains `deployment.yaml`, `service.yaml` and a `kustomization.yaml` that lists them and sets `namespace: shop` and `namePrefix: prod-`. Before anything is applied, a reviewer wants to see the complete YAML that the kustomization produces, and how it differs from the objects already running in namespace `shop`. Nothing in the cluster may change.
+
+        Which two commands should you run? (Choose two.)
+    body:
+      choose: 2
+      options:
+        - { id: a, text: "`kubectl kustomize /opt/shop/kustomization.yaml`" }
+        - { id: b, text: "`kubectl diff -k /opt/shop`" }
+        - { id: c, text: "`kubectl diff -f /opt/shop`" }
+        - { id: d, text: "`kubectl kustomize /opt/shop`" }
+        - { id: e, text: "`kubectl apply -k /opt/shop`" }
+    answer: { optionIds: [b, d] }
+    explanation:
+      correct:
+        en: |
+          `kubectl kustomize DIR` renders the kustomization to standard output without contacting the cluster, which gives the reviewer the complete YAML. `kubectl diff -k DIR` builds the same kustomization and compares it with the live objects, changing nothing. Both take the directory that contains `kustomization.yaml`.
+      options:
+        a: { en: "The argument must be the directory that contains `kustomization.yaml` (or a repository URL), not the file itself." }
+        c: { en: "`-f` reads the files of the directory as plain manifests and does not run the kustomization: the namespace and the `prod-` prefix are not applied, so the comparison is made against the wrong objects." }
+        e: { en: "`apply -k` creates or updates the objects in the cluster, which the reviewer forbids." }
+    references:
+      - title: kubectl kustomize
+        url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_kustomize/
+      - title: kubectl diff
+        url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_diff/
+
+  # ------------------------------------------------------------------ 6
+  - id: ckad-qz-22-06
+    objective: "2.3.3"
+    difficulty: 3
+    status: draft
+    type: command
+    stem:
+      en: |-
+        In namespace `billing`, the Helm release `invoicer` has five revisions. An auditor asks for the Kubernetes objects, as rendered YAML, that Helm applied for **revision 3** of this release. The auditor does not want the values, the notes or the hooks, only the manifests. Your current context namespace is `default`.
+
+        Type the single command you would run.
+    body:
+      mode: invocation
+      tools: [helm]
+      namespace: default
+    answer:
+      checks:
+        - id: tool
+          label: Uses helm
+          path: tool
+          op: equals
+          value: helm
+        - id: get
+          label: Uses helm get
+          path: verb
+          op: equals
+          value: get
+        - id: manifest
+          label: Reads the applied manifests (get manifest)
+          path: args[0]
+          op: equals
+          value: manifest
+        - id: release
+          label: Targets the release invoicer
+          path: args[1]
+          op: equals
+          value: invoicer
+        - id: revision
+          label: Reads revision 3
+          path: flags.revision
+          op: equals
+          value: "3"
+        - id: namespace
+          label: Looks in namespace billing
+          path: flags.namespace
+          op: equals
+          value: billing
+      solution:
+        - command: helm get manifest invoicer --revision 3 -n billing
+        - command: helm get manifest invoicer --namespace=billing --revision=3
+        - command: helm -n billing get manifest invoicer --revision 3
+      negatives:
+        - command: helm get values invoicer --revision 3 -n billing
+          why: get values prints the values supplied for the revision, not the objects Helm applied.
+        - command: helm get manifest invoicer -n billing
+          why: Without --revision, get manifest prints the manifests of the current revision, 5.
+        - command: helm get manifest invoicer --revision 3
+          why: Without -n Helm looks for the release in the context namespace, default, and does not find it.
+        - command: helm history invoicer -n billing
+          why: history lists the revisions with their chart and status, not the manifests of one revision.
+    explanation:
+      correct:
+        en: '`helm get manifest RELEASE` prints the YAML of the Kubernetes resources generated for the release, as Helm stored it; `--revision 3` selects an older revision instead of the current one. Releases are namespaced, so `-n billing` is needed when the context namespace is `default`. `helm get values` would show the values, and `helm get all` would add values, notes and hooks to the manifests.'
+    references:
+      - title: helm get manifest
+        url: https://helm.sh/docs/helm/helm_get_manifest/
+
+  # ------------------------------------------------------------------ 7
+  - id: ckad-qz-22-07
+    objective: "2.3.2"
+    difficulty: 3
+    status: draft
+    type: command
+    stem:
+      en: |-
+        The chart `acme/storefront` is available in your Helm client. Its default values contain:
+
+        ```yaml
+        ingress:
+          enabled: false
+          hosts: []
+        ```
+
+        Using `helm install` with `--set` flags only (no values file), install chart version `4.2.0` as the release `storefront` in the existing namespace `retail`, so that the values of the release contain:
+
+        ```yaml
+        ingress:
+          enabled: true
+          hosts:
+          - host: shop.example.com
+        ```
+
+        Your current context namespace is `default`. Type the single command you would run.
+    body:
+      mode: invocation
+      tools: [helm]
+      namespace: default
+    answer:
+      checks:
+        - id: install
+          label: Uses helm install
+          path: verb
+          op: equals
+          value: install
+        - id: release
+          label: Release name storefront comes first
+          path: args[0]
+          op: equals
+          value: storefront
+        - id: chart
+          label: Chart acme/storefront comes second
+          path: args[1]
+          op: equals
+          value: acme/storefront
+        - id: version
+          label: Pins chart version 4.2.0
+          path: flags.version
+          op: equals
+          value: 4.2.0
+        - id: namespace
+          label: Installs into namespace retail
+          path: flags.namespace
+          op: equals
+          value: retail
+        - id: enabled
+          label: Sets ingress.enabled=true
+          path: flags.set
+          op: matches
+          value: 'ingress\.enabled=(true|True|TRUE)(?=$|,|")'
+        - id: host
+          label: Sets the host key of the first element of the ingress.hosts list (ingress.hosts[0].host)
+          path: flags.set
+          op: matches
+          value: 'ingress\.hosts\[0\]\.host=shop\.example\.com(?=$|,|")'
+      solution:
+        - command: helm install storefront acme/storefront --version 4.2.0 -n retail --set ingress.enabled=true --set ingress.hosts[0].host=shop.example.com
+        - command: helm install storefront acme/storefront --namespace=retail --version=4.2.0 --set 'ingress.enabled=true,ingress.hosts[0].host=shop.example.com'
+        - command: helm -n retail install storefront acme/storefront --set "ingress.hosts[0].host=shop.example.com" --set ingress.enabled=true --version 4.2.0
+      negatives:
+        - command: helm install storefront acme/storefront --version 4.2.0 -n retail --set ingress.enabled=true --set ingress.hosts.host=shop.example.com
+          why: Without the [0] index, hosts becomes a map with a host key instead of a list whose first element has a host key.
+        - command: helm install storefront acme/storefront --version 4.2.0 -n retail --set ingress.enabled=true --set ingress.hosts[0]=shop.example.com
+          why: ingress.hosts[0]=shop.example.com makes the first element the string shop.example.com, not a map with the key host.
+        - command: helm install storefront acme/storefront --version 4.2.0 -n retail --set ingress.hosts[0].host=shop.example.com
+          why: ingress.enabled keeps its default false, so the chart renders no Ingress.
+        - command: helm install storefront acme/storefront --version 4.2.0 --set ingress.enabled=true --set ingress.hosts[0].host=shop.example.com
+          why: Without -n the release is installed in the context namespace, default, instead of retail.
+    explanation:
+      correct:
+        en: '`--set` paths follow the structure of the values: `ingress.enabled=true` sets a boolean, and the index syntax `ingress.hosts[0].host=shop.example.com` creates a list whose first element is a map with the key `host`. Several `--set` flags can be given, or several pairs separated by commas in one flag. The release name comes before the chart, `--version` pins the chart version and `-n retail` puts the release in the existing namespace.'
+    references:
+      - title: Using Helm
+        url: https://helm.sh/docs/intro/using_helm/
+      - title: helm install
+        url: https://helm.sh/docs/helm/helm_install/
+
+  # ------------------------------------------------------------------ 8
+  - id: ckad-qz-22-08
+    objective: "2.4.1"
+    difficulty: 3
+    status: draft
+    type: manifest
+    stem:
+      en: |-
+        The directory `/opt/analytics` contains `namespace.yaml` (the Namespace `analytics`), `deployment.yaml` (Deployment `collector`) and `service.yaml` (Service `collector`), shown in the working directory. None of these objects exists in the cluster yet, the namespace `analytics` included. Without editing these three files, write `/opt/analytics/kustomization.yaml` so that a single `kubectl apply -k /opt/analytics` succeeds and:
+
+        - the Deployment and the Service are created in namespace `analytics`;
+        - every object carries the label `app.kubernetes.io/part-of: analytics`, also added to the Deployment selector, its Pod template and the Service selector (use the `labels` field);
+        - the container runs the image pinned by digest, `registry.example.com/analytics/collector@sha256:d85f9e01bcd5e2980f283fc36d146881964db9cbabb521b333d89d2914859c77`.
+    body:
+      starter: |
+        apiVersion: kustomize.config.k8s.io/v1beta1
+        kind: Kustomization
+      files:
+        - name: namespace.yaml
+          content: |
+            apiVersion: v1
+            kind: Namespace
+            metadata:
+              name: analytics
+        - name: deployment.yaml
+          content: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: collector
+            spec:
+              replicas: 2
+              selector:
+                matchLabels:
+                  app: collector
+              template:
+                metadata:
+                  labels:
+                    app: collector
+                spec:
+                  containers:
+                  - name: collector
+                    image: registry.example.com/analytics/collector:2.0.0
+                    ports:
+                    - containerPort: 4317
+        - name: service.yaml
+          content: |
+            apiVersion: v1
+            kind: Service
+            metadata:
+              name: collector
+            spec:
+              selector:
+                app: collector
+              ports:
+              - port: 4317
+                targetPort: 4317
+    answer:
+      checks:
+        - id: deployment
+          label: Lists deployment.yaml in resources
+          path: resources
+          op: matches
+          value: 'deployment\.yaml"'
+        - id: service
+          label: Lists service.yaml in resources
+          path: resources
+          op: matches
+          value: 'service\.yaml"'
+        - id: namespace-file
+          label: Lists namespace.yaml in resources, so that the namespace is created
+          path: resources
+          op: matches
+          value: 'namespace\.yaml"'
+        - id: namespace
+          label: Sets namespace analytics
+          path: namespace
+          op: equals
+          value: analytics
+        - id: label
+          label: Adds the label app.kubernetes.io/part-of=analytics with the labels field
+          path: labels
+          op: contains
+          value: {pairs: {"app.kubernetes.io/part-of": analytics}}
+        - id: selectors
+          label: The same labels entry also updates selectors and Pod templates (includeSelectors true)
+          path: labels
+          op: contains
+          value: {pairs: {"app.kubernetes.io/part-of": analytics}, includeSelectors: true}
+        - id: digest
+          label: Pins registry.example.com/analytics/collector to the digest
+          path: images
+          op: contains
+          value: {name: registry.example.com/analytics/collector, digest: "sha256:d85f9e01bcd5e2980f283fc36d146881964db9cbabb521b333d89d2914859c77"}
+      solution:
+        - manifest: |
+            apiVersion: kustomize.config.k8s.io/v1beta1
+            kind: Kustomization
+            namespace: analytics
+            resources:
+            - namespace.yaml
+            - deployment.yaml
+            - service.yaml
+            labels:
+            - pairs:
+                app.kubernetes.io/part-of: analytics
+              includeSelectors: true
+            images:
+            - name: registry.example.com/analytics/collector
+              digest: sha256:d85f9e01bcd5e2980f283fc36d146881964db9cbabb521b333d89d2914859c77
+        - manifest: |
+            apiVersion: kustomize.config.k8s.io/v1beta1
+            kind: Kustomization
+            resources:
+            - ./namespace.yaml
+            - ./deployment.yaml
+            - ./service.yaml
+            namespace: analytics
+            images:
+            - digest: "sha256:d85f9e01bcd5e2980f283fc36d146881964db9cbabb521b333d89d2914859c77"
+              name: registry.example.com/analytics/collector
+            labels:
+            - includeSelectors: true
+              includeTemplates: true
+              pairs:
+                "app.kubernetes.io/part-of": "analytics"
+      negatives:
+        - manifest: |
+            apiVersion: kustomize.config.k8s.io/v1beta1
+            kind: Kustomization
+            namespace: analytics
+            resources:
+            - deployment.yaml
+            - service.yaml
+            labels:
+            - pairs:
+                app.kubernetes.io/part-of: analytics
+              includeSelectors: true
+            images:
+            - name: registry.example.com/analytics/collector
+              digest: sha256:d85f9e01bcd5e2980f283fc36d146881964db9cbabb521b333d89d2914859c77
+          why: The namespace field only sets metadata.namespace; it does not create the namespace, so apply -k fails with namespace analytics not found.
+        - manifest: |
+            apiVersion: kustomize.config.k8s.io/v1beta1
+            kind: Kustomization
+            namespace: analytics
+            resources:
+            - namespace.yaml
+            - deployment.yaml
+            - service.yaml
+            labels:
+            - pairs:
+                app.kubernetes.io/part-of: analytics
+            images:
+            - name: registry.example.com/analytics/collector
+              digest: sha256:d85f9e01bcd5e2980f283fc36d146881964db9cbabb521b333d89d2914859c77
+          why: includeSelectors defaults to false, so the label is added to metadata only, not to the selectors or the Pod template.
+        - manifest: |
+            apiVersion: kustomize.config.k8s.io/v1beta1
+            kind: Kustomization
+            namespace: analytics
+            resources:
+            - namespace.yaml
+            - deployment.yaml
+            - service.yaml
+            labels:
+            - pairs:
+                app.kubernetes.io/part-of: analytics
+              includeSelectors: true
+            images:
+            - name: collector
+              digest: sha256:d85f9e01bcd5e2980f283fc36d146881964db9cbabb521b333d89d2914859c77
+          why: images[].name must match the image name of the manifest, registry.example.com/analytics/collector, not the container name; the image is left unchanged.
+        - manifest: |
+            apiVersion: kustomize.config.k8s.io/v1beta1
+            kind: Kustomization
+            namespace: analytics
+            resources:
+            - namespace.yaml
+            - deployment.yaml
+            - service.yaml
+            labels:
+            - pairs:
+                app.kubernetes.io/part-of: analytics
+              includeSelectors: true
+            images:
+            - name: registry.example.com/analytics/collector
+              newTag: sha256:d85f9e01bcd5e2980f283fc36d146881964db9cbabb521b333d89d2914859c77
+          why: newTag replaces the tag after a colon and gives collector:sha256:..., an invalid reference; a digest goes in the digest field, which produces collector@sha256:...
+    explanation:
+      correct:
+        en: 'The `namespace` field sets the namespace of every namespaced object but never creates it, so `namespace.yaml` must be listed under `resources`: Kustomize outputs the Namespace first and `apply -k` creates it before the Deployment and the Service. `labels` with `includeSelectors: true` adds the pair to metadata, selectors and Pod templates (both options default to `false`), which is safe here because nothing is deployed yet. In `images`, `name` matches the image name without its tag and `digest` replaces the tag with `@sha256:...`.'
+    references:
+      - title: Declarative Management of Kubernetes Objects Using Kustomize
+        url: https://kubernetes.io/docs/tasks/manage-kubernetes-objects/kustomization/
+
+  # ------------------------------------------------------------------ 9
+  - id: ckad-qz-22-09
+    objective: "2.4.2"
+    difficulty: 3
+    status: draft
+    type: manifest
+    stem:
+      en: |-
+        The directory `/opt/portal` contains `deployment.yaml` (Deployment `portal`, which reads the Secret `db-credentials` with `envFrom` and mounts the ConfigMap `portal-theme`), the env file `db.env` and the stylesheet `theme.css`, shown in the working directory. Write `/opt/portal/kustomization.yaml` that keeps the Deployment and generates:
+
+        - the Secret `db-credentials`, with one key per line of `db.env` (`DB_USER`, `DB_PASSWORD`); its name must keep the content-hash suffix, so that the Pods roll out when the password changes;
+        - the ConfigMap `portal-theme`, with the content of `theme.css` stored under the key `custom.css`; a job outside Kustomize reads this ConfigMap by its exact name, so its name must have no suffix.
+    body:
+      starter: |
+        apiVersion: kustomize.config.k8s.io/v1beta1
+        kind: Kustomization
+        resources:
+        - deployment.yaml
+      files:
+        - name: db.env
+          content: |
+            DB_USER=portal
+            DB_PASSWORD=Example-2026
+        - name: theme.css
+          content: |
+            body { font-family: sans-serif; }
+        - name: deployment.yaml
+          content: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: portal
+            spec:
+              selector:
+                matchLabels:
+                  app: portal
+              template:
+                metadata:
+                  labels:
+                    app: portal
+                spec:
+                  containers:
+                  - name: portal
+                    image: registry.example.com/portal:3.2.0
+                    envFrom:
+                    - secretRef:
+                        name: db-credentials
+                    volumeMounts:
+                    - name: theme
+                      mountPath: /usr/share/portal/theme
+                  volumes:
+                  - name: theme
+                    configMap:
+                      name: portal-theme
+    answer:
+      checks:
+        - id: resources
+          label: Keeps deployment.yaml in resources
+          path: resources
+          op: matches
+          value: 'deployment\.yaml"'
+        - id: secret-envs
+          label: Generates the Secret db-credentials from db.env with envs (one key per line)
+          path: secretGenerator[name=db-credentials].envs
+          op: contains
+          value: db.env
+        - id: secret-hash
+          label: The Secret db-credentials keeps its hash suffix (no disableNameSuffixHash on its entry)
+          path: secretGenerator[name=db-credentials]
+          op: matches
+          value: '^(?![\s\S]*"disableNameSuffixHash":true)'
+        - id: cm-key
+          label: Generates the ConfigMap portal-theme with theme.css under the key custom.css
+          path: configMapGenerator[name=portal-theme].files
+          op: contains
+          value: custom.css=theme.css
+        - id: cm-no-hash
+          label: The ConfigMap entry portal-theme disables the hash suffix in its own options
+          path: configMapGenerator[name=portal-theme].options.disableNameSuffixHash
+          op: equals
+          value: true
+        - id: no-global
+          label: The hash suffix is not disabled for every generator (no generatorOptions.disableNameSuffixHash)
+          path: "."
+          op: matches
+          value: '^(?![\s\S]*"generatorOptions":\{(?:[^{}]|\{[^{}]*\})*"disableNameSuffixHash":true)'
+      solution:
+        - manifest: |
+            apiVersion: kustomize.config.k8s.io/v1beta1
+            kind: Kustomization
+            resources:
+            - deployment.yaml
+            secretGenerator:
+            - name: db-credentials
+              envs:
+              - db.env
+            configMapGenerator:
+            - name: portal-theme
+              files:
+              - custom.css=theme.css
+              options:
+                disableNameSuffixHash: true
+        - manifest: |
+            apiVersion: kustomize.config.k8s.io/v1beta1
+            kind: Kustomization
+            resources:
+            - ./deployment.yaml
+            generatorOptions:
+              labels:
+                app: portal
+            configMapGenerator:
+            - name: portal-theme
+              options:
+                disableNameSuffixHash: true
+              files:
+              - custom.css=theme.css
+            secretGenerator:
+            - name: db-credentials
+              type: Opaque
+              envs:
+              - db.env
+      negatives:
+        - manifest: |
+            apiVersion: kustomize.config.k8s.io/v1beta1
+            kind: Kustomization
+            resources:
+            - deployment.yaml
+            generatorOptions:
+              disableNameSuffixHash: true
+            secretGenerator:
+            - name: db-credentials
+              envs:
+              - db.env
+            configMapGenerator:
+            - name: portal-theme
+              files:
+              - custom.css=theme.css
+          why: generatorOptions applies to every generator of the kustomization, so the Secret loses its hash too and a password change no longer rolls out the Pods.
+        - manifest: |
+            apiVersion: kustomize.config.k8s.io/v1beta1
+            kind: Kustomization
+            resources:
+            - deployment.yaml
+            secretGenerator:
+            - name: db-credentials
+              files:
+              - db.env
+            configMapGenerator:
+            - name: portal-theme
+              files:
+              - custom.css=theme.css
+              options:
+                disableNameSuffixHash: true
+          why: files stores the whole env file under one key named db.env; envFrom then gets no DB_USER or DB_PASSWORD variable.
+        - manifest: |
+            apiVersion: kustomize.config.k8s.io/v1beta1
+            kind: Kustomization
+            resources:
+            - deployment.yaml
+            secretGenerator:
+            - name: db-credentials
+              envs:
+              - db.env
+            configMapGenerator:
+            - name: portal-theme
+              files:
+              - theme.css
+              options:
+                disableNameSuffixHash: true
+          why: A file entry without a key is stored under its file name, theme.css; the key custom.css needs custom.css=theme.css.
+        - manifest: |
+            apiVersion: kustomize.config.k8s.io/v1beta1
+            kind: Kustomization
+            resources:
+            - deployment.yaml
+            secretGenerator:
+            - name: db-credentials
+              envs:
+              - db.env
+              options:
+                disableNameSuffixHash: true
+            configMapGenerator:
+            - name: portal-theme
+              files:
+              - custom.css=theme.css
+              options:
+                disableNameSuffixHash: true
+          why: The Secret entry also disables its hash, so its name never changes and a new password does not trigger a rollout.
+    explanation:
+      correct:
+        en: 'Each generator entry has an `options` field with the same subfields as `generatorOptions`; setting `disableNameSuffixHash: true` there keeps the exact name `portal-theme` for that ConfigMap only, while `generatorOptions` would apply to every generator, the Secret included. `envs` turns each `KEY=VALUE` line of `db.env` into a key, and `custom.css=theme.css` stores the file under a custom key. The Secret keeps its hash suffix and Kustomize rewrites the `secretRef` of the Deployment to the generated name, so a new password changes the Pod template and rolls out the Pods.'
+    references:
+      - title: Declarative Management of Kubernetes Objects Using Kustomize
+        url: https://kubernetes.io/docs/tasks/manage-kubernetes-objects/kustomization/
+
+  # ------------------------------------------------------------------ 10
+  - id: ckad-qz-22-10
+    objective: "2.4.3"
+    difficulty: 3
+    status: draft
+    type: manifest
+    stem:
+      en: |-
+        The base `/opt/shop/base` (its files are shown in the working directory) builds the Deployment `web`, whose first container `nginx` has a liveness probe and whose second container is `log-agent`, and the Service `web-svc`. Write the staging overlay in the editor, as two YAML documents separated by `---`:
+
+        1. `/opt/shop/overlays/staging/kustomization.yaml`: built on `../../base`; prefixes the name of every object with `staging-`; applies the strategic merge patch file `web-staging.yaml`; and, with an inline JSON 6902 patch, removes the `livenessProbe` of the first container of the Deployment;
+        2. `/opt/shop/overlays/staging/web-staging.yaml`: sets the Deployment to 2 replicas and the memory limit of container `nginx` to `256Mi`, leaving `log-agent` unchanged.
+    body:
+      starter: |
+        apiVersion: kustomize.config.k8s.io/v1beta1
+        kind: Kustomization
+        ---
+        apiVersion: apps/v1
+        kind: Deployment
+      files:
+        - name: base/kustomization.yaml
+          content: |
+            apiVersion: kustomize.config.k8s.io/v1beta1
+            kind: Kustomization
+            resources:
+            - deployment.yaml
+            - service.yaml
+        - name: base/deployment.yaml
+          content: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: web
+            spec:
+              replicas: 4
+              selector:
+                matchLabels:
+                  app: web
+              template:
+                metadata:
+                  labels:
+                    app: web
+                spec:
+                  containers:
+                  - name: nginx
+                    image: nginx:1.27
+                    livenessProbe:
+                      httpGet:
+                        path: /healthz
+                        port: 80
+                  - name: log-agent
+                    image: busybox:1.36
+                    args: ["sh", "-c", "tail -F /var/log/nginx/access.log"]
+        - name: base/service.yaml
+          content: |
+            apiVersion: v1
+            kind: Service
+            metadata:
+              name: web-svc
+            spec:
+              selector:
+                app: web
+              ports:
+              - port: 80
+    answer:
+      checks:
+        - id: base
+          label: The kustomization builds on ../../base
+          select: {kind: Kustomization}
+          path: resources
+          op: matches
+          value: '"\.\./\.\./base/?"'
+        - id: prefix
+          label: The kustomization sets namePrefix staging-
+          select: {kind: Kustomization}
+          path: namePrefix
+          op: equals
+          value: staging-
+        - id: smp-file
+          label: The kustomization applies web-staging.yaml in patches
+          select: {kind: Kustomization}
+          path: patches
+          op: matches
+          value: '"path":"(\./)?web-staging\.yaml"'
+        - id: smp-not-resource
+          label: web-staging.yaml is not listed as a resource
+          select: {kind: Kustomization}
+          path: resources
+          op: matches
+          value: '^(?![\s\S]*web-staging)'
+        - id: target
+          label: The inline patch targets the base name web
+          select: {kind: Kustomization}
+          path: patches
+          op: contains
+          value: {target: {name: web}}
+        - id: base-names
+          label: No patch refers to the prefixed name staging-web
+          select: {kind: Kustomization}
+          path: patches
+          op: matches
+          value: '^(?![\s\S]*staging-web)'
+        - id: op-remove
+          label: The inline patch uses the remove operation
+          select: {kind: Kustomization}
+          path: patches
+          op: matches
+          value: '"patch":"(?:[^"\\]|\\.)*remove'
+        - id: op-path
+          label: The inline patch removes /spec/template/spec/containers/0/livenessProbe
+          select: {kind: Kustomization}
+          path: patches
+          op: matches
+          value: '"patch":"(?:[^"\\]|\\.)*/spec/template/spec/containers/0/livenessProbe'
+        - id: smp-api
+          label: The patch file is an apps/v1 Deployment named web (the base name)
+          select: {kind: Deployment, name: web}
+          path: apiVersion
+          op: equals
+          value: apps/v1
+        - id: replicas
+          label: The patch sets 2 replicas
+          select: {kind: Deployment, name: web}
+          path: spec.replicas
+          op: equals
+          value: 2
+        - id: memory
+          label: The patch sets the memory limit of container nginx to 256Mi
+          select: {kind: Deployment, name: web}
+          path: spec.template.spec.containers[name=nginx].resources.limits.memory
+          op: quantity
+          value: 256Mi
+      solution:
+        - manifest: |
+            apiVersion: kustomize.config.k8s.io/v1beta1
+            kind: Kustomization
+            resources:
+            - ../../base
+            namePrefix: staging-
+            patches:
+            - path: web-staging.yaml
+            - target:
+                kind: Deployment
+                name: web
+              patch: |-
+                - op: remove
+                  path: /spec/template/spec/containers/0/livenessProbe
+            ---
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: web
+            spec:
+              replicas: 2
+              template:
+                spec:
+                  containers:
+                  - name: nginx
+                    resources:
+                      limits:
+                        memory: 256Mi
+        - manifest: |
+            apiVersion: kustomize.config.k8s.io/v1beta1
+            kind: Kustomization
+            namePrefix: staging-
+            resources:
+            - ../../base/
+            patches:
+            - target:
+                group: apps
+                version: v1
+                kind: Deployment
+                name: web
+              patch: '[{"op": "remove", "path": "/spec/template/spec/containers/0/livenessProbe"}]'
+            - path: web-staging.yaml
+            ---
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: web
+            spec:
+              replicas: 2
+              template:
+                spec:
+                  containers:
+                  - name: nginx
+                    resources:
+                      limits:
+                        memory: "268435456"
+      negatives:
+        - manifest: |
+            apiVersion: kustomize.config.k8s.io/v1beta1
+            kind: Kustomization
+            resources:
+            - ../../base
+            namePrefix: staging-
+            patches:
+            - path: web-staging.yaml
+            - target:
+                kind: Deployment
+                name: web
+              patch: |-
+                - op: remove
+                  path: /spec/template/spec/containers/0/livenessProbe
+            ---
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: staging-web
+            spec:
+              replicas: 2
+              template:
+                spec:
+                  containers:
+                  - name: nginx
+                    resources:
+                      limits:
+                        memory: 256Mi
+          why: Patches run before the overlay's namePrefix and match the base name; no resource is named staging-web, so the patch file matches nothing and the build fails.
+        - manifest: |
+            apiVersion: kustomize.config.k8s.io/v1beta1
+            kind: Kustomization
+            resources:
+            - ../../base
+            namePrefix: staging-
+            patches:
+            - path: web-staging.yaml
+            - target:
+                kind: Deployment
+                name: staging-web
+              patch: |-
+                - op: remove
+                  path: /spec/template/spec/containers/0/livenessProbe
+            ---
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: web
+            spec:
+              replicas: 2
+              template:
+                spec:
+                  containers:
+                  - name: nginx
+                    resources:
+                      limits:
+                        memory: 256Mi
+          why: The target is matched before the prefix is added; staging-web selects nothing, so the liveness probe is kept.
+        - manifest: |
+            apiVersion: kustomize.config.k8s.io/v1beta1
+            kind: Kustomization
+            resources:
+            - ../../base
+            namePrefix: staging-
+            patches:
+            - path: web-staging.yaml
+            - target:
+                kind: Deployment
+                name: web
+              patch: |-
+                - op: remove
+                  path: /spec/template/spec/containers/0/livenessProbe
+            ---
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: web
+            spec:
+              replicas: 2
+              template:
+                spec:
+                  containers:
+                  - name: web
+                    resources:
+                      limits:
+                        memory: 256Mi
+          why: A strategic merge patch matches containers by name; a container named web does not exist in the base, so a third container is added and nginx keeps no memory limit.
+        - manifest: |
+            apiVersion: kustomize.config.k8s.io/v1beta1
+            kind: Kustomization
+            resources:
+            - ../../base
+            namePrefix: staging-
+            patches:
+            - path: web-staging.yaml
+            - target:
+                kind: Deployment
+                name: web
+              patch: |-
+                - op: remove
+                  path: /spec/template/spec/containers/1/livenessProbe
+            ---
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: web
+            spec:
+              replicas: 2
+              template:
+                spec:
+                  containers:
+                  - name: nginx
+                    resources:
+                      limits:
+                        memory: 256Mi
+          why: JSON 6902 list indexes start at 0; index 1 is log-agent, which has no liveness probe, so the remove operation fails.
+    explanation:
+      correct:
+        en: 'The overlay lists the base in `resources`, sets `namePrefix: staging-` and puts both patches in one `patches` list. Kustomize applies patches before the prefix, so both the strategic merge patch (`metadata.name: web`) and the `target` of the JSON 6902 patch use the base name `web`, and the output is named `staging-web`. The strategic merge patch merges container `nginx` by name, leaving `log-agent` untouched, while the JSON 6902 `remove` operation needs a `target` and the list index 0 of the first container.'
+    references:
+      - title: Declarative Management of Kubernetes Objects Using Kustomize
+        url: https://kubernetes.io/docs/tasks/manage-kubernetes-objects/kustomization/

@@ -1,0 +1,55 @@
+id: cka-4c-token-print-join-command
+objective: "4.3.2"
+difficulty: 1
+status: draft
+type: command
+stem:
+  en: |-
+    The cluster was created with `kubeadm init` on `cp1` three days ago, and the bootstrap token it printed has expired. A new worker, `node04`, must join today.
+
+    On `cp1`, create a new bootstrap token and print the complete `kubeadm join` command a worker node needs. Type the single command you would run.
+body:
+  mode: invocation
+  tools: [kubeadm, kubectl]
+  namespace: default
+answer:
+  checks:
+  - id: tool
+    label: Uses kubeadm
+    path: tool
+    op: equals
+    value: kubeadm
+  - id: verb
+    label: It is a kubeadm token command
+    path: verb
+    op: equals
+    value: token
+  - id: create
+    label: Creates a token on the server (token create)
+    path: args[0]
+    op: equals
+    value: create
+  - id: print
+    label: Prints the full join command (--print-join-command)
+    path: flags.print-join-command
+    op: exists
+  - id: worker
+    label: No certificate key, so the join command is for a worker
+    path: flags.certificate-key
+    op: absent
+  solution:
+  - command: kubeadm token create --print-join-command
+  - command: sudo kubeadm token create --ttl 2h --print-join-command
+  negatives:
+  - command: kubeadm token create
+    why: Without --print-join-command, kubeadm prints only the token, not the endpoint and the CA certificate hash.
+  - command: kubeadm token list
+    why: list shows the existing tokens; it creates none, and the expired one is gone.
+  - command: kubeadm token generate
+    why: generate prints a random token but does not create it on the server, so it cannot be used to join.
+explanation:
+  correct:
+    en: 'The token created by `kubeadm init` has a 24-hour TTL. `kubeadm token create --print-join-command` creates a new bootstrap token (TTL 24h by default, `--ttl` to change it) and prints the whole `kubeadm join <endpoint> --token ... --discovery-token-ca-cert-hash sha256:...` line. Adding `--certificate-key` would print the control plane variant. `token generate` only generates a string locally.'
+references:
+- title: kubeadm token
+  url: https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-token/

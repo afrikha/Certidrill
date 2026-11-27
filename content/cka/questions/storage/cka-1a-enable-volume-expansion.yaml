@@ -1,0 +1,65 @@
+id: cka-1a-enable-volume-expansion
+objective: "1.1.2"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    Raising the request of the claim `uploads` in namespace `shop` fails:
+
+    ```text
+    Error from server (Forbidden): persistentvolumeclaims "uploads" is forbidden: only dynamically provisioned pvc can be resized and the storageclass that provisions the pvc must support resize
+    ```
+
+    The claim was provisioned dynamically from the StorageClass `standard-csi`, whose CSI driver supports expansion. Allow the claims of that class to be expanded with a single `kubectl patch` command. Type the command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Uses kubectl patch
+    path: verb
+    op: equals
+    value: patch
+  - id: resource
+    label: Patches a StorageClass
+    path: resource
+    op: equals
+    value: storageclass
+  - id: name
+    label: Names the class standard-csi
+    path: names
+    op: contains
+    value: standard-csi
+  - id: field
+    label: Sets the top-level field allowVolumeExpansion to true
+    path: flags
+    op: matches
+    value: '("\{\s*\\"allowVolumeExpansion\\":\s*true|path\\":\s*\\"/allowVolumeExpansion\\")'
+  solution:
+  - command: |-
+      kubectl patch storageclass standard-csi -p '{"allowVolumeExpansion":true}'
+  - command: |-
+      k patch sc/standard-csi --type merge --patch '{"allowVolumeExpansion": true}'
+  - command: |-
+      kubectl patch sc standard-csi --type=json -p '[{"op":"add","path":"/allowVolumeExpansion","value":true}]'
+  negatives:
+  - command: |-
+      kubectl patch storageclass standard-csi -p '{"spec":{"allowVolumeExpansion":true}}'
+    why: A StorageClass has no spec; allowVolumeExpansion is a top-level field.
+  - command: |-
+      kubectl patch pvc uploads -n shop -p '{"allowVolumeExpansion":true}'
+    why: allowVolumeExpansion belongs to the StorageClass, not to the claim.
+  - command: |-
+      kubectl patch storageclass standard-csi -p '{"volumeBindingMode":"WaitForFirstConsumer"}'
+    why: The binding mode has nothing to do with resizing, and it cannot be changed on an existing class.
+explanation:
+  correct:
+    en: |-
+      A claim can be resized only if its StorageClass has `allowVolumeExpansion: true`, and the field defaults to false. It is a top-level field of the class (there is no `spec`): `kubectl patch sc standard-csi -p '{"allowVolumeExpansion":true}'`. Then raise `spec.resources.requests.storage` on the claim again.
+references:
+- title: Storage Classes
+  url: https://kubernetes.io/docs/concepts/storage/storage-classes/
+- title: Persistent Volumes
+  url: https://kubernetes.io/docs/concepts/storage/persistent-volumes/

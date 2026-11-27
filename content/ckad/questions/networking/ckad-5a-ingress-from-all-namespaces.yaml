@@ -1,0 +1,176 @@
+id: ckad-5a-ingress-from-all-namespaces
+objective: "5.1.1"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    In namespace `platform`, the Pods labeled `app: metrics-api` serve an internal API on TCP port 8443.
+
+    Write a NetworkPolicy named `metrics-api-from-cluster` in namespace `platform` so that these Pods accept ingress on TCP port 8443 from every Pod of every namespace of the cluster, including namespaces created later, and from no address outside the cluster. Egress traffic of the `app: metrics-api` Pods must not be affected.
+body:
+  starter: |
+    apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: metrics-api-from-cluster
+      namespace: platform
+    spec:
+answer:
+  checks:
+  - id: kind
+    label: The object is a networking.k8s.io/v1 NetworkPolicy
+    path: apiVersion
+    op: equals
+    value: networking.k8s.io/v1
+  - id: meta
+    label: It is named metrics-api-from-cluster in namespace platform
+    path: metadata
+    op: subset
+    value: {name: metrics-api-from-cluster, namespace: platform}
+  - id: target
+    label: The policy selects the app=metrics-api Pods
+    path: spec.podSelector.matchLabels
+    op: equals
+    value: {app: metrics-api}
+  - id: all-namespaces
+    label: The only source is an empty namespaceSelector (every Pod of every namespace)
+    path: spec.ingress[0].from[0]
+    op: oneOf
+    value:
+    - {namespaceSelector: {}}
+    - {namespaceSelector: {}, podSelector: {}}
+  - id: one-peer
+    label: The rule has exactly one source, so no other source is allowed
+    path: spec.ingress[0].from
+    op: length
+    value: 1
+  - id: port
+    label: The rule is limited to TCP port 8443
+    path: spec.ingress[0].ports
+    op: oneOf
+    value:
+    - [{port: 8443}]
+    - [{protocol: TCP, port: 8443}]
+  - id: no-egress
+    label: policyTypes does not include Egress
+    path: spec
+    op: matches
+    value: '^(?!.*"Egress")'
+  solution:
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: metrics-api-from-cluster
+        namespace: platform
+      spec:
+        podSelector:
+          matchLabels:
+            app: metrics-api
+        policyTypes:
+        - Ingress
+        ingress:
+        - from:
+          - namespaceSelector: {}
+          ports:
+          - protocol: TCP
+            port: 8443
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: metrics-api-from-cluster
+        namespace: platform
+      spec:
+        podSelector:
+          matchLabels: {app: metrics-api}
+        ingress:
+        - ports:
+          - port: 8443
+          from:
+          - namespaceSelector: {}
+            podSelector: {}
+  negatives:
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: metrics-api-from-cluster
+        namespace: platform
+      spec:
+        podSelector:
+          matchLabels:
+            app: metrics-api
+        policyTypes:
+        - Ingress
+        ingress:
+        - from:
+          - podSelector: {}
+          ports:
+          - protocol: TCP
+            port: 8443
+    why: A podSelector without namespaceSelector selects Pods of the policy's own namespace only; Pods of the other namespaces stay blocked.
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: metrics-api-from-cluster
+        namespace: platform
+      spec:
+        podSelector:
+          matchLabels:
+            app: metrics-api
+        policyTypes:
+        - Ingress
+        ingress:
+        - ports:
+          - protocol: TCP
+            port: 8443
+    why: A rule without from matches every source, including addresses outside the cluster.
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: metrics-api-from-cluster
+        namespace: platform
+      spec:
+        podSelector:
+          matchLabels:
+            app: metrics-api
+        policyTypes:
+        - Ingress
+        ingress:
+        - from:
+          - ipBlock:
+              cidr: 0.0.0.0/0
+          ports:
+          - protocol: TCP
+            port: 8443
+    why: ipBlock 0.0.0.0/0 admits every IPv4 address, outside the cluster too; Pods are selected by label selectors, not by IP ranges.
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: metrics-api-from-cluster
+        namespace: platform
+      spec:
+        podSelector:
+          matchLabels:
+            app: metrics-api
+        policyTypes:
+        - Ingress
+        - Egress
+        ingress:
+        - from:
+          - namespaceSelector: {}
+          ports:
+          - protocol: TCP
+            port: 8443
+    why: Listing Egress with no egress rule isolates the metrics-api Pods for egress and blocks all their outgoing traffic.
+explanation:
+  correct:
+    en: 'A `namespaceSelector` that is present but empty selects every namespace, so the peer `- namespaceSelector: {}` matches every Pod of the cluster, in namespaces that exist now or later. Addresses outside the cluster match no Pod selector and stay blocked, whereas a rule without `from` (or an `ipBlock` of `0.0.0.0/0`) would admit them. Without `Egress` in `policyTypes` the outgoing traffic of the Pods is not isolated.'
+references:
+- title: Network Policies
+  url: https://kubernetes.io/docs/concepts/services-networking/network-policies/

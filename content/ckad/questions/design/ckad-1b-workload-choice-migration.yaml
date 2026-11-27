@@ -1,0 +1,125 @@
+id: ckad-1b-workload-choice-migration
+objective: "1.2.2"
+difficulty: 1
+status: draft
+type: manifest
+stem:
+  en: |-
+    For each release, a database schema migration must run once to completion in namespace `shop`; once it succeeds, nothing must start it again.
+
+    Write the manifest of the workload resource that fits, named `migrate-v7`, with one container named `migrate` running `registry.example.com/shop/migrate:7.2`.
+body:
+  starter: ""
+answer:
+  checks:
+  - id: api
+    label: Uses apiVersion batch/v1
+    path: apiVersion
+    op: equals
+    value: batch/v1
+  - id: kind
+    label: The workload is a Job
+    path: kind
+    op: equals
+    value: Job
+  - id: metadata
+    label: Named migrate-v7 in namespace shop
+    path: metadata
+    op: subset
+    value: {name: migrate-v7, namespace: shop}
+  - id: image
+    label: Container migrate runs registry.example.com/shop/migrate:7.2
+    path: spec.template.spec.containers[name=migrate].image
+    op: equals
+    value: registry.example.com/shop/migrate:7.2
+  - id: restart
+    label: restartPolicy is Never or OnFailure
+    path: spec.template.spec.restartPolicy
+    op: oneOf
+    value: [Never, OnFailure]
+  solution:
+  - manifest: |
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: migrate-v7
+        namespace: shop
+      spec:
+        template:
+          spec:
+            containers:
+            - name: migrate
+              image: registry.example.com/shop/migrate:7.2
+            restartPolicy: Never
+  - manifest: |
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: migrate-v7
+        namespace: shop
+      spec:
+        backoffLimit: 2
+        template:
+          spec:
+            restartPolicy: OnFailure
+            containers:
+            - image: registry.example.com/shop/migrate:7.2
+              name: migrate
+  negatives:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: migrate-v7
+        namespace: shop
+      spec:
+        replicas: 1
+        selector:
+          matchLabels:
+            app: migrate-v7
+        template:
+          metadata:
+            labels:
+              app: migrate-v7
+          spec:
+            containers:
+            - name: migrate
+              image: registry.example.com/shop/migrate:7.2
+    why: A Deployment keeps its Pods running and restarts the container each time the migration exits.
+  - manifest: |
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: migrate-v7
+        namespace: shop
+      spec:
+        template:
+          spec:
+            containers:
+            - name: migrate
+              image: registry.example.com/shop/migrate:7.2
+            restartPolicy: Always
+    why: A Job Pod template only accepts restartPolicy Never or OnFailure; Always is rejected.
+  - manifest: |
+      apiVersion: batch/v1
+      kind: CronJob
+      metadata:
+        name: migrate-v7
+        namespace: shop
+      spec:
+        schedule: "0 0 * * *"
+        jobTemplate:
+          spec:
+            template:
+              spec:
+                containers:
+                - name: migrate
+                  image: registry.example.com/shop/migrate:7.2
+                restartPolicy: Never
+    why: A CronJob starts a new Job on every schedule, so the migration would run again every night.
+explanation:
+  correct:
+    en: 'A Job runs Pods until the requested number of completions succeed and then stops; nothing restarts it afterwards. Its Pod template must set `restartPolicy` to `Never` or `OnFailure` (there is no default). A Deployment is for long-running processes, and a CronJob for work that repeats on a schedule.'
+references:
+- title: Jobs
+  url: https://kubernetes.io/docs/concepts/workloads/controllers/job/

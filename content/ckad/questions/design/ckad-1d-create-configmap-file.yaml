@@ -1,0 +1,113 @@
+id: ckad-1d-create-configmap-file
+objective: "1.4.1"
+difficulty: 1
+status: draft
+type: command
+stem:
+  en: |-
+    The working directory contains the file `nginx.conf`. A Pod in namespace `shop` will mount it from a ConfigMap volume.
+
+    Create the ConfigMap `nginx-conf` in namespace `shop` with a single key `nginx.conf` whose value is the content of the file. Type the single command you would run.
+body:
+  mode: object
+  namespace: default
+  files:
+  - name: nginx.conf
+    content: |
+      server {
+          listen 8080;
+          root /usr/share/nginx/html;
+      }
+answer:
+  checks:
+  - id: kind
+    label: The object is a ConfigMap
+    path: kind
+    op: equals
+    value: ConfigMap
+  - id: meta
+    label: Named nginx-conf in namespace shop
+    path: metadata
+    op: subset
+    value: {name: nginx-conf, namespace: shop}
+  - id: key
+    label: Key nginx.conf holds the file content
+    path: data["nginx.conf"]
+    op: matches
+    value: "listen 8080;"
+  - id: one-key
+    label: The ConfigMap has a single key
+    path: data
+    op: length
+    value: 1
+  solution:
+  - command: kubectl create configmap nginx-conf --from-file=nginx.conf -n shop
+    output: |
+      apiVersion: v1
+      data:
+        nginx.conf: |
+          server {
+              listen 8080;
+              root /usr/share/nginx/html;
+          }
+      kind: ConfigMap
+      metadata:
+        name: nginx-conf
+        namespace: shop
+  - command: k -n shop create cm nginx-conf --from-file=nginx.conf=nginx.conf
+    output: |
+      apiVersion: v1
+      data:
+        nginx.conf: |
+          server {
+              listen 8080;
+              root /usr/share/nginx/html;
+          }
+      kind: ConfigMap
+      metadata:
+        name: nginx-conf
+        namespace: shop
+  negatives:
+  - command: kubectl create configmap nginx-conf --from-file=default.conf=nginx.conf -n shop
+    why: The explicit key default.conf replaces the file basename; the task asks for the key nginx.conf.
+    output: |
+      apiVersion: v1
+      data:
+        default.conf: |
+          server {
+              listen 8080;
+              root /usr/share/nginx/html;
+          }
+      kind: ConfigMap
+      metadata:
+        name: nginx-conf
+        namespace: shop
+  - command: kubectl create configmap nginx-conf --from-literal=nginx.conf=nginx.conf -n shop
+    why: --from-literal stores the text "nginx.conf" itself, not the content of the file.
+    output: |
+      apiVersion: v1
+      data:
+        nginx.conf: nginx.conf
+      kind: ConfigMap
+      metadata:
+        name: nginx-conf
+        namespace: shop
+  - command: kubectl create configmap nginx-conf --from-file=nginx.conf
+    why: Without -n the ConfigMap goes to the context namespace, default, where the Pod in shop cannot use it.
+    output: |
+      apiVersion: v1
+      data:
+        nginx.conf: |
+          server {
+              listen 8080;
+              root /usr/share/nginx/html;
+          }
+      kind: ConfigMap
+      metadata:
+        name: nginx-conf
+explanation:
+  correct:
+    en: '`kubectl create configmap nginx-conf --from-file=nginx.conf -n shop` uses the file basename as the key; `--from-file=KEY=PATH` sets the key explicitly. A ConfigMap volume then exposes each key as a file, and the ConfigMap must be in the same namespace as the Pod. `--from-literal` stores the literal value and `--from-env-file` reads `key=value` lines.'
+references:
+- title: kubectl create configmap
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_create/kubectl_create_configmap/

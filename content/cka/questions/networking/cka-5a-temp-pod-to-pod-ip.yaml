@@ -1,0 +1,81 @@
+id: cka-5a-temp-pod-to-pod-ip
+objective: "5.1.2"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    Pod `api-7c4f9` of namespace `payments` runs on node `worker-2`, has the Pod IP `10.244.2.14` and serves HTTP on port 8080. You suspect that traffic between Pods on different nodes is broken, so you want to test Pod-to-Pod traffic directly, without any Service.
+
+    Start a temporary Pod named `nettest` (image `busybox:1.36`) that fetches `http://10.244.2.14:8080/healthz` with `wget`, gives up after 3 seconds, prints the result in your terminal, is never restarted and is deleted when the command exits. Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Uses kubectl run
+    path: verb
+    op: equals
+    value: run
+  - id: name
+    label: The Pod is named nettest
+    path: args
+    op: contains
+    value: nettest
+  - id: image
+    label: It runs busybox:1.36
+    path: flags.image
+    op: equals
+    value: busybox:1.36
+  - id: rm
+    label: The Pod is deleted on exit (--rm)
+    path: flags.rm
+    op: equals
+    value: true
+  - id: attach
+    label: The session is attached (-i), as --rm requires
+    path: flags.stdin
+    op: equals
+    value: true
+  - id: restart
+    label: The Pod is never restarted (--restart=Never)
+    path: flags.restart
+    op: equals
+    value: Never
+  - id: wget
+    label: The container runs wget
+    path: rest
+    op: matches
+    value: wget
+  - id: url
+    label: It calls the Pod IP 10.244.2.14 on port 8080 at /healthz
+    path: rest
+    op: matches
+    value: '(//|")10\.244\.2\.14:8080/healthz'
+  - id: timeout
+    label: wget gives up after 3 seconds
+    path: rest
+    op: matches
+    value: '"(-T3|--timeout=3)"|"(-T|--timeout)","3"|-T 3 |-T3 |--timeout=3 '
+  solution:
+  - command: kubectl run nettest --rm -it --restart=Never --image=busybox:1.36 -- wget -qO- -T 3 http://10.244.2.14:8080/healthz
+  - command: k run nettest --image busybox:1.36 --restart Never --rm -i -- wget -O- --timeout=3 10.244.2.14:8080/healthz
+  - command: kubectl run nettest -it --rm --restart=Never --image=busybox:1.36 -- sh -c "wget -qO- -T 3 http://10.244.2.14:8080/healthz"
+  negatives:
+  - command: kubectl run nettest --rm -it --restart=Never --image=busybox:1.36 -- wget -qO- -T 3 http://10.244.2.14/healthz
+    why: Without :8080 wget connects to port 80, where the Pod does not listen.
+  - command: kubectl run nettest -it --restart=Never --image=busybox:1.36 -- wget -qO- -T 3 http://10.244.2.14:8080/healthz
+    why: Without --rm the Pod nettest stays in the namespace after the test.
+  - command: kubectl run nettest --rm -it --restart=Never --image=busybox:1.36 -- wget -qO- http://10.244.2.14:8080/healthz
+    why: Without -T 3, wget waits much longer than 3 seconds when packets are dropped between nodes.
+  - command: kubectl run nettest --rm -it --image=busybox:1.36 -- wget -qO- -T 3 http://10.244.2.14:8080/healthz
+    why: Without --restart=Never the Pod has restartPolicy Always and the kubelet restarts the container after wget exits.
+explanation:
+  correct:
+    en: 'The Kubernetes network model says every Pod can reach every other Pod by its IP, on the same node or another one, without NAT; testing the Pod IP directly takes the Service and kube-proxy out of the picture. `kubectl run nettest --rm -it --restart=Never --image=busybox:1.36 -- wget -qO- -T 3 http://10.244.2.14:8080/healthz` runs one attempt and deletes the Pod (`--rm` needs an attached session, `-i`). A timeout distinguishes dropped packets (cross-node routing or CNI problem) from a refused connection (nothing listening).'
+references:
+- title: kubectl run
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_run/
+- title: Services, Load Balancing, and Networking
+  url: https://kubernetes.io/docs/concepts/services-networking/

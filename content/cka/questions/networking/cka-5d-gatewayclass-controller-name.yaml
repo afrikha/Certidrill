@@ -1,0 +1,54 @@
+id: cka-5d-gatewayclass-controller-name
+objective: "5.4.1"
+difficulty: 1
+status: draft
+type: command
+stem:
+  en: |-
+    Several Gateway API implementations are installed in the cluster. Before you write a Gateway that uses the GatewayClass `internal-lb`, you want to know which controller implements that class.
+
+    Print only the value of the `spec.controllerName` field of GatewayClass `internal-lb`. Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Uses kubectl get
+    path: verb
+    op: equals
+    value: get
+  - id: resource
+    label: Reads a GatewayClass
+    path: resource
+    op: equals
+    value: gatewayclass
+  - id: name
+    label: Reads the GatewayClass internal-lb
+    path: names
+    op: contains
+    value: internal-lb
+  - id: jsonpath
+    label: Prints only spec.controllerName with a JSONPath output
+    path: flags.output
+    op: matches
+    value: '^jsonpath=\{\.spec\.controllerName\}'
+  solution:
+  - command: kubectl get gatewayclass internal-lb -o jsonpath='{.spec.controllerName}'
+  - command: k get gc internal-lb -o=jsonpath='{.spec.controllerName}{"\n"}'
+  - command: kubectl get gatewayclasses.gateway.networking.k8s.io/internal-lb --output jsonpath="{.spec.controllerName}"
+  negatives:
+  - command: kubectl get gateway internal-lb -o jsonpath='{.spec.controllerName}'
+    why: internal-lb is a GatewayClass (cluster-scoped), not a Gateway; a Gateway only names its class in spec.gatewayClassName.
+  - command: kubectl get gatewayclass internal-lb -o jsonpath='{.spec.controller}'
+    why: spec.controller is the field of an IngressClass; a GatewayClass stores it in spec.controllerName, so this prints nothing.
+  - command: kubectl get gatewayclass internal-lb -o wide
+    why: The table also shows the controller, but with headers and other columns, not only the field value.
+explanation:
+  correct:
+    en: 'GatewayClass is a cluster-scoped resource whose `spec.controllerName` (for example `example.com/gateway-controller`) names the implementation that manages every Gateway of that class. `kubectl get gatewayclass internal-lb -o jsonpath=''{.spec.controllerName}''` prints only that value; the Gateway itself refers to the class by name in `spec.gatewayClassName`. The class status condition `Accepted` becomes `True` once that controller has accepted it.'
+references:
+- title: GatewayClass
+  url: https://gateway-api.sigs.k8s.io/api-types/gatewayclass/
+- title: Gateway API
+  url: https://kubernetes.io/docs/concepts/services-networking/gateway/

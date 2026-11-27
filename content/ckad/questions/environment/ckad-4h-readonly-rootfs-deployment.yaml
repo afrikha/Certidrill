@@ -1,0 +1,214 @@
+id: ckad-4h-readonly-rootfs-deployment
+objective: "4.8.1"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    Harden the Deployment `frontend` of namespace `web` below. For its container `frontend`:
+
+    - the container's root filesystem must be read-only;
+    - its processes must not be able to gain more privileges than their parent (for example through a setuid binary);
+    - the application still writes temporary files to `/tmp`: give it a writable `emptyDir` volume named `tmp` mounted at `/tmp`.
+
+    Write the complete Deployment.
+body:
+  starter: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: frontend
+      namespace: web
+    spec:
+      replicas: 2
+      selector:
+        matchLabels:
+          app: frontend
+      template:
+        metadata:
+          labels:
+            app: frontend
+        spec:
+          containers:
+          - name: frontend
+            image: registry.example.com/web/frontend:5.2
+            ports:
+            - containerPort: 8080
+answer:
+  checks:
+  - id: deploy
+    label: The Deployment frontend in namespace web
+    path: metadata
+    op: subset
+    value: {name: frontend, namespace: web}
+  - id: read-only
+    label: Container frontend has a read-only root filesystem
+    path: spec.template.spec.containers[name=frontend].securityContext.readOnlyRootFilesystem
+    op: equals
+    value: true
+  - id: no-escalation
+    label: Container frontend sets allowPrivilegeEscalation to false
+    path: spec.template.spec.containers[name=frontend].securityContext.allowPrivilegeEscalation
+    op: equals
+    value: false
+  - id: volume
+    label: Volume tmp is an emptyDir
+    path: spec.template.spec.volumes[name=tmp].emptyDir
+    op: exists
+  - id: mount
+    label: Container frontend mounts tmp at /tmp
+    path: spec.template.spec.containers[name=frontend].volumeMounts[name=tmp].mountPath
+    op: equals
+    value: /tmp
+  - id: image
+    label: The image is unchanged
+    path: spec.template.spec.containers[name=frontend].image
+    op: equals
+    value: registry.example.com/web/frontend:5.2
+  solution:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: frontend
+        namespace: web
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: frontend
+        template:
+          metadata:
+            labels:
+              app: frontend
+          spec:
+            containers:
+            - name: frontend
+              image: registry.example.com/web/frontend:5.2
+              ports:
+              - containerPort: 8080
+              securityContext:
+                readOnlyRootFilesystem: true
+                allowPrivilegeEscalation: false
+              volumeMounts:
+              - name: tmp
+                mountPath: /tmp
+            volumes:
+            - name: tmp
+              emptyDir: {}
+  negatives:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: frontend
+        namespace: web
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: frontend
+        template:
+          metadata:
+            labels:
+              app: frontend
+          spec:
+            securityContext:
+              readOnlyRootFilesystem: true
+              allowPrivilegeEscalation: false
+            containers:
+            - name: frontend
+              image: registry.example.com/web/frontend:5.2
+              volumeMounts:
+              - name: tmp
+                mountPath: /tmp
+            volumes:
+            - name: tmp
+              emptyDir: {}
+    why: readOnlyRootFilesystem and allowPrivilegeEscalation are container securityContext fields; the Pod securityContext has neither.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: frontend
+        namespace: web
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: frontend
+        template:
+          metadata:
+            labels:
+              app: frontend
+          spec:
+            containers:
+            - name: frontend
+              image: registry.example.com/web/frontend:5.2
+              securityContext:
+                readOnlyRootFilesystem: true
+              volumeMounts:
+              - name: tmp
+                mountPath: /tmp
+            volumes:
+            - name: tmp
+              emptyDir: {}
+    why: allowPrivilegeEscalation defaults to true when it is not set, so setuid binaries could still raise privileges.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: frontend
+        namespace: web
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: frontend
+        template:
+          metadata:
+            labels:
+              app: frontend
+          spec:
+            containers:
+            - name: frontend
+              image: registry.example.com/web/frontend:5.2
+              securityContext:
+                readOnlyRootFilesystem: true
+                allowPrivilegeEscalation: false
+    why: With a read-only root filesystem and no writable volume at /tmp, the application fails when it writes its temporary files.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: frontend
+        namespace: web
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: frontend
+        template:
+          metadata:
+            labels:
+              app: frontend
+          spec:
+            containers:
+            - name: frontend
+              image: registry.example.com/web/frontend:5.2
+              securityContext:
+                allowPrivilegeEscalation: false
+              volumeMounts:
+              - name: tmp
+                mountPath: /tmp
+                readOnly: true
+            volumes:
+            - name: tmp
+              emptyDir: {}
+    why: readOnly on a volumeMount makes that volume read-only, not the root filesystem; here /tmp is read-only and the rest of the filesystem stays writable.
+explanation:
+  correct:
+    en: '`readOnlyRootFilesystem: true` and `allowPrivilegeEscalation: false` belong to the container `securityContext` (in the Pod template of the Deployment). allowPrivilegeEscalation defaults to true; false sets `no_new_privs` on the process. A read-only root filesystem breaks applications that write files, so writable paths such as /tmp get an `emptyDir` volume.'
+references:
+- title: Configure a Security Context for a Pod or Container
+  url: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/

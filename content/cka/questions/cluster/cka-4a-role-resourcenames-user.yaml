@@ -1,0 +1,236 @@
+id: cka-4a-role-resourcenames-user
+objective: "4.1.1"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    In namespace `payments`, the user `jane` must be able to `get`, `update` and `patch` the ConfigMap named `app-settings`, and no other ConfigMap.
+
+    Write the manifests of a Role named `settings-editor` and a RoleBinding named `settings-editor` that grant this access.
+body:
+  starter: |
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: Role
+    metadata:
+      name: settings-editor
+      namespace: payments
+    rules: []
+    ---
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: RoleBinding
+    metadata:
+      name: settings-editor
+      namespace: payments
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: Role
+      name: settings-editor
+    subjects: []
+answer:
+  checks:
+  - id: role-ns
+    label: The Role settings-editor is in namespace payments
+    select: {kind: Role, name: settings-editor}
+    path: metadata.namespace
+    op: equals
+    value: payments
+  - id: role-rule
+    label: The Role allows get, update and patch on the ConfigMap app-settings only
+    select: {kind: Role, name: settings-editor}
+    path: rules
+    op: contains
+    value: {apiGroups: [""], resources: [configmaps], resourceNames: [app-settings], verbs: [get, update, patch]}
+  - id: no-unrestricted-rule
+    label: No rule grants access to every ConfigMap
+    select: {kind: Role, name: settings-editor}
+    path: rules
+    op: matches
+    value: '^\[(\{[^{}]*"resourceNames":\["app-settings"\][^{}]*\},?)+\]$'
+  - id: rb-ns
+    label: The RoleBinding settings-editor is in namespace payments
+    select: {kind: RoleBinding, name: settings-editor}
+    path: metadata.namespace
+    op: equals
+    value: payments
+  - id: rb-roleref
+    label: The RoleBinding references the Role settings-editor
+    select: {kind: RoleBinding, name: settings-editor}
+    path: roleRef
+    op: subset
+    value: {kind: Role, name: settings-editor}
+  - id: rb-subject
+    label: The RoleBinding's subject is the user jane
+    select: {kind: RoleBinding, name: settings-editor}
+    path: subjects
+    op: contains
+    value: {kind: User, name: jane}
+  solution:
+  - manifest: |
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: Role
+      metadata:
+        name: settings-editor
+        namespace: payments
+      rules:
+      - apiGroups: [""]
+        resources: ["configmaps"]
+        resourceNames: ["app-settings"]
+        verbs: ["get", "update", "patch"]
+      ---
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: RoleBinding
+      metadata:
+        name: settings-editor
+        namespace: payments
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: Role
+        name: settings-editor
+      subjects:
+      - apiGroup: rbac.authorization.k8s.io
+        kind: User
+        name: jane
+  - manifest: |
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: RoleBinding
+      metadata:
+        name: settings-editor
+        namespace: payments
+      subjects:
+      - kind: User
+        name: jane
+        apiGroup: rbac.authorization.k8s.io
+      roleRef:
+        kind: Role
+        name: settings-editor
+        apiGroup: rbac.authorization.k8s.io
+      ---
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: Role
+      metadata:
+        namespace: payments
+        name: settings-editor
+      rules:
+      - apiGroups:
+        - ""
+        resources:
+        - configmaps
+        verbs:
+        - patch
+        - update
+        - get
+        resourceNames:
+        - app-settings
+  negatives:
+  - manifest: |
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: Role
+      metadata:
+        name: settings-editor
+        namespace: payments
+      rules:
+      - apiGroups: [""]
+        resources: ["configmaps"]
+        verbs: ["get", "update", "patch"]
+      ---
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: RoleBinding
+      metadata:
+        name: settings-editor
+        namespace: payments
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: Role
+        name: settings-editor
+      subjects:
+      - apiGroup: rbac.authorization.k8s.io
+        kind: User
+        name: jane
+    why: Without resourceNames the Role covers every ConfigMap in payments.
+  - manifest: |
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: Role
+      metadata:
+        name: settings-editor
+        namespace: payments
+      rules:
+      - apiGroups: [""]
+        resources: ["configmaps"]
+        resourceNames: ["app-settings"]
+        verbs: ["get", "update", "patch"]
+      - apiGroups: [""]
+        resources: ["configmaps"]
+        verbs: ["list"]
+      ---
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: RoleBinding
+      metadata:
+        name: settings-editor
+        namespace: payments
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: Role
+        name: settings-editor
+      subjects:
+      - apiGroup: rbac.authorization.k8s.io
+        kind: User
+        name: jane
+    why: The extra rule lets jane list, and so read, every ConfigMap of the namespace.
+  - manifest: |
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: Role
+      metadata:
+        name: settings-editor
+        namespace: payments
+      rules:
+      - apiGroups: [""]
+        resources: ["configmaps"]
+        resourceNames: ["app-settings"]
+        verbs: ["get", "update", "patch"]
+      ---
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: RoleBinding
+      metadata:
+        name: settings-editor
+        namespace: payments
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: Role
+        name: settings-editor
+      subjects:
+      - kind: ServiceAccount
+        name: jane
+        namespace: payments
+    why: jane is a user; this subject is a ServiceAccount named jane, a different identity.
+  - manifest: |
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: Role
+      metadata:
+        name: settings-editor
+        namespace: payments
+      rules:
+      - apiGroups: [""]
+        resources: ["configmaps"]
+        resourceNames: ["app-settings"]
+        verbs: ["get", "update", "patch"]
+      ---
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: RoleBinding
+      metadata:
+        name: settings-editor
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: Role
+        name: settings-editor
+      subjects:
+      - apiGroup: rbac.authorization.k8s.io
+        kind: User
+        name: jane
+    why: Without a namespace the RoleBinding is created in the current namespace, default, where no Role settings-editor exists.
+explanation:
+  correct:
+    en: '`resourceNames` restricts a rule to named objects, so the Role holds one rule on `configmaps` in the core group `""` with `resourceNames: ["app-settings"]` and the verbs get, update and patch. The RoleBinding in the same namespace references it with `roleRef` (kind Role) and names the subject `kind: User`, `name: jane`. resourceNames cannot restrict `list` or `create`, which is why the task stays on get, update and patch.'
+references:
+- title: Using RBAC Authorization
+  url: https://kubernetes.io/docs/reference/access-authn-authz/rbac/

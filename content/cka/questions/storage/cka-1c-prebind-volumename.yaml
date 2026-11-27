@@ -1,0 +1,123 @@
+id: cka-1c-prebind-volumename
+objective: "1.3.1"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    The cluster has a default StorageClass. The PersistentVolume `pv-invoices` (10Gi, `ReadWriteOnce`, no `storageClassName`) holds invoices that the `finance` team must keep using.
+
+    Write the PersistentVolumeClaim `invoices` in namespace `finance` that requests 10Gi, read-write by one node, and binds to `pv-invoices` by name.
+body:
+  starter: ""
+answer:
+  checks:
+  - id: meta
+    label: A claim named invoices in namespace finance
+    path: metadata
+    op: subset
+    value: {name: invoices, namespace: finance}
+  - id: kind
+    label: The kind is PersistentVolumeClaim
+    path: kind
+    op: equals
+    value: PersistentVolumeClaim
+  - id: volume
+    label: volumeName is pv-invoices
+    path: spec.volumeName
+    op: equals
+    value: pv-invoices
+  - id: class
+    label: storageClassName is set explicitly to "" (no class)
+    path: spec.storageClassName
+    op: equals
+    value: ""
+  - id: mode
+    label: Access mode ReadWriteOnce
+    path: spec.accessModes
+    op: contains
+    value: ReadWriteOnce
+  - id: size
+    label: Requests 10Gi
+    path: spec.resources.requests.storage
+    op: quantity
+    value: 10Gi
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: invoices
+        namespace: finance
+      spec:
+        storageClassName: ""
+        volumeName: pv-invoices
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 10Gi
+  - manifest: |
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: invoices
+        namespace: finance
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 10Gi
+        storageClassName: ''
+        volumeName: pv-invoices
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: invoices
+        namespace: finance
+      spec:
+        volumeName: pv-invoices
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 10Gi
+    why: With storageClassName omitted the default class is written into the claim, which no longer matches the class-less PV and stays Pending.
+  - manifest: |
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: invoices
+        namespace: finance
+      spec:
+        storageClassName: ""
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 10Gi
+    why: Without volumeName the claim can bind to any matching class-less PV, not necessarily pv-invoices.
+  - manifest: |
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: invoices
+        namespace: finance
+      spec:
+        storageClassName: ""
+        volumeName: pv-invoices
+        accessModes:
+        - ReadWriteMany
+        resources:
+          requests:
+            storage: 10Gi
+    why: The PV offers only ReadWriteOnce; a claim that asks for ReadWriteMany does not bind even with volumeName.
+explanation:
+  correct:
+    en: |-
+      `volumeName: pv-invoices` pins the claim to that PV, but class, access modes and size are still checked. Because a default StorageClass exists, an omitted `storageClassName` would be set to the default class. `storageClassName: ""` must be written explicitly so that the claim matches a PV without a class.
+references:
+- title: Persistent Volumes
+  url: https://kubernetes.io/docs/concepts/storage/persistent-volumes/

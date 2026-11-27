@@ -1,0 +1,158 @@
+id: cka-3a-history-limit-deadline
+objective: "3.1.2"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    Complete the manifest of Deployment `search` in namespace `shop` so that:
+
+    - only the 3 most recent old ReplicaSets are kept for rollbacks;
+    - a new Pod counts as available only after it has been ready for 15 seconds;
+    - the Deployment reports `ProgressDeadlineExceeded` when a rollout makes no progress for 5 minutes.
+body:
+  starter: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: search
+      namespace: shop
+    spec:
+      replicas: 3
+      selector:
+        matchLabels:
+          app: search
+      template:
+        metadata:
+          labels:
+            app: search
+        spec:
+          containers:
+          - name: search
+            image: registry.example.com/shop/search:7.1
+answer:
+  checks:
+  - id: meta
+    label: A Deployment named search in namespace shop
+    path: metadata
+    op: subset
+    value: {name: search, namespace: shop}
+  - id: history
+    label: revisionHistoryLimit is 3
+    path: spec.revisionHistoryLimit
+    op: equals
+    value: 3
+  - id: min-ready
+    label: minReadySeconds is 15
+    path: spec.minReadySeconds
+    op: equals
+    value: 15
+  - id: deadline
+    label: progressDeadlineSeconds is 300
+    path: spec.progressDeadlineSeconds
+    op: equals
+    value: 300
+  - id: image
+    label: Container search runs search:7.1
+    path: spec.template.spec.containers[name=search].image
+    op: equals
+    value: registry.example.com/shop/search:7.1
+  solution:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: search
+        namespace: shop
+      spec:
+        replicas: 3
+        revisionHistoryLimit: 3
+        minReadySeconds: 15
+        progressDeadlineSeconds: 300
+        selector:
+          matchLabels:
+            app: search
+        template:
+          metadata:
+            labels:
+              app: search
+          spec:
+            containers:
+            - name: search
+              image: registry.example.com/shop/search:7.1
+  negatives:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: search
+        namespace: shop
+      spec:
+        replicas: 3
+        revisionHistoryLimit: 3
+        minReadySeconds: 15
+        progressDeadlineSeconds: 5
+        selector:
+          matchLabels:
+            app: search
+        template:
+          metadata:
+            labels:
+              app: search
+          spec:
+            containers:
+            - name: search
+              image: registry.example.com/shop/search:7.1
+    why: progressDeadlineSeconds is in seconds; 5 is five seconds, and it must also be greater than minReadySeconds.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: search
+        namespace: shop
+      spec:
+        replicas: 3
+        revisionHistoryLimit: 0
+        minReadySeconds: 15
+        progressDeadlineSeconds: 300
+        selector:
+          matchLabels:
+            app: search
+        template:
+          metadata:
+            labels:
+              app: search
+          spec:
+            containers:
+            - name: search
+              image: registry.example.com/shop/search:7.1
+    why: revisionHistoryLimit 0 deletes every old ReplicaSet, so the Deployment can no longer be rolled back.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: search
+        namespace: shop
+      spec:
+        replicas: 3
+        revisionHistoryLimit: 3
+        progressDeadlineSeconds: 300
+        selector:
+          matchLabels:
+            app: search
+        template:
+          metadata:
+            labels:
+              app: search
+          spec:
+            minReadySeconds: 15
+            containers:
+            - name: search
+              image: registry.example.com/shop/search:7.1
+    why: minReadySeconds is a Deployment spec field, not a Pod spec field; in the template it is rejected or ignored.
+explanation:
+  correct:
+    en: 'All three fields sit directly under the Deployment `spec`: `revisionHistoryLimit` (default 10 old ReplicaSets; 0 removes the ability to roll back), `minReadySeconds` (default 0) and `progressDeadlineSeconds` in seconds (default 600). When the deadline passes, the `Progressing` condition becomes `False` with reason `ProgressDeadlineExceeded`, which `kubectl rollout status` reports as a failure.'
+references:
+- title: Deployments
+  url: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/

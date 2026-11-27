@@ -1,0 +1,103 @@
+id: cka-4d-etcd-snapshot-save
+objective: "4.4.2"
+difficulty: 3
+status: draft
+type: command
+stem:
+  en: |-
+    You work on the jump host `ops`, which reaches the etcd member of the control plane node `cp1` over the network. The files of `/etc/kubernetes/pki/etcd/` on `cp1` have been copied to the same paths on `ops`, and `etcdctl` (etcd 3.6 or later, v3 API by default) is installed. The working directory holds `etcd.yaml`, an excerpt of the etcd static Pod manifest of `cp1`.
+
+    From `ops`, save a snapshot of etcd to `/srv/backup/etcd-2026-11-27.db`. Verify the server with the CA that etcd trusts for its clients, and authenticate with the same certificate and key that the etcd server itself uses.
+
+    Type the single command you would run.
+body:
+  mode: invocation
+  tools: [etcdctl, etcdutl]
+  namespace: default
+  files:
+  - name: etcd.yaml
+    content: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: etcd-cp1
+        namespace: kube-system
+      spec:
+        containers:
+        - name: etcd
+          command:
+          - etcd
+          - --advertise-client-urls=https://192.168.10.11:2379
+          - --cert-file=/etc/kubernetes/pki/etcd/server.crt
+          - --client-cert-auth=true
+          - --data-dir=/var/lib/etcd
+          - --key-file=/etc/kubernetes/pki/etcd/server.key
+          - --listen-client-urls=https://127.0.0.1:2379,https://192.168.10.11:2379
+          - --listen-peer-urls=https://192.168.10.11:2380
+          - --name=cp1
+          - --peer-cert-file=/etc/kubernetes/pki/etcd/peer.crt
+          - --peer-key-file=/etc/kubernetes/pki/etcd/peer.key
+          - --peer-trusted-ca-file=/etc/kubernetes/pki/etcd/ca.crt
+          - --trusted-ca-file=/etc/kubernetes/pki/etcd/ca.crt
+answer:
+  checks:
+  - id: tool
+    label: Uses etcdctl, which talks to a running etcd member
+    path: tool
+    op: equals
+    value: etcdctl
+  - id: snapshot
+    label: Runs snapshot save
+    path: verb
+    op: equals
+    value: snapshot
+  - id: save
+    label: The snapshot subcommand is save
+    path: args[0]
+    op: equals
+    value: save
+  - id: file
+    label: Writes /srv/backup/etcd-2026-11-27.db
+    path: args[1]
+    op: equals
+    value: /srv/backup/etcd-2026-11-27.db
+  - id: endpoint
+    label: Connects to the client URL of cp1 that ops can reach, 192.168.10.11:2379
+    path: flags.endpoints
+    op: matches
+    value: ^(https://)?192\.168\.10\.11:2379$
+  - id: cacert
+    label: --cacert is the etcd CA (/etc/kubernetes/pki/etcd/ca.crt)
+    path: flags.cacert
+    op: equals
+    value: /etc/kubernetes/pki/etcd/ca.crt
+  - id: cert
+    label: --cert is /etc/kubernetes/pki/etcd/server.crt
+    path: flags.cert
+    op: equals
+    value: /etc/kubernetes/pki/etcd/server.crt
+  - id: key
+    label: --key is /etc/kubernetes/pki/etcd/server.key
+    path: flags.key
+    op: equals
+    value: /etc/kubernetes/pki/etcd/server.key
+  solution:
+  - command: etcdctl --endpoints=https://192.168.10.11:2379 --cacert=/etc/kubernetes/pki/etcd/ca.crt --cert=/etc/kubernetes/pki/etcd/server.crt --key=/etc/kubernetes/pki/etcd/server.key snapshot save /srv/backup/etcd-2026-11-27.db
+  - command: etcdctl snapshot save /srv/backup/etcd-2026-11-27.db --endpoints https://192.168.10.11:2379 --cacert /etc/kubernetes/pki/etcd/ca.crt --cert /etc/kubernetes/pki/etcd/server.crt --key /etc/kubernetes/pki/etcd/server.key
+  negatives:
+  - command: etcdctl --endpoints=https://127.0.0.1:2379 --cacert=/etc/kubernetes/pki/etcd/ca.crt --cert=/etc/kubernetes/pki/etcd/server.crt --key=/etc/kubernetes/pki/etcd/server.key snapshot save /srv/backup/etcd-2026-11-27.db
+    why: On ops, 127.0.0.1 is the jump host itself; etcd of cp1 listens on 192.168.10.11:2379.
+  - command: etcdctl --endpoints=https://192.168.10.11:2379 --cacert=/etc/kubernetes/pki/ca.crt --cert=/etc/kubernetes/pki/etcd/server.crt --key=/etc/kubernetes/pki/etcd/server.key snapshot save /srv/backup/etcd-2026-11-27.db
+    why: /etc/kubernetes/pki/ca.crt is the cluster CA; the etcd server certificate is signed by the separate etcd CA (--trusted-ca-file).
+  - command: etcdctl --endpoints=https://192.168.10.11:2379 --trusted-ca-file=/etc/kubernetes/pki/etcd/ca.crt --cert-file=/etc/kubernetes/pki/etcd/server.crt --key-file=/etc/kubernetes/pki/etcd/server.key snapshot save /srv/backup/etcd-2026-11-27.db
+    why: These are the flag names of the etcd server; etcdctl uses --cacert, --cert and --key.
+  - command: etcdutl --endpoints=https://192.168.10.11:2379 --cacert=/etc/kubernetes/pki/etcd/ca.crt --cert=/etc/kubernetes/pki/etcd/server.crt --key=/etc/kubernetes/pki/etcd/server.key snapshot save /srv/backup/etcd-2026-11-27.db
+    why: etcdutl works offline on data files (restore, status); taking a snapshot of a running member is done with etcdctl.
+explanation:
+  correct:
+    en: '`etcdctl snapshot save FILE` streams a snapshot from a running member. Because etcd requires client certificates (`--client-cert-auth=true`), `etcdctl` needs `--cacert` (the `--trusted-ca-file` of etcd, the etcd CA), `--cert` and `--key`, and `--endpoints` must name an address that the host can reach: here the node IP from `--listen-client-urls`, not 127.0.0.1. The cluster CA `/etc/kubernetes/pki/ca.crt` does not sign the etcd certificates in a kubeadm cluster.'
+references:
+- title: Operating etcd clusters for Kubernetes
+  url: https://kubernetes.io/docs/tasks/administer-cluster/configure-upgrade-etcd/
+- title: Disaster recovery
+  url: https://etcd.io/docs/v3.6/op-guide/recovery/

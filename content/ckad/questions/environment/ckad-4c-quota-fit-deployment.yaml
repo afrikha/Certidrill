@@ -1,0 +1,284 @@
+id: ckad-4c-quota-fit-deployment
+objective: "4.3.1"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    Namespace `batch` has the ResourceQuota in `quota.yaml` and no other Pods. The Deployment `reporter` in the editor creates no Pods: its ReplicaSet reports that the quota `compute` forbids them because container `log-agent` specifies no requests or limits.
+
+    Fix the Deployment:
+
+    - Container `log-agent` requests 50m CPU and 64Mi of memory, and is limited to 100m CPU and 128Mi of memory.
+    - Container `app` keeps its current resources.
+    - `replicas` is the largest number of Pods that the quota admits (ignore the extra Pod of a rolling update).
+body:
+  files:
+  - name: quota.yaml
+    content: |
+      apiVersion: v1
+      kind: ResourceQuota
+      metadata:
+        name: compute
+        namespace: batch
+      spec:
+        hard:
+          requests.cpu: "1"
+          requests.memory: 1Gi
+          limits.cpu: "2"
+          limits.memory: 2Gi
+  starter: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: reporter
+      namespace: batch
+    spec:
+      replicas: 5
+      selector:
+        matchLabels:
+          app: reporter
+      template:
+        metadata:
+          labels:
+            app: reporter
+        spec:
+          containers:
+          - name: app
+            image: registry.example.com/reporter:3.1
+            resources:
+              requests:
+                cpu: 250m
+                memory: 256Mi
+              limits:
+                cpu: 500m
+                memory: 512Mi
+          - name: log-agent
+            image: registry.example.com/log-agent:1.4
+answer:
+  checks:
+  - id: deploy
+    label: A Deployment named reporter in namespace batch
+    path: metadata
+    op: subset
+    value: {name: reporter, namespace: batch}
+  - id: replicas
+    label: 3 replicas, the most that fit in limits.memory and requests.memory
+    path: spec.replicas
+    op: equals
+    value: 3
+  - id: agent-req-cpu
+    label: log-agent requests 50m CPU
+    path: spec.template.spec.containers[name=log-agent].resources.requests.cpu
+    op: quantity
+    value: 50m
+  - id: agent-req-mem
+    label: log-agent requests 64Mi of memory
+    path: spec.template.spec.containers[name=log-agent].resources.requests.memory
+    op: quantity
+    value: 64Mi
+  - id: agent-lim-cpu
+    label: log-agent is limited to 100m CPU
+    path: spec.template.spec.containers[name=log-agent].resources.limits.cpu
+    op: quantity
+    value: 100m
+  - id: agent-lim-mem
+    label: log-agent is limited to 128Mi of memory
+    path: spec.template.spec.containers[name=log-agent].resources.limits.memory
+    op: quantity
+    value: 128Mi
+  - id: app-req-cpu
+    label: app still requests 250m CPU
+    path: spec.template.spec.containers[name=app].resources.requests.cpu
+    op: quantity
+    value: 250m
+  - id: app-req-mem
+    label: app still requests 256Mi of memory
+    path: spec.template.spec.containers[name=app].resources.requests.memory
+    op: quantity
+    value: 256Mi
+  - id: app-lim-cpu
+    label: app is still limited to 500m CPU
+    path: spec.template.spec.containers[name=app].resources.limits.cpu
+    op: quantity
+    value: 500m
+  - id: app-lim-mem
+    label: app is still limited to 512Mi of memory
+    path: spec.template.spec.containers[name=app].resources.limits.memory
+    op: quantity
+    value: 512Mi
+  solution:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: reporter
+        namespace: batch
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: reporter
+        template:
+          metadata:
+            labels:
+              app: reporter
+          spec:
+            containers:
+            - name: app
+              image: registry.example.com/reporter:3.1
+              resources:
+                requests:
+                  cpu: 250m
+                  memory: 256Mi
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+            - name: log-agent
+              image: registry.example.com/log-agent:1.4
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  cpu: 100m
+                  memory: 128Mi
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: reporter
+        namespace: batch
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: reporter
+        template:
+          metadata:
+            labels:
+              app: reporter
+          spec:
+            containers:
+            - name: log-agent
+              image: registry.example.com/log-agent:1.4
+              resources:
+                limits: {cpu: 0.1, memory: 128Mi}
+                requests: {cpu: 0.05, memory: 64Mi}
+            - name: app
+              image: registry.example.com/reporter:3.1
+              resources:
+                limits: {cpu: 0.5, memory: 512Mi}
+                requests: {cpu: 0.25, memory: 256Mi}
+  negatives:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: reporter
+        namespace: batch
+      spec:
+        replicas: 4
+        selector:
+          matchLabels:
+            app: reporter
+        template:
+          metadata:
+            labels:
+              app: reporter
+          spec:
+            containers:
+            - name: app
+              image: registry.example.com/reporter:3.1
+              resources:
+                requests:
+                  cpu: 250m
+                  memory: 256Mi
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+            - name: log-agent
+              image: registry.example.com/log-agent:1.4
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  cpu: 100m
+                  memory: 128Mi
+    why: Each Pod limits 640Mi of memory; 4 Pods need 2560Mi, above the 2Gi limits.memory quota (and 1280Mi of requests, above 1Gi). The fourth Pod is rejected.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: reporter
+        namespace: batch
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: reporter
+        template:
+          metadata:
+            labels:
+              app: reporter
+          spec:
+            containers:
+            - name: app
+              image: registry.example.com/reporter:3.1
+              resources:
+                requests:
+                  cpu: 250m
+                  memory: 256Mi
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+            - name: log-agent
+              image: registry.example.com/log-agent:1.4
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+    why: The quota also tracks limits.cpu and limits.memory, so log-agent must declare limits too; without them the Pods are still forbidden.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: reporter
+        namespace: batch
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: reporter
+        template:
+          metadata:
+            labels:
+              app: reporter
+          spec:
+            containers:
+            - name: app
+              image: registry.example.com/reporter:3.1
+              resources:
+                requests:
+                  cpu: 250m
+                  memory: 256Mi
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+            - name: log-agent
+              image: registry.example.com/log-agent:1.4
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  cpu: 100m
+                  memory: 128Mi
+    why: 2 replicas are admitted, but a third Pod still fits (3 × 640Mi = 1920Mi ≤ 2Gi, 3 × 320Mi = 960Mi ≤ 1Gi, 3 × 300m ≤ 1 CPU).
+explanation:
+  correct:
+    en: 'When a quota tracks `requests.cpu`, `requests.memory`, `limits.cpu` and `limits.memory`, every container of a new Pod must declare them, or the Pod is forbidden (403). Per Pod the totals are 300m/320Mi in requests and 600m/640Mi in limits; memory is the tightest: 1Gi / 320Mi and 2Gi / 640Mi both give 3.2, so 3 replicas fit and a fourth is rejected.'
+references:
+- title: Resource Quotas
+  url: https://kubernetes.io/docs/concepts/policy/resource-quotas/

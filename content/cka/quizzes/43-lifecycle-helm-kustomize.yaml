@@ -1,0 +1,750 @@
+chapter: 43-lifecycle-helm-kustomize
+questions:
+  # ------------------------------------------------------------------ 1
+  - id: cka-qz-43-01
+    objective: "4.4.1"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        On `cp1`, the first control plane node of a kubeadm cluster, you upgraded the `kubeadm` package to 1.37.2 and `kubeadm upgrade apply v1.37.2` ended with a success message. `kubectl get nodes` still shows `v1.36.4` in the VERSION column for `cp1`.
+
+        What explains this?
+    body:
+      options:
+        - { id: a, text: { en: "The node is still cordoned; the VERSION column is updated when `kubectl uncordon cp1` runs." } }
+        - { id: b, text: { en: "The kubelet of `cp1` still runs 1.36.4; the column changes after the kubelet package is upgraded and the kubelet restarted." } }
+        - { id: c, text: { en: "`kubeadm upgrade node` must also run on `cp1` to upgrade its static Pod manifests." } }
+        - { id: d, text: { en: "The kube-proxy DaemonSet has not been upgraded yet; the column shows the kube-proxy version of the node." } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          `kubeadm upgrade apply` upgrades the control plane static Pods, CoreDNS and kube-proxy, but not the kubelet, which is an operating system package; it even ends by asking you to upgrade the kubelets. The VERSION column of `kubectl get nodes` reports the kubelet version, so it changes only after the `kubelet` package is installed, `systemctl daemon-reload` run and the kubelet restarted.
+      options:
+        a: { en: "Cordoning only marks the node unschedulable (SchedulingDisabled in STATUS); uncordon does not change the reported version." }
+        c: { en: "`kubeadm upgrade node` is for the other control plane nodes and the workers; on the first control plane node `upgrade apply` already upgraded the static Pods." }
+        d: { en: "`upgrade apply` already applied the new kube-proxy manifest, and the VERSION column comes from the kubelet, not from kube-proxy." }
+    references:
+      - title: Upgrading kubeadm clusters
+        url: https://kubernetes.io/docs/tasks/administer-cluster/kubeadm/kubeadm-upgrade/
+
+  # ------------------------------------------------------------------ 2
+  - id: cka-qz-43-02
+    objective: "4.4.3"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        On the control plane node `cp1`, `kubeadm certs renew all` completed and the files in `/etc/kubernetes/pki` now expire in one year. Clients still receive the old serving certificate from kube-apiserver.
+
+        What should you do so that the control plane components use the renewed certificates?
+    body:
+      options:
+        - { id: a, text: { en: "Run `kubectl delete pod kube-apiserver-cp1 -n kube-system` and do the same for the other control plane Pods." } }
+        - { id: b, text: { en: "Run `kubectl rollout restart deployment kube-apiserver -n kube-system` and do the same for the other components." } }
+        - { id: c, text: { en: "Move each manifest out of `/etc/kubernetes/manifests`, wait about 20 seconds, then move it back." } }
+        - { id: d, text: { en: "Nothing: every control plane component reloads its certificate files from disk within a minute." } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          Not every component reloads certificates dynamically, so the control plane Pods must be restarted after a renewal. They are static Pods managed by the local kubelet, not by the API server: removing the manifest from `/etc/kubernetes/manifests` makes the kubelet stop the Pod after one `fileCheckFrequency` period (20 seconds by default), and moving it back makes it recreate the Pod with the new files.
+      options:
+        a: { en: "The Pod you see through the API is only the mirror of a static Pod; kubectl cannot be used to delete and restart static Pods." }
+        b: { en: "kube-apiserver is a static Pod on each control plane node, not a Deployment, so there is nothing to roll out." }
+        d: { en: "Dynamic certificate reload is not supported by all components and certificates, which is why the documentation asks you to restart the control plane Pods." }
+    references:
+      - title: Certificate Management with kubeadm
+        url: https://kubernetes.io/docs/tasks/administer-cluster/kubeadm/kubeadm-certs/
+
+  # ------------------------------------------------------------------ 3
+  - id: cka-qz-43-03
+    objective: "4.4.2"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        You are about to restore etcd on the control plane node `cp1`. The kube-apiserver and etcd static Pods are already stopped. Before the restore, you want to check the file `/opt/backup/etcd-snapshot.db` and display its hash, revision, total number of keys and size as a table. etcd 3.6 tools are installed.
+
+        Which command should you run?
+    body:
+      options:
+        - { id: a, text: "`etcdctl --endpoints=https://127.0.0.1:2379 --cacert=/etc/kubernetes/pki/etcd/ca.crt --cert=/etc/kubernetes/pki/etcd/server.crt --key=/etc/kubernetes/pki/etcd/server.key endpoint status --write-out=table`" }
+        - { id: b, text: "`etcdutl snapshot restore /opt/backup/etcd-snapshot.db --data-dir /var/lib/etcd-check`" }
+        - { id: c, text: "`etcdutl --write-out=table snapshot status /opt/backup/etcd-snapshot.db`" }
+        - { id: d, text: "`etcdctl --endpoints=https://127.0.0.1:2379 --cacert=/etc/kubernetes/pki/etcd/ca.crt --cert=/etc/kubernetes/pki/etcd/server.crt --key=/etc/kubernetes/pki/etcd/server.key member list --write-out=table`" }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          `etcdutl snapshot status` reads the snapshot file directly, with no endpoint and no certificate, and `--write-out=table` prints the HASH, REVISION, TOTAL KEYS and TOTAL SIZE columns. The same command through `etcdctl`, deprecated in etcd 3.5 in favor of `etcdutl`, which works on files, was removed in etcd 3.6.
+      options:
+        a: { en: "`endpoint status` queries a running member (its database size, leader, raft index); etcd is stopped, and the command says nothing about the snapshot file." }
+        b: { en: "`snapshot restore` writes a new data directory from the snapshot instead of displaying its hash, revision and key count." }
+        d: { en: "`member list` asks a running member for the cluster membership; it does not read the snapshot file, and etcd is stopped anyway." }
+    references:
+      - title: Operating etcd clusters for Kubernetes
+        url: https://kubernetes.io/docs/tasks/administer-cluster/configure-upgrade-etcd/
+
+  # ------------------------------------------------------------------ 4
+  - id: cka-qz-43-04
+    objective: "4.6.1"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        The Helm repository `example` is registered and lists several versions of the chart `example/web-gateway`. You will install chart version `2.4.0` as the release `edge` in namespace `gateway-system`, but nothing is installed yet. First you need to see the default values that chart version `2.4.0` defines, to decide which ones to override.
+
+        Which command should you run?
+    body:
+      options:
+        - { id: a, text: "`helm show values example/web-gateway`" }
+        - { id: b, text: "`helm get values edge -n gateway-system`" }
+        - { id: c, text: "`helm show chart example/web-gateway --version 2.4.0`" }
+        - { id: d, text: "`helm show values example/web-gateway --version 2.4.0`" }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          `helm show values` displays the `values.yaml` file of a chart, that is its default values, and `--version` selects the chart version to inspect. Redirecting the output to a file gives a values file to edit and pass with `-f` at install time.
+      options:
+        a: { en: "Without `--version`, Helm inspects the latest chart version of the repository, whose defaults can differ from those of 2.4.0." }
+        b: { en: "`helm get values` reads the values supplied to an installed release; `edge` does not exist yet." }
+        c: { en: "`helm show chart` prints the chart definition (Chart.yaml: name, version, appVersion, dependencies), not its values." }
+    references:
+      - title: helm show values
+        url: https://helm.sh/docs/helm/helm_show_values/
+
+  # ------------------------------------------------------------------ 5
+  - id: cka-qz-43-05
+    objective: "4.6.2"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        The overlay `overlays/prod` has been applied with `kubectl apply -k` for months; its Deployment `agent` (`apps/v1`) has the selector `app: agent`. The overlay must now add the label `team: observability` to the metadata of every object it produces. The next `kubectl apply -k overlays/prod` must succeed on the existing objects.
+
+        What should you add to `overlays/prod/kustomization.yaml`?
+    body:
+      options:
+        - { id: a, text: { en: "`commonLabels:` with the entry `team: observability`" } }
+        - { id: b, text: { en: "`labels:` with one entry whose `pairs` contain `team: observability`" } }
+        - { id: c, text: { en: "`labels:` with one entry whose `pairs` contain `team: observability` and `includeSelectors: true`" } }
+        - { id: d, text: { en: "`commonAnnotations:` with the entry `team: observability`" } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          The `labels` field adds labels without injecting them into selectors, so the Deployment selector stays `app: agent`. This matters because the selector of an `apps/v1` Deployment is immutable after creation: an apply that changes it is rejected.
+      options:
+        a: { en: "`commonLabels` adds the labels to all resources and to their selectors; the changed Deployment selector makes the apply fail." }
+        c: { en: "`includeSelectors: true` also adds the label to the selectors, with the same failure on the immutable Deployment selector." }
+        d: { en: "`commonAnnotations` adds an annotation, not a label: selectors and `kubectl get -l team=observability` would not see it." }
+    references:
+      - title: Declarative Management of Kubernetes Objects Using Kustomize
+        url: https://kubernetes.io/docs/tasks/manage-kubernetes-objects/kustomization/
+      - title: Deployments
+        url: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/
+
+  # ------------------------------------------------------------------ 6
+  - id: cka-qz-43-06
+    objective: "4.6.2"
+    difficulty: 3
+    status: draft
+    type: command
+    stem:
+      en: |-
+        A colleague edited the overlay `/opt/agent/overlays/prod` (its `kustomization.yaml` and a patch file). The objects it produces are already running in the cluster. Before anyone applies the change, show the differences between the live objects and the objects that this overlay would produce. Nothing may be changed in the cluster.
+        Type the single command you would run.
+    body:
+      mode: invocation
+      namespace: default
+    answer:
+      checks:
+        - id: diff
+          label: Uses kubectl diff
+          path: verb
+          op: equals
+          value: diff
+        - id: kustomize
+          label: Builds the kustomization directory /opt/agent/overlays/prod (-k)
+          path: flags.kustomize
+          op: oneOf
+          value: [/opt/agent/overlays/prod, /opt/agent/overlays/prod/]
+        - id: no-filename
+          label: Does not read the directory as plain manifests (-f)
+          path: flags.filename
+          op: absent
+      solution:
+        - command: kubectl diff -k /opt/agent/overlays/prod
+        - command: k diff --kustomize=/opt/agent/overlays/prod/
+      negatives:
+        - command: kubectl kustomize /opt/agent/overlays/prod
+          why: kubectl kustomize only prints the built objects; it does not compare them with the live objects.
+        - command: kubectl apply -k /opt/agent/overlays/prod --dry-run=server
+          why: A server dry run only reports each object as configured or unchanged; it shows no differences.
+        - command: kubectl diff -f /opt/agent/overlays/prod
+          why: -f reads the files of the directory as plain manifests, so the kustomization is not built and its patches are not applied.
+        - command: kubectl diff -k /opt/agent/overlays/prod/kustomization.yaml
+          why: -k takes the directory that contains kustomization.yaml, not the file itself.
+    explanation:
+      correct:
+        en: |
+          `kubectl diff -k DIR` builds the kustomization of the directory, sends the result to the API server as a server-side dry run and prints the differences with the live objects, without changing anything. `-k` must point to the directory; `-f` would read the files as plain manifests and skip the build.
+    references:
+      - title: Declarative Management of Kubernetes Objects Using Kustomize
+        url: https://kubernetes.io/docs/tasks/manage-kubernetes-objects/kustomization/
+
+  # ------------------------------------------------------------------ 7
+  - id: cka-qz-43-07
+    objective: "4.6.1"
+    difficulty: 3
+    status: draft
+    type: command
+    stem:
+      en: |-
+        Install the cluster component web-gateway from an OCI registry:
+        - release `edge`, chart `oci://registry.example.com/charts/web-gateway`, chart version `2.4.0` (it packages web-gateway application version `1.10.0`);
+        - in namespace `gateway-system`, which already exists;
+        - with the values files `/root/values-common.yaml` and `/root/values-prod.yaml`. Several keys are set in both files: the value from `/root/values-prod.yaml` must win.
+        No release named `edge` exists yet. Type the single command you would run.
+    body:
+      mode: invocation
+      tools: [helm]
+      namespace: default
+    answer:
+      checks:
+        - id: install
+          label: Installs the release (helm install, or helm upgrade --install / -i)
+          path: "."
+          op: matches
+          value: '"verb":"install"|"verb":"upgrade".*"install":true'
+        - id: release
+          label: The release is named edge
+          path: args[0]
+          op: equals
+          value: edge
+        - id: chart
+          label: Installs the chart oci://registry.example.com/charts/web-gateway
+          path: args[1]
+          op: equals
+          value: oci://registry.example.com/charts/web-gateway
+        - id: version
+          label: Pins chart version 2.4.0
+          path: flags.version
+          op: oneOf
+          value: ["2.4.0", v2.4.0]
+        - id: namespace
+          label: Installs into namespace gateway-system
+          path: flags.namespace
+          op: equals
+          value: gateway-system
+        - id: values-order
+          label: Passes values-common.yaml first and values-prod.yaml last, so that values-prod.yaml wins
+          path: flags.values
+          op: oneOf
+          value:
+            - [/root/values-common.yaml, /root/values-prod.yaml]
+            - /root/values-common.yaml,/root/values-prod.yaml
+      solution:
+        - command: helm install edge oci://registry.example.com/charts/web-gateway --version 2.4.0 -n gateway-system -f /root/values-common.yaml -f /root/values-prod.yaml
+        - command: helm install edge oci://registry.example.com/charts/web-gateway --namespace=gateway-system --values /root/values-common.yaml --values /root/values-prod.yaml --version=2.4.0
+        - command: helm -n gateway-system install edge oci://registry.example.com/charts/web-gateway -f /root/values-common.yaml,/root/values-prod.yaml --version 2.4.0
+        - command: helm upgrade --install edge oci://registry.example.com/charts/web-gateway --version 2.4.0 -n gateway-system -f /root/values-common.yaml -f /root/values-prod.yaml
+        - command: helm upgrade -i edge oci://registry.example.com/charts/web-gateway --version 2.4.0 -n gateway-system -f /root/values-common.yaml -f /root/values-prod.yaml
+      negatives:
+        - command: helm install edge oci://registry.example.com/charts/web-gateway --version 2.4.0 -n gateway-system -f /root/values-prod.yaml -f /root/values-common.yaml
+          why: The last values file wins; here values-common.yaml would override the keys of values-prod.yaml.
+        - command: helm install edge oci://registry.example.com/charts/web-gateway --version 1.10.0 -n gateway-system -f /root/values-common.yaml -f /root/values-prod.yaml
+          why: --version selects the chart version (2.4.0), not the application version (1.10.0).
+        - command: helm install edge oci://registry.example.com/charts/web-gateway --version 2.4.0 -f /root/values-common.yaml -f /root/values-prod.yaml
+          why: Without -n the release and its objects go to the namespace of the context, default.
+        - command: helm upgrade edge oci://registry.example.com/charts/web-gateway --version 2.4.0 -n gateway-system -f /root/values-common.yaml -f /root/values-prod.yaml
+          why: Without --install, helm upgrade fails because the release edge does not exist yet.
+    explanation:
+      correct:
+        en: |
+          `helm install RELEASE CHART` accepts an `oci://` chart reference, and `--version` pins the chart version, which is not the application version shown as APP VERSION. `-f` can be repeated and the last (right-most) file has priority, so `values-prod.yaml` goes last. `-n gateway-system` selects the release namespace; `--create-namespace` is not needed since it exists. `helm upgrade --install` with the same arguments gives the same result.
+    references:
+      - title: helm install
+        url: https://helm.sh/docs/helm/helm_install/
+      - title: Use OCI-based registries
+        url: https://helm.sh/docs/topics/registries/
+
+  # ------------------------------------------------------------------ 8
+  - id: cka-qz-43-08
+    objective: "4.6.1"
+    difficulty: 3
+    status: draft
+    type: command
+    stem:
+      en: |-
+        The current revision of the Helm release `edge` (namespace `gateway-system`) breaks clients. `helm history edge -n gateway-system` printed `history.txt`. The values files used for the earlier upgrades are no longer available.
+        Return the release to the most recent revision that ran chart version `2.4.0`, with the values that revision used.
+        Type the single command you would run.
+    body:
+      mode: invocation
+      tools: [helm]
+      namespace: default
+      files:
+        - name: history.txt
+          content: |
+            REVISION  UPDATED                   STATUS      CHART              APP VERSION  DESCRIPTION
+            1         Mon Nov  2 09:14:05 2026  superseded  web-gateway-2.3.1  1.9.0        Install complete
+            2         Tue Nov 10 10:02:41 2026  superseded  web-gateway-2.4.0  1.10.0       Upgrade complete
+            3         Wed Nov 18 15:27:12 2026  superseded  web-gateway-2.4.0  1.10.0       Upgrade complete
+            4         Tue Nov 24 08:45:30 2026  failed      web-gateway-2.5.0  1.11.0       Upgrade "edge" failed: context deadline exceeded
+            5         Thu Nov 26 16:10:03 2026  deployed    web-gateway-2.5.0  1.11.0       Upgrade complete
+    answer:
+      checks:
+        - id: rollback
+          label: Uses helm rollback
+          path: verb
+          op: equals
+          value: rollback
+        - id: release
+          label: Rolls back the release edge
+          path: args[0]
+          op: equals
+          value: edge
+        - id: revision
+          label: Goes back to revision 3
+          path: args[1]
+          op: equals
+          value: 3
+        - id: namespace
+          label: Targets namespace gateway-system
+          path: flags.namespace
+          op: equals
+          value: gateway-system
+      solution:
+        - command: helm rollback edge 3 -n gateway-system
+        - command: helm rollback edge 3 --namespace=gateway-system
+        - command: helm -n gateway-system rollback edge 3
+      negatives:
+        - command: helm rollback edge -n gateway-system
+          why: Without a revision, Helm rolls back to the previous release, revision 4, which ran chart 2.5.0 and failed.
+        - command: helm rollback edge 2 -n gateway-system
+          why: Revision 2 also ran chart 2.4.0, but revision 3 is the most recent one and carries the values of the last 2.4.0 upgrade.
+        - command: helm rollback edge 3
+          why: Without -n, Helm looks for the release in the namespace of the context, default, where it does not exist.
+        - command: helm rollback edge 4 -n gateway-system
+          why: Revision 4 ran chart 2.5.0 and is the failed upgrade.
+    explanation:
+      correct:
+        en: |
+          `helm rollback RELEASE REVISION` restores the chart and the values of that revision; the history shows that revision 3 is the most recent one with `web-gateway-2.4.0`. Without a revision (or with 0) Helm returns to the previous release, here the failed revision 4. The rollback creates a new revision 6 instead of deleting 4 and 5, and `-n gateway-system` is needed because release records live in the release namespace.
+    references:
+      - title: helm rollback
+        url: https://helm.sh/docs/helm/helm_rollback/
+      - title: helm history
+        url: https://helm.sh/docs/helm/helm_history/
+
+  # ------------------------------------------------------------------ 9
+  - id: cka-qz-43-09
+    objective: "4.4.3"
+    difficulty: 3
+    status: draft
+    type: manifest
+    stem:
+      en: |-
+        A new security policy requires that every non-CA certificate that kubeadm issues on the cluster from now on is valid for **90 days**. The CA certificates keep their 10-year validity. On each control plane node you will run `kubeadm certs renew all --config /root/kubeadm.yaml`.
+        The editor shows `/root/kubeadm.yaml`. Edit it so that the certificates kubeadm generates or renews follow the policy. Change nothing else.
+    body:
+      starter: |
+        apiVersion: kubeadm.k8s.io/v1beta4
+        kind: ClusterConfiguration
+        kubernetesVersion: v1.37.2
+        clusterName: kubernetes
+        controlPlaneEndpoint: cp1.example.com:6443
+        certificatesDir: /etc/kubernetes/pki
+        caCertificateValidityPeriod: 87600h
+        networking:
+          dnsDomain: cluster.local
+          podSubnet: 10.244.0.0/16
+          serviceSubnet: 10.96.0.0/12
+    answer:
+      checks:
+        - id: api
+          label: Still uses kubeadm.k8s.io/v1beta4
+          path: apiVersion
+          op: equals
+          value: kubeadm.k8s.io/v1beta4
+        - id: kind
+          label: Still a ClusterConfiguration
+          path: kind
+          op: equals
+          value: ClusterConfiguration
+        - id: leaf
+          label: certificateValidityPeriod is 90 days written as a Go duration (2160h)
+          path: certificateValidityPeriod
+          op: oneOf
+          value: [2160h, 2160h0m, 2160h0m0s, 129600m, 7776000s]
+        - id: ca
+          label: caCertificateValidityPeriod stays 87600h (10 years)
+          path: caCertificateValidityPeriod
+          op: oneOf
+          value: [87600h, 87600h0m0s]
+        - id: version
+          label: kubernetesVersion is unchanged
+          path: kubernetesVersion
+          op: equals
+          value: v1.37.2
+        - id: cert-dir
+          label: certificatesDir is unchanged
+          path: certificatesDir
+          op: equals
+          value: /etc/kubernetes/pki
+      solution:
+        - manifest: |
+            apiVersion: kubeadm.k8s.io/v1beta4
+            kind: ClusterConfiguration
+            kubernetesVersion: v1.37.2
+            clusterName: kubernetes
+            controlPlaneEndpoint: cp1.example.com:6443
+            certificatesDir: /etc/kubernetes/pki
+            certificateValidityPeriod: 2160h
+            caCertificateValidityPeriod: 87600h
+            networking:
+              dnsDomain: cluster.local
+              podSubnet: 10.244.0.0/16
+              serviceSubnet: 10.96.0.0/12
+        - manifest: |
+            apiVersion: kubeadm.k8s.io/v1beta4
+            kind: ClusterConfiguration
+            kubernetesVersion: v1.37.2
+            clusterName: kubernetes
+            controlPlaneEndpoint: cp1.example.com:6443
+            certificatesDir: /etc/kubernetes/pki
+            caCertificateValidityPeriod: 87600h
+            networking:
+              dnsDomain: cluster.local
+              podSubnet: 10.244.0.0/16
+              serviceSubnet: 10.96.0.0/12
+            certificateValidityPeriod: "2160h0m0s"
+      negatives:
+        - manifest: |
+            apiVersion: kubeadm.k8s.io/v1beta4
+            kind: ClusterConfiguration
+            kubernetesVersion: v1.37.2
+            clusterName: kubernetes
+            controlPlaneEndpoint: cp1.example.com:6443
+            certificatesDir: /etc/kubernetes/pki
+            certificateValidityPeriod: 90d
+            caCertificateValidityPeriod: 87600h
+            networking:
+              dnsDomain: cluster.local
+              podSubnet: 10.244.0.0/16
+              serviceSubnet: 10.96.0.0/12
+          why: The field is a Go duration whose largest unit is h; 90d does not parse, 90 days are 2160h.
+        - manifest: |
+            apiVersion: kubeadm.k8s.io/v1beta4
+            kind: ClusterConfiguration
+            kubernetesVersion: v1.37.2
+            clusterName: kubernetes
+            controlPlaneEndpoint: cp1.example.com:6443
+            certificatesDir: /etc/kubernetes/pki
+            caCertificateValidityPeriod: 2160h
+            networking:
+              dnsDomain: cluster.local
+              podSubnet: 10.244.0.0/16
+              serviceSubnet: 10.96.0.0/12
+          why: caCertificateValidityPeriod applies to CA certificates, which must keep 10 years; the leaf certificates would still get the default 8760h.
+        - manifest: |
+            apiVersion: kubeadm.k8s.io/v1beta4
+            kind: ClusterConfiguration
+            kubernetesVersion: v1.37.2
+            clusterName: kubernetes
+            controlPlaneEndpoint: cp1.example.com:6443
+            certificatesDir: /etc/kubernetes/pki
+            caCertificateValidityPeriod: 87600h
+            apiServer:
+              certificateValidityPeriod: 2160h
+            networking:
+              dnsDomain: cluster.local
+              podSubnet: 10.244.0.0/16
+              serviceSubnet: 10.96.0.0/12
+          why: certificateValidityPeriod is a top-level field of ClusterConfiguration, not a field of apiServer, and it covers every non-CA certificate.
+        - manifest: |
+            apiVersion: kubeadm.k8s.io/v1beta4
+            kind: ClusterConfiguration
+            kubernetesVersion: v1.37.2
+            clusterName: kubernetes
+            controlPlaneEndpoint: cp1.example.com:6443
+            certificatesDir: /etc/kubernetes/pki
+            certificateValidityPeriod: 2160
+            caCertificateValidityPeriod: 87600h
+            networking:
+              dnsDomain: cluster.local
+              podSubnet: 10.244.0.0/16
+              serviceSubnet: 10.96.0.0/12
+          why: A duration needs a unit; a bare number is not a valid value for certificateValidityPeriod.
+    explanation:
+      correct:
+        en: |
+          In the `kubeadm.k8s.io/v1beta4` ClusterConfiguration, `certificateValidityPeriod` sets the validity of the non-CA certificates kubeadm generates (default `8760h`) and `caCertificateValidityPeriod` that of the CAs (default `87600h`); kubeadm uses them in `init`, `join`, `upgrade` and `certs`. The values are Go durations whose largest unit is the hour, so 90 days are `2160h`. `kubeadm certs renew` never renews the CAs, and the components must still be restarted to load the new certificates.
+    references:
+      - title: Certificate Management with kubeadm
+        url: https://kubernetes.io/docs/tasks/administer-cluster/kubeadm/kubeadm-certs/
+      - title: kubeadm Configuration (v1beta4)
+        url: https://kubernetes.io/docs/reference/config-api/kubeadm-config.v1beta4/
+
+  # ------------------------------------------------------------------ 10
+  - id: cka-qz-43-10
+    objective: "4.6.2"
+    difficulty: 3
+    status: draft
+    type: manifest
+    stem:
+      en: |-
+        The base `/opt/agent/base` installs a metrics agent: the Deployment shown in `base-deployment.yaml` and a Service `agent`. Write `/opt/agent/overlays/prod/kustomization.yaml`, an overlay built on the base, so that `kubectl apply -k /opt/agent/overlays/prod` produces:
+        - every object in namespace `monitoring` (it already exists), with its name prefixed by `prod-`;
+        - the agent image at tag `2.1.0`, without a patch;
+        - a memory limit of `512Mi` on the agent container, set by **one** inline strategic merge patch in `patches` (no patch file).
+        Do not edit the base.
+    body:
+      starter: |
+        apiVersion: kustomize.config.k8s.io/v1beta1
+        kind: Kustomization
+      files:
+        - name: base-deployment.yaml
+          content: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: agent
+              labels:
+                app: agent
+            spec:
+              replicas: 2
+              selector:
+                matchLabels:
+                  app: agent
+              template:
+                metadata:
+                  labels:
+                    app: agent
+                spec:
+                  containers:
+                  - name: collector
+                    image: registry.example.com/agent:2.0.3
+                    ports:
+                    - containerPort: 9100
+    answer:
+      checks:
+        - id: base
+          label: Builds on the base (../../base)
+          path: resources
+          op: contains
+          value: ../../base
+        - id: namespace
+          label: Sets namespace monitoring on every object
+          path: namespace
+          op: equals
+          value: monitoring
+        - id: prefix
+          label: Prefixes every name with prod-
+          path: namePrefix
+          op: equals
+          value: prod-
+        - id: image
+          label: The images entry matches registry.example.com/agent and sets tag 2.1.0
+          path: images
+          op: contains
+          value: { name: registry.example.com/agent, newTag: "2.1.0" }
+        - id: one-patch
+          label: Has a single entry in patches
+          path: patches
+          op: length
+          value: 1
+        - id: inline
+          label: The patch is inline (patch), not a file (path)
+          path: patches[0].path
+          op: absent
+        - id: target-name
+          label: The patch names the Deployment by its base name, agent
+          path: patches[0]
+          op: matches
+          value: 'name"?:\s*"?agent\b'
+        - id: no-prefixed-name
+          label: The patch does not use the prefixed name prod-agent
+          path: patches[0]
+          op: matches
+          value: '^(?!.*prod-agent).*$'
+        - id: container
+          label: The patch changes the container collector
+          path: patches[0].patch
+          op: matches
+          value: 'name:\s*["'']?collector'
+        - id: limit
+          label: The patch sets a memory limit of 512Mi
+          path: patches[0].patch
+          op: matches
+          value: 'limits:[\s{]*memory:\s*["'']?512Mi'
+      solution:
+        - manifest: |
+            apiVersion: kustomize.config.k8s.io/v1beta1
+            kind: Kustomization
+            resources:
+            - ../../base
+            namespace: monitoring
+            namePrefix: prod-
+            images:
+            - name: registry.example.com/agent
+              newTag: "2.1.0"
+            patches:
+            - patch: |-
+                apiVersion: apps/v1
+                kind: Deployment
+                metadata:
+                  name: agent
+                spec:
+                  template:
+                    spec:
+                      containers:
+                      - name: collector
+                        resources:
+                          limits:
+                            memory: 512Mi
+        - manifest: |
+            apiVersion: kustomize.config.k8s.io/v1beta1
+            kind: Kustomization
+            namePrefix: prod-
+            namespace: monitoring
+            resources:
+            - ../../base
+            patches:
+            - target:
+                kind: Deployment
+                name: agent
+              patch: |-
+                apiVersion: apps/v1
+                kind: Deployment
+                metadata:
+                  name: agent
+                spec:
+                  template:
+                    spec:
+                      containers:
+                      - name: collector
+                        resources:
+                          limits:
+                            memory: "512Mi"
+            images:
+            - name: registry.example.com/agent
+              newName: registry.example.com/agent
+              newTag: "2.1.0"
+      negatives:
+        - manifest: |
+            apiVersion: kustomize.config.k8s.io/v1beta1
+            kind: Kustomization
+            resources:
+            - ../../base
+            namespace: monitoring
+            namePrefix: prod-
+            images:
+            - name: registry.example.com/agent
+              newTag: "2.1.0"
+            patches:
+            - patch: |-
+                apiVersion: apps/v1
+                kind: Deployment
+                metadata:
+                  name: prod-agent
+                spec:
+                  template:
+                    spec:
+                      containers:
+                      - name: collector
+                        resources:
+                          limits:
+                            memory: 512Mi
+          why: Patches of the overlay are matched against the names of the base, agent; prod-agent matches no resource and the build fails.
+        - manifest: |
+            apiVersion: kustomize.config.k8s.io/v1beta1
+            kind: Kustomization
+            resources:
+            - ../../base
+            namespace: monitoring
+            namePrefix: prod-
+            images:
+            - name: collector
+              newTag: "2.1.0"
+            patches:
+            - patch: |-
+                apiVersion: apps/v1
+                kind: Deployment
+                metadata:
+                  name: agent
+                spec:
+                  template:
+                    spec:
+                      containers:
+                      - name: collector
+                        resources:
+                          limits:
+                            memory: 512Mi
+          why: images matches the image name (registry.example.com/agent), not the container name; the image would stay at 2.0.3.
+        - manifest: |
+            apiVersion: kustomize.config.k8s.io/v1beta1
+            kind: Kustomization
+            resources:
+            - ../../base
+            namespace: monitoring
+            namePrefix: prod-
+            images:
+            - name: registry.example.com/agent
+              newTag: "2.1.0"
+            patches:
+            - patch: |-
+                apiVersion: apps/v1
+                kind: Deployment
+                metadata:
+                  name: agent
+                spec:
+                  template:
+                    spec:
+                      containers:
+                      - name: agent
+                        resources:
+                          limits:
+                            memory: 512Mi
+          why: The strategic merge patch merges containers by name; a container named agent is added next to collector, without an image, instead of changing collector.
+        - manifest: |
+            apiVersion: kustomize.config.k8s.io/v1beta1
+            kind: Kustomization
+            resources:
+            - ../../base
+            namespace: monitoring
+            namePrefix: prod-
+            images:
+            - name: registry.example.com/agent:2.0.3
+              newTag: "2.1.0"
+            patches:
+            - patch: |-
+                apiVersion: apps/v1
+                kind: Deployment
+                metadata:
+                  name: agent
+                spec:
+                  template:
+                    spec:
+                      containers:
+                      - name: collector
+                        resources:
+                          requests:
+                            memory: 512Mi
+          why: The images name must not carry the tag, and requests set a memory request, not the limit the task asks for.
+    explanation:
+      correct:
+        en: |
+          `namespace` and `namePrefix` apply to every object of the build, and `images` changes the tag of the image whose name matches `registry.example.com/agent`, the image name without its tag, not the container name. A strategic merge patch is matched by the `kind` and `name` of the base (`agent`), and its `containers` list is merged by container name, so it must name `collector`. The patch is given inline with `patch: |-` in `patches`.
+    references:
+      - title: Declarative Management of Kubernetes Objects Using Kustomize
+        url: https://kubernetes.io/docs/tasks/manage-kubernetes-objects/kustomization/

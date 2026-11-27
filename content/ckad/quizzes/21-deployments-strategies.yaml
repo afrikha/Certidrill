@@ -1,0 +1,1393 @@
+chapter: 21-deployments-strategies
+questions:
+  # ------------------------------------------------------------------ 1
+  - id: ckad-qz-21-01
+    objective: "2.2.1"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        Deployment `web` in namespace `shop` is at revision 3.
+
+        Which change creates revision 4 and starts a rollout?
+    body:
+      options:
+        - { id: a, text: "`kubectl scale deployment/web --replicas=8 -n shop`" }
+        - { id: b, text: "Changing `spec.strategy.rollingUpdate.maxSurge` from `25%` to `1` with `kubectl apply`" }
+        - { id: c, text: "`kubectl set env deployment/web LOG_LEVEL=debug -n shop`" }
+        - { id: d, text: "`kubectl annotate deployment/web kubernetes.io/change-cause=\"tune logs\" -n shop`" }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          A Deployment rolls out if and only if its Pod template (`spec.template`) changes. `kubectl set env` adds an environment variable to a container of the template, so the Deployment creates a new ReplicaSet, which is revision 4, and replaces the Pods with its update strategy.
+      options:
+        a: { en: "Scaling only changes `spec.replicas` of the current ReplicaSet. It is not a template change, so no revision is created." }
+        b: { en: "`spec.strategy` is outside the Pod template. The new value applies to the next rollout, but changing it starts none." }
+        d: { en: "The annotation is set on the Deployment object, not on its Pod template. It fills the CHANGE-CAUSE column of `rollout history` but starts no rollout." }
+    references:
+      - title: Deployments
+        url: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/
+
+  # ------------------------------------------------------------------ 2
+  - id: ckad-qz-21-02
+    objective: "2.2.2"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        Deployment `api` sets `progressDeadlineSeconds: 300`. After an image update, the new Pods cannot pull their image, and the rollout makes no progress for 5 minutes.
+
+        What does Kubernetes do?
+    body:
+      options:
+        - { id: a, text: "It rolls the Deployment back to the previous revision, so that the old Pods take over again." }
+        - { id: b, text: "It sets the condition `Progressing` to `False` with reason `ProgressDeadlineExceeded`, without rolling back." }
+        - { id: c, text: "It pauses the Deployment, so that no further template change starts a rollout until you resume it." }
+        - { id: d, text: "It deletes the new ReplicaSet and its Pods, and scales the old ReplicaSet back to the full replica count." }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          When the deadline passes, the Deployment controller only reports the failure: condition `Progressing` with status `False` and reason `ProgressDeadlineExceeded`, which also makes `kubectl rollout status` exit with a non-zero code. It keeps retrying and takes no other action. Rolling back is up to you, with `kubectl rollout undo`.
+      options:
+        a: { en: "Kubernetes never rolls back on its own. The condition lets you, or a higher-level tool, decide to run `kubectl rollout undo`." }
+        c: { en: "A Deployment is paused only by `kubectl rollout pause` or `spec.paused: true`. The progress deadline does not pause it." }
+        d: { en: "The new ReplicaSet and its Pods are kept, and the controller keeps retrying. Nothing is deleted when the deadline is exceeded." }
+    references:
+      - title: Deployments
+        url: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/
+
+  # ------------------------------------------------------------------ 3
+  - id: ckad-qz-21-03
+    objective: "2.1.2"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        In namespace `shop`, Service `web` selects `app: web`. Deployment `web-stable` runs 4 Pods labelled `app: web` and `track: stable`, and all of them are Ready. Deployment `web-canary` runs 2 Pods labelled `app: web` and `track: canary`: one is Ready, and the readiness probe of the other one keeps failing.
+
+        About what share of the requests sent to Service `web` currently reaches the canary?
+    body:
+      options:
+        - { id: a, text: "0 %" }
+        - { id: b, text: "About 33 %" }
+        - { id: c, text: "About 50 %" }
+        - { id: d, text: "About 20 %" }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          A Service spreads its connections over the Ready Pods that match its selector, not over Deployments. A Pod whose readiness probe fails is removed from the Service's EndpointSlices, so the Service routes to 4 stable Pods and 1 canary Pod: about 1 request in 5, or 20 %, reaches the canary.
+      options:
+        a: { en: "One canary Pod is Ready and carries `app: web`, so it is an endpoint of the Service and receives its share." }
+        b: { en: "2 out of 6 counts the canary Pod that is not Ready. A Pod whose readiness probe fails receives no Service traffic." }
+        c: { en: "The split is not per Deployment. Each Ready Pod gets about the same share, whatever Deployment it belongs to." }
+    references:
+      - title: Managing Workloads
+        url: https://kubernetes.io/docs/concepts/workloads/management/
+      - title: Pod Lifecycle
+        url: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/
+
+  # ------------------------------------------------------------------ 4
+  - id: ckad-qz-21-04
+    objective: "2.1.3"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        In namespace `shop`, Service `web` was switched yesterday from the selector `app=web,version=blue` to `app=web,version=green`. After the switch, Deployment `web-blue` was scaled from 4 to 0 replicas but kept. Today version green returns errors, and the traffic must go back to version blue with as little downtime as possible.
+
+        What should you do?
+    body:
+      options:
+        - { id: a, text: "Scale `web-blue` back to 4 replicas, wait until its Pods are Ready, then switch the Service selector back to `app=web,version=blue`." }
+        - { id: b, text: "Switch the Service selector back to `app=web,version=blue`, then scale `web-blue` back to 4 replicas and wait until its Pods are Ready." }
+        - { id: c, text: "Run `kubectl rollout undo deployment/web-green -n shop`, so that the green Pods run the blue image again behind the same selector." }
+        - { id: d, text: "Run `kubectl rollout undo deployment/web-blue -n shop`, so that the previous revision of `web-blue` takes the Service traffic again." }
+    answer: { optionId: a }
+    explanation:
+      correct:
+        en: |
+          Rolling back a blue/green release is a selector change, and it is instant only if the blue side is running. Bring `web-blue` back to full size first and wait for its Pods to be Ready, then point the Service back at `version=blue`: the green Pods keep serving until the switch, so there is no gap.
+      options:
+        b: { en: "Right after the switch, no Ready Pod matches `version=blue`, so the Service has no endpoints until the blue Pods start: an outage." }
+        c: { en: "`web-green` was created with the new version, so it has no earlier revision running blue; undo would fail or restore another green template, and the selector still targets green." }
+        d: { en: "Scaling `web-blue` to 0 did not create a revision, and the Service still selects `version=green`. An undo of blue neither starts its Pods nor moves the traffic." }
+    references:
+      - title: Service
+        url: https://kubernetes.io/docs/concepts/services-networking/service/
+      - title: Deployments
+        url: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/
+
+  # ------------------------------------------------------------------ 5
+  - id: ckad-qz-21-05
+    objective: "2.1.1"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        In namespace `shop`, Deployment `web-blue` (`apps/v1`, selector `app: web`, `version: blue`) runs version 1.4 behind Service `web`, which selects `app: web` and `version: blue`. To prepare a blue/green release, a colleague runs `kubectl edit deployment web-blue -n shop`, changes `version: blue` to `version: green` in both `spec.selector.matchLabels` and `spec.template.metadata.labels`, and sets the image to version 1.5.
+
+        What happens when the colleague saves and closes the editor?
+    body:
+      options:
+        - { id: a, text: "The Deployment rolls out version 1.5 with the green labels, and Service `web` loses its endpoints because it still selects `version: blue`." }
+        - { id: b, text: "The Deployment rolls out version 1.5 with the green labels, and Service `web` follows the new Pods because they still carry `app: web`." }
+        - { id: c, text: "The API server rejects the whole change, because the selector of an `apps/v1` Deployment cannot be modified after creation." }
+        - { id: d, text: "The API server keeps the old selector and applies only the template change, so the blue Pods are replaced by green Pods." }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          In `apps/v1`, `spec.selector` of a Deployment is immutable after creation: `kubectl edit`, `kubectl apply` and `kubectl patch` cannot change it, and the request is rejected. A blue/green release therefore needs a second Deployment, `web-green`, with its own selector; the switch is then made on the Service selector.
+      options:
+        a: { en: "This would be the result if the selector could change. The update is refused, so nothing is rolled out and the Service keeps its blue endpoints." }
+        b: { en: "The update is refused. Even if it were accepted, the Service requires all its selector pairs, including `version: blue`, so it would not follow green Pods." }
+        d: { en: "The API server does not apply part of an update. With the old selector, green template labels would not even match it, which is also invalid." }
+    references:
+      - title: Deployments
+        url: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/
+
+  # ------------------------------------------------------------------ 6
+  - id: ckad-qz-21-06
+    objective: "2.2.4"
+    difficulty: 3
+    status: draft
+    type: manifest
+    stem:
+      en: |-
+        In namespace `shop`, HorizontalPodAutoscaler `web` (file `hpa-web.yaml`) scales Deployment `web` (file `web.yaml`) between 2 and 10 replicas on CPU. For a sales event, `web` must never run fewer than **6** Pods, and autoscaling must still be able to add Pods up to 10 under load. A colleague ran `kubectl scale deployment/web --replicas=6 -n shop`, but a few minutes later the Deployment was back to 2 Pods.
+
+        Write the manifest you would apply. Keep the current CPU target.
+    body:
+      starter: ""
+      files:
+        - name: web.yaml
+          content: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: web
+              namespace: shop
+            spec:
+              selector:
+                matchLabels:
+                  app: web
+              template:
+                metadata:
+                  labels:
+                    app: web
+                spec:
+                  containers:
+                  - name: web
+                    image: registry.example.com/shop/web:3.2
+                    resources:
+                      requests:
+                        cpu: 200m
+        - name: hpa-web.yaml
+          content: |
+            apiVersion: autoscaling/v2
+            kind: HorizontalPodAutoscaler
+            metadata:
+              name: web
+              namespace: shop
+            spec:
+              scaleTargetRef:
+                apiVersion: apps/v1
+                kind: Deployment
+                name: web
+              minReplicas: 2
+              maxReplicas: 10
+              metrics:
+              - type: Resource
+                resource:
+                  name: cpu
+                  target:
+                    type: Utilization
+                    averageUtilization: 70
+    answer:
+      checks:
+        - id: hpa-ns
+          label: HorizontalPodAutoscaler web is in namespace shop
+          select: { kind: HorizontalPodAutoscaler, name: web }
+          path: metadata.namespace
+          op: equals
+          value: shop
+        - id: target
+          label: It still targets Deployment web
+          select: { kind: HorizontalPodAutoscaler, name: web }
+          path: spec.scaleTargetRef
+          op: subset
+          value: { kind: Deployment, name: web }
+        - id: min
+          label: minReplicas is 6, so the autoscaler never goes below 6 Pods
+          select: { kind: HorizontalPodAutoscaler, name: web }
+          path: spec.minReplicas
+          op: equals
+          value: 6
+        - id: max
+          label: maxReplicas is still 10, so autoscaling can add Pods up to 10
+          select: { kind: HorizontalPodAutoscaler, name: web }
+          path: spec.maxReplicas
+          op: equals
+          value: 10
+        - id: cpu
+          label: The CPU target is still 70 % utilization
+          select: { kind: HorizontalPodAutoscaler, name: web }
+          path: spec
+          op: matches
+          value: '"averageUtilization":70[,}]|"targetCPUUtilizationPercentage":70[,}]'
+      solution:
+        - manifest: |
+            apiVersion: autoscaling/v2
+            kind: HorizontalPodAutoscaler
+            metadata:
+              name: web
+              namespace: shop
+            spec:
+              scaleTargetRef:
+                apiVersion: apps/v1
+                kind: Deployment
+                name: web
+              minReplicas: 6
+              maxReplicas: 10
+              metrics:
+              - type: Resource
+                resource:
+                  name: cpu
+                  target:
+                    type: Utilization
+                    averageUtilization: 70
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: web
+              namespace: shop
+            spec:
+              selector:
+                matchLabels:
+                  app: web
+              template:
+                metadata:
+                  labels:
+                    app: web
+                spec:
+                  containers:
+                  - name: web
+                    image: registry.example.com/shop/web:3.2
+                    resources:
+                      requests:
+                        cpu: 200m
+            ---
+            apiVersion: autoscaling/v2
+            kind: HorizontalPodAutoscaler
+            metadata:
+              name: web
+              namespace: shop
+            spec:
+              minReplicas: 6
+              maxReplicas: 10
+              scaleTargetRef:
+                apiVersion: apps/v1
+                kind: Deployment
+                name: web
+              metrics:
+              - type: Resource
+                resource:
+                  name: cpu
+                  target:
+                    averageUtilization: 70
+                    type: Utilization
+        - manifest: |
+            apiVersion: autoscaling/v1
+            kind: HorizontalPodAutoscaler
+            metadata:
+              name: web
+              namespace: shop
+            spec:
+              scaleTargetRef:
+                apiVersion: apps/v1
+                kind: Deployment
+                name: web
+              minReplicas: 6
+              maxReplicas: 10
+              targetCPUUtilizationPercentage: 70
+      negatives:
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: web
+              namespace: shop
+            spec:
+              replicas: 6
+              selector:
+                matchLabels:
+                  app: web
+              template:
+                metadata:
+                  labels:
+                    app: web
+                spec:
+                  containers:
+                  - name: web
+                    image: registry.example.com/shop/web:3.2
+                    resources:
+                      requests:
+                        cpu: 200m
+          why: Setting replicas on the Deployment is the same as kubectl scale. The HPA still has minReplicas 2 and brings the count back down at its next evaluation when the load is low.
+        - manifest: |
+            apiVersion: autoscaling/v2
+            kind: HorizontalPodAutoscaler
+            metadata:
+              name: web
+              namespace: shop
+            spec:
+              scaleTargetRef:
+                apiVersion: apps/v1
+                kind: Deployment
+                name: web
+              minReplicas: 6
+              maxReplicas: 6
+              metrics:
+              - type: Resource
+                resource:
+                  name: cpu
+                  target:
+                    type: Utilization
+                    averageUtilization: 70
+          why: With maxReplicas 6 the count is pinned at 6. Autoscaling can no longer add Pods up to 10 under load.
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: web
+              namespace: shop
+            spec:
+              replicas: 6
+              selector:
+                matchLabels:
+                  app: web
+              template:
+                metadata:
+                  labels:
+                    app: web
+                spec:
+                  containers:
+                  - name: web
+                    image: registry.example.com/shop/web:3.2
+                    resources:
+                      requests:
+                        cpu: 200m
+            ---
+            apiVersion: autoscaling/v2
+            kind: HorizontalPodAutoscaler
+            metadata:
+              name: web
+              namespace: shop
+            spec:
+              scaleTargetRef:
+                apiVersion: apps/v1
+                kind: Deployment
+                name: web
+              minReplicas: 2
+              maxReplicas: 10
+              metrics:
+              - type: Resource
+                resource:
+                  name: cpu
+                  target:
+                    type: Utilization
+                    averageUtilization: 70
+          why: The HPA owns the replica count. With minReplicas still 2, it scales the Deployment back below 6 whenever CPU usage is low.
+    explanation:
+      correct:
+        en: |
+          Once an HPA targets a Deployment, it sets the replica count at every evaluation, within `minReplicas` and `maxReplicas`; that is why `kubectl scale` was undone. Raising `minReplicas` to 6 on the HPA guarantees 6 Pods, and keeping `maxReplicas: 10` and the CPU target lets it still scale out under load. The Deployment needs no change: it already declares a CPU request and, as an HPA-managed workload should, no `replicas` field.
+    references:
+      - title: Horizontal Pod Autoscaling
+        url: https://kubernetes.io/docs/concepts/workloads/autoscaling/horizontal-pod-autoscale/
+
+  # ------------------------------------------------------------------ 7
+  - id: ckad-qz-21-07
+    objective: "2.1.3"
+    difficulty: 3
+    status: draft
+    type: command
+    stem:
+      en: |-
+        In namespace `shop`, several teams run canaries next to their stable versions. Every canary Deployment carries the label `track=canary` on the Deployment object itself (and on its Pods); every stable Deployment carries `track=stable`. You do not know how many canaries exist, and their Services select only the shared `app` label.
+
+        A library shipped in every canary is broken. Stop all the canaries at once, so that the Services send all their traffic to the stable Pods, but keep the canary Deployments and their Pod templates for investigation.
+
+        Type the single command you would run.
+    body:
+      mode: invocation
+      namespace: default
+    answer:
+      checks:
+        - id: verb
+          label: Uses kubectl scale
+          path: verb
+          op: equals
+          value: scale
+        - id: resource
+          label: Scales Deployments, not ReplicaSets or Pods
+          path: resource
+          op: equals
+          value: deployment
+        - id: selector
+          label: Selects the Deployments by the label track=canary
+          path: flags.selector
+          op: oneOf
+          value: ["track=canary", "track==canary", "track in (canary)"]
+        - id: no-names
+          label: Names no Deployment, so every canary is caught
+          path: names
+          op: length
+          value: 0
+        - id: no-all
+          label: Does not use --all, which would also stop the stable Deployments
+          path: flags.all
+          op: absent
+        - id: replicas
+          label: Sets 0 replicas
+          path: flags.replicas
+          op: equals
+          value: "0"
+        - id: namespace
+          label: Runs in namespace shop
+          path: flags.namespace
+          op: equals
+          value: shop
+      solution:
+        - command: kubectl scale deployment -l track=canary --replicas=0 -n shop
+        - command: k -n shop scale deploy --selector=track=canary --replicas 0
+        - command: kubectl scale --replicas=0 -l track=canary deployments -n shop
+      negatives:
+        - command: kubectl delete deployment -l track=canary -n shop
+          why: Deleting the Deployments also deletes their Pod templates, which the task asks you to keep for investigation.
+        - command: kubectl scale rs -l track=canary --replicas=0 -n shop
+          why: The ReplicaSets belong to their Deployments, which still want their replica count and scale them straight back up.
+        - command: kubectl scale deployment --all --replicas=0 -n shop
+          why: --all selects every Deployment of the namespace, so the stable versions stop too and the Services have no endpoints.
+        - command: kubectl scale deployment -l track=canary --replicas=0
+          why: Without -n the command looks for canaries in the context namespace, default.
+    explanation:
+      correct:
+        en: |
+          `kubectl scale deployment -l track=canary --replicas=0 -n shop` scales every Deployment whose own labels match the selector, however many there are. With no canary Pod left, the Services, which select only `app`, route to the stable Pods alone; the Deployments and their templates stay for investigation and can be scaled up again. Scaling ReplicaSets does not stick, because their Deployment restores the count.
+    references:
+      - title: kubectl scale
+        url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_scale/
+      - title: Managing Workloads
+        url: https://kubernetes.io/docs/concepts/workloads/management/
+
+  # ------------------------------------------------------------------ 8
+  - id: ckad-qz-21-08
+    objective: "2.2.3"
+    difficulty: 3
+    status: draft
+    type: manifest
+    stem:
+      en: |-
+        The editor contains Deployment `invoices` in namespace `billing`. It is deployed only by a pipeline that runs `kubectl apply` on this file; nobody may run `kubectl rollout` commands. The Secret `invoices-db` has been rotated, and the Pods read it as environment variables, only at startup.
+
+        Change the manifest so that applying it replaces every Pod through the Deployment's rolling update, the way `kubectl rollout restart` does: set the annotation `kubectl.kubernetes.io/restartedAt` to `2026-11-27T09:00:00Z` where that command puts it. Keep the image, the replica count and the update strategy.
+    body:
+      starter: |
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: invoices
+          namespace: billing
+          annotations:
+            kubernetes.io/change-cause: "invoices 4.2"
+        spec:
+          replicas: 3
+          strategy:
+            type: RollingUpdate
+            rollingUpdate:
+              maxSurge: 1
+              maxUnavailable: 0
+          selector:
+            matchLabels:
+              app: invoices
+          template:
+            metadata:
+              labels:
+                app: invoices
+            spec:
+              containers:
+              - name: invoices
+                image: registry.example.com/billing/invoices:4.2
+                envFrom:
+                - secretRef:
+                    name: invoices-db
+    answer:
+      checks:
+        - id: meta
+          label: Deployment invoices in namespace billing
+          path: metadata
+          op: subset
+          value: { name: invoices, namespace: billing }
+        - id: restarted
+          label: The restartedAt annotation is in the Pod template metadata
+          path: spec.template.metadata.annotations["kubectl.kubernetes.io/restartedAt"]
+          op: equals
+          value: "2026-11-27T09:00:00Z"
+        - id: image
+          label: Container invoices keeps image invoices:4.2
+          path: spec.template.spec.containers[name=invoices].image
+          op: equals
+          value: registry.example.com/billing/invoices:4.2
+        - id: env
+          label: Container invoices still reads Secret invoices-db
+          path: spec.template.spec.containers[name=invoices].envFrom
+          op: contains
+          value: { secretRef: { name: invoices-db } }
+        - id: replicas
+          label: Still 3 replicas
+          path: spec.replicas
+          op: equals
+          value: 3
+        - id: strategy
+          label: The rolling update keeps maxSurge 1 and maxUnavailable 0
+          path: spec.strategy
+          op: subset
+          value: { rollingUpdate: { maxSurge: 1, maxUnavailable: 0 } }
+        - id: selector
+          label: The selector is unchanged
+          path: spec.selector.matchLabels
+          op: equals
+          value: { app: invoices }
+      solution:
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: invoices
+              namespace: billing
+              annotations:
+                kubernetes.io/change-cause: "invoices 4.2"
+            spec:
+              replicas: 3
+              strategy:
+                type: RollingUpdate
+                rollingUpdate:
+                  maxSurge: 1
+                  maxUnavailable: 0
+              selector:
+                matchLabels:
+                  app: invoices
+              template:
+                metadata:
+                  labels:
+                    app: invoices
+                  annotations:
+                    kubectl.kubernetes.io/restartedAt: "2026-11-27T09:00:00Z"
+                spec:
+                  containers:
+                  - name: invoices
+                    image: registry.example.com/billing/invoices:4.2
+                    envFrom:
+                    - secretRef:
+                        name: invoices-db
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: invoices
+              namespace: billing
+              annotations:
+                kubernetes.io/change-cause: "restart after invoices-db rotation"
+            spec:
+              replicas: 3
+              strategy:
+                type: RollingUpdate
+                rollingUpdate:
+                  maxSurge: 1
+                  maxUnavailable: 0
+              selector:
+                matchLabels:
+                  app: invoices
+              template:
+                metadata:
+                  annotations:
+                    kubectl.kubernetes.io/restartedAt: '2026-11-27T09:00:00Z'
+                  labels:
+                    app: invoices
+                spec:
+                  containers:
+                  - name: invoices
+                    image: registry.example.com/billing/invoices:4.2
+                    envFrom:
+                    - secretRef:
+                        name: invoices-db
+      negatives:
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: invoices
+              namespace: billing
+              annotations:
+                kubernetes.io/change-cause: "invoices 4.2"
+                kubectl.kubernetes.io/restartedAt: "2026-11-27T09:00:00Z"
+            spec:
+              replicas: 3
+              strategy:
+                type: RollingUpdate
+                rollingUpdate:
+                  maxSurge: 1
+                  maxUnavailable: 0
+              selector:
+                matchLabels:
+                  app: invoices
+              template:
+                metadata:
+                  labels:
+                    app: invoices
+                spec:
+                  containers:
+                  - name: invoices
+                    image: registry.example.com/billing/invoices:4.2
+                    envFrom:
+                    - secretRef:
+                        name: invoices-db
+          why: The annotation is on the Deployment object, not on its Pod template. Only a change of spec.template starts a rollout, so no Pod is replaced.
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: invoices
+              namespace: billing
+              annotations:
+                kubernetes.io/change-cause: "invoices 4.2"
+            spec:
+              replicas: 3
+              strategy:
+                type: RollingUpdate
+                rollingUpdate:
+                  maxSurge: 1
+                  maxUnavailable: 0
+              selector:
+                matchLabels:
+                  app: invoices
+              template:
+                metadata:
+                  labels:
+                    app: invoices
+                    kubectl.kubernetes.io/restartedAt: "2026-11-27T09:00:00Z"
+                spec:
+                  containers:
+                  - name: invoices
+                    image: registry.example.com/billing/invoices:4.2
+                    envFrom:
+                    - secretRef:
+                        name: invoices-db
+          why: It is set as a label, not an annotation. A label value cannot contain colons, so the API server rejects the manifest.
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: invoices
+              namespace: billing
+              annotations:
+                kubernetes.io/change-cause: "invoices 4.2"
+            spec:
+              replicas: 3
+              strategy:
+                type: Recreate
+              selector:
+                matchLabels:
+                  app: invoices
+              template:
+                metadata:
+                  labels:
+                    app: invoices
+                  annotations:
+                    kubectl.kubernetes.io/restartedAt: "2026-11-27T09:00:00Z"
+                spec:
+                  containers:
+                  - name: invoices
+                    image: registry.example.com/billing/invoices:4.2
+                    envFrom:
+                    - secretRef:
+                        name: invoices-db
+          why: Recreate kills the 3 Pods before starting new ones, so the application is down during the restart. The task asks to keep the rolling update.
+    explanation:
+      correct:
+        en: |
+          `kubectl rollout restart` works by patching the Pod template metadata with the annotation `kubectl.kubernetes.io/restartedAt`. Any change of `spec.template` gives a new revision, so the Deployment replaces every Pod with its strategy (one extra Pod at a time, none unavailable) and the new Pods read the rotated Secret. The same annotation on the Deployment's own `metadata` changes nothing in the template and starts no rollout.
+    references:
+      - title: Well-Known Labels, Annotations and Taints
+        url: https://kubernetes.io/docs/reference/labels-annotations-taints/
+      - title: Deployments
+        url: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/
+
+  # ------------------------------------------------------------------ 9
+  - id: ckad-qz-21-09
+    objective: "2.2.2"
+    difficulty: 3
+    status: draft
+    type: manifest
+    stem:
+      en: |-
+        In namespace `finance`, ResourceQuota `pods-limit` (file `quota.yaml`) allows at most 6 Pods. The 6 replicas of Deployment `ledger`, shown in the editor, are the only Pods of the namespace. Change the manifest so that its next rolling update:
+
+        - never needs a Pod beyond the quota;
+        - keeps at least 4 Pods available at every moment;
+        - replaces the Pods as fast as these two limits allow;
+
+        and rolls out image `registry.example.com/finance/ledger:5.1` in container `ledger`. Use absolute numbers, not percentages.
+    body:
+      starter: |
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: ledger
+          namespace: finance
+        spec:
+          replicas: 6
+          selector:
+            matchLabels:
+              app: ledger
+          template:
+            metadata:
+              labels:
+                app: ledger
+            spec:
+              containers:
+              - name: ledger
+                image: registry.example.com/finance/ledger:5.0
+                readinessProbe:
+                  httpGet:
+                    path: /ready
+                    port: 8080
+      files:
+        - name: quota.yaml
+          content: |
+            apiVersion: v1
+            kind: ResourceQuota
+            metadata:
+              name: pods-limit
+              namespace: finance
+            spec:
+              hard:
+                pods: "6"
+    answer:
+      checks:
+        - id: meta
+          label: Deployment ledger in namespace finance
+          path: metadata
+          op: subset
+          value: { name: ledger, namespace: finance }
+        - id: replicas
+          label: Still 6 replicas
+          path: spec.replicas
+          op: equals
+          value: 6
+        - id: image
+          label: Container ledger runs ledger:5.1
+          path: spec.template.spec.containers[name=ledger].image
+          op: equals
+          value: registry.example.com/finance/ledger:5.1
+        - id: type
+          label: The strategy is a rolling update (RollingUpdate, the default)
+          path: spec
+          op: matches
+          value: '^(?!.*"type":"Recreate")'
+        - id: surge
+          label: maxSurge is 0, so no Pod is created above the 6 allowed by the quota
+          path: spec.strategy.rollingUpdate.maxSurge
+          op: oneOf
+          value: [0, "0%"]
+        - id: unavailable
+          label: maxUnavailable is 2 (6 - 2 = 4 Pods available at least, two replaced at a time)
+          path: spec.strategy.rollingUpdate.maxUnavailable
+          op: equals
+          value: 2
+      solution:
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: ledger
+              namespace: finance
+            spec:
+              replicas: 6
+              strategy:
+                type: RollingUpdate
+                rollingUpdate:
+                  maxSurge: 0
+                  maxUnavailable: 2
+              selector:
+                matchLabels:
+                  app: ledger
+              template:
+                metadata:
+                  labels:
+                    app: ledger
+                spec:
+                  containers:
+                  - name: ledger
+                    image: registry.example.com/finance/ledger:5.1
+                    readinessProbe:
+                      httpGet:
+                        path: /ready
+                        port: 8080
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: ledger
+              namespace: finance
+            spec:
+              replicas: 6
+              selector:
+                matchLabels:
+                  app: ledger
+              strategy:
+                rollingUpdate:
+                  maxUnavailable: 2
+                  maxSurge: 0
+              template:
+                metadata:
+                  labels:
+                    app: ledger
+                spec:
+                  containers:
+                  - name: ledger
+                    image: registry.example.com/finance/ledger:5.1
+                    readinessProbe:
+                      httpGet:
+                        path: /ready
+                        port: 8080
+      negatives:
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: ledger
+              namespace: finance
+            spec:
+              replicas: 6
+              strategy:
+                type: RollingUpdate
+                rollingUpdate:
+                  maxSurge: 1
+                  maxUnavailable: 2
+              selector:
+                matchLabels:
+                  app: ledger
+              template:
+                metadata:
+                  labels:
+                    app: ledger
+                spec:
+                  containers:
+                  - name: ledger
+                    image: registry.example.com/finance/ledger:5.1
+          why: maxSurge 1 lets the Deployment ask for a 7th Pod. The quota rejects its creation, because the namespace already has 6 Pods.
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: ledger
+              namespace: finance
+            spec:
+              replicas: 6
+              strategy:
+                type: RollingUpdate
+                rollingUpdate:
+                  maxSurge: 0
+                  maxUnavailable: 1
+              selector:
+                matchLabels:
+                  app: ledger
+              template:
+                metadata:
+                  labels:
+                    app: ledger
+                spec:
+                  containers:
+                  - name: ledger
+                    image: registry.example.com/finance/ledger:5.1
+          why: This respects both limits but replaces one Pod at a time, while the limits allow two (4 of 6 must stay available).
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: ledger
+              namespace: finance
+            spec:
+              replicas: 6
+              strategy:
+                type: RollingUpdate
+                rollingUpdate:
+                  maxSurge: 0
+                  maxUnavailable: 4
+              selector:
+                matchLabels:
+                  app: ledger
+              template:
+                metadata:
+                  labels:
+                    app: ledger
+                spec:
+                  containers:
+                  - name: ledger
+                    image: registry.example.com/finance/ledger:5.1
+          why: maxUnavailable is how many Pods may be missing below replicas, not how many must stay. 4 lets availability drop to 2 Pods.
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: ledger
+              namespace: finance
+            spec:
+              replicas: 6
+              selector:
+                matchLabels:
+                  app: ledger
+              template:
+                metadata:
+                  labels:
+                    app: ledger
+                spec:
+                  containers:
+                  - name: ledger
+                    image: registry.example.com/finance/ledger:5.1
+          why: The default strategy keeps maxSurge at 25 % of 6, rounded up to 2 Pods above the quota, and maxUnavailable at 25 % rounded down to 1.
+    explanation:
+      correct:
+        en: |
+          The quota leaves no room for a surge Pod, so `maxSurge` must be 0, and then `maxUnavailable` must be at least 1 (both cannot be 0). Keeping 4 of 6 Pods available allows `maxUnavailable: 2`, which replaces two Pods at a time, the fastest the limits allow. `Recreate` would drop to 0 available Pods, and the default 25 % values would ask for 2 Pods above the quota.
+    references:
+      - title: Deployments
+        url: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/
+      - title: Resource Quotas
+        url: https://kubernetes.io/docs/concepts/policy/resource-quotas/
+
+  # ------------------------------------------------------------------ 10
+  - id: ckad-qz-21-10
+    objective: "2.1.2"
+    difficulty: 3
+    status: draft
+    type: manifest
+    stem:
+      en: |-
+        In namespace `shop`, Deployment `web` (file `web.yaml`) runs 4 replicas of `registry.example.com/shop/web:1.9`; its selector is `app: web`. Service `web` (file `svc-web.yaml`) selects `app: web`. Add a canary of version 2.0 that receives about 20 % of the traffic of Service `web`:
+
+        - Deployment `web-canary`: 1 replica, container `web`, image `registry.example.com/shop/web:2.0`, Pods labelled `app: web-canary`.
+        - The canary Pods must not match the selector of Deployment `web`. Deployment `web` must not be deleted or recreated, and keeps its 4 replicas and its image.
+        - Every Pod that Service `web` must reach carries the label `release: web`. Service `web` keeps its ports.
+
+        Write one file with every object you must create or change. Your pipeline applies the Deployments of the file and waits for their rollouts before it applies the Service.
+    body:
+      starter: ""
+      files:
+        - name: web.yaml
+          content: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              labels:
+                app: web
+              name: web
+              namespace: shop
+            spec:
+              replicas: 4
+              selector:
+                matchLabels:
+                  app: web
+              template:
+                metadata:
+                  labels:
+                    app: web
+                spec:
+                  containers:
+                  - name: web
+                    image: registry.example.com/shop/web:1.9
+                    ports:
+                    - containerPort: 8080
+        - name: svc-web.yaml
+          content: |
+            apiVersion: v1
+            kind: Service
+            metadata:
+              name: web
+              namespace: shop
+            spec:
+              selector:
+                app: web
+              ports:
+              - port: 80
+                targetPort: 8080
+    answer:
+      checks:
+        - id: web-ns
+          label: Deployment web is in namespace shop
+          select: { kind: Deployment, name: web }
+          path: metadata.namespace
+          op: equals
+          value: shop
+        - id: web-selector
+          label: Deployment web keeps its immutable selector app=web
+          select: { kind: Deployment, name: web }
+          path: spec.selector.matchLabels
+          op: equals
+          value: { app: web }
+        - id: web-labels
+          label: The Pod template of web adds release=web and keeps app=web
+          select: { kind: Deployment, name: web }
+          path: spec.template.metadata.labels
+          op: subset
+          value: { app: web, release: web }
+        - id: web-replicas
+          label: Deployment web keeps 4 replicas
+          select: { kind: Deployment, name: web }
+          path: spec.replicas
+          op: equals
+          value: 4
+        - id: web-image
+          label: Deployment web keeps image web:1.9
+          select: { kind: Deployment, name: web }
+          path: spec.template.spec.containers[name=web].image
+          op: equals
+          value: registry.example.com/shop/web:1.9
+        - id: canary-ns
+          label: Deployment web-canary is in namespace shop
+          select: { kind: Deployment, name: web-canary }
+          path: metadata.namespace
+          op: equals
+          value: shop
+        - id: canary-replicas
+          label: The canary runs 1 replica (1 of 5 Pods, about 20 %)
+          select: { kind: Deployment, name: web-canary }
+          path: spec.replicas
+          op: equals
+          value: 1
+        - id: canary-image
+          label: Container web of the canary runs web:2.0
+          select: { kind: Deployment, name: web-canary }
+          path: spec.template.spec.containers[name=web].image
+          op: equals
+          value: registry.example.com/shop/web:2.0
+        - id: canary-labels
+          label: Canary Pods carry app=web-canary and release=web
+          select: { kind: Deployment, name: web-canary }
+          path: spec.template.metadata.labels
+          op: subset
+          value: { app: web-canary, release: web }
+        - id: canary-selector
+          label: The canary selector uses app=web-canary, so it does not match the stable Pods
+          select: { kind: Deployment, name: web-canary }
+          path: spec.selector.matchLabels.app
+          op: equals
+          value: web-canary
+        - id: svc-ns
+          label: Service web is in namespace shop
+          select: { kind: Service, name: web }
+          path: metadata.namespace
+          op: equals
+          value: shop
+        - id: svc-selector
+          label: Service web selects release=web only
+          select: { kind: Service, name: web }
+          path: spec.selector
+          op: equals
+          value: { release: web }
+        - id: svc-ports
+          label: Service web keeps port 80 to targetPort 8080
+          select: { kind: Service, name: web }
+          path: spec.ports
+          op: contains
+          value: { port: 80, targetPort: 8080 }
+      solution:
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              labels:
+                app: web
+              name: web
+              namespace: shop
+            spec:
+              replicas: 4
+              selector:
+                matchLabels:
+                  app: web
+              template:
+                metadata:
+                  labels:
+                    app: web
+                    release: web
+                spec:
+                  containers:
+                  - name: web
+                    image: registry.example.com/shop/web:1.9
+                    ports:
+                    - containerPort: 8080
+            ---
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: web-canary
+              namespace: shop
+            spec:
+              replicas: 1
+              selector:
+                matchLabels:
+                  app: web-canary
+              template:
+                metadata:
+                  labels:
+                    app: web-canary
+                    release: web
+                spec:
+                  containers:
+                  - name: web
+                    image: registry.example.com/shop/web:2.0
+                    ports:
+                    - containerPort: 8080
+            ---
+            apiVersion: v1
+            kind: Service
+            metadata:
+              name: web
+              namespace: shop
+            spec:
+              selector:
+                release: web
+              ports:
+              - port: 80
+                targetPort: 8080
+        - manifest: |
+            apiVersion: v1
+            kind: Service
+            metadata:
+              name: web
+              namespace: shop
+            spec:
+              selector:
+                release: web
+              ports:
+              - port: 80
+                protocol: TCP
+                targetPort: 8080
+            ---
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: web-canary
+              namespace: shop
+              labels:
+                app: web-canary
+            spec:
+              replicas: 1
+              selector:
+                matchLabels:
+                  app: web-canary
+                  release: web
+              template:
+                metadata:
+                  labels:
+                    release: web
+                    app: web-canary
+                spec:
+                  containers:
+                  - name: web
+                    image: registry.example.com/shop/web:2.0
+            ---
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: web
+              namespace: shop
+            spec:
+              replicas: 4
+              selector:
+                matchLabels:
+                  app: web
+              template:
+                metadata:
+                  labels:
+                    release: web
+                    app: web
+                spec:
+                  containers:
+                  - name: web
+                    image: registry.example.com/shop/web:1.9
+                    ports:
+                    - containerPort: 8080
+      negatives:
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: web-canary
+              namespace: shop
+            spec:
+              replicas: 1
+              selector:
+                matchLabels:
+                  app: web
+                  track: canary
+              template:
+                metadata:
+                  labels:
+                    app: web
+                    track: canary
+                spec:
+                  containers:
+                  - name: web
+                    image: registry.example.com/shop/web:2.0
+          why: The canary Pods carry app=web, so the selector of Deployment web (app=web) also matches them. The two controllers overlap and fight over the Pods.
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: web
+              namespace: shop
+            spec:
+              replicas: 4
+              selector:
+                matchLabels:
+                  app: web
+                  track: stable
+              template:
+                metadata:
+                  labels:
+                    app: web
+                    track: stable
+                spec:
+                  containers:
+                  - name: web
+                    image: registry.example.com/shop/web:1.9
+            ---
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: web-canary
+              namespace: shop
+            spec:
+              replicas: 1
+              selector:
+                matchLabels:
+                  app: web
+                  track: canary
+              template:
+                metadata:
+                  labels:
+                    app: web
+                    track: canary
+                spec:
+                  containers:
+                  - name: web
+                    image: registry.example.com/shop/web:2.0
+          why: The selector of an apps/v1 Deployment is immutable. The API server rejects the new selector of web, and the only way around it is to recreate the Deployment, which the task forbids.
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: web
+              namespace: shop
+            spec:
+              replicas: 4
+              selector:
+                matchLabels:
+                  app: web
+              template:
+                metadata:
+                  labels:
+                    app: web
+                    release: web
+                spec:
+                  containers:
+                  - name: web
+                    image: registry.example.com/shop/web:1.9
+            ---
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: web-canary
+              namespace: shop
+            spec:
+              replicas: 1
+              selector:
+                matchLabels:
+                  app: web-canary
+              template:
+                metadata:
+                  labels:
+                    app: web-canary
+                    release: web
+                spec:
+                  containers:
+                  - name: web
+                    image: registry.example.com/shop/web:2.0
+            ---
+            apiVersion: v1
+            kind: Service
+            metadata:
+              name: web
+              namespace: shop
+            spec:
+              selector:
+                app: web
+                release: web
+              ports:
+              - port: 80
+                targetPort: 8080
+          why: A Service needs all its selector pairs. Canary Pods have app=web-canary, so app=web plus release=web excludes them and the canary gets no traffic.
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: web-canary
+              namespace: shop
+            spec:
+              replicas: 1
+              selector:
+                matchLabels:
+                  app: web-canary
+              template:
+                metadata:
+                  labels:
+                    app: web-canary
+                    release: web
+                spec:
+                  containers:
+                  - name: web
+                    image: registry.example.com/shop/web:2.0
+            ---
+            apiVersion: v1
+            kind: Service
+            metadata:
+              name: web
+              namespace: shop
+            spec:
+              selector:
+                release: web
+              ports:
+              - port: 80
+                targetPort: 8080
+          why: The stable Pods never get release=web, so the Service now selects only the canary Pod and sends it 100 % of the traffic.
+    explanation:
+      correct:
+        en: |
+          Canary Pods labelled `app: web` would be matched by the immutable selector `app: web` of Deployment `web`: overlapping controllers. So the canary uses `app: web-canary`, and the traffic is joined by another shared label: `release: web` is added to the Pod template of `web` (allowed, since it still contains `app: web`; this rolls out new stable Pods) and to the canary, and Service `web` selects `release: web` only. 4 stable Pods and 1 canary Pod give about 20 %. The Service is switched only after the rollout of `web`, so that the old stable Pods, which lack `release: web`, are already replaced.
+    references:
+      - title: Deployments
+        url: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/
+      - title: Managing Workloads
+        url: https://kubernetes.io/docs/concepts/workloads/management/

@@ -1,0 +1,1480 @@
+chapter: 32-self-healing-scheduling
+questions:
+  # ------------------------------------------------------------------ 1
+  - id: cka-qz-32-01
+    objective: "3.4.1"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |-
+        The container `api` of a Deployment is sometimes overloaded for about a minute. During that time it must stop receiving traffic from its Service, but the kubelet must not restart it.
+
+        What should you add to the container?
+    body:
+      options:
+        - { id: a, text: { en: "A `livenessProbe` that fails while the container is overloaded" } }
+        - { id: b, text: { en: "A `readinessProbe` that fails while the container is overloaded" } }
+        - { id: c, text: { en: "A `startupProbe` that fails while the container is overloaded" } }
+        - { id: d, text: { en: "A `livenessProbe`, with `restartPolicy: Never` in the Pod template" } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |-
+          When a readiness probe fails, the Pod is marked not ready and the EndpointSlice controller removes its IP address from the EndpointSlices of the matching Services, so it gets no traffic. A readiness failure never restarts the container; the Pod is added back as soon as the probe succeeds again.
+      options:
+        a: { en: "A failed liveness probe makes the kubelet kill and restart the container, which the task forbids." }
+        c: { en: "A startup probe only runs until it has succeeded once; a failure kills the container like a liveness failure." }
+        d: { en: "A Deployment only accepts `restartPolicy: Always`, so the template is rejected; the liveness probe would also restart the container." }
+    references:
+      - title: Liveness, Readiness, and Startup Probes
+        url: https://kubernetes.io/docs/concepts/configuration/liveness-readiness-startup-probes/
+      - title: Deployments
+        url: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/
+
+  # ------------------------------------------------------------------ 2
+  - id: cka-qz-32-02
+    objective: "3.5.2"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |-
+        You run `kubectl taint nodes worker-2 maintenance=true:NoExecute`. The Pod `report-7` is running on `worker-2` and has no toleration for this taint.
+
+        What happens to `report-7`?
+    body:
+      options:
+        - { id: a, text: { en: "It keeps running; only new Pods without a matching toleration are kept off the node." } }
+        - { id: b, text: { en: "It keeps running for 300 seconds, and is then evicted from the node." } }
+        - { id: c, text: { en: "It is evicted from the node immediately." } }
+        - { id: d, text: { en: "It keeps running; the scheduler only avoids the node for new Pods when it can." } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |-
+          `NoExecute` acts on running Pods as well as new ones: a Pod that does not tolerate the taint is evicted at once. Only a Pod whose toleration matches stays, forever without `tolerationSeconds` or for that many seconds with it.
+      options:
+        a: { en: "That is the `NoSchedule` effect, which leaves running Pods in place." }
+        b: { en: "The automatic 300-second toleration only exists for the `node.kubernetes.io/not-ready` and `node.kubernetes.io/unreachable` taints, not for a custom taint." }
+        d: { en: "That is the `PreferNoSchedule` effect, a soft preference for new Pods only." }
+    references:
+      - title: Taints and Tolerations
+        url: https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/
+
+  # ------------------------------------------------------------------ 3
+  - id: cka-qz-32-03
+    objective: "3.4.2"
+    difficulty: 2
+    status: draft
+    type: single
+    shuffle: false
+    stem:
+      en: |-
+        The Deployment `web` in namespace `shop` has 7 replicas labelled `app=web`. Six of them are Ready; the seventh is Running but not Ready. The namespace has this PodDisruptionBudget:
+
+        ```yaml
+        apiVersion: policy/v1
+        kind: PodDisruptionBudget
+        metadata:
+          name: web-pdb
+          namespace: shop
+        spec:
+          minAvailable: 50%
+          selector:
+            matchLabels:
+              app: web
+        ```
+
+        What does the `ALLOWED DISRUPTIONS` column of `kubectl get pdb web-pdb -n shop` show?
+    body:
+      options:
+        - { id: a, text: "0" }
+        - { id: b, text: "2" }
+        - { id: c, text: "3" }
+        - { id: d, text: "4" }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |-
+          A percentage in `minAvailable` is rounded up: 50 % of 7 replicas is 3.5, so 4 Pods must stay healthy. Only Ready Pods count as healthy, so 6 healthy Pods minus 4 required leaves 2 voluntary evictions allowed.
+      options:
+        a: { en: "The application is not disrupted (6 healthy Pods for 4 required), so the budget allows evictions; the default `IfHealthyBudget` policy only protects not-ready Pods when the budget is already broken." }
+        c: { en: "3 counts the not-ready Pod as healthy (7 - 4); the budget only counts Pods whose Ready condition is True." }
+        d: { en: "4 rounds 3.5 down to 3 and counts the not-ready Pod as healthy; Kubernetes rounds `minAvailable` percentages up." }
+    references:
+      - title: Specifying a Disruption Budget for your Application
+        url: https://kubernetes.io/docs/tasks/run-application/configure-pdb/
+
+  # ------------------------------------------------------------------ 4
+  - id: cka-qz-32-04
+    objective: "3.5.3"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |-
+        Namespace `dev` has this LimitRange:
+
+        ```yaml
+        apiVersion: v1
+        kind: LimitRange
+        metadata:
+          name: cpu-defaults
+          namespace: dev
+        spec:
+          limits:
+          - type: Container
+            default:
+              cpu: 500m
+            defaultRequest:
+              cpu: 200m
+        ```
+
+        You create a Pod in `dev` whose only container sets `resources.limits.cpu: 800m` and no CPU request. What CPU request and CPU limit does the container get?
+    body:
+      options:
+        - { id: a, text: { en: "A request of 200m and a limit of 800m" } }
+        - { id: b, text: { en: "A request of 200m and a limit of 500m" } }
+        - { id: c, text: { en: "None: the Pod is rejected because the container has no CPU request" } }
+        - { id: d, text: { en: "A request of 800m and a limit of 800m" } }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |-
+          When a container sets a limit but no request, its request is set equal to its own limit, not to the LimitRange `defaultRequest`. The defaults of a LimitRange only fill values that the container leaves empty, so the limit stays 800m.
+      options:
+        a: { en: "`defaultRequest` is not used when the container sets a limit: the request copies that limit." }
+        b: { en: "A LimitRange default never replaces a value the container sets; 500m would only be applied to a container without a CPU limit." }
+        c: { en: "A missing request is not an error: the request is derived from the limit." }
+    references:
+      - title: Configure Default CPU Requests and Limits for a Namespace
+        url: https://kubernetes.io/docs/tasks/administer-cluster/manage-resources/cpu-default-namespace/
+
+  # ------------------------------------------------------------------ 5
+  - id: cka-qz-32-05
+    objective: "3.5.1"
+    difficulty: 2
+    status: draft
+    type: multi
+    stem:
+      en: |-
+        A cluster has five worker nodes, none of them tainted, with these labels:
+
+        - `worker-1`: `disktype=ssd`, `topology.kubernetes.io/zone=zone-a`
+        - `worker-2`: `disktype=hdd`, `topology.kubernetes.io/zone=zone-a`, `gpu=t4`
+        - `worker-3`: `disktype=ssd`, `topology.kubernetes.io/zone=zone-b`, `gpu=a100`
+        - `worker-4`: `disktype=ssd`, `topology.kubernetes.io/zone=zone-b`
+        - `worker-5`: `topology.kubernetes.io/zone=zone-a`
+
+        A Pod has this scheduling configuration and requests resources that every node can provide:
+
+        ```yaml
+        spec:
+          nodeSelector:
+            disktype: ssd
+          affinity:
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                - matchExpressions:
+                  - key: topology.kubernetes.io/zone
+                    operator: In
+                    values: ["zone-a"]
+                - matchExpressions:
+                  - key: gpu
+                    operator: Exists
+        ```
+
+        On which two nodes can the scheduler place the Pod?
+    body:
+      choose: 2
+      options:
+        - { id: a, text: "worker-1" }
+        - { id: b, text: "worker-2" }
+        - { id: c, text: "worker-3" }
+        - { id: d, text: "worker-4" }
+        - { id: e, text: "worker-5" }
+    answer: { optionIds: [a, c] }
+    explanation:
+      correct:
+        en: |-
+          `nodeSelector` and node affinity must both match. The two `nodeSelectorTerms` are ORed: a node qualifies if it is in `zone-a` or if it has a `gpu` label. `worker-1` (ssd, zone-a) and `worker-3` (ssd, gpu label) satisfy the selector and one of the terms.
+      options:
+        b: { en: "`worker-2` matches both affinity terms, but its `disktype=hdd` label fails the `nodeSelector`, which must also match." }
+        d: { en: "`worker-4` has `disktype=ssd`, but it is in `zone-b` and has no `gpu` label, so neither term matches." }
+        e: { en: "`worker-5` is in `zone-a`, but it has no `disktype` label, so the `nodeSelector` does not match." }
+    references:
+      - title: Assigning Pods to Nodes
+        url: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/
+
+  # ------------------------------------------------------------------ 6
+  - id: cka-qz-32-06
+    objective: "3.5.2"
+    difficulty: 3
+    status: draft
+    type: command
+    stem:
+      en: |-
+        Node `worker-3` is reserved for the ML team, whose Pods tolerate the taint `dedicated=gpu:NoSchedule` only. An operator added a second taint by mistake, and every ML Pod on `worker-3` was evicted. `kubectl describe node worker-3` now shows:
+
+        ```text
+        Taints:             dedicated=gpu:NoExecute
+                            dedicated=gpu:NoSchedule
+        ```
+
+        Remove the taint added by mistake, so that the ML Pods can run on `worker-3` again while Pods without a matching toleration still cannot be scheduled there. Type the single command you would run.
+    body:
+      mode: invocation
+      namespace: default
+    answer:
+      checks:
+        - id: verb
+          label: The command is kubectl taint
+          path: verb
+          op: equals
+          value: taint
+        - id: resource
+          label: It targets a node
+          path: resource
+          op: equals
+          value: node
+        - id: node
+          label: It targets worker-3
+          path: names
+          op: contains
+          value: worker-3
+        - id: remove-noexecute
+          label: It removes the dedicated taint with the NoExecute effect
+          path: args
+          op: matches
+          value: '"dedicated(=gpu)?:NoExecute-"'
+        - id: keep-noschedule
+          label: It keeps the dedicated=gpu:NoSchedule taint
+          path: args
+          op: matches
+          value: '^(?!.*("dedicated-"|NoSchedule-))'
+      solution:
+        - command: kubectl taint nodes worker-3 dedicated=gpu:NoExecute-
+        - command: k taint node worker-3 dedicated:NoExecute-
+        - command: kubectl taint node/worker-3 dedicated=gpu:NoExecute-
+      negatives:
+        - command: kubectl taint nodes worker-3 dedicated-
+          why: A key followed by "-" removes every taint with that key, so the NoSchedule taint that keeps other Pods off the node is removed too.
+        - command: kubectl taint nodes worker-3 dedicated=gpu:NoSchedule-
+          why: This removes the taint that must stay; the NoExecute taint remains and keeps evicting the ML Pods.
+        - command: kubectl taint nodes worker-3 dedicated=gpu:NoExecute --overwrite
+          why: Without the trailing "-" the command sets the taint again instead of removing it.
+        - command: kubectl uncordon worker-3
+          why: uncordon only clears spec.unschedulable (and its node.kubernetes.io/unschedulable taint); the dedicated taints are unchanged.
+    explanation:
+      correct:
+        en: |-
+          A trailing `-` removes a taint: `key=value:Effect-` or `key:Effect-` removes only the taint with that key and effect, while `key-` removes every taint with the key. Removing the `NoExecute` taint stops the evictions; the `NoSchedule` taint, which the ML Pods tolerate, still keeps other Pods off `worker-3`.
+    references:
+      - title: kubectl taint
+        url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_taint/
+      - title: Taints and Tolerations
+        url: https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/
+
+  # ------------------------------------------------------------------ 7
+  - id: cka-qz-32-07
+    objective: "3.4.1"
+    difficulty: 3
+    status: draft
+    type: manifest
+    stem:
+      en: |-
+        The Deployment `ledger` in namespace `finance` (shown in the editor) runs an application that serves two endpoints on port 8080: `/healthz` returns 200 as long as the process works, and `/ready` returns 503 while the application cannot reach its database. The application can take several minutes to start.
+
+        Add probes to the container `ledger`:
+
+        - Startup: HTTP GET `/healthz`, probed every 5 seconds; the kubelet must restart the container if it has not started after exactly 240 seconds.
+        - Once started, the kubelet must restart the container when `/healthz` fails 2 consecutive times, each check timing out after 2 seconds.
+        - While `/ready` fails, the Pod must receive no traffic from its Services and must not be restarted; check `/ready` every 5 seconds.
+
+        Keep everything else unchanged.
+    body:
+      starter: |
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: ledger
+          namespace: finance
+        spec:
+          replicas: 3
+          selector:
+            matchLabels:
+              app: ledger
+          template:
+            metadata:
+              labels:
+                app: ledger
+            spec:
+              containers:
+              - name: ledger
+                image: registry.example.com/finance/ledger:3.2
+                ports:
+                - name: http
+                  containerPort: 8080
+    answer:
+      checks:
+        - id: meta
+          label: The Deployment is ledger in namespace finance
+          path: metadata
+          op: subset
+          value: { name: ledger, namespace: finance }
+        - id: replicas
+          label: It keeps 3 replicas
+          path: spec.replicas
+          op: equals
+          value: 3
+        - id: image
+          label: The container image is unchanged
+          path: spec.template.spec.containers[name=ledger].image
+          op: equals
+          value: registry.example.com/finance/ledger:3.2
+        - id: startup-path
+          label: The startup probe calls /healthz
+          path: spec.template.spec.containers[name=ledger].startupProbe.httpGet.path
+          op: equals
+          value: /healthz
+        - id: startup-port
+          label: The startup probe uses port 8080
+          path: spec.template.spec.containers[name=ledger].startupProbe.httpGet.port
+          op: oneOf
+          value: [8080, http]
+        - id: startup-period
+          label: The startup probe runs every 5 seconds
+          path: spec.template.spec.containers[name=ledger].startupProbe.periodSeconds
+          op: equals
+          value: 5
+        - id: startup-threshold
+          label: The startup probe allows 48 failures (48 x 5 s = 240 s)
+          path: spec.template.spec.containers[name=ledger].startupProbe.failureThreshold
+          op: equals
+          value: 48
+        - id: liveness-path
+          label: The liveness probe calls /healthz
+          path: spec.template.spec.containers[name=ledger].livenessProbe.httpGet.path
+          op: equals
+          value: /healthz
+        - id: liveness-port
+          label: The liveness probe uses port 8080
+          path: spec.template.spec.containers[name=ledger].livenessProbe.httpGet.port
+          op: oneOf
+          value: [8080, http]
+        - id: liveness-threshold
+          label: The liveness probe restarts after 2 consecutive failures
+          path: spec.template.spec.containers[name=ledger].livenessProbe.failureThreshold
+          op: equals
+          value: 2
+        - id: liveness-timeout
+          label: Each liveness check times out after 2 seconds
+          path: spec.template.spec.containers[name=ledger].livenessProbe.timeoutSeconds
+          op: equals
+          value: 2
+        - id: readiness-path
+          label: The readiness probe calls /ready
+          path: spec.template.spec.containers[name=ledger].readinessProbe.httpGet.path
+          op: equals
+          value: /ready
+        - id: readiness-port
+          label: The readiness probe uses port 8080
+          path: spec.template.spec.containers[name=ledger].readinessProbe.httpGet.port
+          op: oneOf
+          value: [8080, http]
+        - id: readiness-period
+          label: The readiness probe runs every 5 seconds
+          path: spec.template.spec.containers[name=ledger].readinessProbe.periodSeconds
+          op: equals
+          value: 5
+      solution:
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: ledger
+              namespace: finance
+            spec:
+              replicas: 3
+              selector:
+                matchLabels:
+                  app: ledger
+              template:
+                metadata:
+                  labels:
+                    app: ledger
+                spec:
+                  containers:
+                  - name: ledger
+                    image: registry.example.com/finance/ledger:3.2
+                    ports:
+                    - name: http
+                      containerPort: 8080
+                    startupProbe:
+                      httpGet:
+                        path: /healthz
+                        port: 8080
+                      periodSeconds: 5
+                      failureThreshold: 48
+                    livenessProbe:
+                      httpGet:
+                        path: /healthz
+                        port: 8080
+                      timeoutSeconds: 2
+                      failureThreshold: 2
+                    readinessProbe:
+                      httpGet:
+                        path: /ready
+                        port: 8080
+                      periodSeconds: 5
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: ledger
+              namespace: finance
+            spec:
+              replicas: 3
+              selector:
+                matchLabels:
+                  app: ledger
+              template:
+                metadata:
+                  labels:
+                    app: ledger
+                spec:
+                  containers:
+                  - name: ledger
+                    image: registry.example.com/finance/ledger:3.2
+                    ports:
+                    - name: http
+                      containerPort: 8080
+                    readinessProbe:
+                      httpGet: { path: /ready, port: http }
+                      periodSeconds: 5
+                      failureThreshold: 3
+                    livenessProbe:
+                      httpGet: { path: /healthz, port: http }
+                      periodSeconds: 10
+                      timeoutSeconds: 2
+                      failureThreshold: 2
+                    startupProbe:
+                      httpGet: { path: /healthz, port: http }
+                      failureThreshold: 48
+                      periodSeconds: 5
+      negatives:
+        - why: The paths are swapped. A liveness probe on /ready restarts every replica whenever the database is unreachable, and the readiness probe no longer reflects the database.
+          manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: ledger
+              namespace: finance
+            spec:
+              replicas: 3
+              selector:
+                matchLabels:
+                  app: ledger
+              template:
+                metadata:
+                  labels:
+                    app: ledger
+                spec:
+                  containers:
+                  - name: ledger
+                    image: registry.example.com/finance/ledger:3.2
+                    ports:
+                    - name: http
+                      containerPort: 8080
+                    startupProbe:
+                      httpGet:
+                        path: /healthz
+                        port: 8080
+                      periodSeconds: 5
+                      failureThreshold: 48
+                    livenessProbe:
+                      httpGet:
+                        path: /ready
+                        port: 8080
+                      timeoutSeconds: 2
+                      failureThreshold: 2
+                    readinessProbe:
+                      httpGet:
+                        path: /healthz
+                        port: 8080
+                      periodSeconds: 5
+        - why: There is no startup probe. initialDelaySeconds 240 on the liveness probe delays liveness checks by 4 minutes even after a fast start, instead of probing every 5 seconds and restarting the container after 240 seconds.
+          manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: ledger
+              namespace: finance
+            spec:
+              replicas: 3
+              selector:
+                matchLabels:
+                  app: ledger
+              template:
+                metadata:
+                  labels:
+                    app: ledger
+                spec:
+                  containers:
+                  - name: ledger
+                    image: registry.example.com/finance/ledger:3.2
+                    ports:
+                    - name: http
+                      containerPort: 8080
+                    livenessProbe:
+                      httpGet:
+                        path: /healthz
+                        port: 8080
+                      initialDelaySeconds: 240
+                      timeoutSeconds: 2
+                      failureThreshold: 2
+                    readinessProbe:
+                      httpGet:
+                        path: /ready
+                        port: 8080
+                      periodSeconds: 5
+        - why: Without periodSeconds the startup probe runs every 10 seconds (the default), so 48 failures give the application 480 seconds instead of 240.
+          manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: ledger
+              namespace: finance
+            spec:
+              replicas: 3
+              selector:
+                matchLabels:
+                  app: ledger
+              template:
+                metadata:
+                  labels:
+                    app: ledger
+                spec:
+                  containers:
+                  - name: ledger
+                    image: registry.example.com/finance/ledger:3.2
+                    ports:
+                    - name: http
+                      containerPort: 8080
+                    startupProbe:
+                      httpGet:
+                        path: /healthz
+                        port: 8080
+                      failureThreshold: 48
+                    livenessProbe:
+                      httpGet:
+                        path: /healthz
+                        port: 8080
+                      timeoutSeconds: 2
+                      failureThreshold: 2
+                    readinessProbe:
+                      httpGet:
+                        path: /ready
+                        port: 8080
+                      periodSeconds: 5
+        - why: The liveness probe keeps the default timeoutSeconds of 1 second, not the 2 seconds the task asks for.
+          manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: ledger
+              namespace: finance
+            spec:
+              replicas: 3
+              selector:
+                matchLabels:
+                  app: ledger
+              template:
+                metadata:
+                  labels:
+                    app: ledger
+                spec:
+                  containers:
+                  - name: ledger
+                    image: registry.example.com/finance/ledger:3.2
+                    ports:
+                    - name: http
+                      containerPort: 8080
+                    startupProbe:
+                      httpGet:
+                        path: /healthz
+                        port: 8080
+                      periodSeconds: 5
+                      failureThreshold: 48
+                    livenessProbe:
+                      httpGet:
+                        path: /healthz
+                        port: 8080
+                      failureThreshold: 2
+                    readinessProbe:
+                      httpGet:
+                        path: /ready
+                        port: 8080
+                      periodSeconds: 5
+    explanation:
+      correct:
+        en: |-
+          The startup probe gives the application `failureThreshold` x `periodSeconds` = 48 x 5 = 240 seconds to start; liveness and readiness probes only run once it has succeeded. The liveness probe checks only the process (`/healthz`), with `failureThreshold: 2` and `timeoutSeconds: 2` (defaults 3 and 1). The database check belongs in the readiness probe: a failure removes the Pod from its Services' endpoints without a restart.
+    references:
+      - title: Configure Liveness, Readiness and Startup Probes
+        url: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/
+      - title: Liveness, Readiness, and Startup Probes
+        url: https://kubernetes.io/docs/concepts/configuration/liveness-readiness-startup-probes/
+
+  # ------------------------------------------------------------------ 8
+  - id: cka-qz-32-08
+    objective: "3.5.1"
+    difficulty: 3
+    status: draft
+    type: manifest
+    stem:
+      en: |-
+        The cluster has 3 worker nodes spread over two zones (node label `topology.kubernetes.io/zone`). The Redis Pods used by the shop, labelled `app=redis`, run in namespace `cache`.
+
+        Add scheduling rules to the Pod template of the Deployment `api` in namespace `shop` (shown in the editor):
+
+        - Every `api` Pod must run in a zone where at least one `app=redis` Pod of namespace `cache` runs; if no zone qualifies, the Pod stays Pending.
+        - The scheduler should avoid placing two `api` Pods on the same node (node label `kubernetes.io/hostname`), with a weight of 100, but all 5 replicas must still be scheduled.
+
+        Keep everything else unchanged.
+    body:
+      starter: |
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: api
+          namespace: shop
+        spec:
+          replicas: 5
+          selector:
+            matchLabels:
+              app: api
+          template:
+            metadata:
+              labels:
+                app: api
+            spec:
+              containers:
+              - name: api
+                image: registry.example.com/shop/api:2.4
+    answer:
+      checks:
+        - id: meta
+          label: The Deployment is api in namespace shop
+          path: metadata
+          op: subset
+          value: { name: api, namespace: shop }
+        - id: replicas
+          label: It keeps 5 replicas
+          path: spec.replicas
+          op: equals
+          value: 5
+        - id: template-label
+          label: The Pod template keeps the label app=api
+          path: spec.template.metadata.labels.app
+          op: equals
+          value: api
+        - id: affinity-zone
+          label: The required Pod affinity uses the zone as topology
+          path: spec.template.spec.affinity.podAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].topologyKey
+          op: equals
+          value: topology.kubernetes.io/zone
+        - id: affinity-selector
+          label: The required Pod affinity selects app=redis Pods
+          path: spec.template.spec.affinity.podAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].labelSelector
+          op: oneOf
+          value:
+            - { matchLabels: { app: redis } }
+            - { matchExpressions: [ { key: app, operator: In, values: [redis] } ] }
+        - id: affinity-namespace
+          label: The required Pod affinity looks for the Redis Pods in namespace cache
+          path: spec.template.spec.affinity.podAffinity.requiredDuringSchedulingIgnoredDuringExecution[0]
+          op: matches
+          value: '"namespaces":\[[^\]]*"cache"|"namespaceSelector":\{.*"kubernetes\.io/metadata\.name".*"cache"'
+        - id: anti-weight
+          label: The preferred Pod anti-affinity has weight 100
+          path: spec.template.spec.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].weight
+          op: equals
+          value: 100
+        - id: anti-hostname
+          label: The preferred Pod anti-affinity spreads by node
+          path: spec.template.spec.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].podAffinityTerm.topologyKey
+          op: equals
+          value: kubernetes.io/hostname
+        - id: anti-selector
+          label: The preferred Pod anti-affinity selects the app=api Pods
+          path: spec.template.spec.affinity.podAntiAffinity.preferredDuringSchedulingIgnoredDuringExecution[0].podAffinityTerm.labelSelector
+          op: oneOf
+          value:
+            - { matchLabels: { app: api } }
+            - { matchExpressions: [ { key: app, operator: In, values: [api] } ] }
+        - id: no-hard-anti
+          label: There is no required Pod anti-affinity
+          path: spec.template.spec.affinity.podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecution
+          op: absent
+      solution:
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: api
+              namespace: shop
+            spec:
+              replicas: 5
+              selector:
+                matchLabels:
+                  app: api
+              template:
+                metadata:
+                  labels:
+                    app: api
+                spec:
+                  affinity:
+                    podAffinity:
+                      requiredDuringSchedulingIgnoredDuringExecution:
+                      - labelSelector:
+                          matchLabels:
+                            app: redis
+                        namespaces: ["cache"]
+                        topologyKey: topology.kubernetes.io/zone
+                    podAntiAffinity:
+                      preferredDuringSchedulingIgnoredDuringExecution:
+                      - weight: 100
+                        podAffinityTerm:
+                          labelSelector:
+                            matchLabels:
+                              app: api
+                          topologyKey: kubernetes.io/hostname
+                  containers:
+                  - name: api
+                    image: registry.example.com/shop/api:2.4
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: api
+              namespace: shop
+            spec:
+              replicas: 5
+              selector:
+                matchLabels:
+                  app: api
+              template:
+                metadata:
+                  labels:
+                    app: api
+                spec:
+                  containers:
+                  - name: api
+                    image: registry.example.com/shop/api:2.4
+                  affinity:
+                    podAntiAffinity:
+                      preferredDuringSchedulingIgnoredDuringExecution:
+                      - podAffinityTerm:
+                          topologyKey: kubernetes.io/hostname
+                          labelSelector:
+                            matchExpressions:
+                            - key: app
+                              operator: In
+                              values: ["api"]
+                        weight: 100
+                    podAffinity:
+                      requiredDuringSchedulingIgnoredDuringExecution:
+                      - topologyKey: topology.kubernetes.io/zone
+                        namespaceSelector:
+                          matchLabels:
+                            kubernetes.io/metadata.name: cache
+                        labelSelector:
+                          matchLabels:
+                            app: redis
+      negatives:
+        - why: Without namespaces or namespaceSelector the affinity term only looks for app=redis Pods in the Pod's own namespace, shop, where there are none, so every api Pod stays Pending.
+          manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: api
+              namespace: shop
+            spec:
+              replicas: 5
+              selector:
+                matchLabels:
+                  app: api
+              template:
+                metadata:
+                  labels:
+                    app: api
+                spec:
+                  affinity:
+                    podAffinity:
+                      requiredDuringSchedulingIgnoredDuringExecution:
+                      - labelSelector:
+                          matchLabels:
+                            app: redis
+                        topologyKey: topology.kubernetes.io/zone
+                    podAntiAffinity:
+                      preferredDuringSchedulingIgnoredDuringExecution:
+                      - weight: 100
+                        podAffinityTerm:
+                          labelSelector:
+                            matchLabels:
+                              app: api
+                          topologyKey: kubernetes.io/hostname
+                  containers:
+                  - name: api
+                    image: registry.example.com/shop/api:2.4
+        - why: A required anti-affinity on kubernetes.io/hostname allows one api Pod per node; with 3 nodes, 2 of the 5 replicas stay Pending.
+          manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: api
+              namespace: shop
+            spec:
+              replicas: 5
+              selector:
+                matchLabels:
+                  app: api
+              template:
+                metadata:
+                  labels:
+                    app: api
+                spec:
+                  affinity:
+                    podAffinity:
+                      requiredDuringSchedulingIgnoredDuringExecution:
+                      - labelSelector:
+                          matchLabels:
+                            app: redis
+                        namespaces: ["cache"]
+                        topologyKey: topology.kubernetes.io/zone
+                    podAntiAffinity:
+                      requiredDuringSchedulingIgnoredDuringExecution:
+                      - labelSelector:
+                          matchLabels:
+                            app: api
+                        topologyKey: kubernetes.io/hostname
+                  containers:
+                  - name: api
+                    image: registry.example.com/shop/api:2.4
+        - why: With topologyKey kubernetes.io/hostname the api Pods must run on the same node as a Redis Pod, not merely in the same zone; that is much stricter than required.
+          manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: api
+              namespace: shop
+            spec:
+              replicas: 5
+              selector:
+                matchLabels:
+                  app: api
+              template:
+                metadata:
+                  labels:
+                    app: api
+                spec:
+                  affinity:
+                    podAffinity:
+                      requiredDuringSchedulingIgnoredDuringExecution:
+                      - labelSelector:
+                          matchLabels:
+                            app: redis
+                        namespaces: ["cache"]
+                        topologyKey: kubernetes.io/hostname
+                    podAntiAffinity:
+                      preferredDuringSchedulingIgnoredDuringExecution:
+                      - weight: 100
+                        podAffinityTerm:
+                          labelSelector:
+                            matchLabels:
+                              app: api
+                          topologyKey: kubernetes.io/hostname
+                  containers:
+                  - name: api
+                    image: registry.example.com/shop/api:2.4
+        - why: An empty namespaceSelector ({}) matches every namespace, so any app=redis Pod of the cluster would satisfy the rule, not only those of cache.
+          manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: api
+              namespace: shop
+            spec:
+              replicas: 5
+              selector:
+                matchLabels:
+                  app: api
+              template:
+                metadata:
+                  labels:
+                    app: api
+                spec:
+                  affinity:
+                    podAffinity:
+                      requiredDuringSchedulingIgnoredDuringExecution:
+                      - labelSelector:
+                          matchLabels:
+                            app: redis
+                        namespaceSelector: {}
+                        topologyKey: topology.kubernetes.io/zone
+                    podAntiAffinity:
+                      preferredDuringSchedulingIgnoredDuringExecution:
+                      - weight: 100
+                        podAffinityTerm:
+                          labelSelector:
+                            matchLabels:
+                              app: api
+                          topologyKey: kubernetes.io/hostname
+                  containers:
+                  - name: api
+                    image: registry.example.com/shop/api:2.4
+    explanation:
+      correct:
+        en: |-
+          A Pod affinity term looks for matching Pods in the Pod's own namespace unless it sets `namespaces: ["cache"]` or a `namespaceSelector` on the automatic label `kubernetes.io/metadata.name: cache`. With `topologyKey: topology.kubernetes.io/zone`, the term is satisfied by any node of a zone that runs a Redis Pod. A preferred anti-affinity (`weight` plus `podAffinityTerm`) spreads the replicas by node when possible; a required one would leave 2 of the 5 replicas Pending on 3 nodes.
+    references:
+      - title: Assigning Pods to Nodes
+        url: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/
+
+  # ------------------------------------------------------------------ 9
+  - id: cka-qz-32-09
+    objective: "3.4.2"
+    difficulty: 3
+    status: draft
+    type: manifest
+    stem:
+      en: |-
+        The worker nodes are spread over three zones (node label `topology.kubernetes.io/zone`). The cluster autoscaler can remove every node of a zone, and nodes being drained are cordoned.
+
+        Add one topology spread constraint to the Pod template of the Deployment `checkout` in namespace `shop` (shown in the editor):
+
+        - The number of `app=checkout` Pods in any two zones may differ by at most 1; a Pod that would break this rule stays Pending.
+        - While fewer than 3 zones are eligible, the missing zones must count as holding 0 Pods, so that extra replicas stay Pending (and the autoscaler adds nodes) instead of piling into the remaining zones.
+        - Nodes with a taint that the `checkout` Pods do not tolerate, such as cordoned nodes, must not be taken into account.
+        - During a rolling update, the spread must be computed only among the Pods of the same revision, using the label that the Deployment controller adds to the Pods of each ReplicaSet.
+
+        Keep everything else unchanged.
+    body:
+      starter: |
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: checkout
+          namespace: shop
+        spec:
+          replicas: 6
+          selector:
+            matchLabels:
+              app: checkout
+          template:
+            metadata:
+              labels:
+                app: checkout
+            spec:
+              containers:
+              - name: checkout
+                image: registry.example.com/shop/checkout:5.1
+    answer:
+      checks:
+        - id: meta
+          label: The Deployment is checkout in namespace shop
+          path: metadata
+          op: subset
+          value: { name: checkout, namespace: shop }
+        - id: replicas
+          label: It keeps 6 replicas
+          path: spec.replicas
+          op: equals
+          value: 6
+        - id: skew
+          label: The zone constraint has maxSkew 1
+          path: spec.template.spec.topologySpreadConstraints[topologyKey=topology.kubernetes.io/zone].maxSkew
+          op: equals
+          value: 1
+        - id: hard
+          label: The zone constraint is a hard rule (DoNotSchedule, explicit or default)
+          path: spec.template.spec.topologySpreadConstraints[topologyKey=topology.kubernetes.io/zone]
+          op: matches
+          value: '^(?!.*ScheduleAnyway)'
+        - id: min-domains
+          label: The zone constraint sets minDomains 3
+          path: spec.template.spec.topologySpreadConstraints[topologyKey=topology.kubernetes.io/zone].minDomains
+          op: equals
+          value: 3
+        - id: taints
+          label: The zone constraint honors node taints
+          path: spec.template.spec.topologySpreadConstraints[topologyKey=topology.kubernetes.io/zone].nodeTaintsPolicy
+          op: equals
+          value: Honor
+        - id: revision
+          label: The zone constraint counts one revision through pod-template-hash
+          path: spec.template.spec.topologySpreadConstraints[topologyKey=topology.kubernetes.io/zone].matchLabelKeys
+          op: contains
+          value: pod-template-hash
+        - id: selector
+          label: The zone constraint counts the app=checkout Pods
+          path: spec.template.spec.topologySpreadConstraints[topologyKey=topology.kubernetes.io/zone].labelSelector
+          op: oneOf
+          value:
+            - { matchLabels: { app: checkout } }
+            - { matchExpressions: [ { key: app, operator: In, values: [checkout] } ] }
+      solution:
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: checkout
+              namespace: shop
+            spec:
+              replicas: 6
+              selector:
+                matchLabels:
+                  app: checkout
+              template:
+                metadata:
+                  labels:
+                    app: checkout
+                spec:
+                  topologySpreadConstraints:
+                  - maxSkew: 1
+                    minDomains: 3
+                    topologyKey: topology.kubernetes.io/zone
+                    whenUnsatisfiable: DoNotSchedule
+                    nodeTaintsPolicy: Honor
+                    labelSelector:
+                      matchLabels:
+                        app: checkout
+                    matchLabelKeys:
+                    - pod-template-hash
+                  containers:
+                  - name: checkout
+                    image: registry.example.com/shop/checkout:5.1
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: checkout
+              namespace: shop
+            spec:
+              replicas: 6
+              selector:
+                matchLabels:
+                  app: checkout
+              template:
+                metadata:
+                  labels:
+                    app: checkout
+                spec:
+                  containers:
+                  - name: checkout
+                    image: registry.example.com/shop/checkout:5.1
+                  topologySpreadConstraints:
+                  - topologyKey: topology.kubernetes.io/zone
+                    maxSkew: 1
+                    minDomains: 3
+                    nodeAffinityPolicy: Honor
+                    nodeTaintsPolicy: Honor
+                    matchLabelKeys: ["pod-template-hash"]
+                    labelSelector:
+                      matchExpressions:
+                      - key: app
+                        operator: In
+                        values: ["checkout"]
+      negatives:
+        - why: Without minDomains the constraint behaves as minDomains 1, so when a zone has no node the replicas are spread over the two remaining zones instead of staying Pending.
+          manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: checkout
+              namespace: shop
+            spec:
+              replicas: 6
+              selector:
+                matchLabels:
+                  app: checkout
+              template:
+                metadata:
+                  labels:
+                    app: checkout
+                spec:
+                  topologySpreadConstraints:
+                  - maxSkew: 1
+                    topologyKey: topology.kubernetes.io/zone
+                    whenUnsatisfiable: DoNotSchedule
+                    nodeTaintsPolicy: Honor
+                    labelSelector:
+                      matchLabels:
+                        app: checkout
+                    matchLabelKeys:
+                    - pod-template-hash
+                  containers:
+                  - name: checkout
+                    image: registry.example.com/shop/checkout:5.1
+        - why: nodeAffinityPolicy is about the Pod's node affinity and nodeSelector; taints stay ignored, because nodeTaintsPolicy defaults to Ignore.
+          manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: checkout
+              namespace: shop
+            spec:
+              replicas: 6
+              selector:
+                matchLabels:
+                  app: checkout
+              template:
+                metadata:
+                  labels:
+                    app: checkout
+                spec:
+                  topologySpreadConstraints:
+                  - maxSkew: 1
+                    minDomains: 3
+                    topologyKey: topology.kubernetes.io/zone
+                    whenUnsatisfiable: DoNotSchedule
+                    nodeAffinityPolicy: Honor
+                    labelSelector:
+                      matchLabels:
+                        app: checkout
+                    matchLabelKeys:
+                    - pod-template-hash
+                  containers:
+                  - name: checkout
+                    image: registry.example.com/shop/checkout:5.1
+        - why: ScheduleAnyway makes the constraint a preference, and minDomains is only valid with DoNotSchedule, so the API server rejects this template.
+          manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: checkout
+              namespace: shop
+            spec:
+              replicas: 6
+              selector:
+                matchLabels:
+                  app: checkout
+              template:
+                metadata:
+                  labels:
+                    app: checkout
+                spec:
+                  topologySpreadConstraints:
+                  - maxSkew: 1
+                    minDomains: 3
+                    topologyKey: topology.kubernetes.io/zone
+                    whenUnsatisfiable: ScheduleAnyway
+                    nodeTaintsPolicy: Honor
+                    labelSelector:
+                      matchLabels:
+                        app: checkout
+                    matchLabelKeys:
+                    - pod-template-hash
+                  containers:
+                  - name: checkout
+                    image: registry.example.com/shop/checkout:5.1
+        - why: A pod-template-hash Exists expression matches the Pods of every revision, so old and new Pods are still counted together during a rollout; matchLabelKeys adds the value of the new Pod's own hash.
+          manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: checkout
+              namespace: shop
+            spec:
+              replicas: 6
+              selector:
+                matchLabels:
+                  app: checkout
+              template:
+                metadata:
+                  labels:
+                    app: checkout
+                spec:
+                  topologySpreadConstraints:
+                  - maxSkew: 1
+                    minDomains: 3
+                    topologyKey: topology.kubernetes.io/zone
+                    whenUnsatisfiable: DoNotSchedule
+                    nodeTaintsPolicy: Honor
+                    labelSelector:
+                      matchLabels:
+                        app: checkout
+                      matchExpressions:
+                      - key: pod-template-hash
+                        operator: Exists
+                  containers:
+                  - name: checkout
+                    image: registry.example.com/shop/checkout:5.1
+    explanation:
+      correct:
+        en: |-
+          `maxSkew: 1` with `DoNotSchedule` (the default) is the hard rule. `minDomains: 3` makes the scheduler treat the global minimum as 0 while fewer than 3 zones are eligible, so extra Pods stay Pending; it is only valid with `DoNotSchedule`. `nodeTaintsPolicy: Honor` leaves out nodes whose taints the Pod does not tolerate (default `Ignore`), and `matchLabelKeys: [pod-template-hash]` adds the new Pod's revision hash to the `labelSelector`, which must still select `app=checkout`.
+    references:
+      - title: Pod Topology Spread Constraints
+        url: https://kubernetes.io/docs/concepts/scheduling-eviction/topology-spread-constraints/
+
+  # ------------------------------------------------------------------ 10
+  - id: cka-qz-32-10
+    objective: "3.5.3"
+    difficulty: 3
+    status: draft
+    type: manifest
+    stem:
+      en: |-
+        The Deployment `renderer` in namespace `reports` (shown in the editor) has no Pods. Its ReplicaSet shows `FailedCreate` events whose message contains:
+
+        `spec.containers[0].resources.requests: Invalid value: "600m": must be less than or equal to cpu limit`
+
+        The namespace has the LimitRange in `limitrange.yaml`. `quota.txt` is the output of `kubectl describe quota -n reports`; the Used column counts the other workloads of the namespace, since `renderer` has no Pod yet.
+
+        Fix the Deployment so that all 3 replicas are admitted:
+
+        - keep `requests.cpu: 600m` and the 3 replicas, and do not change the LimitRange or the quota;
+        - give the container `renderer` the largest CPU limit, in steps of 100m, with which all 3 replicas are admitted;
+        - leave memory to the namespace defaults.
+    body:
+      files:
+        - name: limitrange.yaml
+          content: |
+            apiVersion: v1
+            kind: LimitRange
+            metadata:
+              name: container-defaults
+              namespace: reports
+            spec:
+              limits:
+              - type: Container
+                default:
+                  cpu: 500m
+                  memory: 512Mi
+                defaultRequest:
+                  cpu: 250m
+                  memory: 256Mi
+                max:
+                  cpu: "1"
+                  memory: 1Gi
+        - name: quota.txt
+          content: |
+            Name:            reports-quota
+            Namespace:       reports
+            Resource         Used   Hard
+            --------         ----   ----
+            limits.cpu       1      3
+            limits.memory    1Gi    4Gi
+            pods             2      10
+            requests.cpu     500m   3
+            requests.memory  512Mi  4Gi
+      starter: |
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: renderer
+          namespace: reports
+        spec:
+          replicas: 3
+          selector:
+            matchLabels:
+              app: renderer
+          template:
+            metadata:
+              labels:
+                app: renderer
+            spec:
+              containers:
+              - name: renderer
+                image: registry.example.com/reports/renderer:2.0
+                resources:
+                  requests:
+                    cpu: 600m
+    answer:
+      checks:
+        - id: meta
+          label: The Deployment is renderer in namespace reports
+          path: metadata
+          op: subset
+          value: { name: renderer, namespace: reports }
+        - id: replicas
+          label: It keeps 3 replicas
+          path: spec.replicas
+          op: equals
+          value: 3
+        - id: image
+          label: The container image is unchanged
+          path: spec.template.spec.containers[name=renderer].image
+          op: equals
+          value: registry.example.com/reports/renderer:2.0
+        - id: request
+          label: The container still requests 600m CPU
+          path: spec.template.spec.containers[name=renderer].resources.requests.cpu
+          op: quantity
+          value: 600m
+        - id: limit
+          label: The container has a CPU limit of 600m
+          path: spec.template.spec.containers[name=renderer].resources.limits.cpu
+          op: quantity
+          value: 600m
+      solution:
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: renderer
+              namespace: reports
+            spec:
+              replicas: 3
+              selector:
+                matchLabels:
+                  app: renderer
+              template:
+                metadata:
+                  labels:
+                    app: renderer
+                spec:
+                  containers:
+                  - name: renderer
+                    image: registry.example.com/reports/renderer:2.0
+                    resources:
+                      requests:
+                        cpu: 600m
+                      limits:
+                        cpu: 600m
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: renderer
+              namespace: reports
+            spec:
+              replicas: 3
+              selector:
+                matchLabels:
+                  app: renderer
+              template:
+                metadata:
+                  labels:
+                    app: renderer
+                spec:
+                  containers:
+                  - name: renderer
+                    image: registry.example.com/reports/renderer:2.0
+                    resources:
+                      limits:
+                        cpu: "0.6"
+                      requests:
+                        cpu: 600m
+      negatives:
+        - why: 1 CPU is the LimitRange maximum, but the quota has only 2 CPU of limits left (3 - 1); the third Pod would bring limits.cpu to 4 and is rejected with "exceeded quota".
+          manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: renderer
+              namespace: reports
+            spec:
+              replicas: 3
+              selector:
+                matchLabels:
+                  app: renderer
+              template:
+                metadata:
+                  labels:
+                    app: renderer
+                spec:
+                  containers:
+                  - name: renderer
+                    image: registry.example.com/reports/renderer:2.0
+                    resources:
+                      requests:
+                        cpu: 600m
+                      limits:
+                        cpu: "1"
+        - why: 3 x 700m = 2.1 CPU of limits, more than the 2 CPU left in the quota, so the third replica is rejected.
+          manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: renderer
+              namespace: reports
+            spec:
+              replicas: 3
+              selector:
+                matchLabels:
+                  app: renderer
+              template:
+                metadata:
+                  labels:
+                    app: renderer
+                spec:
+                  containers:
+                  - name: renderer
+                    image: registry.example.com/reports/renderer:2.0
+                    resources:
+                      requests:
+                        cpu: 600m
+                      limits:
+                        cpu: 700m
+        - why: Lowering the request to the 500m default limit makes the Pods valid, but the task requires the 600m request to stay.
+          manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: renderer
+              namespace: reports
+            spec:
+              replicas: 3
+              selector:
+                matchLabels:
+                  app: renderer
+              template:
+                metadata:
+                  labels:
+                    app: renderer
+                spec:
+                  containers:
+                  - name: renderer
+                    image: registry.example.com/reports/renderer:2.0
+                    resources:
+                      requests:
+                        cpu: 500m
+        - why: Scaling down to 2 replicas so that a 1 CPU limit fits the quota does not keep the 3 replicas the task requires.
+          manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: renderer
+              namespace: reports
+            spec:
+              replicas: 2
+              selector:
+                matchLabels:
+                  app: renderer
+              template:
+                metadata:
+                  labels:
+                    app: renderer
+                spec:
+                  containers:
+                  - name: renderer
+                    image: registry.example.com/reports/renderer:2.0
+                    resources:
+                      requests:
+                        cpu: 600m
+                      limits:
+                        cpu: "1"
+    explanation:
+      correct:
+        en: |-
+          The container sets a request but no limit, so the LimitRange gives it the default limit of 500m, lower than the 600m request: the Pod is invalid. The limit must be at least 600m and at most the 1 CPU `max`, and the quota leaves 3 - 1 = 2 CPU of limits for 3 Pods, at most 666m each; in steps of 100m that is 600m. Requests fit too (3 x 600m = 1.8 of the 2.5 CPU left), and the memory defaults (3 x 256Mi requests, 3 x 512Mi limits) stay within the quota.
+    references:
+      - title: Limit Ranges
+        url: https://kubernetes.io/docs/concepts/policy/limit-range/
+      - title: Resource Quotas
+        url: https://kubernetes.io/docs/concepts/policy/resource-quotas/

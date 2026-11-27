@@ -1,0 +1,242 @@
+id: ckad-5c-ingress-tls-two-hosts
+objective: "5.3.2"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    In namespace `web`, the TLS Secret `wildcard-example-tls` holds a certificate valid for `*.example.com`.
+
+    Write the manifest of an Ingress named `sites` in namespace `web`, handled by the IngressClass `nginx`:
+
+    - every request for `app.example.com`, whatever its path, goes to Service `app` on port 80;
+    - every request for `api.example.com`, whatever its path, goes to Service `api` on port 8080;
+    - HTTPS is terminated for both hosts with the Secret `wildcard-example-tls`.
+body:
+  starter: ""
+answer:
+  checks:
+  - id: ingress
+    label: An Ingress named sites in namespace web
+    path: metadata
+    op: subset
+    value: {name: sites, namespace: web}
+  - id: kind
+    label: The object is an Ingress
+    path: kind
+    op: equals
+    value: Ingress
+  - id: class
+    label: It uses the IngressClass nginx
+    path: spec.ingressClassName
+    op: equals
+    value: nginx
+  - id: app-path
+    label: The app.example.com rule matches every path (Prefix /)
+    path: spec.rules[host=app.example.com].http.paths[0]
+    op: subset
+    value: {path: /, pathType: Prefix}
+  - id: app-backend
+    label: app.example.com goes to Service app on port 80
+    path: spec.rules[host=app.example.com].http.paths[0].backend.service
+    op: subset
+    value: {name: app, port: {number: 80}}
+  - id: api-path
+    label: The api.example.com rule matches every path (Prefix /)
+    path: spec.rules[host=api.example.com].http.paths[0]
+    op: subset
+    value: {path: /, pathType: Prefix}
+  - id: api-backend
+    label: api.example.com goes to Service api on port 8080
+    path: spec.rules[host=api.example.com].http.paths[0].backend.service
+    op: subset
+    value: {name: api, port: {number: 8080}}
+  - id: tls-app
+    label: TLS for app.example.com uses wildcard-example-tls
+    path: spec.tls
+    op: contains
+    value: {secretName: wildcard-example-tls, hosts: [app.example.com]}
+  - id: tls-api
+    label: TLS for api.example.com uses wildcard-example-tls
+    path: spec.tls
+    op: contains
+    value: {secretName: wildcard-example-tls, hosts: [api.example.com]}
+  solution:
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: sites
+        namespace: web
+      spec:
+        ingressClassName: nginx
+        tls:
+        - hosts:
+          - app.example.com
+          - api.example.com
+          secretName: wildcard-example-tls
+        rules:
+        - host: app.example.com
+          http:
+            paths:
+            - path: /
+              pathType: Prefix
+              backend:
+                service:
+                  name: app
+                  port:
+                    number: 80
+        - host: api.example.com
+          http:
+            paths:
+            - path: /
+              pathType: Prefix
+              backend:
+                service:
+                  name: api
+                  port:
+                    number: 8080
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: sites
+        namespace: web
+      spec:
+        ingressClassName: nginx
+        rules:
+        - host: api.example.com
+          http:
+            paths:
+            - path: /
+              pathType: Prefix
+              backend:
+                service:
+                  name: api
+                  port:
+                    number: 8080
+        - host: app.example.com
+          http:
+            paths:
+            - path: /
+              pathType: Prefix
+              backend:
+                service:
+                  name: app
+                  port:
+                    number: 80
+        tls:
+        - hosts: [app.example.com]
+          secretName: wildcard-example-tls
+        - hosts: [api.example.com]
+          secretName: wildcard-example-tls
+  negatives:
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: sites
+        namespace: web
+      spec:
+        ingressClassName: nginx
+        tls:
+        - hosts:
+          - "*.example.com"
+          secretName: wildcard-example-tls
+        rules:
+        - host: app.example.com
+          http:
+            paths:
+            - path: /
+              pathType: Prefix
+              backend:
+                service:
+                  name: app
+                  port:
+                    number: 80
+        - host: api.example.com
+          http:
+            paths:
+            - path: /
+              pathType: Prefix
+              backend:
+                service:
+                  name: api
+                  port:
+                    number: 8080
+    why: The hosts of the tls section must explicitly match the hosts of the rules; the wildcard of the certificate does not belong there.
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: sites
+        namespace: web
+      spec:
+        ingressClassName: nginx
+        tls:
+        - hosts:
+          - app.example.com
+          secretName: wildcard-example-tls
+        rules:
+        - host: app.example.com
+          http:
+            paths:
+            - path: /
+              pathType: Prefix
+              backend:
+                service:
+                  name: app
+                  port:
+                    number: 80
+        - host: api.example.com
+          http:
+            paths:
+            - path: /
+              pathType: Prefix
+              backend:
+                service:
+                  name: api
+                  port:
+                    number: 8080
+    why: api.example.com is missing from the tls hosts, so HTTPS is not configured for it.
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: sites
+        namespace: web
+      spec:
+        ingressClassName: nginx
+        tls:
+        - hosts:
+          - app.example.com
+          - api.example.com
+          secretName: wildcard-example-tls
+        rules:
+        - host: app.example.com
+          http:
+            paths:
+            - path: /
+              pathType: Prefix
+              backend:
+                service:
+                  name: app
+                  port:
+                    number: 443
+        - host: api.example.com
+          http:
+            paths:
+            - path: /
+              pathType: Prefix
+              backend:
+                service:
+                  name: api
+                  port:
+                    number: 443
+    why: TLS ends at the Ingress; the backends are still reached in plain HTTP on their Service ports 80 and 8080.
+explanation:
+  correct:
+    en: 'Each `spec.tls` entry lists `hosts` and the `secretName` of a `kubernetes.io/tls` Secret with the keys `tls.crt` and `tls.key`. The hosts there must explicitly match the `host` of the rules, so both names are listed, in one entry or in two entries sharing the wildcard certificate. TLS is terminated at the Ingress, and the Services are still reached on their usual ports.'
+references:
+- title: Ingress
+  url: https://kubernetes.io/docs/concepts/services-networking/ingress/

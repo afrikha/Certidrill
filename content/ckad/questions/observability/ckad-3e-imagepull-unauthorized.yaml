@@ -1,0 +1,101 @@
+id: ckad-3e-imagepull-unauthorized
+objective: "3.5.1"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    Pod `billing` in namespace `finance` is in `ImagePullBackOff`. Its events show:
+
+    ```text
+    Warning  Failed   kubelet  Failed to pull image "registry.example.com/finance/billing:3.2": ... 401 Unauthorized
+    Normal   BackOff  kubelet  Back-off pulling image "registry.example.com/finance/billing:3.2"
+    ```
+
+    The image and tag exist. A Secret of type `kubernetes.io/dockerconfigjson` named `example-registry` holds the registry credentials in namespace `finance`. Fix the manifest below so the kubelet can pull the image.
+body:
+  starter: |
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: billing
+      namespace: finance
+    spec:
+      containers:
+      - name: billing
+        image: registry.example.com/finance/billing:3.2
+answer:
+  checks:
+  - id: pod
+    label: A Pod named billing in namespace finance
+    path: metadata
+    op: subset
+    value: {name: billing, namespace: finance}
+  - id: pull-secret
+    label: The Pod uses imagePullSecrets example-registry
+    path: spec.imagePullSecrets
+    op: contains
+    value: {name: example-registry}
+  - id: image
+    label: Image stays registry.example.com/finance/billing:3.2
+    path: spec.containers[name=billing].image
+    op: equals
+    value: registry.example.com/finance/billing:3.2
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: billing
+        namespace: finance
+      spec:
+        imagePullSecrets:
+        - name: example-registry
+        containers:
+        - name: billing
+          image: registry.example.com/finance/billing:3.2
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: billing
+        namespace: finance
+      spec:
+        containers:
+        - name: billing
+          image: registry.example.com/finance/billing:3.2
+          imagePullSecrets:
+          - name: example-registry
+    why: imagePullSecrets is a field of the Pod spec, not of a container.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: billing
+        namespace: finance
+      spec:
+        imagePullSecrets:
+        - name: example-registry
+        containers:
+        - name: billing
+          image: finance/billing:3.2
+    why: Without the registry host the image is looked up on Docker Hub, not on registry.example.com.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: billing
+        namespace: finance
+      spec:
+        containers:
+        - name: billing
+          image: registry.example.com/finance/billing:3.2
+          imagePullPolicy: IfNotPresent
+    why: The image is not on the node, so the kubelet still pulls it without credentials and gets 401 again.
+explanation:
+  correct:
+    en: 'A 401 Unauthorized during the pull means the registry wants credentials. `spec.imagePullSecrets` lists Secrets of type `kubernetes.io/dockerconfigjson` that the kubelet uses to pull the Pod''s images; the Secret must be in the same namespace as the Pod. Changing the pull policy or the image name does not supply credentials.'
+references:
+- title: Pull an Image from a Private Registry
+  url: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/

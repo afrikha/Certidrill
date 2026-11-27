@@ -1,0 +1,125 @@
+id: cka-4d-etcd-kubeadm-datadir
+objective: "4.4.2"
+difficulty: 1
+status: draft
+type: manifest
+stem:
+  en: |-
+    On a kubeadm cluster, etcd was restored from a snapshot into `/var/lib/etcd-from-backup`, and the etcd static Pod manifest already uses that directory. The `ClusterConfiguration` stored under `data.ClusterConfiguration` of the ConfigMap `kubeadm-config` (namespace `kube-system`) still names the old directory, so the next `kubeadm upgrade` would write an etcd manifest for `/var/lib/etcd` again.
+
+    The editor shows that `ClusterConfiguration`. Update it so that kubeadm keeps using the restored directory for the local etcd member. Change nothing else.
+body:
+  starter: |
+    apiVersion: kubeadm.k8s.io/v1beta4
+    kind: ClusterConfiguration
+    kubernetesVersion: v1.37.2
+    clusterName: kubernetes
+    controlPlaneEndpoint: cp1.example.com:6443
+    certificatesDir: /etc/kubernetes/pki
+    imageRepository: registry.k8s.io
+    etcd:
+      local:
+        dataDir: /var/lib/etcd
+    networking:
+      dnsDomain: cluster.local
+      podSubnet: 10.244.0.0/16
+      serviceSubnet: 10.96.0.0/12
+answer:
+  checks:
+  - id: kind
+    label: The document is a ClusterConfiguration
+    path: kind
+    op: equals
+    value: ClusterConfiguration
+  - id: data-dir
+    label: etcd.local.dataDir is /var/lib/etcd-from-backup
+    path: etcd.local.dataDir
+    op: equals
+    value: /var/lib/etcd-from-backup
+  - id: local
+    label: etcd stays a local (stacked) member, with no external section
+    path: etcd.external
+    op: absent
+  - id: version
+    label: kubernetesVersion is unchanged (v1.37.2)
+    path: kubernetesVersion
+    op: equals
+    value: v1.37.2
+  solution:
+  - manifest: |
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: ClusterConfiguration
+      kubernetesVersion: v1.37.2
+      clusterName: kubernetes
+      controlPlaneEndpoint: cp1.example.com:6443
+      certificatesDir: /etc/kubernetes/pki
+      imageRepository: registry.k8s.io
+      etcd:
+        local:
+          dataDir: /var/lib/etcd-from-backup
+      networking:
+        dnsDomain: cluster.local
+        podSubnet: 10.244.0.0/16
+        serviceSubnet: 10.96.0.0/12
+  negatives:
+  - manifest: |
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: ClusterConfiguration
+      kubernetesVersion: v1.37.2
+      clusterName: kubernetes
+      controlPlaneEndpoint: cp1.example.com:6443
+      certificatesDir: /etc/kubernetes/pki
+      imageRepository: registry.k8s.io
+      etcd:
+        dataDir: /var/lib/etcd-from-backup
+        local:
+          dataDir: /var/lib/etcd
+      networking:
+        dnsDomain: cluster.local
+        podSubnet: 10.244.0.0/16
+        serviceSubnet: 10.96.0.0/12
+    why: dataDir is a field of etcd.local, not of etcd; kubeadm still uses /var/lib/etcd.
+  - manifest: |
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: ClusterConfiguration
+      kubernetesVersion: v1.37.2
+      clusterName: kubernetes
+      controlPlaneEndpoint: cp1.example.com:6443
+      certificatesDir: /etc/kubernetes/pki
+      imageRepository: registry.k8s.io
+      etcd:
+        local:
+          dataDir: /var/lib/etcd
+          extraArgs:
+          - name: data-dir
+            value: /var/lib/etcd-from-backup
+      networking:
+        dnsDomain: cluster.local
+        podSubnet: 10.244.0.0/16
+        serviceSubnet: 10.96.0.0/12
+    why: extraArgs only overrides the --data-dir flag; kubeadm still mounts /var/lib/etcd from the host as the etcd-data volume.
+  - manifest: |
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: ClusterConfiguration
+      kubernetesVersion: v1.37.2
+      clusterName: kubernetes
+      controlPlaneEndpoint: cp1.example.com:6443
+      certificatesDir: /etc/kubernetes/pki
+      imageRepository: registry.k8s.io
+      etcd:
+        external:
+          endpoints:
+          - https://127.0.0.1:2379
+      networking:
+        dnsDomain: cluster.local
+        podSubnet: 10.244.0.0/16
+        serviceSubnet: 10.96.0.0/12
+    why: An external etcd section tells kubeadm not to manage the etcd static Pod at all; the cluster runs a local stacked member.
+explanation:
+  correct:
+    en: 'kubeadm writes its `ClusterConfiguration` to the `kubeadm-config` ConfigMap and uses it again during `kubeadm upgrade`. For a stacked member, `etcd.local.dataDir` (default `/var/lib/etcd`) is the host directory mounted into the etcd static Pod, so it must name the restored directory; otherwise the next upgrade writes a manifest for the old directory. The ConfigMap is edited with `kubectl edit cm -n kube-system kubeadm-config`.'
+references:
+- title: Operating etcd clusters for Kubernetes
+  url: https://kubernetes.io/docs/tasks/administer-cluster/configure-upgrade-etcd/
+- title: kubeadm Configuration (v1beta4)
+  url: https://kubernetes.io/docs/reference/config-api/kubeadm-config.v1beta4/

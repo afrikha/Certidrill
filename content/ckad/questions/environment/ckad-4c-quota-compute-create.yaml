@@ -1,0 +1,127 @@
+id: ckad-4c-quota-compute-create
+objective: "4.3.1"
+difficulty: 1
+status: draft
+type: command
+stem:
+  en: |-
+    In namespace `dev`, create a ResourceQuota named `compute` that caps the namespace at a total of 2 CPU and 4Gi of memory in requests, and 4 CPU and 8Gi of memory in limits. Use the `requests.*` and `limits.*` resource names.
+
+    Type the single command you would run.
+body:
+  mode: object
+  namespace: default
+answer:
+  checks:
+  - id: kind
+    label: The object is a ResourceQuota
+    path: kind
+    op: equals
+    value: ResourceQuota
+  - id: meta
+    label: It is named compute in namespace dev
+    path: metadata
+    op: subset
+    value: {name: compute, namespace: dev}
+  - id: req-cpu
+    label: requests.cpu is capped at 2
+    path: 'spec.hard["requests.cpu"]'
+    op: quantity
+    value: "2"
+  - id: req-mem
+    label: requests.memory is capped at 4Gi
+    path: 'spec.hard["requests.memory"]'
+    op: quantity
+    value: 4Gi
+  - id: lim-cpu
+    label: limits.cpu is capped at 4
+    path: 'spec.hard["limits.cpu"]'
+    op: quantity
+    value: "4"
+  - id: lim-mem
+    label: limits.memory is capped at 8Gi
+    path: 'spec.hard["limits.memory"]'
+    op: quantity
+    value: 8Gi
+  solution:
+  - command: kubectl create quota compute --hard=requests.cpu=2,requests.memory=4Gi,limits.cpu=4,limits.memory=8Gi -n dev
+    output: |
+      apiVersion: v1
+      kind: ResourceQuota
+      metadata:
+        name: compute
+        namespace: dev
+      spec:
+        hard:
+          limits.cpu: "4"
+          limits.memory: 8Gi
+          requests.cpu: "2"
+          requests.memory: 4Gi
+      status: {}
+  - command: k -n dev create quota compute --hard limits.memory=8Gi,limits.cpu=4,requests.memory=4Gi,requests.cpu=2 --dry-run=client -o yaml
+    output: |
+      apiVersion: v1
+      kind: ResourceQuota
+      metadata:
+        name: compute
+        namespace: dev
+      spec:
+        hard:
+          limits.cpu: "4"
+          limits.memory: 8Gi
+          requests.cpu: "2"
+          requests.memory: 4Gi
+      status: {}
+  negatives:
+  - command: kubectl create quota compute --hard=requests.cpu=2,requests.memory=4G,limits.cpu=4,limits.memory=8G -n dev
+    why: G is a decimal unit (10^9 bytes); 4G and 8G are smaller than 4Gi and 8Gi (2^30-based).
+    output: |
+      apiVersion: v1
+      kind: ResourceQuota
+      metadata:
+        name: compute
+        namespace: dev
+      spec:
+        hard:
+          limits.cpu: "4"
+          limits.memory: 8G
+          requests.cpu: "2"
+          requests.memory: 4G
+      status: {}
+  - command: kubectl create quota compute --hard=requests.cpu=4,requests.memory=8Gi,limits.cpu=2,limits.memory=4Gi -n dev
+    why: Requests and limits are swapped; the request total must be the smaller cap.
+    output: |
+      apiVersion: v1
+      kind: ResourceQuota
+      metadata:
+        name: compute
+        namespace: dev
+      spec:
+        hard:
+          limits.cpu: "2"
+          limits.memory: 4Gi
+          requests.cpu: "4"
+          requests.memory: 8Gi
+      status: {}
+  - command: kubectl create quota compute --hard=requests.cpu=2,requests.memory=4Gi,limits.cpu=4,limits.memory=8Gi
+    why: Without -n the quota is created in the context namespace, default, and does not constrain dev.
+    output: |
+      apiVersion: v1
+      kind: ResourceQuota
+      metadata:
+        name: compute
+      spec:
+        hard:
+          limits.cpu: "4"
+          limits.memory: 8Gi
+          requests.cpu: "2"
+          requests.memory: 4Gi
+      status: {}
+explanation:
+  correct:
+    en: '`kubectl create quota NAME --hard=key=value,...` builds a ResourceQuota; `requests.cpu` and `requests.memory` cap the sum of requests, and `limits.cpu` and `limits.memory` cap the sum of limits, across all non-terminal Pods of the namespace. Memory quantities use binary suffixes here (`Gi`), not decimal ones (`G`). Once this quota exists, every new Pod in `dev` must declare these resources or it is rejected.'
+references:
+- title: kubectl create quota
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_create/kubectl_create_quota/
+- title: Resource Quotas
+  url: https://kubernetes.io/docs/concepts/policy/resource-quotas/

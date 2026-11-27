@@ -1,0 +1,142 @@
+id: cka-5c-nodeport-preserve-client-ip
+objective: "5.3.1"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    An external load balancer that you do not manage sends HTTPS traffic to port 30443 of every node. Behind it, the Pods labelled `app=gateway` in namespace `edge` listen on port 8443 and must see the **original client IP address** in each request.
+
+    Write a Service `gateway` in namespace `edge` of type NodePort with one port named `https`: Service port 443, target port 8443, node port 30443, and a traffic policy that keeps the client source IP.
+body:
+  starter: ""
+answer:
+  checks:
+  - id: svc
+    label: A Service named gateway in namespace edge
+    path: metadata
+    op: subset
+    value: {name: gateway, namespace: edge}
+  - id: type
+    label: Its type is NodePort
+    path: spec.type
+    op: equals
+    value: NodePort
+  - id: selector
+    label: It selects app=gateway
+    path: spec.selector
+    op: subset
+    value: {app: gateway}
+  - id: port
+    label: Port https is 443
+    path: spec.ports[name=https].port
+    op: equals
+    value: 443
+  - id: target-port
+    label: Port https targets 8443
+    path: spec.ports[name=https].targetPort
+    op: equals
+    value: 8443
+  - id: node-port
+    label: Port https uses node port 30443
+    path: spec.ports[name=https].nodePort
+    op: equals
+    value: 30443
+  - id: policy
+    label: externalTrafficPolicy is Local
+    path: spec.externalTrafficPolicy
+    op: equals
+    value: Local
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: gateway
+        namespace: edge
+      spec:
+        type: NodePort
+        externalTrafficPolicy: Local
+        selector:
+          app: gateway
+        ports:
+        - name: https
+          port: 443
+          targetPort: 8443
+          nodePort: 30443
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        namespace: edge
+        name: gateway
+      spec:
+        selector:
+          app: gateway
+        ports:
+        - protocol: TCP
+          nodePort: 30443
+          targetPort: 8443
+          port: 443
+          name: https
+        externalTrafficPolicy: "Local"
+        type: "NodePort"
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: gateway
+        namespace: edge
+      spec:
+        type: NodePort
+        internalTrafficPolicy: Local
+        selector:
+          app: gateway
+        ports:
+        - name: https
+          port: 443
+          targetPort: 8443
+          nodePort: 30443
+    why: internalTrafficPolicy applies to traffic from inside the cluster; traffic entering through the node port is governed by externalTrafficPolicy, which stays Cluster and is source-NATed.
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: gateway
+        namespace: edge
+      spec:
+        type: NodePort
+        externalTrafficPolicy: Local
+        selector:
+          app: gateway
+        ports:
+        - name: https
+          port: 30443
+          targetPort: 8443
+          nodePort: 443
+    why: port and nodePort are swapped; 443 is outside the default node port range 30000-32767 and the API server rejects it.
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: gateway
+        namespace: edge
+      spec:
+        type: NodePort
+        externalTrafficPolicy: Local
+        selector:
+          app: gateway
+        ports:
+        - name: https
+          port: 443
+          targetPort: 8443
+    why: Without nodePort the control plane allocates a random port, not the 30443 the load balancer uses.
+explanation:
+  correct:
+    en: 'With the default `externalTrafficPolicy: Cluster`, traffic arriving on a node port can be forwarded to a Pod on another node and is source-NATed, so the Pod sees a node address. `Local` only sends it to Pods on the receiving node and preserves the client IP; nodes without a local Pod drop it, which is why load balancer health checks matter. A fixed `nodePort` must be inside the node port range (default 30000-32767).'
+references:
+- title: Using Source IP
+  url: https://kubernetes.io/docs/tutorials/services/source-ip/
+- title: Virtual IPs and Service Proxies
+  url: https://kubernetes.io/docs/reference/networking/virtual-ips/

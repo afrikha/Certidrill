@@ -1,0 +1,218 @@
+id: cka-4e-apiserver-all-etcd-members
+objective: "4.5.1"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    The cluster uses the external etcd topology with three members: `10.0.20.11`, `10.0.20.12` and `10.0.20.13` (client port 2379). Host `10.0.20.11` is down; the two other members are healthy and still have quorum. On control plane node `cp2`, `crictl ps -a` shows the `kube-apiserver` container exiting again and again, and `crictl logs` shows it cannot reach etcd at `10.0.20.11:2379`.
+
+    Fix the static Pod manifest `/etc/kubernetes/manifests/kube-apiserver.yaml` of `cp2` (below) so that its API server uses every member of the etcd cluster and keeps working whichever single member fails. Keep the other flags.
+body:
+  starter: |
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      labels:
+        component: kube-apiserver
+        tier: control-plane
+      name: kube-apiserver
+      namespace: kube-system
+    spec:
+      containers:
+      - command:
+        - kube-apiserver
+        - --advertise-address=192.168.10.12
+        - --authorization-mode=Node,RBAC
+        - --client-ca-file=/etc/kubernetes/pki/ca.crt
+        - --etcd-cafile=/etc/kubernetes/pki/etcd/ca.crt
+        - --etcd-certfile=/etc/kubernetes/pki/apiserver-etcd-client.crt
+        - --etcd-keyfile=/etc/kubernetes/pki/apiserver-etcd-client.key
+        - --etcd-servers=https://10.0.20.11:2379
+        - --secure-port=6443
+        - --service-cluster-ip-range=10.96.0.0/12
+        - --tls-cert-file=/etc/kubernetes/pki/apiserver.crt
+        - --tls-private-key-file=/etc/kubernetes/pki/apiserver.key
+        image: registry.k8s.io/kube-apiserver:v1.37.1
+        name: kube-apiserver
+        volumeMounts:
+        - mountPath: /etc/kubernetes/pki
+          name: k8s-certs
+          readOnly: true
+      hostNetwork: true
+      priorityClassName: system-node-critical
+      volumes:
+      - hostPath:
+          path: /etc/kubernetes/pki
+          type: DirectoryOrCreate
+        name: k8s-certs
+answer:
+  checks:
+  - id: pod
+    label: Static Pod kube-apiserver in kube-system
+    path: metadata
+    op: subset
+    value: {name: kube-apiserver, namespace: kube-system}
+  - id: etcd-servers
+    label: --etcd-servers lists https://10.0.20.11:2379, https://10.0.20.12:2379 and https://10.0.20.13:2379
+    path: spec.containers[name=kube-apiserver].command
+    op: matches
+    value: '"--etcd-servers=(?=[^"]*https://10\.0\.20\.11:2379)(?=[^"]*https://10\.0\.20\.12:2379)(?=[^"]*https://10\.0\.20\.13:2379)[^"]*"'
+  - id: etcd-ca
+    label: --etcd-cafile is kept
+    path: spec.containers[name=kube-apiserver].command
+    op: contains
+    value: --etcd-cafile=/etc/kubernetes/pki/etcd/ca.crt
+  - id: etcd-cert
+    label: --etcd-certfile is kept
+    path: spec.containers[name=kube-apiserver].command
+    op: contains
+    value: --etcd-certfile=/etc/kubernetes/pki/apiserver-etcd-client.crt
+  - id: etcd-key
+    label: --etcd-keyfile is kept
+    path: spec.containers[name=kube-apiserver].command
+    op: contains
+    value: --etcd-keyfile=/etc/kubernetes/pki/apiserver-etcd-client.key
+  - id: advertise
+    label: --advertise-address is still 192.168.10.12
+    path: spec.containers[name=kube-apiserver].command
+    op: contains
+    value: --advertise-address=192.168.10.12
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        labels:
+          component: kube-apiserver
+          tier: control-plane
+        name: kube-apiserver
+        namespace: kube-system
+      spec:
+        containers:
+        - command:
+          - kube-apiserver
+          - --advertise-address=192.168.10.12
+          - --authorization-mode=Node,RBAC
+          - --client-ca-file=/etc/kubernetes/pki/ca.crt
+          - --etcd-cafile=/etc/kubernetes/pki/etcd/ca.crt
+          - --etcd-certfile=/etc/kubernetes/pki/apiserver-etcd-client.crt
+          - --etcd-keyfile=/etc/kubernetes/pki/apiserver-etcd-client.key
+          - --etcd-servers=https://10.0.20.11:2379,https://10.0.20.12:2379,https://10.0.20.13:2379
+          - --secure-port=6443
+          - --service-cluster-ip-range=10.96.0.0/12
+          - --tls-cert-file=/etc/kubernetes/pki/apiserver.crt
+          - --tls-private-key-file=/etc/kubernetes/pki/apiserver.key
+          image: registry.k8s.io/kube-apiserver:v1.37.1
+          name: kube-apiserver
+          volumeMounts:
+          - mountPath: /etc/kubernetes/pki
+            name: k8s-certs
+            readOnly: true
+        hostNetwork: true
+        priorityClassName: system-node-critical
+        volumes:
+        - hostPath:
+            path: /etc/kubernetes/pki
+            type: DirectoryOrCreate
+          name: k8s-certs
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: kube-apiserver
+        namespace: kube-system
+      spec:
+        hostNetwork: true
+        priorityClassName: system-node-critical
+        containers:
+        - name: kube-apiserver
+          image: registry.k8s.io/kube-apiserver:v1.37.1
+          command:
+          - kube-apiserver
+          - --advertise-address=192.168.10.12
+          - --authorization-mode=Node,RBAC
+          - --client-ca-file=/etc/kubernetes/pki/ca.crt
+          - --etcd-cafile=/etc/kubernetes/pki/etcd/ca.crt
+          - --etcd-certfile=/etc/kubernetes/pki/apiserver-etcd-client.crt
+          - --etcd-keyfile=/etc/kubernetes/pki/apiserver-etcd-client.key
+          - --etcd-servers=https://10.0.20.12:2379,https://10.0.20.13:2379,https://10.0.20.11:2379
+          - --secure-port=6443
+          - --service-cluster-ip-range=10.96.0.0/12
+          - --tls-cert-file=/etc/kubernetes/pki/apiserver.crt
+          - --tls-private-key-file=/etc/kubernetes/pki/apiserver.key
+          volumeMounts:
+          - mountPath: /etc/kubernetes/pki
+            name: k8s-certs
+            readOnly: true
+        volumes:
+        - hostPath:
+            path: /etc/kubernetes/pki
+            type: DirectoryOrCreate
+          name: k8s-certs
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: kube-apiserver
+        namespace: kube-system
+      spec:
+        hostNetwork: true
+        containers:
+        - name: kube-apiserver
+          image: registry.k8s.io/kube-apiserver:v1.37.1
+          command:
+          - kube-apiserver
+          - --advertise-address=192.168.10.12
+          - --etcd-cafile=/etc/kubernetes/pki/etcd/ca.crt
+          - --etcd-certfile=/etc/kubernetes/pki/apiserver-etcd-client.crt
+          - --etcd-keyfile=/etc/kubernetes/pki/apiserver-etcd-client.key
+          - --etcd-servers=https://10.0.20.12:2379,https://10.0.20.13:2379
+    why: This works today, but the API server would fail again as soon as 10.0.20.12 or 10.0.20.13 goes down; every member must be listed.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: kube-apiserver
+        namespace: kube-system
+      spec:
+        hostNetwork: true
+        containers:
+        - name: kube-apiserver
+          image: registry.k8s.io/kube-apiserver:v1.37.1
+          command:
+          - kube-apiserver
+          - --advertise-address=192.168.10.12
+          - --etcd-cafile=/etc/kubernetes/pki/etcd/ca.crt
+          - --etcd-certfile=/etc/kubernetes/pki/apiserver-etcd-client.crt
+          - --etcd-keyfile=/etc/kubernetes/pki/apiserver-etcd-client.key
+          - --etcd-servers=https://10.0.20.11:2380,https://10.0.20.12:2380,https://10.0.20.13:2380
+    why: 2380 is the etcd peer port; clients such as the API server use 2379.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: kube-apiserver
+        namespace: kube-system
+      spec:
+        hostNetwork: true
+        containers:
+        - name: kube-apiserver
+          image: registry.k8s.io/kube-apiserver:v1.37.1
+          command:
+          - kube-apiserver
+          - --advertise-address=192.168.10.12
+          - --etcd-cafile=/etc/kubernetes/pki/etcd/ca.crt
+          - --etcd-certfile=/etc/kubernetes/pki/apiserver-etcd-client.crt
+          - --etcd-keyfile=/etc/kubernetes/pki/apiserver-etcd-client.key
+          - --etcd-servers=https://127.0.0.1:2379
+    why: 127.0.0.1 is the local member of a stacked topology; with external etcd there is no etcd member on cp2.
+explanation:
+  correct:
+    en: 'With external etcd, each API server talks to every etcd host: `--etcd-servers` takes a comma-separated list of client URLs (`scheme://ip:port`), which kubeadm builds from `etcd.external.endpoints`. With all three listed, the API server switches to a healthy member when one fails, and the cluster keeps working while 2 of 3 members form a quorum. In the stacked topology, by contrast, each API server uses only its local member. The kubelet restarts the static Pod when the file changes.'
+references:
+- title: kube-apiserver
+  url: https://kubernetes.io/docs/reference/command-line-tools-reference/kube-apiserver/
+- title: Options for Highly Available Topology
+  url: https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/ha-topology/

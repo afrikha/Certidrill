@@ -1,0 +1,146 @@
+id: cka-4f-kustomize-append-arg
+objective: "4.6.2"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    In a lab cluster, the kubelets use self-signed serving certificates, so metrics-server must run with the extra argument `--kubelet-insecure-tls`. The base `/opt/metrics-server/base` holds the upstream manifests; the working directory shows its Deployment `metrics-server` (`apps/v1`, namespace `kube-system`), whose single container already has five arguments.
+
+    Write `/opt/metrics-server/overlays/lab/kustomization.yaml`, an overlay built on the base, that appends `--kubelet-insecure-tls` to the end of the container's `args` and keeps the five existing arguments. Use an inline JSON 6902 patch in the kustomization itself.
+body:
+  starter: |
+    apiVersion: kustomize.config.k8s.io/v1beta1
+    kind: Kustomization
+  files:
+  - name: base-deployment.yaml
+    content: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: metrics-server
+        namespace: kube-system
+        labels:
+          k8s-app: metrics-server
+      spec:
+        selector:
+          matchLabels:
+            k8s-app: metrics-server
+        template:
+          metadata:
+            labels:
+              k8s-app: metrics-server
+          spec:
+            containers:
+            - name: metrics-server
+              image: registry.k8s.io/metrics-server/metrics-server:v0.8.0
+              args:
+              - --cert-dir=/tmp
+              - --secure-port=10250
+              - --kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname
+              - --kubelet-use-node-status-port
+              - --metric-resolution=15s
+answer:
+  checks:
+  - id: base
+    label: Builds on the base (../../base)
+    path: resources
+    op: contains
+    value: ../../base
+  - id: target
+    label: The patch targets the Deployment metrics-server
+    path: patches
+    op: contains
+    value: {target: {kind: Deployment, name: metrics-server}}
+  - id: op-add
+    label: The patch uses the add operation
+    path: patches[0].patch
+    op: matches
+    value: op"?\s*:\s*"?add
+  - id: append
+    label: It appends to the end of the args list (/spec/template/spec/containers/0/args/-)
+    path: patches[0].patch
+    op: matches
+    value: /spec/template/spec/containers/0/args/-
+  - id: value
+    label: The added value is --kubelet-insecure-tls
+    path: patches[0].patch
+    op: matches
+    value: --kubelet-insecure-tls
+  solution:
+  - manifest: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      resources:
+      - ../../base
+      patches:
+      - target:
+          kind: Deployment
+          name: metrics-server
+        patch: |-
+          - op: add
+            path: /spec/template/spec/containers/0/args/-
+            value: --kubelet-insecure-tls
+  - manifest: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      resources:
+      - ../../base
+      patches:
+      - target:
+          group: apps
+          version: v1
+          kind: Deployment
+          name: metrics-server
+          namespace: kube-system
+        patch: '[{"op": "add", "path": "/spec/template/spec/containers/0/args/-", "value": "--kubelet-insecure-tls"}]'
+  negatives:
+  - manifest: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      resources:
+      - ../../base
+      patches:
+      - target:
+          kind: Deployment
+          name: metrics-server
+        patch: |-
+          - op: replace
+            path: /spec/template/spec/containers/0/args
+            value:
+            - --kubelet-insecure-tls
+    why: replace on the args path swaps the whole list for one argument; the five existing arguments are lost.
+  - manifest: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      resources:
+      - ../../base
+      patches:
+      - target:
+          kind: Deployment
+          name: metrics-server
+        patch: |-
+          - op: add
+            path: /spec/containers/0/args/-
+            value: --kubelet-insecure-tls
+    why: In a Deployment the containers are under /spec/template/spec; /spec/containers exists only in a Pod.
+  - manifest: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      resources:
+      - ../../base
+      patches:
+      - target:
+          kind: Deployment
+          name: metrics-server
+        patch: |-
+          - op: add
+            path: /spec/template/spec/containers/0/args/0
+            value: --kubelet-insecure-tls
+    why: Index 0 inserts the argument at the start of the list; the task asks to append it at the end (/-).
+explanation:
+  correct:
+    en: 'A JSON 6902 patch needs a `target`; here kind `Deployment` and name `metrics-server`. `op: add` with a path ending in `/-` appends the value at the end of the array, so the five existing arguments stay. `replace` on `/spec/template/spec/containers/0/args`, or a strategic merge patch with a new `args` list, would replace the whole list.'
+references:
+- title: Declarative Management of Kubernetes Objects Using Kustomize
+  url: https://kubernetes.io/docs/tasks/manage-kubernetes-objects/kustomization/

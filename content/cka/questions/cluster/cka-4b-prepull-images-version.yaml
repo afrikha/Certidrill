@@ -1,0 +1,52 @@
+id: cka-4b-prepull-images-version
+objective: "4.2.2"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    On node `cp1`, the packages `kubeadm`, `kubelet` and `kubectl` are installed and held at `1.37.1`. The control plane will run Kubernetes `v1.37.1`, with images from the default registry.
+
+    Before running `kubeadm init`, use kubeadm to pull every control plane image of exactly this version into the container runtime. Type the single command you would run.
+body:
+  mode: invocation
+  tools: [kubeadm, crictl, systemctl]
+  namespace: default
+answer:
+  checks:
+  - id: tool
+    label: Uses kubeadm
+    path: tool
+    op: equals
+    value: kubeadm
+  - id: verb
+    label: It is a kubeadm config command
+    path: verb
+    op: equals
+    value: config
+  - id: pull
+    label: Pulls the images (config images pull)
+    path: args
+    op: equals
+    value: [images, pull]
+  - id: version
+    label: Pins Kubernetes version v1.37.1
+    path: flags.kubernetes-version
+    op: oneOf
+    value: [v1.37.1, 1.37.1]
+  solution:
+  - command: kubeadm config images pull --kubernetes-version v1.37.1
+  - command: sudo kubeadm config images pull --kubernetes-version=v1.37.1
+  negatives:
+  - command: kubeadm config images list --kubernetes-version v1.37.1
+    why: list only prints the image names; it pulls nothing.
+  - command: kubeadm config images pull
+    why: Without --kubernetes-version (or a --config file), kubeadm uses its default version label stable-1, not exactly v1.37.1.
+  - command: crictl pull registry.k8s.io/kube-apiserver:v1.37.1
+    why: This pulls only the API server image, not every control plane image (controller manager, scheduler, proxy, CoreDNS, pause, etcd).
+explanation:
+  correct:
+    en: '`kubeadm config images pull` pulls the images `kubeadm init` needs (kube-apiserver, kube-controller-manager, kube-scheduler, kube-proxy, CoreDNS, pause, etcd). `--kubernetes-version` defaults to `stable-1`, so pass `v1.37.1` to match the installed kubeadm (or use `--config` with a `ClusterConfiguration`). `--image-repository` (default `registry.k8s.io`) selects another registry. `images list` only prints the names.'
+references:
+- title: kubeadm config
+  url: https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-config/

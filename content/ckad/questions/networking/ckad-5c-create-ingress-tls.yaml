@@ -1,0 +1,194 @@
+id: ckad-5c-create-ingress-tls
+objective: "5.3.2"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    In namespace `shop`, the TLS Secret `store-tls` (type `kubernetes.io/tls`) holds the certificate of `store.example.com`.
+
+    Create an Ingress named `store`, handled by the IngressClass `nginx`, that sends every request for `store.example.com`, whatever its path, to Service `store` on port 80, and terminates HTTPS for that host with the Secret `store-tls`.
+
+    Type the single command you would run.
+body:
+  mode: object
+  namespace: default
+answer:
+  checks:
+  - id: kind
+    label: The object is an Ingress
+    path: kind
+    op: equals
+    value: Ingress
+  - id: name
+    label: It is named store
+    path: metadata.name
+    op: equals
+    value: store
+  - id: namespace
+    label: It is created in namespace shop
+    path: metadata.namespace
+    op: equals
+    value: shop
+  - id: class
+    label: It uses the IngressClass nginx
+    path: spec.ingressClassName
+    op: equals
+    value: nginx
+  - id: path-type
+    label: The store.example.com rule matches every path (Prefix /)
+    path: spec.rules[host=store.example.com].http.paths[0]
+    op: subset
+    value: {path: /, pathType: Prefix}
+  - id: backend
+    label: The backend is Service store on port 80
+    path: spec.rules[host=store.example.com].http.paths[0].backend.service
+    op: subset
+    value: {name: store, port: {number: 80}}
+  - id: tls-secret
+    label: TLS uses the Secret store-tls
+    path: spec.tls[secretName=store-tls]
+    op: exists
+  - id: tls-host
+    label: The TLS entry covers store.example.com
+    path: spec.tls[secretName=store-tls].hosts
+    op: contains
+    value: store.example.com
+  solution:
+  - command: kubectl create ingress store --class=nginx --rule="store.example.com/*=store:80,tls=store-tls" -n shop
+    output: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: store
+        namespace: shop
+      spec:
+        ingressClassName: nginx
+        rules:
+        - host: store.example.com
+          http:
+            paths:
+            - backend:
+                service:
+                  name: store
+                  port:
+                    number: 80
+              path: /
+              pathType: Prefix
+        tls:
+        - hosts:
+          - store.example.com
+          secretName: store-tls
+      status:
+        loadBalancer: {}
+  - command: k create ingress store -n shop --rule 'store.example.com/*=store:80,tls=store-tls' --class nginx --dry-run=client -o yaml
+    output: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: store
+        namespace: shop
+      spec:
+        ingressClassName: nginx
+        rules:
+        - host: store.example.com
+          http:
+            paths:
+            - backend:
+                service:
+                  name: store
+                  port:
+                    number: 80
+              path: /
+              pathType: Prefix
+        tls:
+        - hosts:
+          - store.example.com
+          secretName: store-tls
+      status:
+        loadBalancer: {}
+  negatives:
+  - command: kubectl create ingress store --class=nginx --rule="store.example.com/*=store:80,tls" -n shop
+    why: tls without a Secret name enables TLS with the controller's default certificate, not store-tls.
+    output: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: store
+        namespace: shop
+      spec:
+        ingressClassName: nginx
+        rules:
+        - host: store.example.com
+          http:
+            paths:
+            - backend:
+                service:
+                  name: store
+                  port:
+                    number: 80
+              path: /
+              pathType: Prefix
+        tls:
+        - hosts:
+          - store.example.com
+      status:
+        loadBalancer: {}
+  - command: kubectl create ingress store --class=nginx --rule="store.example.com/*=store:443,tls=store-tls" -n shop
+    why: TLS is terminated at the Ingress; traffic to the backend is plain HTTP on the Service port 80, not 443.
+    output: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: store
+        namespace: shop
+      spec:
+        ingressClassName: nginx
+        rules:
+        - host: store.example.com
+          http:
+            paths:
+            - backend:
+                service:
+                  name: store
+                  port:
+                    number: 443
+              path: /
+              pathType: Prefix
+        tls:
+        - hosts:
+          - store.example.com
+          secretName: store-tls
+      status:
+        loadBalancer: {}
+  - command: kubectl create ingress store --class=nginx --rule="store.example.com/*=store:80" -n shop
+    why: Without the tls part of the rule the Ingress serves only plain HTTP.
+    output: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: store
+        namespace: shop
+      spec:
+        ingressClassName: nginx
+        rules:
+        - host: store.example.com
+          http:
+            paths:
+            - backend:
+                service:
+                  name: store
+                  port:
+                    number: 80
+              path: /
+              pathType: Prefix
+      status:
+        loadBalancer: {}
+explanation:
+  correct:
+    en: 'In `--rule="host/path=service:port,tls=secret"`, the `tls=store-tls` suffix adds a `spec.tls` entry with the rule host and the Secret name; `tls` alone leaves out `secretName`, so the controller uses its default certificate. The TLS Secret must hold the keys `tls.crt` and `tls.key`. The Ingress terminates TLS on port 443 and forwards plain HTTP to the Service port.'
+references:
+- title: kubectl create ingress
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_create/kubectl_create_ingress/
+- title: Ingress
+  url: https://kubernetes.io/docs/concepts/services-networking/ingress/

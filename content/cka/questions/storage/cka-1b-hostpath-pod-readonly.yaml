@@ -1,0 +1,143 @@
+id: cka-1b-hostpath-pod-readonly
+objective: "1.2.3"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    Write the manifest of a Pod `log-reader` in namespace `ops` with one container `reader` running `busybox:1.36` with the command `sleep 3600`.
+
+    - It reads the node directory `/var/log/apps` through a volume named `applogs`, mounted at `/logs` in the container.
+    - The container must not be able to write to that directory.
+    - If the directory does not exist on the node, the Pod must fail to start instead of creating it.
+body:
+  starter: ""
+answer:
+  checks:
+  - id: meta
+    label: A Pod named log-reader in namespace ops
+    path: metadata
+    op: subset
+    value: {name: log-reader, namespace: ops}
+  - id: kind
+    label: The kind is Pod
+    path: kind
+    op: equals
+    value: Pod
+  - id: image
+    label: Container reader runs busybox:1.36
+    path: spec.containers[name=reader].image
+    op: equals
+    value: busybox:1.36
+  - id: path
+    label: Volume applogs is the hostPath /var/log/apps
+    path: spec.volumes[name=applogs].hostPath.path
+    op: equals
+    value: /var/log/apps
+  - id: type
+    label: hostPath type is Directory (must already exist)
+    path: spec.volumes[name=applogs].hostPath.type
+    op: equals
+    value: Directory
+  - id: mount
+    label: applogs is mounted at /logs
+    path: spec.containers[name=reader].volumeMounts[name=applogs].mountPath
+    op: equals
+    value: /logs
+  - id: readonly
+    label: The mount is read-only
+    path: spec.containers[name=reader].volumeMounts[name=applogs].readOnly
+    op: equals
+    value: true
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: log-reader
+        namespace: ops
+      spec:
+        containers:
+        - name: reader
+          image: busybox:1.36
+          command: ["sleep", "3600"]
+          volumeMounts:
+          - name: applogs
+            mountPath: /logs
+            readOnly: true
+        volumes:
+        - name: applogs
+          hostPath:
+            path: /var/log/apps
+            type: Directory
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: log-reader
+        namespace: ops
+      spec:
+        containers:
+        - name: reader
+          image: busybox:1.36
+          command: ["sleep", "3600"]
+          volumeMounts:
+          - name: applogs
+            mountPath: /logs
+            readOnly: true
+        volumes:
+        - name: applogs
+          hostPath:
+            path: /var/log/apps
+            type: DirectoryOrCreate
+    why: DirectoryOrCreate creates an empty directory (mode 0755) when it is missing, so the Pod starts.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: log-reader
+        namespace: ops
+      spec:
+        containers:
+        - name: reader
+          image: busybox:1.36
+          command: ["sleep", "3600"]
+          volumeMounts:
+          - name: applogs
+            mountPath: /logs
+        volumes:
+        - name: applogs
+          hostPath:
+            path: /var/log/apps
+            type: Directory
+    why: Without readOnly true the container can write to the node directory.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: log-reader
+        namespace: ops
+      spec:
+        containers:
+        - name: reader
+          image: busybox:1.36
+          command: ["sleep", "3600"]
+          volumeMounts:
+          - name: applogs
+            mountPath: /logs
+            readOnly: true
+        volumes:
+        - name: applogs
+          hostPath:
+            path: /var/log/apps
+    why: The default type "" performs no check, so a missing path is not reported as an error.
+explanation:
+  correct:
+    en: |-
+      `hostPath.type: Directory` requires an existing directory at the path, otherwise the Pod fails to start; `DirectoryOrCreate` would create it, and the default `""` checks nothing. `readOnly: true` on the container's `volumeMount` stops that container from writing. hostPath exposes the node's file system and is a security risk: use it only when the task requires it.
+references:
+- title: Volume Types
+  url: https://kubernetes.io/docs/reference/storage/volume-types/
+- title: Volumes
+  url: https://kubernetes.io/docs/concepts/storage/volumes/

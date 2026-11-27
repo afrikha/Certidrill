@@ -1,0 +1,240 @@
+id: cka-5f-corefile-stub-domain
+objective: "5.6.2"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    Names under `corp.example.com` are served only by the company DNS servers `10.50.0.53` and `10.50.0.54`; the nodes' resolvers do not know them. Pods must be able to resolve names such as `ldap.corp.example.com`.
+
+    Edit the `coredns` ConfigMap of namespace `kube-system` (current version in the editor): add a server block for the zone `corp.example.com` that logs errors, caches answers for 30 seconds and forwards its queries to both company servers. Every other name must keep the current behavior.
+body:
+  starter: |
+    apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: coredns
+      namespace: kube-system
+    data:
+      Corefile: |
+        .:53 {
+            errors
+            health {
+                lameduck 5s
+            }
+            ready
+            kubernetes cluster.local in-addr.arpa ip6.arpa {
+                pods insecure
+                fallthrough in-addr.arpa ip6.arpa
+                ttl 30
+            }
+            prometheus :9153
+            forward . /etc/resolv.conf
+            cache 30
+            loop
+            reload
+            loadbalance
+        }
+answer:
+  checks:
+  - id: cm
+    label: Still ConfigMap coredns in namespace kube-system
+    path: metadata
+    op: subset
+    value: {name: coredns, namespace: kube-system}
+  - id: zone
+    label: The Corefile has a top-level server block for corp.example.com
+    path: data.Corefile
+    op: matches
+    value: '(^|\n)corp\.example\.com\.?(:53)?\s*\{'
+  - id: upstream-1
+    label: The corp.example.com block forwards to 10.50.0.53
+    path: data.Corefile
+    op: matches
+    value: '(^|\n)corp\.example\.com\.?(:53)?\s*\{[^}]*forward\s+(\.|corp\.example\.com\.?)\s[^}\n]*\b10\.50\.0\.53\b'
+  - id: upstream-2
+    label: The corp.example.com block forwards to 10.50.0.54
+    path: data.Corefile
+    op: matches
+    value: '(^|\n)corp\.example\.com\.?(:53)?\s*\{[^}]*forward\s+(\.|corp\.example\.com\.?)\s[^}\n]*\b10\.50\.0\.54\b'
+  - id: cache
+    label: The corp.example.com block caches answers for 30 seconds
+    path: data.Corefile
+    op: matches
+    value: '(^|\n)corp\.example\.com\.?(:53)?\s*\{[^}]*\bcache\s+30\b'
+  - id: errors
+    label: The corp.example.com block logs errors
+    path: data.Corefile
+    op: matches
+    value: '(^|\n)corp\.example\.com\.?(:53)?\s*\{[^}]*\berrors\b'
+  - id: main-forward
+    label: The main block still forwards other names to /etc/resolv.conf
+    path: data.Corefile
+    op: matches
+    value: '\.:53\s*\{[\s\S]*forward\s+\.\s+/etc/resolv\.conf'
+  - id: kubernetes
+    label: The kubernetes plugin still serves cluster.local
+    path: data.Corefile
+    op: matches
+    value: 'kubernetes\s+cluster\.local'
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: coredns
+        namespace: kube-system
+      data:
+        Corefile: |
+          .:53 {
+              errors
+              health {
+                  lameduck 5s
+              }
+              ready
+              kubernetes cluster.local in-addr.arpa ip6.arpa {
+                  pods insecure
+                  fallthrough in-addr.arpa ip6.arpa
+                  ttl 30
+              }
+              prometheus :9153
+              forward . /etc/resolv.conf
+              cache 30
+              loop
+              reload
+              loadbalance
+          }
+          corp.example.com:53 {
+              errors
+              cache 30
+              forward . 10.50.0.53 10.50.0.54
+          }
+  - manifest: |
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: coredns
+        namespace: kube-system
+      data:
+        Corefile: |
+          corp.example.com {
+              forward . 10.50.0.54 10.50.0.53
+              cache 30
+              errors
+          }
+          .:53 {
+              errors
+              health {
+                  lameduck 5s
+              }
+              ready
+              kubernetes cluster.local in-addr.arpa ip6.arpa {
+                  pods insecure
+                  fallthrough in-addr.arpa ip6.arpa
+                  ttl 30
+              }
+              prometheus :9153
+              forward . /etc/resolv.conf
+              cache 30
+              loop
+              reload
+              loadbalance
+          }
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: coredns
+        namespace: kube-system
+      data:
+        Corefile: |
+          .:53 {
+              errors
+              health {
+                  lameduck 5s
+              }
+              ready
+              kubernetes cluster.local in-addr.arpa ip6.arpa {
+                  pods insecure
+                  fallthrough in-addr.arpa ip6.arpa
+                  ttl 30
+              }
+              prometheus :9153
+              forward . 10.50.0.53 10.50.0.54
+              cache 30
+              loop
+              reload
+              loadbalance
+          }
+    why: This sends every external name to the company servers, not only corp.example.com, and drops the node resolvers for all other names.
+  - manifest: |
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: coredns
+        namespace: kube-system
+      data:
+        Corefile: |
+          .:53 {
+              errors
+              health {
+                  lameduck 5s
+              }
+              ready
+              kubernetes cluster.local in-addr.arpa ip6.arpa {
+                  pods insecure
+                  fallthrough in-addr.arpa ip6.arpa
+                  ttl 30
+              }
+              prometheus :9153
+              forward . /etc/resolv.conf
+              cache 30
+              loop
+              reload
+              loadbalance
+              corp.example.com:53 {
+                  errors
+                  cache 30
+                  forward . 10.50.0.53 10.50.0.54
+              }
+          }
+    why: Server blocks cannot be nested; the stub block must be a separate top-level block next to .:53, otherwise CoreDNS cannot parse the Corefile.
+  - manifest: |
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: coredns
+        namespace: kube-system
+      data:
+        Corefile: |
+          .:53 {
+              errors
+              health {
+                  lameduck 5s
+              }
+              ready
+              kubernetes cluster.local in-addr.arpa ip6.arpa {
+                  pods insecure
+                  fallthrough in-addr.arpa ip6.arpa
+                  ttl 30
+              }
+              prometheus :9153
+              forward . /etc/resolv.conf
+              cache 30
+              loop
+              reload
+              loadbalance
+          }
+          corp.example.com:53 {
+              errors
+              cache 30
+              forward . 10.50.0.53
+          }
+    why: Only one of the two company servers is used; the task asks for both, so the zone fails when 10.50.0.53 is down.
+explanation:
+  correct:
+    en: 'A stub domain in CoreDNS is a separate server block named after the zone (`corp.example.com:53 { ... }`) next to the main `.:53` block; the most specific zone wins, so only `corp.example.com` names go to `forward . 10.50.0.53 10.50.0.54` and everything else keeps `forward . /etc/resolv.conf`. With the `reload` plugin, CoreDNS picks up the edited ConfigMap automatically; allow about two minutes.'
+references:
+- title: Customizing DNS Service
+  url: https://kubernetes.io/docs/tasks/administer-cluster/dns-custom-nameservers/

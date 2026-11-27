@@ -1,0 +1,61 @@
+id: ckad-2b-scale-current-replicas
+objective: "2.2.4"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    Deployment `worker` in namespace `media` should run 3 replicas, but a colleague may be scaling it at the same time. Scale it to **6** replicas, but only if it currently has exactly **3**; otherwise the command must fail without changing anything.
+
+    Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Uses kubectl scale
+    path: verb
+    op: equals
+    value: scale
+  - id: resource
+    label: Targets a Deployment
+    path: resource
+    op: equals
+    value: deployment
+  - id: name
+    label: Names the Deployment worker
+    path: names
+    op: contains
+    value: worker
+  - id: replicas
+    label: Sets 6 replicas
+    path: flags.replicas
+    op: equals
+    value: "6"
+  - id: precondition
+    label: Requires the current size to be 3
+    path: flags.current-replicas
+    op: equals
+    value: "3"
+  - id: namespace
+    label: Runs in namespace media
+    path: flags.namespace
+    op: equals
+    value: media
+  solution:
+  - command: kubectl scale deployment worker --current-replicas=3 --replicas=6 -n media
+  - command: k -n media scale --replicas 6 --current-replicas 3 deploy/worker
+  negatives:
+  - command: kubectl scale deployment worker --replicas=6 -n media
+    why: Without --current-replicas the scale happens whatever the current size is.
+  - command: kubectl scale deployment worker --current-replicas=6 --replicas=3 -n media
+    why: The values are swapped; this scales from 6 down to 3.
+  - command: kubectl scale deployment worker --current-replicas=3 --replicas=6
+    why: Without -n the command looks for worker in the context namespace, default.
+explanation:
+  correct:
+    en: '`kubectl scale deployment worker --replicas=6 -n media` sets the new size; `--current-replicas=3` is a precondition checked before the scale is sent, so the command fails if the Deployment no longer has 3 replicas. Scaling changes only `spec.replicas` and does not create a new rollout revision.'
+references:
+- title: kubectl scale
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_scale/

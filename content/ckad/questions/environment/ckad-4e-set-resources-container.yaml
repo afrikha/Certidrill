@@ -1,0 +1,227 @@
+id: ckad-4e-set-resources-container
+objective: "4.5.1"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    The Deployment `web` in namespace `shop` (manifest in `web.yaml`) has two containers, `app` and `log-shipper`.
+
+    Give container `app` only a request of 200m CPU and 256Mi of memory and a limit of 500m CPU and 512Mi of memory. Container `log-shipper` must stay unchanged.
+
+    Type the single command you would run.
+body:
+  mode: object
+  namespace: shop
+  files:
+  - name: web.yaml
+    content: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: web
+        namespace: shop
+        labels:
+          app: web
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: web
+        template:
+          metadata:
+            labels:
+              app: web
+          spec:
+            containers:
+            - name: app
+              image: registry.example.com/shop/web:2.3
+            - name: log-shipper
+              image: registry.example.com/tools/log-shipper:1.2
+answer:
+  checks:
+  - id: kind
+    label: The object is the Deployment web
+    path: metadata.name
+    op: equals
+    value: web
+  - id: req-cpu
+    label: app requests 200m CPU
+    path: spec.template.spec.containers[name=app].resources.requests.cpu
+    op: quantity
+    value: 200m
+  - id: req-mem
+    label: app requests 256Mi of memory
+    path: spec.template.spec.containers[name=app].resources.requests.memory
+    op: quantity
+    value: 256Mi
+  - id: lim-cpu
+    label: app is limited to 500m CPU
+    path: spec.template.spec.containers[name=app].resources.limits.cpu
+    op: quantity
+    value: 500m
+  - id: lim-mem
+    label: app is limited to 512Mi of memory
+    path: spec.template.spec.containers[name=app].resources.limits.memory
+    op: quantity
+    value: 512Mi
+  - id: shipper-req
+    label: log-shipper has no requests
+    path: spec.template.spec.containers[name=log-shipper].resources.requests
+    op: absent
+  - id: shipper-lim
+    label: log-shipper has no limits
+    path: spec.template.spec.containers[name=log-shipper].resources.limits
+    op: absent
+  solution:
+  - command: kubectl set resources deployment web -c app --requests=cpu=200m,memory=256Mi --limits=cpu=500m,memory=512Mi
+    output: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        labels:
+          app: web
+        name: web
+        namespace: shop
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: web
+        strategy: {}
+        template:
+          metadata:
+            labels:
+              app: web
+          spec:
+            containers:
+            - image: registry.example.com/shop/web:2.3
+              name: app
+              resources:
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+                requests:
+                  cpu: 200m
+                  memory: 256Mi
+            - image: registry.example.com/tools/log-shipper:1.2
+              name: log-shipper
+              resources: {}
+      status: {}
+  - command: k set resources -f web.yaml --containers=app --limits=cpu=0.5,memory=512Mi --requests=cpu=0.2,memory=256Mi --local -o yaml
+    output: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        labels:
+          app: web
+        name: web
+        namespace: shop
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: web
+        strategy: {}
+        template:
+          metadata:
+            labels:
+              app: web
+          spec:
+            containers:
+            - image: registry.example.com/shop/web:2.3
+              name: app
+              resources:
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+                requests:
+                  cpu: 200m
+                  memory: 256Mi
+            - image: registry.example.com/tools/log-shipper:1.2
+              name: log-shipper
+              resources: {}
+      status: {}
+  negatives:
+  - command: kubectl set resources deployment web --requests=cpu=200m,memory=256Mi --limits=cpu=500m,memory=512Mi
+    why: Without -c, set resources changes every container of the template (the default is "*"), so log-shipper gets the values too.
+    output: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        labels:
+          app: web
+        name: web
+        namespace: shop
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: web
+        strategy: {}
+        template:
+          metadata:
+            labels:
+              app: web
+          spec:
+            containers:
+            - image: registry.example.com/shop/web:2.3
+              name: app
+              resources:
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+                requests:
+                  cpu: 200m
+                  memory: 256Mi
+            - image: registry.example.com/tools/log-shipper:1.2
+              name: log-shipper
+              resources:
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+                requests:
+                  cpu: 200m
+                  memory: 256Mi
+      status: {}
+  - command: kubectl set resources deployment web -c app --requests=cpu=500m,memory=512Mi --limits=cpu=200m,memory=256Mi
+    why: Requests and limits are swapped; the request must be the smaller value.
+    output: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        labels:
+          app: web
+        name: web
+        namespace: shop
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: web
+        strategy: {}
+        template:
+          metadata:
+            labels:
+              app: web
+          spec:
+            containers:
+            - image: registry.example.com/shop/web:2.3
+              name: app
+              resources:
+                limits:
+                  cpu: 200m
+                  memory: 256Mi
+                requests:
+                  cpu: 500m
+                  memory: 512Mi
+            - image: registry.example.com/tools/log-shipper:1.2
+              name: log-shipper
+              resources: {}
+      status: {}
+explanation:
+  correct:
+    en: '`kubectl set resources` updates the Pod template of any object that has one; `-c`/`--containers` selects the containers to change and defaults to `*`, all of them. `--requests` and `--limits` take `resource=quantity` pairs; `0.5` CPU and `500m` are the same quantity. Changing the template of a Deployment starts a new rollout.'
+references:
+- title: kubectl set resources
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_set/kubectl_set_resources/

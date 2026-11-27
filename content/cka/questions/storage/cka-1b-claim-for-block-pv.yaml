@@ -1,0 +1,149 @@
+id: cka-1b-claim-for-block-pv
+objective: "1.2.1"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    The administrator created the PersistentVolume in `pv-archive.yaml`. In namespace `analytics`, reader Pods that run on several nodes must all read it at the same time; none of them writes.
+
+    Write the PersistentVolumeClaim `archive` (namespace `analytics`) that binds to this volume, requesting 200Gi.
+body:
+  starter: ""
+  files:
+  - name: pv-archive.yaml
+    content: |
+      apiVersion: v1
+      kind: PersistentVolume
+      metadata:
+        name: pv-archive
+      spec:
+        capacity:
+          storage: 200Gi
+        volumeMode: Block
+        accessModes:
+        - ReadWriteOnce
+        - ReadOnlyMany
+        persistentVolumeReclaimPolicy: Retain
+        storageClassName: archive
+        csi:
+          driver: csi.example.com
+          volumeHandle: vol-archive-01
+answer:
+  checks:
+  - id: meta
+    label: A claim named archive in namespace analytics
+    path: metadata
+    op: subset
+    value: {name: archive, namespace: analytics}
+  - id: kind
+    label: The kind is PersistentVolumeClaim
+    path: kind
+    op: equals
+    value: PersistentVolumeClaim
+  - id: volume-mode
+    label: volumeMode is Block, like the PV
+    path: spec.volumeMode
+    op: equals
+    value: Block
+  - id: rox
+    label: Asks for ReadOnlyMany
+    path: spec.accessModes
+    op: contains
+    value: ReadOnlyMany
+  - id: only-offered
+    label: Asks only for modes the PV offers (ReadWriteOnce, ReadOnlyMany)
+    path: spec.accessModes
+    op: matches
+    value: '^\[("(ReadOnlyMany|ReadWriteOnce)",?)+\]$'
+  - id: class
+    label: storageClassName is archive, like the PV
+    path: spec.storageClassName
+    op: equals
+    value: archive
+  - id: size
+    label: Requests 200Gi
+    path: spec.resources.requests.storage
+    op: quantity
+    value: 200Gi
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: archive
+        namespace: analytics
+      spec:
+        accessModes:
+        - ReadOnlyMany
+        volumeMode: Block
+        storageClassName: archive
+        resources:
+          requests:
+            storage: 200Gi
+  - manifest: |
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: archive
+        namespace: analytics
+      spec:
+        accessModes: ["ReadOnlyMany"]
+        volumeMode: Block
+        volumeName: pv-archive
+        storageClassName: archive
+        resources:
+          requests:
+            storage: 200Gi
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: archive
+        namespace: analytics
+      spec:
+        accessModes:
+        - ReadOnlyMany
+        storageClassName: archive
+        resources:
+          requests:
+            storage: 200Gi
+    why: An omitted volumeMode means Filesystem, and a Filesystem claim never binds to a Block PV.
+  - manifest: |
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: archive
+        namespace: analytics
+      spec:
+        accessModes:
+        - ReadWriteMany
+        volumeMode: Block
+        storageClassName: archive
+        resources:
+          requests:
+            storage: 200Gi
+    why: The PV does not offer ReadWriteMany, so the claim stays Pending.
+  - manifest: |
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: archive
+        namespace: analytics
+      spec:
+        accessModes:
+        - ReadWriteOnce
+        volumeMode: Block
+        storageClassName: archive
+        resources:
+          requests:
+            storage: 200Gi
+    why: ReadWriteOnce binds, but only Pods on one node could use the volume; the readers run on several nodes.
+explanation:
+  correct:
+    en: |-
+      A claim binds to a PV only if the volume modes are identical (`Block` here; omitted means `Filesystem`), the PV offers every access mode the claim asks for, the classes are equal and the capacity is large enough. Readers on several nodes need `ReadOnlyMany`; `volumeName: pv-archive` is optional and pins the claim to that PV.
+references:
+- title: Persistent Volumes
+  url: https://kubernetes.io/docs/concepts/storage/persistent-volumes/

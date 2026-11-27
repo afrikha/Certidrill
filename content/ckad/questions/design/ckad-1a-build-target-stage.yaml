@@ -1,0 +1,76 @@
+id: ckad-1a-build-target-stage
+objective: "1.1.1"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    You are in `/home/candidate/orders`, which contains the `Dockerfile` below. Only Podman is installed on this host (there is no `docker` command).
+
+    The CI job must run the unit tests only: build the image up to and including the stage named `test`, without building the `runtime` stage, and tag it `orders:test`. Use the current directory as the build context.
+
+    Type the single command you would run.
+body:
+  mode: invocation
+  tools: [podman, docker]
+  namespace: default
+  files:
+  - name: Dockerfile
+    content: |
+      FROM golang:1.23 AS build
+      WORKDIR /src
+      COPY . .
+      RUN go build -o /out/orders ./cmd/orders
+
+      FROM build AS test
+      RUN go test ./...
+
+      FROM gcr.io/distroless/static-debian12 AS runtime
+      COPY --from=build /out/orders /orders
+      USER 65532:65532
+      ENTRYPOINT ["/orders"]
+answer:
+  checks:
+  - id: tool
+    label: Uses podman, the tool installed on the host
+    path: tool
+    op: equals
+    value: podman
+  - id: verb
+    label: It is a build command
+    path: verb
+    op: equals
+    value: build
+  - id: target
+    label: Stops at the stage named test
+    path: flags.target
+    op: equals
+    value: test
+  - id: tag
+    label: Tags the image orders:test
+    path: flags
+    op: matches
+    value: '"tag":(\[("[^"]*",)*)?"(localhost/)?orders:test"'
+  - id: context
+    label: Uses the current directory as the build context
+    path: args
+    op: matches
+    value: '^\["(\./?|/home/candidate/orders/?)"\]$'
+  solution:
+  - command: podman build --target test -t orders:test .
+  - command: podman build --target=test --tag=localhost/orders:test -f Dockerfile .
+  negatives:
+  - command: podman build -t orders:test .
+    why: Without --target the build goes to the last stage, runtime, which is not wanted here.
+  - command: podman build --target runtime -t orders:test .
+    why: runtime is the final image; the task asks to stop at the test stage.
+  - command: docker build --target test -t orders:test .
+    why: Docker is not installed on this host; only podman is available.
+explanation:
+  correct:
+    en: 'In a multi-stage build each `FROM ... AS name` starts a named stage. `--target test` makes `test` the final stage: the builder runs `build` and `test` (the stages it depends on) and skips `runtime`. Without `--target`, the last stage of the file is built. Podman accepts the same `--target`, `-t` and context syntax as Docker.'
+references:
+- title: podman-build
+  url: https://docs.podman.io/en/latest/markdown/podman-build.1.html
+- title: Dockerfile reference
+  url: https://docs.docker.com/reference/dockerfile/

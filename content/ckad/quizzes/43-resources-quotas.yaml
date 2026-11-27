@@ -1,0 +1,1105 @@
+chapter: 43-resources-quotas
+questions:
+  # ------------------------------------------------------------------ 1
+  - id: ckad-qz-43-01
+    objective: "4.5.2"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        A container in a running Pod has `limits.cpu: 500m`. Under load, it tries to use more than half a CPU.
+
+        What happens to the container?
+    body:
+      options:
+        - { id: a, text: { en: "The kernel kills it with an out-of-memory error, exit code 137, and the kubelet restarts it." } }
+        - { id: b, text: { en: "The kubelet evicts the Pod, and its controller creates a replacement Pod on another node." } }
+        - { id: c, text: { en: "The kernel throttles it, so it keeps running but gets no more than half a CPU of time." } }
+        - { id: d, text: { en: "The scheduler moves the Pod back to Pending until a node with more free CPU is found." } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          A CPU limit is enforced by the kernel through CPU throttling: the container is never killed for using CPU, it simply gets no more CPU time than its limit, which shows up as slow responses. Only a memory limit leads to an OOM kill.
+      options:
+        a: { en: "An OOM kill with exit code 137 (`OOMKilled`) is the effect of going over a memory limit, not a CPU limit." }
+        b: { en: "Node-pressure eviction is driven by memory, disk or PID pressure on the node, not by one container reaching its CPU limit." }
+        d: { en: "The scheduler only places Pods that are not yet bound to a node, based on requests; it never moves a running Pod back to Pending." }
+    references:
+      - title: Resource Management for Pods and Containers
+        url: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+
+  # ------------------------------------------------------------------ 2
+  - id: ckad-qz-43-02
+    objective: "4.5.1"
+    difficulty: 1
+    status: draft
+    type: multi
+    stem:
+      en: |
+        A task asks you to give a container a request of half a CPU.
+
+        Which two values of `resources.requests.cpu` are correct?
+
+        NOTE: Each correct selection is worth one point.
+    body:
+      choose: 2
+      options:
+        - { id: a, text: "`50m`" }
+        - { id: b, text: "`500m`" }
+        - { id: c, text: "`5000m`" }
+        - { id: d, text: "`\"0.5\"`" }
+        - { id: e, text: "`0.5m`" }
+    answer: { optionIds: [b, d] }
+    explanation:
+      correct:
+        en: |
+          CPU is measured in CPU units, and `m` means millicpu: `500m` is 500 thousandths of a CPU, and the decimal quantity `0.5` is the same value (as `0.1` is `100m`). Both spellings are valid in a manifest.
+      options:
+        a: { en: "`50m` is 50 millicpu, a twentieth of a CPU, ten times less than asked." }
+        c: { en: "`5000m` is 5 CPUs, ten times more than asked." }
+        e: { en: "`0.5m` is half a millicpu, and Kubernetes does not accept a CPU precision finer than `1m`." }
+    references:
+      - title: Resource Management for Pods and Containers
+        url: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+
+  # ------------------------------------------------------------------ 3
+  - id: ckad-qz-43-03
+    objective: "4.3.2"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Namespace `api` contains only this LimitRange:
+
+        ```yaml
+        apiVersion: v1
+        kind: LimitRange
+        metadata:
+          name: mem-bounds
+          namespace: api
+        spec:
+          limits:
+          - type: Container
+            min:
+              memory: 256Mi
+            max:
+              memory: 1Gi
+        ```
+
+        You create a Pod in `api` whose only container sets no `resources` at all. What memory values does the container get?
+    body:
+      options:
+        - { id: a, text: { en: "A memory request of 256Mi and a memory limit of 1Gi, taken from `min` and `max`." } }
+        - { id: b, text: { en: "A memory request of 1Gi and a memory limit of 1Gi, both derived from `max`." } }
+        - { id: c, text: { en: "No memory values, because the LimitRange sets neither `default` nor `defaultRequest`." } }
+        - { id: d, text: { en: "None: the Pod is rejected, because a container must set a limit when `max` is defined." } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          When a LimitRange item sets `max` but no `default`, the API server fills `default` (the default limit) with the `max` value, and an omitted `defaultRequest` takes the value of `default`. The LimitRange stored in `api` therefore has `default` and `defaultRequest` of 1Gi, and the container that sets nothing gets a 1Gi request and a 1Gi limit, which pass the `min` and `max` checks.
+      options:
+        a: { en: "`min` is a lower bound that is checked, never a value that is injected; the injected request is the (derived) `defaultRequest`, 1Gi." }
+        c: { en: "The defaults exist even if you do not write them: they are derived from `max`, as `kubectl get limitrange mem-bounds -n api -o yaml` shows." }
+        d: { en: "A LimitRange injects defaults first and only rejects values outside `min` and `max`; a container without values is not rejected." }
+    references:
+      - title: Configure Minimum and Maximum Memory Constraints for a Namespace
+        url: https://kubernetes.io/docs/tasks/administer-cluster/manage-resources/memory-constraint-namespace/
+      - title: Limit Ranges
+        url: https://kubernetes.io/docs/concepts/policy/limit-range/
+
+  # ------------------------------------------------------------------ 4
+  - id: ckad-qz-43-04
+    objective: "4.3.1"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Namespace `shop` has a ResourceQuota that sets `requests.cpu`, `requests.memory`, `limits.cpu` and `limits.memory`, and no LimitRange. A developer runs:
+
+        ```bash
+        kubectl create deployment web --image=nginx:1.27 --replicas=3 -n shop
+        ```
+
+        The quota has plenty of room left. What does the developer observe?
+    body:
+      options:
+        - { id: a, text: { en: "The command fails with `403 Forbidden` and no Deployment named `web` exists in `shop`." } }
+        - { id: b, text: { en: "The Deployment exists, and its 3 Pods stay `Pending` with `FailedScheduling` events." } }
+        - { id: c, text: { en: "The Deployment exists, and its 3 Pods run as `BestEffort` Pods that the quota does not count." } }
+        - { id: d, text: { en: "The Deployment exists with `READY 0/3`, and its ReplicaSet shows `FailedCreate` events." } }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          A quota on CPU or memory makes every new Pod in the namespace specify that resource. The Deployment itself is admitted (the quota does not cap Deployments here); its ReplicaSet then tries to create the Pods, which set no resources, and each creation is refused by the quota with a "must specify" message. The reason appears in the ReplicaSet events (`kubectl describe rs -n shop`), while the Deployment shows `0/3`.
+      options:
+        a: { en: "The quota rejects Pods, not the Deployment: nothing in the quota limits Deployments, so the Deployment is created." }
+        b: { en: "Pending Pods exist and wait for a node; here the Pods are never created, because admission refuses them before scheduling." }
+        c: { en: "A quota on `cpu` or `memory` does not let unvalued Pods through: without a LimitRange to supply defaults, each one is rejected." }
+    references:
+      - title: Resource Quotas
+        url: https://kubernetes.io/docs/concepts/policy/resource-quotas/
+
+  # ------------------------------------------------------------------ 5
+  - id: ckad-qz-43-05
+    objective: "4.5.2"
+    difficulty: 2
+    status: draft
+    type: multi
+    stem:
+      en: |
+        Namespace `lab` has no LimitRange, and none of its Pods uses Pod-level resources. Each option describes the CPU and memory values of a Pod's containers.
+
+        Which two Pods get the QoS class `Guaranteed`?
+
+        NOTE: Each correct selection is worth one point.
+    body:
+      choose: 2
+      options:
+        - { id: a, text: { en: "One container: limits `cpu: 500m, memory: 256Mi`; no requests." } }
+        - { id: b, text: { en: "One container: requests `cpu: 500m, memory: 256Mi`; limits `cpu: 1, memory: 256Mi`." } }
+        - { id: c, text: { en: "One container: requests `memory: 256Mi`; limits `memory: 256Mi`; no CPU values." } }
+        - { id: d, text: { en: "Two containers: `app` with requests and limits `cpu: 500m, memory: 256Mi`; `proxy` with no values." } }
+        - { id: e, text: { en: "One container: requests `cpu: 250m, memory: 128Mi`; limits `cpu: 250m, memory: 128Mi`." } }
+    answer: { optionIds: [a, e] }
+    explanation:
+      correct:
+        en: |
+          `Guaranteed` needs, in every container, a CPU and a memory request and limit, with each request equal to its limit. When a container sets a limit without a request and no LimitRange supplies a default request, Kubernetes copies the limit as the request, so the limits-only container of option A ends up with equal values. Option E sets them explicitly.
+      options:
+        b: { en: "The CPU limit (1) is higher than the CPU request (500m), so the Pod is `Burstable`." }
+        c: { en: "The container has no CPU request or limit; Guaranteed needs both resources, so the Pod is `Burstable`." }
+        d: { en: "Container `proxy` has no values; one such container is enough to make the Pod `Burstable`." }
+    references:
+      - title: Pod Quality of Service Classes
+        url: https://kubernetes.io/docs/concepts/workloads/pods/pod-qos/
+      - title: Resource Management for Pods and Containers
+        url: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+
+  # ------------------------------------------------------------------ 6
+  - id: ckad-qz-43-06
+    objective: "4.3.1"
+    difficulty: 3
+    status: draft
+    type: command
+    stem:
+      en: |-
+        Namespace `ci` runs both long-lived Pods and short build Pods that set `activeDeadlineSeconds`.
+
+        Create a ResourceQuota named `long-running` in `ci` that counts **only** the Pods whose spec has no `activeDeadlineSeconds`. For those Pods it allows at most 6 Pods and a total of 3 CPU and 6Gi of memory in requests. The build Pods must not be counted at all.
+
+        Type the single command you would run.
+    body:
+      mode: object
+      namespace: default
+    answer:
+      checks:
+        - id: kind
+          label: The object is a ResourceQuota
+          path: kind
+          op: equals
+          value: ResourceQuota
+        - id: meta
+          label: It is named long-running in namespace ci
+          path: metadata
+          op: subset
+          value: { name: long-running, namespace: ci }
+        - id: pods
+          label: At most 6 Pods (pods or count/pods)
+          path: spec.hard
+          op: matches
+          value: '(^|[{,])"(count/)?pods":"6"'
+        - id: req-cpu
+          label: Total CPU requests capped at 3 (requests.cpu or its synonym cpu)
+          path: spec.hard
+          op: matches
+          value: '(^|[{,])"(requests\.)?cpu":"3"'
+        - id: req-mem
+          label: Total memory requests capped at 6Gi (requests.memory or its synonym memory)
+          path: spec.hard
+          op: matches
+          value: '(^|[{,])"(requests\.)?memory":"6Gi"'
+        - id: scope
+          label: The quota has the scope NotTerminating
+          path: spec.scopes
+          op: contains
+          value: NotTerminating
+        - id: one-scope
+          label: NotTerminating is the only scope
+          path: spec.scopes
+          op: length
+          value: 1
+      solution:
+        - command: kubectl create quota long-running -n ci --hard=pods=6,requests.cpu=3,requests.memory=6Gi --scopes=NotTerminating
+          output: |
+            apiVersion: v1
+            kind: ResourceQuota
+            metadata:
+              name: long-running
+              namespace: ci
+            spec:
+              hard:
+                pods: "6"
+                requests.cpu: "3"
+                requests.memory: 6Gi
+              scopes:
+              - NotTerminating
+            status: {}
+        - command: k create quota long-running --hard requests.memory=6Gi,requests.cpu=3,pods=6 --scopes NotTerminating --namespace ci --dry-run=client -o yaml
+          output: |
+            apiVersion: v1
+            kind: ResourceQuota
+            metadata:
+              name: long-running
+              namespace: ci
+            spec:
+              hard:
+                pods: "6"
+                requests.cpu: "3"
+                requests.memory: 6Gi
+              scopes:
+              - NotTerminating
+            status: {}
+        - command: kubectl -n ci create quota long-running --hard=cpu=3,memory=6Gi,pods=6 --scopes=NotTerminating
+          output: |
+            apiVersion: v1
+            kind: ResourceQuota
+            metadata:
+              name: long-running
+              namespace: ci
+            spec:
+              hard:
+                cpu: "3"
+                memory: 6Gi
+                pods: "6"
+              scopes:
+              - NotTerminating
+            status: {}
+      negatives:
+        - command: kubectl create quota long-running -n ci --hard=pods=6,requests.cpu=3,requests.memory=6Gi --scopes=Terminating
+          output: |
+            apiVersion: v1
+            kind: ResourceQuota
+            metadata:
+              name: long-running
+              namespace: ci
+            spec:
+              hard:
+                pods: "6"
+                requests.cpu: "3"
+                requests.memory: 6Gi
+              scopes:
+              - Terminating
+            status: {}
+          why: The Terminating scope matches Pods that do set activeDeadlineSeconds, so this quota counts only the build Pods, the opposite of the task.
+        - command: kubectl create quota long-running -n ci --hard=pods=6,requests.cpu=3,requests.memory=6Gi
+          output: |
+            apiVersion: v1
+            kind: ResourceQuota
+            metadata:
+              name: long-running
+              namespace: ci
+            spec:
+              hard:
+                pods: "6"
+                requests.cpu: "3"
+                requests.memory: 6Gi
+            status: {}
+          why: Without a scope, the quota counts every non-terminal Pod of the namespace, build Pods included.
+        - command: kubectl create quota long-running -n ci --hard=pods=6,limits.cpu=3,limits.memory=6Gi --scopes=NotTerminating
+          output: |
+            apiVersion: v1
+            kind: ResourceQuota
+            metadata:
+              name: long-running
+              namespace: ci
+            spec:
+              hard:
+                limits.cpu: "3"
+                limits.memory: 6Gi
+                pods: "6"
+              scopes:
+              - NotTerminating
+            status: {}
+          why: limits.cpu and limits.memory cap the sum of limits; the task caps the sum of requests.
+    explanation:
+      correct:
+        en: |
+          `--scopes` restricts what a quota counts. `NotTerminating` matches Pods whose `spec.activeDeadlineSeconds` is not set, and `Terminating` matches the Pods that set it; a quota with the `NotTerminating` scope may track `pods`, `cpu`/`requests.cpu`, `memory`/`requests.memory` and the `limits.*` values. `kubectl create quota long-running -n ci --hard=pods=6,requests.cpu=3,requests.memory=6Gi --scopes=NotTerminating` therefore ignores the build Pods entirely.
+    references:
+      - title: Resource Quotas
+        url: https://kubernetes.io/docs/concepts/policy/resource-quotas/
+      - title: kubectl create quota
+        url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_create/kubectl_create_quota/
+
+  # ------------------------------------------------------------------ 7
+  - id: ckad-qz-43-07
+    objective: "4.5.2"
+    difficulty: 3
+    status: draft
+    type: command
+    stem:
+      en: |-
+        Pod `pipeline-5c8d` in namespace `etl` has three containers: `fetch`, `transform` and `upload`. Container `transform` is in `CrashLoopBackOff`.
+
+        Print only the reason why the previous run of container `transform` terminated (for example `OOMKilled` or `Error`), with a single `kubectl get` command. Select the container status by the container's name, not by its position in the list.
+    body:
+      mode: invocation
+      namespace: default
+    answer:
+      checks:
+        - id: verb
+          label: Uses kubectl get
+          path: verb
+          op: equals
+          value: get
+        - id: resource
+          label: Reads a Pod
+          path: resource
+          op: equals
+          value: pod
+        - id: name
+          label: Names the Pod pipeline-5c8d
+          path: names
+          op: contains
+          value: pipeline-5c8d
+        - id: namespace
+          label: Runs in namespace etl
+          path: flags.namespace
+          op: equals
+          value: etl
+        - id: jsonpath
+          label: Prints lastState.terminated.reason of the status whose name is transform
+          path: flags.output
+          op: matches
+          value: '^jsonpath=\{\s*\.status\.containerStatuses\[\?\(\s*@\.name\s*==\s*["'']transform["'']\s*\)\]\.lastState\.terminated\.reason\s*\}$'
+      solution:
+        - command: kubectl get pod pipeline-5c8d -n etl -o jsonpath='{.status.containerStatuses[?(@.name=="transform")].lastState.terminated.reason}'
+        - command: k -n etl get po/pipeline-5c8d -o=jsonpath="{.status.containerStatuses[?(@.name=='transform')].lastState.terminated.reason}"
+        - command: kubectl get pods pipeline-5c8d --namespace=etl --output=jsonpath='{.status.containerStatuses[?(@.name=="transform")].lastState.terminated.reason}'
+      negatives:
+        - command: kubectl get pod pipeline-5c8d -n etl -o jsonpath='{.status.containerStatuses[?(@.name=="transform")].state.terminated.reason}'
+          why: state is the current state; a container in CrashLoopBackOff is waiting, so state.terminated is empty. The previous termination is in lastState.
+        - command: kubectl get pod pipeline-5c8d -n etl -o jsonpath='{.status.containerStatuses[1].lastState.terminated.reason}'
+          why: An index selects the status by its position in the list, which the task forbids; only a filter on the name keeps pointing at transform whatever the order.
+        - command: kubectl get pod pipeline-5c8d -n etl -o jsonpath='{.status.reason}'
+          why: status.reason is a Pod-level reason (for example Evicted), not the termination reason of one container.
+        - command: kubectl get pod pipeline-5c8d -o jsonpath='{.status.containerStatuses[?(@.name=="transform")].lastState.terminated.reason}'
+          why: Without -n the command looks for the Pod in the context namespace, default.
+    explanation:
+      correct:
+        en: |
+          Each entry of `status.containerStatuses` has `state` (now) and `lastState` (the previous run). A crash-looping container is `waiting` now, so the reason of its last exit is in `lastState.terminated.reason`. The JSONPath filter `[?(@.name=="transform")]` picks the entry by name, so the command prints `OOMKilled` when the memory limit killed it.
+    references:
+      - title: JSONPath Support
+        url: https://kubernetes.io/docs/reference/kubectl/jsonpath/
+
+  # ------------------------------------------------------------------ 8
+  - id: ckad-qz-43-08
+    objective: "4.5.1"
+    difficulty: 3
+    status: draft
+    type: manifest
+    stem:
+      en: |-
+        Write the manifest of a CronJob named `nightly-export` in namespace `reports` that runs every day at 02:30 (schedule `30 2 * * *`).
+
+        Each run starts one container named `export` with image `registry.example.com/reports/export:1.8`. The container requests 1.5 CPU and 1.5 GiB of memory, and is limited to 1.5 GiB of memory. It has no CPU limit.
+    body:
+      starter: ""
+    answer:
+      checks:
+        - id: kind
+          label: The object is a CronJob
+          path: kind
+          op: equals
+          value: CronJob
+        - id: meta
+          label: It is named nightly-export in namespace reports
+          path: metadata
+          op: subset
+          value: { name: nightly-export, namespace: reports }
+        - id: schedule
+          label: Schedule is 30 2 * * *
+          path: spec.schedule
+          op: equals
+          value: "30 2 * * *"
+        - id: image
+          label: Container export runs registry.example.com/reports/export:1.8 in the Job template
+          path: spec.jobTemplate.spec.template.spec.containers[name=export].image
+          op: equals
+          value: registry.example.com/reports/export:1.8
+        - id: req-cpu
+          label: Container export requests 1.5 CPU
+          path: spec.jobTemplate.spec.template.spec.containers[name=export].resources.requests.cpu
+          op: quantity
+          value: "1.5"
+        - id: req-mem
+          label: Container export requests 1.5Gi of memory
+          path: spec.jobTemplate.spec.template.spec.containers[name=export].resources.requests.memory
+          op: quantity
+          value: 1.5Gi
+        - id: lim-mem
+          label: Container export is limited to 1.5Gi of memory
+          path: spec.jobTemplate.spec.template.spec.containers[name=export].resources.limits.memory
+          op: quantity
+          value: 1.5Gi
+        - id: no-cpu-limit
+          label: Container export has no CPU limit
+          path: spec.jobTemplate.spec.template.spec.containers[name=export].resources.limits.cpu
+          op: absent
+        - id: restart
+          label: The Pod template has a restartPolicy that a Job accepts (OnFailure or Never)
+          path: spec.jobTemplate.spec.template.spec.restartPolicy
+          op: oneOf
+          value: [OnFailure, Never]
+      solution:
+        - manifest: |
+            apiVersion: batch/v1
+            kind: CronJob
+            metadata:
+              name: nightly-export
+              namespace: reports
+            spec:
+              schedule: "30 2 * * *"
+              jobTemplate:
+                spec:
+                  template:
+                    spec:
+                      restartPolicy: OnFailure
+                      containers:
+                      - name: export
+                        image: registry.example.com/reports/export:1.8
+                        resources:
+                          requests:
+                            cpu: "1.5"
+                            memory: 1.5Gi
+                          limits:
+                            memory: 1.5Gi
+        - manifest: |
+            apiVersion: batch/v1
+            kind: CronJob
+            metadata:
+              namespace: reports
+              name: nightly-export
+            spec:
+              schedule: 30 2 * * *
+              jobTemplate:
+                spec:
+                  template:
+                    spec:
+                      containers:
+                      - name: export
+                        image: registry.example.com/reports/export:1.8
+                        resources:
+                          limits: {memory: 1536Mi}
+                          requests: {cpu: 1500m, memory: 1536Mi}
+                      restartPolicy: Never
+      negatives:
+        - manifest: |
+            apiVersion: batch/v1
+            kind: CronJob
+            metadata:
+              name: nightly-export
+              namespace: reports
+            spec:
+              schedule: "30 2 * * *"
+              jobTemplate:
+                spec:
+                  template:
+                    spec:
+                      restartPolicy: OnFailure
+                      containers:
+                      - name: export
+                        image: registry.example.com/reports/export:1.8
+                        resources:
+                          requests:
+                            cpu: "1.5"
+                            memory: 1.5G
+                          limits:
+                            memory: 1.5G
+          why: G is a decimal suffix; 1.5G is 1,500,000,000 bytes, about 1.4Gi, not 1.5 GiB.
+        - manifest: |
+            apiVersion: batch/v1
+            kind: CronJob
+            metadata:
+              name: nightly-export
+              namespace: reports
+            spec:
+              schedule: "30 2 * * *"
+              jobTemplate:
+                spec:
+                  template:
+                    spec:
+                      restartPolicy: OnFailure
+                      containers:
+                      - name: export
+                        image: registry.example.com/reports/export:1.8
+                        resources:
+                          requests:
+                            cpu: 1500
+                            memory: 1.5Gi
+                          limits:
+                            memory: 1.5Gi
+          why: A plain number of CPU is in whole CPUs; cpu 1500 requests 1,500 CPUs. 1.5 CPU is 1500m or 1.5.
+        - manifest: |
+            apiVersion: batch/v1
+            kind: CronJob
+            metadata:
+              name: nightly-export
+              namespace: reports
+            spec:
+              schedule: "30 2 * * *"
+              template:
+                spec:
+                  restartPolicy: OnFailure
+                  containers:
+                  - name: export
+                    image: registry.example.com/reports/export:1.8
+                    resources:
+                      requests:
+                        cpu: "1.5"
+                        memory: 1.5Gi
+                      limits:
+                        memory: 1.5Gi
+          why: A CronJob has no spec.template; the Pod template sits under spec.jobTemplate.spec.template, so this manifest is rejected.
+        - manifest: |
+            apiVersion: batch/v1
+            kind: CronJob
+            metadata:
+              name: nightly-export
+              namespace: reports
+            spec:
+              schedule: "30 2 * * *"
+              jobTemplate:
+                spec:
+                  template:
+                    spec:
+                      containers:
+                      - name: export
+                        image: registry.example.com/reports/export:1.8
+                        resources:
+                          requests:
+                            cpu: "1.5"
+                            memory: 1.5Gi
+                          limits:
+                            memory: 1.5Gi
+          why: Without restartPolicy the Pod template defaults to Always, which a Job does not accept; the CronJob is rejected.
+    explanation:
+      correct:
+        en: |
+          In a CronJob, the Pod template is nested twice: `spec.jobTemplate.spec.template.spec`, and its `restartPolicy` must be `OnFailure` or `Never`. The resources go on the container: 1.5 CPU is `"1.5"` or `1500m`, and 1.5 GiB is `1.5Gi` or `1536Mi` (binary suffix). Leaving `limits.cpu` out gives the CPU request without a CPU limit.
+    references:
+      - title: CronJob
+        url: https://kubernetes.io/docs/concepts/workloads/controllers/cron-jobs/
+      - title: Resource Management for Pods and Containers
+        url: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+
+  # ------------------------------------------------------------------ 9
+  - id: ckad-qz-43-09
+    objective: "4.3.1"
+    difficulty: 3
+    status: draft
+    type: manifest
+    stem:
+      en: |-
+        In namespace `reports`, `kubectl describe quota team -n reports` prints the content of `quota.txt`. The namespace has no LimitRange and no other ResourceQuota.
+
+        Write the manifest of a Pod named `summary` in `reports`, with one container named `summary` running `registry.example.com/reports/summary:2.3`, that the quota admits now:
+        - the container requests 512Mi of memory;
+        - its CPU request and its memory limit are the largest values that the quota still allows;
+        - it has no CPU limit.
+    body:
+      files:
+        - name: quota.txt
+          content: |
+            Name:            team
+            Namespace:       reports
+            Resource         Used   Hard
+            --------         ----   ----
+            limits.memory    3Gi    4Gi
+            pods             7      10
+            requests.cpu     1500m  2
+            requests.memory  1Gi    2Gi
+      starter: |
+        apiVersion: v1
+        kind: Pod
+        metadata:
+          name: summary
+          namespace: reports
+        spec:
+          containers:
+          - name: summary
+            image: registry.example.com/reports/summary:2.3
+    answer:
+      checks:
+        - id: pod
+          label: A Pod named summary in namespace reports
+          path: metadata
+          op: subset
+          value: { name: summary, namespace: reports }
+        - id: image
+          label: Container summary runs registry.example.com/reports/summary:2.3
+          path: spec.containers[name=summary].image
+          op: equals
+          value: registry.example.com/reports/summary:2.3
+        - id: req-cpu
+          label: CPU request is the 500m left in requests.cpu (2 - 1500m)
+          path: spec.containers[name=summary].resources.requests.cpu
+          op: quantity
+          value: 500m
+        - id: req-mem
+          label: Memory request is 512Mi
+          path: spec.containers[name=summary].resources.requests.memory
+          op: quantity
+          value: 512Mi
+        - id: lim-mem
+          label: Memory limit is the 1Gi left in limits.memory (4Gi - 3Gi)
+          path: spec.containers[name=summary].resources.limits.memory
+          op: quantity
+          value: 1Gi
+        - id: no-cpu-limit
+          label: No CPU limit
+          path: spec.containers[name=summary].resources.limits.cpu
+          op: absent
+      solution:
+        - manifest: |
+            apiVersion: v1
+            kind: Pod
+            metadata:
+              name: summary
+              namespace: reports
+            spec:
+              containers:
+              - name: summary
+                image: registry.example.com/reports/summary:2.3
+                resources:
+                  requests:
+                    cpu: 500m
+                    memory: 512Mi
+                  limits:
+                    memory: 1Gi
+        - manifest: |
+            apiVersion: v1
+            kind: Pod
+            metadata:
+              name: summary
+              namespace: reports
+            spec:
+              containers:
+              - name: summary
+                image: registry.example.com/reports/summary:2.3
+                resources:
+                  limits: {memory: 1024Mi}
+                  requests: {memory: 512Mi, cpu: "0.5"}
+      negatives:
+        - manifest: |
+            apiVersion: v1
+            kind: Pod
+            metadata:
+              name: summary
+              namespace: reports
+            spec:
+              containers:
+              - name: summary
+                image: registry.example.com/reports/summary:2.3
+                resources:
+                  requests:
+                    cpu: "2"
+                    memory: 512Mi
+                  limits:
+                    memory: 4Gi
+          why: These are the Hard values; the quota already counts 1500m of CPU requests and 3Gi of memory limits, so this Pod exceeds both and is forbidden.
+        - manifest: |
+            apiVersion: v1
+            kind: Pod
+            metadata:
+              name: summary
+              namespace: reports
+            spec:
+              containers:
+              - name: summary
+                image: registry.example.com/reports/summary:2.3
+                resources:
+                  requests:
+                    cpu: 500m
+                    memory: 512Mi
+          why: The quota sets limits.memory, so every new Pod must specify a memory limit; this Pod is rejected (and the task asks for the largest allowed limit).
+        - manifest: |
+            apiVersion: v1
+            kind: Pod
+            metadata:
+              name: summary
+              namespace: reports
+            spec:
+              containers:
+              - name: summary
+                image: registry.example.com/reports/summary:2.3
+                resources:
+                  requests:
+                    cpu: 500m
+                    memory: 512Mi
+                  limits:
+                    memory: 1G
+          why: 1G is 1,000,000,000 bytes, about 954Mi; it is admitted but is not the largest limit left, which is 1Gi.
+        - manifest: |
+            apiVersion: v1
+            kind: Pod
+            metadata:
+              name: summary
+              namespace: reports
+            spec:
+              containers:
+              - name: summary
+                image: registry.example.com/reports/summary:2.3
+                resources:
+                  requests:
+                    cpu: 500m
+                    memory: 512Mi
+                  limits:
+                    cpu: 500m
+                    memory: 1Gi
+          why: The task asks for no CPU limit; the quota does not track limits.cpu, so none is needed.
+    explanation:
+      correct:
+        en: |
+          Admission compares Used + the new Pod with Hard for every resource the quota tracks. What is left is 2 - 1500m = 500m of CPU requests, 2Gi - 1Gi = 1Gi of memory requests (512Mi fits), 4Gi - 3Gi = 1Gi of memory limits, and 3 Pods. Because the quota tracks `limits.memory`, the Pod must set a memory limit; it does not track `limits.cpu`, so no CPU limit is needed.
+    references:
+      - title: Resource Quotas
+        url: https://kubernetes.io/docs/concepts/policy/resource-quotas/
+
+  # ------------------------------------------------------------------ 10
+  - id: ckad-qz-43-10
+    objective: "4.3.2"
+    difficulty: 3
+    status: draft
+    type: manifest
+    stem:
+      en: |-
+        Namespace `search` has the LimitRange in `limitrange.yaml`. The Deployment `indexer` in the editor shows `READY 0/2`, and its ReplicaSet reports `FailedCreate` events: the LimitRange forbids its Pods.
+
+        Fix the Deployment so that its Pods are admitted:
+        - keep every request and every memory limit unchanged;
+        - set the CPU limit of each container explicitly, to the highest value that the namespace accepts for that container.
+    body:
+      files:
+        - name: limitrange.yaml
+          content: |
+            apiVersion: v1
+            kind: LimitRange
+            metadata:
+              name: cpu-policy
+              namespace: search
+            spec:
+              limits:
+              - type: Container
+                default:
+                  cpu: "1"
+                defaultRequest:
+                  cpu: 250m
+                max:
+                  cpu: "2"
+                maxLimitRequestRatio:
+                  cpu: "4"
+      starter: |
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: indexer
+          namespace: search
+        spec:
+          replicas: 2
+          selector:
+            matchLabels:
+              app: indexer
+          template:
+            metadata:
+              labels:
+                app: indexer
+            spec:
+              containers:
+              - name: indexer
+                image: registry.example.com/search/indexer:4.0
+                resources:
+                  requests:
+                    cpu: 100m
+                    memory: 512Mi
+                  limits:
+                    memory: 512Mi
+              - name: tika
+                image: registry.example.com/search/tika:2.9
+                resources:
+                  requests:
+                    cpu: 600m
+                    memory: 1Gi
+                  limits:
+                    cpu: "3"
+                    memory: 1Gi
+    answer:
+      checks:
+        - id: deploy
+          label: The Deployment indexer in namespace search
+          path: metadata
+          op: subset
+          value: { name: indexer, namespace: search }
+        - id: indexer-req-cpu
+          label: Container indexer keeps its 100m CPU request
+          path: spec.template.spec.containers[name=indexer].resources.requests.cpu
+          op: quantity
+          value: 100m
+        - id: indexer-lim-cpu
+          label: Container indexer has a 400m CPU limit (4 x its request)
+          path: spec.template.spec.containers[name=indexer].resources.limits.cpu
+          op: quantity
+          value: 400m
+        - id: indexer-req-mem
+          label: Container indexer keeps its 512Mi memory request
+          path: spec.template.spec.containers[name=indexer].resources.requests.memory
+          op: quantity
+          value: 512Mi
+        - id: indexer-lim-mem
+          label: Container indexer keeps its 512Mi memory limit
+          path: spec.template.spec.containers[name=indexer].resources.limits.memory
+          op: quantity
+          value: 512Mi
+        - id: tika-req-cpu
+          label: Container tika keeps its 600m CPU request
+          path: spec.template.spec.containers[name=tika].resources.requests.cpu
+          op: quantity
+          value: 600m
+        - id: tika-lim-cpu
+          label: Container tika has a CPU limit of 2 (the max)
+          path: spec.template.spec.containers[name=tika].resources.limits.cpu
+          op: quantity
+          value: "2"
+        - id: tika-req-mem
+          label: Container tika keeps its 1Gi memory request
+          path: spec.template.spec.containers[name=tika].resources.requests.memory
+          op: quantity
+          value: 1Gi
+        - id: tika-lim-mem
+          label: Container tika keeps its 1Gi memory limit
+          path: spec.template.spec.containers[name=tika].resources.limits.memory
+          op: quantity
+          value: 1Gi
+      solution:
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: indexer
+              namespace: search
+            spec:
+              replicas: 2
+              selector:
+                matchLabels:
+                  app: indexer
+              template:
+                metadata:
+                  labels:
+                    app: indexer
+                spec:
+                  containers:
+                  - name: indexer
+                    image: registry.example.com/search/indexer:4.0
+                    resources:
+                      requests:
+                        cpu: 100m
+                        memory: 512Mi
+                      limits:
+                        cpu: 400m
+                        memory: 512Mi
+                  - name: tika
+                    image: registry.example.com/search/tika:2.9
+                    resources:
+                      requests:
+                        cpu: 600m
+                        memory: 1Gi
+                      limits:
+                        cpu: "2"
+                        memory: 1Gi
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: indexer
+              namespace: search
+            spec:
+              replicas: 2
+              selector:
+                matchLabels:
+                  app: indexer
+              template:
+                metadata:
+                  labels:
+                    app: indexer
+                spec:
+                  containers:
+                  - name: tika
+                    image: registry.example.com/search/tika:2.9
+                    resources:
+                      limits: {cpu: 2000m, memory: 1024Mi}
+                      requests: {cpu: "0.6", memory: 1Gi}
+                  - name: indexer
+                    image: registry.example.com/search/indexer:4.0
+                    resources:
+                      limits: {cpu: "0.4", memory: 512Mi}
+                      requests: {cpu: 100m, memory: 512Mi}
+      negatives:
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: indexer
+              namespace: search
+            spec:
+              replicas: 2
+              selector:
+                matchLabels:
+                  app: indexer
+              template:
+                metadata:
+                  labels:
+                    app: indexer
+                spec:
+                  containers:
+                  - name: indexer
+                    image: registry.example.com/search/indexer:4.0
+                    resources:
+                      requests:
+                        cpu: 100m
+                        memory: 512Mi
+                      limits:
+                        cpu: "1"
+                        memory: 512Mi
+                  - name: tika
+                    image: registry.example.com/search/tika:2.9
+                    resources:
+                      requests:
+                        cpu: 600m
+                        memory: 1Gi
+                      limits:
+                        cpu: "2"
+                        memory: 1Gi
+          why: A CPU limit of 1 (the default limit, now explicit) is 10 times the 100m request, above maxLimitRequestRatio 4, so indexer is still forbidden.
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: indexer
+              namespace: search
+            spec:
+              replicas: 2
+              selector:
+                matchLabels:
+                  app: indexer
+              template:
+                metadata:
+                  labels:
+                    app: indexer
+                spec:
+                  containers:
+                  - name: indexer
+                    image: registry.example.com/search/indexer:4.0
+                    resources:
+                      requests:
+                        cpu: 100m
+                        memory: 512Mi
+                      limits:
+                        cpu: 400m
+                        memory: 512Mi
+                  - name: tika
+                    image: registry.example.com/search/tika:2.9
+                    resources:
+                      requests:
+                        cpu: 600m
+                        memory: 1Gi
+                      limits:
+                        cpu: 2400m
+                        memory: 1Gi
+          why: 2400m respects the ratio (4 x 600m) but is above max (2), so tika is forbidden; both constraints apply and max is the lower one here.
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: indexer
+              namespace: search
+            spec:
+              replicas: 2
+              selector:
+                matchLabels:
+                  app: indexer
+              template:
+                metadata:
+                  labels:
+                    app: indexer
+                spec:
+                  containers:
+                  - name: indexer
+                    image: registry.example.com/search/indexer:4.0
+                    resources:
+                      requests:
+                        cpu: 100m
+                        memory: 512Mi
+                      limits:
+                        memory: 512Mi
+                  - name: tika
+                    image: registry.example.com/search/tika:2.9
+                    resources:
+                      requests:
+                        cpu: 600m
+                        memory: 1Gi
+                      limits:
+                        cpu: "2"
+                        memory: 1Gi
+          why: indexer still has no CPU limit, so the LimitRange injects its default limit of 1, ten times the request, and the Pod is still forbidden.
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: indexer
+              namespace: search
+            spec:
+              replicas: 2
+              selector:
+                matchLabels:
+                  app: indexer
+              template:
+                metadata:
+                  labels:
+                    app: indexer
+                spec:
+                  containers:
+                  - name: indexer
+                    image: registry.example.com/search/indexer:4.0
+                    resources:
+                      requests:
+                        cpu: 250m
+                        memory: 512Mi
+                      limits:
+                        cpu: "1"
+                        memory: 512Mi
+                  - name: tika
+                    image: registry.example.com/search/tika:2.9
+                    resources:
+                      requests:
+                        cpu: 600m
+                        memory: 1Gi
+                      limits:
+                        cpu: "2"
+                        memory: 1Gi
+          why: The Pods are admitted, but the CPU request of indexer was raised to 250m, which the task forbids.
+    explanation:
+      correct:
+        en: |
+          The LimitRange first injects missing values (indexer gets the default CPU limit of 1), then checks each container: the CPU limit must be at most `max` (2) and at most 4 times the CPU request (`maxLimitRequestRatio`). For indexer, 1 / 100m = 10 is over the ratio, and the highest accepted limit is 4 x 100m = 400m. For tika, 3 is over `max` and over the ratio (5); the highest accepted limit is the lower of 2 and 4 x 600m = 2400m, so 2.
+    references:
+      - title: Limit Ranges
+        url: https://kubernetes.io/docs/concepts/policy/limit-range/
+      - title: LimitRange
+        url: https://kubernetes.io/docs/reference/kubernetes-api/policy-resources/limit-range-v1/

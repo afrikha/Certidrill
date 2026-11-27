@@ -1,0 +1,109 @@
+id: ckad-2d-overlay-configmap-merge
+objective: "2.4.2"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    The base `/opt/api/base/kustomization.yaml` (shown in the working directory) generates the ConfigMap `api-config` with `LOG_LEVEL=info` and `CACHE=on`.
+
+    Write `/opt/api/overlays/prod/kustomization.yaml`, an overlay built on that base, in which `api-config` has `LOG_LEVEL=warn` and still has `CACHE=on`. Do not edit the base.
+body:
+  starter: |
+    apiVersion: kustomize.config.k8s.io/v1beta1
+    kind: Kustomization
+  files:
+  - name: base/kustomization.yaml
+    content: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      resources:
+      - deployment.yaml
+      configMapGenerator:
+      - name: api-config
+        literals:
+        - LOG_LEVEL=info
+        - CACHE=on
+answer:
+  checks:
+  - id: base
+    label: Builds on the base ../../base
+    path: resources
+    op: matches
+    value: '"\.\./\.\./base/?"'
+  - id: merge
+    label: Merges into the base ConfigMap api-config (behavior merge)
+    path: configMapGenerator[name=api-config].behavior
+    op: equals
+    value: merge
+  - id: log-level
+    label: Sets LOG_LEVEL=warn
+    path: configMapGenerator[name=api-config].literals
+    op: contains
+    value: LOG_LEVEL=warn
+  - id: no-old-level
+    label: Does not keep LOG_LEVEL=info in the overlay
+    path: configMapGenerator[name=api-config].literals
+    op: matches
+    value: '^(?!.*"LOG_LEVEL=info")'
+  solution:
+  - manifest: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      resources:
+      - ../../base
+      configMapGenerator:
+      - name: api-config
+        behavior: merge
+        literals:
+        - LOG_LEVEL=warn
+  - manifest: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      resources:
+      - ../../base/
+      configMapGenerator:
+      - behavior: merge
+        name: api-config
+        literals:
+        - LOG_LEVEL=warn
+        - CACHE=on
+  negatives:
+  - manifest: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      resources:
+      - ../../base
+      configMapGenerator:
+      - name: api-config
+        behavior: replace
+        literals:
+        - LOG_LEVEL=warn
+    why: behavior replace swaps the whole base ConfigMap, so CACHE=on disappears.
+  - manifest: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      resources:
+      - ../../base
+      configMapGenerator:
+      - name: api-config
+        literals:
+        - LOG_LEVEL=warn
+    why: The default behavior is create; a second api-config conflicts with the one of the base and the build fails.
+  - manifest: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      configMapGenerator:
+      - name: api-config
+        behavior: merge
+        literals:
+        - LOG_LEVEL=warn
+    why: Without ../../base in resources the overlay has no base ConfigMap to merge into.
+explanation:
+  correct:
+    en: 'An overlay lists its base in `resources` (`../../base`). A generator in the overlay with the same name and `behavior: merge` adds or overrides keys of the base ConfigMap, so `LOG_LEVEL` becomes `warn` and `CACHE` stays `on`. `behavior: replace` drops the base keys, and the default `create` fails because the name already exists.'
+references:
+- title: configMapGenerator
+  url: https://kubectl.docs.kubernetes.io/references/kustomize/kustomization/configmapgenerator/
+- title: Declarative Management of Kubernetes Objects Using Kustomize
+  url: https://kubernetes.io/docs/tasks/manage-kubernetes-objects/kustomization/

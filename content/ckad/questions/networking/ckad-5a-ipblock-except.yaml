@@ -1,0 +1,152 @@
+id: ckad-5a-ipblock-except
+objective: "5.1.1"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    The Pods labeled `app: gateway` in namespace `edge` serve HTTPS on TCP port 443. Clients of the partner network `10.20.0.0/16` must reach them, except the untrusted subnet `10.20.99.0/24`.
+
+    Write a NetworkPolicy named `gateway-from-partner` in namespace `edge` that allows ingress to the `app: gateway` Pods only from that address range, without the excluded subnet, and only on TCP port 443.
+body:
+  starter: ""
+answer:
+  checks:
+  - id: kind
+    label: The object is a networking.k8s.io/v1 NetworkPolicy
+    path: apiVersion
+    op: equals
+    value: networking.k8s.io/v1
+  - id: meta
+    label: It is named gateway-from-partner in namespace edge
+    path: metadata
+    op: subset
+    value: {name: gateway-from-partner, namespace: edge}
+  - id: target
+    label: The policy selects the app=gateway Pods
+    path: spec.podSelector.matchLabels
+    op: equals
+    value: {app: gateway}
+  - id: cidr
+    label: An ipBlock allows 10.20.0.0/16
+    path: spec.ingress
+    op: contains
+    value: {from: [{ipBlock: {cidr: 10.20.0.0/16}}]}
+  - id: except
+    label: The ipBlock excludes 10.20.99.0/24
+    path: spec.ingress
+    op: contains
+    value: {from: [{ipBlock: {cidr: 10.20.0.0/16, except: [10.20.99.0/24]}}]}
+  - id: port
+    label: The rule is limited to port 443
+    path: spec.ingress
+    op: contains
+    value: {from: [{ipBlock: {cidr: 10.20.0.0/16}}], ports: [{port: 443}]}
+  solution:
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: gateway-from-partner
+        namespace: edge
+      spec:
+        podSelector:
+          matchLabels:
+            app: gateway
+        policyTypes:
+        - Ingress
+        ingress:
+        - from:
+          - ipBlock:
+              cidr: 10.20.0.0/16
+              except:
+              - 10.20.99.0/24
+          ports:
+          - protocol: TCP
+            port: 443
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: gateway-from-partner
+        namespace: edge
+      spec:
+        podSelector:
+          matchLabels:
+            app: gateway
+        ingress:
+        - from:
+          - ipBlock: {cidr: 10.20.0.0/16, except: [10.20.99.0/24]}
+          ports:
+          - port: 443
+  negatives:
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: gateway-from-partner
+        namespace: edge
+      spec:
+        podSelector:
+          matchLabels:
+            app: gateway
+        policyTypes:
+        - Ingress
+        ingress:
+        - from:
+          - ipBlock:
+              cidr: 10.20.0.0/16
+          ports:
+          - protocol: TCP
+            port: 443
+    why: Without except, the untrusted subnet 10.20.99.0/24 is allowed too.
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: gateway-from-partner
+        namespace: edge
+      spec:
+        podSelector:
+          matchLabels:
+            app: gateway
+        policyTypes:
+        - Ingress
+        ingress:
+        - from:
+          - ipBlock:
+              cidr: 10.20.0.0/24
+              except:
+              - 10.20.99.0/24
+          ports:
+          - protocol: TCP
+            port: 443
+    why: 10.20.0.0/24 covers only 10.20.0.0–10.20.0.255, not the whole partner network (and the except range is outside it).
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: gateway-from-partner
+        namespace: edge
+      spec:
+        podSelector:
+          matchLabels:
+            app: gateway
+        policyTypes:
+        - Egress
+        egress:
+        - to:
+          - ipBlock:
+              cidr: 10.20.0.0/16
+              except:
+              - 10.20.99.0/24
+          ports:
+          - protocol: TCP
+            port: 443
+    why: This is an egress policy (traffic leaving the gateway Pods); incoming connections need an ingress rule with from.
+explanation:
+  correct:
+    en: '`ipBlock` selects IP ranges outside the cluster as sources (`from`) or destinations (`to`). `cidr: 10.20.0.0/16` with `except: - 10.20.99.0/24` allows the partner network minus the untrusted subnet. `ports: - protocol: TCP, port: 443` restricts the rule to HTTPS.'
+references:
+- title: Network Policies
+  url: https://kubernetes.io/docs/concepts/services-networking/network-policies/

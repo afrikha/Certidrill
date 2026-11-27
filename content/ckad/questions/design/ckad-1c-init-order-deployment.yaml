@@ -1,0 +1,177 @@
+id: ckad-1c-init-order-deployment
+objective: "1.3.1"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    Write the manifest of a Deployment named `billing` in namespace `finance` with 2 replicas, label and selector `app: billing`, and one container named `api` running `registry.example.com/billing:5.0`.
+
+    Each Pod must first run two setup steps, both with the image `registry.example.com/billing-tools:5.0`:
+
+    1. a container named `migrate` with `command: ["migrate", "up"]`;
+    2. then, only after `migrate` has succeeded, a container named `seed` with `command: ["seed", "--if-empty"]`.
+
+    `api` starts only after both steps have completed.
+body: {}
+answer:
+  checks:
+  - id: deployment
+    label: A Deployment named billing in namespace finance
+    path: metadata
+    op: subset
+    value: {name: billing, namespace: finance}
+  - id: kind
+    label: The object is an apps/v1 Deployment
+    path: apiVersion
+    op: equals
+    value: apps/v1
+  - id: replicas
+    label: It runs 2 replicas
+    path: spec.replicas
+    op: equals
+    value: 2
+  - id: selector
+    label: The selector matches app=billing
+    path: spec.selector.matchLabels.app
+    op: equals
+    value: billing
+  - id: api
+    label: Container api runs registry.example.com/billing:5.0
+    path: spec.template.spec.containers[name=api].image
+    op: equals
+    value: registry.example.com/billing:5.0
+  - id: first
+    label: migrate is the first init container
+    path: spec.template.spec.initContainers[0].name
+    op: equals
+    value: migrate
+  - id: second
+    label: seed is the second init container
+    path: spec.template.spec.initContainers[1].name
+    op: equals
+    value: seed
+  - id: migrate-command
+    label: migrate runs migrate up with billing-tools:5.0
+    path: spec.template.spec.initContainers[name=migrate]
+    op: subset
+    value: {image: registry.example.com/billing-tools:5.0, command: ["migrate", "up"]}
+  - id: seed-command
+    label: seed runs seed --if-empty with billing-tools:5.0
+    path: spec.template.spec.initContainers[name=seed]
+    op: subset
+    value: {image: registry.example.com/billing-tools:5.0, command: ["seed", "--if-empty"]}
+  solution:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: billing
+        namespace: finance
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: billing
+        template:
+          metadata:
+            labels:
+              app: billing
+          spec:
+            initContainers:
+            - name: migrate
+              image: registry.example.com/billing-tools:5.0
+              command: ["migrate", "up"]
+            - name: seed
+              image: registry.example.com/billing-tools:5.0
+              command: ["seed", "--if-empty"]
+            containers:
+            - name: api
+              image: registry.example.com/billing:5.0
+  negatives:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: billing
+        namespace: finance
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: billing
+        template:
+          metadata:
+            labels:
+              app: billing
+          spec:
+            initContainers:
+            - name: seed
+              image: registry.example.com/billing-tools:5.0
+              command: ["seed", "--if-empty"]
+            - name: migrate
+              image: registry.example.com/billing-tools:5.0
+              command: ["migrate", "up"]
+            containers:
+            - name: api
+              image: registry.example.com/billing:5.0
+    why: Init containers run in list order, so seed would run before the schema migration.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: billing
+        namespace: finance
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: billing
+        initContainers:
+        - name: migrate
+          image: registry.example.com/billing-tools:5.0
+          command: ["migrate", "up"]
+        - name: seed
+          image: registry.example.com/billing-tools:5.0
+          command: ["seed", "--if-empty"]
+        template:
+          metadata:
+            labels:
+              app: billing
+          spec:
+            containers:
+            - name: api
+              image: registry.example.com/billing:5.0
+    why: initContainers belongs to the Pod template (spec.template.spec), not to the Deployment spec; the API server rejects the unknown field.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: billing
+        namespace: finance
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: billing
+        template:
+          metadata:
+            labels:
+              app: billing
+          spec:
+            containers:
+            - name: migrate
+              image: registry.example.com/billing-tools:5.0
+              command: ["migrate", "up"]
+            - name: seed
+              image: registry.example.com/billing-tools:5.0
+              command: ["seed", "--if-empty"]
+            - name: api
+              image: registry.example.com/billing:5.0
+    why: Regular containers start in parallel and are restarted when they exit, so there is no ordering and the steps never "complete".
+explanation:
+  correct:
+    en: 'In a Deployment, init containers go in the Pod template: `spec.template.spec.initContainers`. They run one at a time in list order, each must exit with success before the next starts, and the containers in `containers` start only after the last one. Listing `migrate` before `seed` is therefore what enforces the order.'
+references:
+- title: Init Containers
+  url: https://kubernetes.io/docs/concepts/workloads/pods/init-containers/

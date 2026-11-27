@@ -1,0 +1,67 @@
+id: ckad-2c-template-output-dir
+objective: "2.3.2"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    A reviewer wants to read the manifests that the chart `acme/webapp` (version `2.3.1`) would produce for a release named `web` in namespace `shop`, with the value `image.tag` set to `1.4.2`. Render them locally, **without contacting the cluster and without creating a release**, and write them as files into the directory `/opt/render`.
+
+    Type the single command you would run.
+body:
+  mode: invocation
+  tools: [helm]
+  namespace: default
+answer:
+  checks:
+  - id: template
+    label: Renders locally with helm template
+    path: verb
+    op: equals
+    value: template
+  - id: release
+    label: Uses the release name web
+    path: args[0]
+    op: equals
+    value: web
+  - id: chart
+    label: Renders the chart acme/webapp
+    path: args[1]
+    op: equals
+    value: acme/webapp
+  - id: version
+    label: Uses chart version 2.3.1
+    path: flags.version
+    op: equals
+    value: 2.3.1
+  - id: namespace
+    label: Renders for namespace shop
+    path: flags.namespace
+    op: equals
+    value: shop
+  - id: tag
+    label: Sets image.tag=1.4.2
+    path: flags.set
+    op: matches
+    value: '(^|[",])image\.tag=1\.4\.2($|[",])'
+  - id: output-dir
+    label: Writes the files into /opt/render
+    path: flags.output-dir
+    op: oneOf
+    value: [/opt/render, /opt/render/]
+  solution:
+  - command: helm template web acme/webapp --version 2.3.1 -n shop --set image.tag=1.4.2 --output-dir /opt/render
+  - command: helm template web acme/webapp --namespace=shop --version=2.3.1 --set=image.tag=1.4.2 --output-dir=/opt/render/
+  negatives:
+  - command: helm install web acme/webapp --version 2.3.1 -n shop --set image.tag=1.4.2 --dry-run=server
+    why: --dry-run=server sends the manifests to the API server for validation, and prints them instead of writing files to /opt/render.
+  - command: helm template web acme/webapp --version 2.3.1 -n shop --set image.tag=1.4.2
+    why: Without --output-dir helm template prints the manifests to standard output; no files are written to /opt/render.
+  - command: helm get manifest web -n shop
+    why: get manifest reads the manifests of an installed release; the release web does not exist.
+explanation:
+  correct:
+    en: '`helm template NAME CHART` renders the chart locally, with cluster lookups faked, and creates no release. `--output-dir /opt/render` writes each rendered template to a file instead of standard output (the task accepts no shell redirection). `helm install --dry-run=server` contacts the API server, and `--dry-run=client` prints to standard output.'
+references:
+- title: helm template
+  url: https://helm.sh/docs/helm/helm_template/

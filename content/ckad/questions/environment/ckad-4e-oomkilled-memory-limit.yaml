@@ -1,0 +1,186 @@
+id: ckad-4e-oomkilled-memory-limit
+objective: "4.5.2"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    The container `worker` of Deployment `thumbnailer` in namespace `media` keeps restarting. `kubectl describe pod` shows:
+
+    ```text
+        Last State:     Terminated
+          Reason:       OOMKilled
+          Exit Code:    137
+        Restart Count:  6
+    ```
+
+    Its peak use is about 400Mi. In the editor, raise to 512Mi the one resource value that causes these restarts, and leave every other value unchanged.
+body:
+  starter: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: thumbnailer
+      namespace: media
+    spec:
+      replicas: 2
+      selector:
+        matchLabels:
+          app: thumbnailer
+      template:
+        metadata:
+          labels:
+            app: thumbnailer
+        spec:
+          containers:
+          - name: worker
+            image: registry.example.com/thumbnailer:2.0
+            resources:
+              requests:
+                cpu: 200m
+                memory: 128Mi
+              limits:
+                cpu: 500m
+                memory: 128Mi
+answer:
+  checks:
+  - id: deploy
+    label: The Deployment thumbnailer in namespace media
+    path: metadata
+    op: subset
+    value: {name: thumbnailer, namespace: media}
+  - id: lim-mem
+    label: worker memory limit is raised to 512Mi
+    path: spec.template.spec.containers[name=worker].resources.limits.memory
+    op: quantity
+    value: 512Mi
+  - id: req-mem
+    label: worker memory request is unchanged (128Mi)
+    path: spec.template.spec.containers[name=worker].resources.requests.memory
+    op: quantity
+    value: 128Mi
+  - id: lim-cpu
+    label: worker CPU limit is unchanged (500m)
+    path: spec.template.spec.containers[name=worker].resources.limits.cpu
+    op: quantity
+    value: 500m
+  - id: req-cpu
+    label: worker CPU request is unchanged (200m)
+    path: spec.template.spec.containers[name=worker].resources.requests.cpu
+    op: quantity
+    value: 200m
+  solution:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: thumbnailer
+        namespace: media
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: thumbnailer
+        template:
+          metadata:
+            labels:
+              app: thumbnailer
+          spec:
+            containers:
+            - name: worker
+              image: registry.example.com/thumbnailer:2.0
+              resources:
+                requests:
+                  cpu: 200m
+                  memory: 128Mi
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+  negatives:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: thumbnailer
+        namespace: media
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: thumbnailer
+        template:
+          metadata:
+            labels:
+              app: thumbnailer
+          spec:
+            containers:
+            - name: worker
+              image: registry.example.com/thumbnailer:2.0
+              resources:
+                requests:
+                  cpu: 200m
+                  memory: 512Mi
+                limits:
+                  cpu: 500m
+                  memory: 128Mi
+    why: The OOM kill is triggered by the memory limit; raising the request leaves the 128Mi limit (and a request above the limit is invalid).
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: thumbnailer
+        namespace: media
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: thumbnailer
+        template:
+          metadata:
+            labels:
+              app: thumbnailer
+          spec:
+            containers:
+            - name: worker
+              image: registry.example.com/thumbnailer:2.0
+              resources:
+                requests:
+                  cpu: 200m
+                  memory: 128Mi
+                limits:
+                  cpu: 512m
+                  memory: 128Mi
+    why: Exceeding a CPU limit causes throttling, never an OOM kill; the memory limit is still 128Mi.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: thumbnailer
+        namespace: media
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: thumbnailer
+        template:
+          metadata:
+            labels:
+              app: thumbnailer
+          spec:
+            containers:
+            - name: worker
+              image: registry.example.com/thumbnailer:2.0
+              resources:
+                requests:
+                  cpu: 200m
+                  memory: 512Mi
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+    why: The memory limit is fixed, but the request was changed too; the task asks to change one value only.
+explanation:
+  correct:
+    en: '`OOMKilled` with exit code 137 means the container used more memory than its memory limit and the kernel killed it; the kubelet then restarts it. The fix is the memory limit, here 512Mi above the 400Mi peak. The memory request only affects scheduling, and going over a CPU limit throttles the container instead of killing it.'
+references:
+- title: Resource Management for Pods and Containers
+  url: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/

@@ -1,0 +1,153 @@
+id: ckad-4c-limitrange-min-max-ratio
+objective: "4.3.2"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    Write the manifest of a LimitRange named `bounds` in namespace `prod` that enforces:
+
+    - the memory request and the memory limit of each container are between 64Mi and 1Gi, and its CPU limit is at most 2;
+    - each container's memory limit is at most twice its memory request;
+    - the sum of the memory limits of all containers of one Pod is at most 2Gi.
+body:
+  starter: ""
+answer:
+  checks:
+  - id: meta
+    label: A LimitRange named bounds in namespace prod
+    path: metadata
+    op: subset
+    value: {name: bounds, namespace: prod}
+  - id: kind
+    label: The object is a LimitRange
+    path: kind
+    op: equals
+    value: LimitRange
+  - id: min-mem
+    label: Container min memory is 64Mi
+    path: spec.limits[type=Container].min.memory
+    op: quantity
+    value: 64Mi
+  - id: max-mem
+    label: Container max memory is 1Gi
+    path: spec.limits[type=Container].max.memory
+    op: quantity
+    value: 1Gi
+  - id: max-cpu
+    label: Container max CPU is 2
+    path: spec.limits[type=Container].max.cpu
+    op: quantity
+    value: "2"
+  - id: ratio
+    label: Container maxLimitRequestRatio for memory is 2
+    path: spec.limits[type=Container].maxLimitRequestRatio.memory
+    op: quantity
+    value: "2"
+  - id: pod-max
+    label: Pod max memory is 2Gi
+    path: spec.limits[type=Pod].max.memory
+    op: quantity
+    value: 2Gi
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: LimitRange
+      metadata:
+        name: bounds
+        namespace: prod
+      spec:
+        limits:
+        - type: Container
+          min:
+            memory: 64Mi
+          max:
+            memory: 1Gi
+            cpu: "2"
+          maxLimitRequestRatio:
+            memory: "2"
+        - type: Pod
+          max:
+            memory: 2Gi
+  - manifest: |
+      apiVersion: v1
+      kind: LimitRange
+      metadata:
+        name: bounds
+        namespace: prod
+      spec:
+        limits:
+        - type: Pod
+          max: {memory: 2048Mi}
+        - type: Container
+          max: {cpu: 2000m, memory: 1024Mi}
+          min: {memory: 64Mi}
+          maxLimitRequestRatio: {memory: 2}
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: LimitRange
+      metadata:
+        name: bounds
+        namespace: prod
+      spec:
+        limits:
+        - type: Container
+          min:
+            memory: 64Mi
+          max:
+            memory: 1Gi
+            cpu: "2"
+          maxLimitRequestRatio:
+            memory: "2"
+          default:
+            memory: 2Gi
+    why: The per-Pod cap needs an item of type Pod; a default limit on containers does not constrain the Pod total (and 2Gi exceeds the 1Gi max).
+  - manifest: |
+      apiVersion: v1
+      kind: LimitRange
+      metadata:
+        name: bounds
+        namespace: prod
+      spec:
+        limits:
+        - type: Container
+          min:
+            memory: 64Mi
+          max:
+            memory: 1Gi
+            cpu: "2"
+        - type: Pod
+          max:
+            memory: 2Gi
+          maxLimitRequestRatio:
+            memory: "2"
+    why: The limit-to-request ratio is required per container; on the Pod item it is checked against the Pod totals, so one container could still burst more than twice its request.
+  - manifest: |
+      apiVersion: v1
+      kind: LimitRange
+      metadata:
+        name: bounds
+        namespace: prod
+      spec:
+        limits:
+        - type: Container
+          min:
+            memory: 1Gi
+          max:
+            memory: 64Mi
+            cpu: "2"
+          maxLimitRequestRatio:
+            memory: "2"
+        - type: Pod
+          max:
+            memory: 2Gi
+    why: min and max are swapped; min is the lower bound (64Mi) and max the upper bound (1Gi).
+explanation:
+  correct:
+    en: 'An item of `type: Container` checks each container: `min` and `max` bound its requests and limits, and `maxLimitRequestRatio` caps limit divided by request (both must then be non-zero). An item of `type: Pod` applies the same constraints to the sum over all containers of the Pod. A Pod that violates them is rejected with 403 Forbidden at admission; running Pods are not affected.'
+references:
+- title: Limit Ranges
+  url: https://kubernetes.io/docs/concepts/policy/limit-range/
+- title: LimitRange
+  url: https://kubernetes.io/docs/reference/kubernetes-api/policy-resources/limit-range-v1/

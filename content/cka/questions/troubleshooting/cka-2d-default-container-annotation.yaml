@@ -1,0 +1,128 @@
+id: cka-2d-default-container-annotation
+objective: "2.4.1"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    Pod `report-gen` in namespace `finance` runs two containers. `kubectl logs report-gen -n finance` prints `Defaulted container "proxy" out of: proxy, generator` and then the proxy logs, but operators always want the `generator` logs.
+
+    Correct the Pod manifest so that `kubectl logs` and `kubectl exec` without `-c` use container `generator`. Keep the containers in their current order. Write the corrected manifest.
+body:
+  starter: |
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: report-gen
+      namespace: finance
+      labels:
+        app: report-gen
+    spec:
+      containers:
+      - name: proxy
+        image: registry.example.com/platform/proxy:2.1
+      - name: generator
+        image: registry.example.com/finance/report-gen:5.0
+answer:
+  checks:
+  - id: pod
+    label: The Pod report-gen in namespace finance
+    path: metadata
+    op: subset
+    value: {name: report-gen, namespace: finance}
+  - id: annotation
+    label: The annotation kubectl.kubernetes.io/default-container is generator
+    path: metadata.annotations["kubectl.kubernetes.io/default-container"]
+    op: equals
+    value: generator
+  - id: order
+    label: proxy is still the first container
+    path: spec.containers[0].name
+    op: equals
+    value: proxy
+  - id: count
+    label: The Pod still has two containers
+    path: spec.containers
+    op: length
+    value: 2
+  - id: generator-image
+    label: Container generator still runs report-gen:5.0
+    path: spec.containers[name=generator].image
+    op: equals
+    value: registry.example.com/finance/report-gen:5.0
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: report-gen
+        namespace: finance
+        labels:
+          app: report-gen
+        annotations:
+          kubectl.kubernetes.io/default-container: generator
+      spec:
+        containers:
+        - name: proxy
+          image: registry.example.com/platform/proxy:2.1
+        - name: generator
+          image: registry.example.com/finance/report-gen:5.0
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: report-gen
+        namespace: finance
+        labels:
+          app: report-gen
+          kubectl.kubernetes.io/default-container: generator
+      spec:
+        containers:
+        - name: proxy
+          image: registry.example.com/platform/proxy:2.1
+        - name: generator
+          image: registry.example.com/finance/report-gen:5.0
+    why: kubectl reads the default container from an annotation, not from a label.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: report-gen
+        namespace: finance
+        labels:
+          app: report-gen
+        annotations:
+          kubernetes.io/default-container: generator
+      spec:
+        containers:
+        - name: proxy
+          image: registry.example.com/platform/proxy:2.1
+        - name: generator
+          image: registry.example.com/finance/report-gen:5.0
+    why: The key is kubectl.kubernetes.io/default-container; kubectl ignores any other prefix.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: report-gen
+        namespace: finance
+        labels:
+          app: report-gen
+      spec:
+        containers:
+        - name: generator
+          image: registry.example.com/finance/report-gen:5.0
+        - name: proxy
+          image: registry.example.com/platform/proxy:2.1
+    why: Swapping the containers changes their order, which the task forbids; the annotation is the documented way to choose the default.
+explanation:
+  correct:
+    en: >-
+      The annotation `kubectl.kubernetes.io/default-container: generator` names the container that `kubectl logs` and
+      `kubectl exec` use when `-c` is omitted. Without it, kubectl falls back to the first container and prints the
+      "Defaulted container" notice. Annotations, unlike the container list, can also be changed on the running Pod
+      with `kubectl annotate`.
+references:
+- title: Well-Known Labels, Annotations and Taints
+  url: https://kubernetes.io/docs/reference/labels-annotations-taints/

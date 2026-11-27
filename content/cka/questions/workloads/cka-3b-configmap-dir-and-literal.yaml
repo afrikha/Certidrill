@@ -1,0 +1,149 @@
+id: cka-3b-configmap-dir-and-literal
+objective: "3.2.1"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    The directory `conf/` in the current directory holds two files, `app.properties` and `logging.properties`.
+
+    In namespace `shop`, create a ConfigMap named `app-conf` with one key per file of `conf/` (the key is the file name) plus a key `APP_ENV` set to `production`.
+
+    Type the single command you would run.
+body:
+  mode: object
+  namespace: default
+  files:
+  - name: conf/app.properties
+    content: |
+      server.port=8080
+      cache.ttl=300
+  - name: conf/logging.properties
+    content: |
+      level=INFO
+      format=json
+answer:
+  checks:
+  - id: kind
+    label: The object is a ConfigMap
+    path: kind
+    op: equals
+    value: ConfigMap
+  - id: meta
+    label: Named app-conf in namespace shop
+    path: metadata
+    op: subset
+    value: {name: app-conf, namespace: shop}
+  - id: app-file
+    label: Key app.properties holds the file content
+    path: data["app.properties"]
+    op: matches
+    value: "server.port=8080"
+  - id: logging-file
+    label: Key logging.properties holds the file content
+    path: data["logging.properties"]
+    op: matches
+    value: "level=INFO"
+  - id: env
+    label: Key APP_ENV holds production
+    path: data.APP_ENV
+    op: equals
+    value: production
+  - id: three-keys
+    label: The ConfigMap has exactly 3 keys
+    path: data
+    op: length
+    value: 3
+  solution:
+  - command: kubectl create configmap app-conf --from-file=conf/ --from-literal=APP_ENV=production -n shop
+    output: |
+      apiVersion: v1
+      data:
+        APP_ENV: production
+        app.properties: |
+          server.port=8080
+          cache.ttl=300
+        logging.properties: |
+          level=INFO
+          format=json
+      kind: ConfigMap
+      metadata:
+        name: app-conf
+        namespace: shop
+  - command: k -n shop create cm app-conf --from-literal APP_ENV=production --from-file conf
+    output: |
+      apiVersion: v1
+      data:
+        APP_ENV: production
+        app.properties: |
+          server.port=8080
+          cache.ttl=300
+        logging.properties: |
+          level=INFO
+          format=json
+      kind: ConfigMap
+      metadata:
+        name: app-conf
+        namespace: shop
+  - command: kubectl create configmap app-conf -n shop --from-file=conf/app.properties --from-file=conf/logging.properties --from-literal=APP_ENV=production
+    output: |
+      apiVersion: v1
+      data:
+        APP_ENV: production
+        app.properties: |
+          server.port=8080
+          cache.ttl=300
+        logging.properties: |
+          level=INFO
+          format=json
+      kind: ConfigMap
+      metadata:
+        name: app-conf
+        namespace: shop
+  negatives:
+  - command: kubectl create configmap app-conf --from-env-file=conf/app.properties --from-literal=APP_ENV=production -n shop
+    why: --from-env-file splits one file into one key per line (server.port, cache.ttl) and skips logging.properties; the task wants one key per file.
+    output: |
+      apiVersion: v1
+      data:
+        APP_ENV: production
+        cache.ttl: "300"
+        server.port: "8080"
+      kind: ConfigMap
+      metadata:
+        name: app-conf
+        namespace: shop
+  - command: kubectl create configmap app-conf --from-file=conf/ -n shop
+    why: The APP_ENV key is missing; literal values need --from-literal in the same command.
+    output: |
+      apiVersion: v1
+      data:
+        app.properties: |
+          server.port=8080
+          cache.ttl=300
+        logging.properties: |
+          level=INFO
+          format=json
+      kind: ConfigMap
+      metadata:
+        name: app-conf
+        namespace: shop
+  - command: kubectl create configmap app-conf --from-file=conf/app.properties --from-literal=APP_ENV=production -n shop
+    why: Only app.properties is packaged; logging.properties is missing.
+    output: |
+      apiVersion: v1
+      data:
+        APP_ENV: production
+        app.properties: |
+          server.port=8080
+          cache.ttl=300
+      kind: ConfigMap
+      metadata:
+        name: app-conf
+        namespace: shop
+explanation:
+  correct:
+    en: '`--from-file=conf/` packages every regular file of the directory whose basename is a valid key, with the file name as the key; subdirectories and symlinks are skipped. `--from-file` and `--from-literal` can be combined and repeated in one `kubectl create configmap` command. `--from-env-file` is different: it turns each `KEY=VALUE` line into its own key.'
+references:
+- title: kubectl create configmap
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_create/kubectl_create_configmap/

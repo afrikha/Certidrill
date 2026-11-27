@@ -1,0 +1,361 @@
+id: cka-2b-controller-manager-sa-key
+objective: "2.2.1"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    On `cp-1`, Pod `kube-controller-manager-cp-1` in `kube-system` is in `CrashLoopBackOff` since a colleague edited its manifest. `kcm-log.txt` is the end of `kubectl -n kube-system logs kube-controller-manager-cp-1 --previous`.
+
+    The editor contains `/etc/kubernetes/manifests/kube-controller-manager.yaml`. Write the corrected manifest. Change nothing else.
+body:
+  starter: |
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      labels:
+        component: kube-controller-manager
+        tier: control-plane
+      name: kube-controller-manager
+      namespace: kube-system
+    spec:
+      containers:
+      - command:
+        - kube-controller-manager
+        - --authentication-kubeconfig=/etc/kubernetes/controller-manager.conf
+        - --authorization-kubeconfig=/etc/kubernetes/controller-manager.conf
+        - --bind-address=127.0.0.1
+        - --client-ca-file=/etc/kubernetes/pki/ca.crt
+        - --cluster-signing-cert-file=/etc/kubernetes/pki/ca.crt
+        - --cluster-signing-key-file=/etc/kubernetes/pki/ca.key
+        - --controllers=*,bootstrapsigner,tokencleaner
+        - --kubeconfig=/etc/kubernetes/controller-manager.conf
+        - --leader-elect=true
+        - --requestheader-client-ca-file=/etc/kubernetes/pki/front-proxy-ca.crt
+        - --root-ca-file=/etc/kubernetes/pki/ca.crt
+        - --service-account-private-key-file=/etc/kubernetes/pki/sa.pub
+        - --use-service-account-credentials=true
+        image: registry.k8s.io/kube-controller-manager:v1.37.1
+        imagePullPolicy: IfNotPresent
+        livenessProbe:
+          failureThreshold: 8
+          httpGet:
+            host: 127.0.0.1
+            path: /healthz
+            port: probe-port
+            scheme: HTTPS
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 15
+        name: kube-controller-manager
+        ports:
+        - containerPort: 10257
+          name: probe-port
+          protocol: TCP
+        volumeMounts:
+        - mountPath: /etc/kubernetes/pki
+          name: k8s-certs
+          readOnly: true
+        - mountPath: /etc/kubernetes/controller-manager.conf
+          name: kubeconfig
+          readOnly: true
+      hostNetwork: true
+      priorityClassName: system-node-critical
+      volumes:
+      - hostPath:
+          path: /etc/kubernetes/pki
+          type: DirectoryOrCreate
+        name: k8s-certs
+      - hostPath:
+          path: /etc/kubernetes/controller-manager.conf
+          type: FileOrCreate
+        name: kubeconfig
+  files:
+  - name: kcm-log.txt
+    content: |
+      I1127 11:20:04.902114       1 serving.go:386] Generated self-signed cert in-memory
+      E1127 11:20:05.311820       1 run.go:72] "command failed" err="error reading key for service account token controller: data does not contain a valid RSA or ECDSA private key"
+answer:
+  checks:
+  - id: sa-key
+    label: --service-account-private-key-file is /etc/kubernetes/pki/sa.key
+    path: spec.containers[name=kube-controller-manager].command
+    op: contains
+    value: --service-account-private-key-file=/etc/kubernetes/pki/sa.key
+  - id: root-ca
+    label: --root-ca-file is unchanged
+    path: spec.containers[name=kube-controller-manager].command
+    op: contains
+    value: --root-ca-file=/etc/kubernetes/pki/ca.crt
+  - id: signing-key
+    label: --cluster-signing-key-file is unchanged
+    path: spec.containers[name=kube-controller-manager].command
+    op: contains
+    value: --cluster-signing-key-file=/etc/kubernetes/pki/ca.key
+  - id: kubeconfig
+    label: --kubeconfig is unchanged
+    path: spec.containers[name=kube-controller-manager].command
+    op: contains
+    value: --kubeconfig=/etc/kubernetes/controller-manager.conf
+  - id: image
+    label: The image is unchanged
+    path: spec.containers[name=kube-controller-manager].image
+    op: equals
+    value: registry.k8s.io/kube-controller-manager:v1.37.1
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        labels:
+          component: kube-controller-manager
+          tier: control-plane
+        name: kube-controller-manager
+        namespace: kube-system
+      spec:
+        containers:
+        - command:
+          - kube-controller-manager
+          - --authentication-kubeconfig=/etc/kubernetes/controller-manager.conf
+          - --authorization-kubeconfig=/etc/kubernetes/controller-manager.conf
+          - --bind-address=127.0.0.1
+          - --client-ca-file=/etc/kubernetes/pki/ca.crt
+          - --cluster-signing-cert-file=/etc/kubernetes/pki/ca.crt
+          - --cluster-signing-key-file=/etc/kubernetes/pki/ca.key
+          - --controllers=*,bootstrapsigner,tokencleaner
+          - --kubeconfig=/etc/kubernetes/controller-manager.conf
+          - --leader-elect=true
+          - --requestheader-client-ca-file=/etc/kubernetes/pki/front-proxy-ca.crt
+          - --root-ca-file=/etc/kubernetes/pki/ca.crt
+          - --service-account-private-key-file=/etc/kubernetes/pki/sa.key
+          - --use-service-account-credentials=true
+          image: registry.k8s.io/kube-controller-manager:v1.37.1
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            failureThreshold: 8
+            httpGet:
+              host: 127.0.0.1
+              path: /healthz
+              port: probe-port
+              scheme: HTTPS
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 15
+          name: kube-controller-manager
+          ports:
+          - containerPort: 10257
+            name: probe-port
+            protocol: TCP
+          volumeMounts:
+          - mountPath: /etc/kubernetes/pki
+            name: k8s-certs
+            readOnly: true
+          - mountPath: /etc/kubernetes/controller-manager.conf
+            name: kubeconfig
+            readOnly: true
+        hostNetwork: true
+        priorityClassName: system-node-critical
+        volumes:
+        - hostPath:
+            path: /etc/kubernetes/pki
+            type: DirectoryOrCreate
+          name: k8s-certs
+        - hostPath:
+            path: /etc/kubernetes/controller-manager.conf
+            type: FileOrCreate
+          name: kubeconfig
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        labels:
+          component: kube-controller-manager
+          tier: control-plane
+        name: kube-controller-manager
+        namespace: kube-system
+      spec:
+        containers:
+        - command:
+          - kube-controller-manager
+          - --authentication-kubeconfig=/etc/kubernetes/controller-manager.conf
+          - --authorization-kubeconfig=/etc/kubernetes/controller-manager.conf
+          - --bind-address=127.0.0.1
+          - --client-ca-file=/etc/kubernetes/pki/ca.crt
+          - --cluster-signing-cert-file=/etc/kubernetes/pki/ca.crt
+          - --cluster-signing-key-file=/etc/kubernetes/pki/ca.key
+          - --controllers=*,bootstrapsigner,tokencleaner
+          - --kubeconfig=/etc/kubernetes/controller-manager.conf
+          - --leader-elect=true
+          - --requestheader-client-ca-file=/etc/kubernetes/pki/front-proxy-ca.crt
+          - --root-ca-file=/etc/kubernetes/pki/ca.crt
+          - --service-account-key-file=/etc/kubernetes/pki/sa.key
+          - --use-service-account-credentials=true
+          image: registry.k8s.io/kube-controller-manager:v1.37.1
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            failureThreshold: 8
+            httpGet:
+              host: 127.0.0.1
+              path: /healthz
+              port: probe-port
+              scheme: HTTPS
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 15
+          name: kube-controller-manager
+          ports:
+          - containerPort: 10257
+            name: probe-port
+            protocol: TCP
+          volumeMounts:
+          - mountPath: /etc/kubernetes/pki
+            name: k8s-certs
+            readOnly: true
+          - mountPath: /etc/kubernetes/controller-manager.conf
+            name: kubeconfig
+            readOnly: true
+        hostNetwork: true
+        priorityClassName: system-node-critical
+        volumes:
+        - hostPath:
+            path: /etc/kubernetes/pki
+            type: DirectoryOrCreate
+          name: k8s-certs
+        - hostPath:
+            path: /etc/kubernetes/controller-manager.conf
+            type: FileOrCreate
+          name: kubeconfig
+    why: '--service-account-key-file is the API server flag for the public verification key; the controller manager needs --service-account-private-key-file, which stays wrong here.'
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        labels:
+          component: kube-controller-manager
+          tier: control-plane
+        name: kube-controller-manager
+        namespace: kube-system
+      spec:
+        containers:
+        - command:
+          - kube-controller-manager
+          - --authentication-kubeconfig=/etc/kubernetes/controller-manager.conf
+          - --authorization-kubeconfig=/etc/kubernetes/controller-manager.conf
+          - --bind-address=127.0.0.1
+          - --client-ca-file=/etc/kubernetes/pki/ca.crt
+          - --cluster-signing-cert-file=/etc/kubernetes/pki/ca.crt
+          - --cluster-signing-key-file=/etc/kubernetes/pki/ca.key
+          - --controllers=*,bootstrapsigner,tokencleaner
+          - --kubeconfig=/etc/kubernetes/controller-manager.conf
+          - --leader-elect=true
+          - --requestheader-client-ca-file=/etc/kubernetes/pki/front-proxy-ca.crt
+          - --root-ca-file=/etc/kubernetes/pki/ca.crt
+          - --service-account-private-key-file=/etc/kubernetes/pki/ca.key
+          - --use-service-account-credentials=true
+          image: registry.k8s.io/kube-controller-manager:v1.37.1
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            failureThreshold: 8
+            httpGet:
+              host: 127.0.0.1
+              path: /healthz
+              port: probe-port
+              scheme: HTTPS
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 15
+          name: kube-controller-manager
+          ports:
+          - containerPort: 10257
+            name: probe-port
+            protocol: TCP
+          volumeMounts:
+          - mountPath: /etc/kubernetes/pki
+            name: k8s-certs
+            readOnly: true
+          - mountPath: /etc/kubernetes/controller-manager.conf
+            name: kubeconfig
+            readOnly: true
+        hostNetwork: true
+        priorityClassName: system-node-critical
+        volumes:
+        - hostPath:
+            path: /etc/kubernetes/pki
+            type: DirectoryOrCreate
+          name: k8s-certs
+        - hostPath:
+            path: /etc/kubernetes/controller-manager.conf
+            type: FileOrCreate
+          name: kubeconfig
+    why: 'ca.key is the cluster CA key used to sign certificates; ServiceAccount tokens must be signed with sa.key, whose public half sa.pub the API server uses to verify them.'
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        labels:
+          component: kube-controller-manager
+          tier: control-plane
+        name: kube-controller-manager
+        namespace: kube-system
+      spec:
+        containers:
+        - command:
+          - kube-controller-manager
+          - --authentication-kubeconfig=/etc/kubernetes/controller-manager.conf
+          - --authorization-kubeconfig=/etc/kubernetes/controller-manager.conf
+          - --bind-address=127.0.0.1
+          - --client-ca-file=/etc/kubernetes/pki/ca.crt
+          - --cluster-signing-cert-file=/etc/kubernetes/pki/ca.crt
+          - --cluster-signing-key-file=/etc/kubernetes/pki/ca.key
+          - --controllers=*,bootstrapsigner,tokencleaner
+          - --kubeconfig=/etc/kubernetes/controller-manager.conf
+          - --leader-elect=true
+          - --requestheader-client-ca-file=/etc/kubernetes/pki/front-proxy-ca.crt
+          - --root-ca-file=/etc/kubernetes/pki/ca.crt
+
+          - --use-service-account-credentials=true
+          image: registry.k8s.io/kube-controller-manager:v1.37.1
+          imagePullPolicy: IfNotPresent
+          livenessProbe:
+            failureThreshold: 8
+            httpGet:
+              host: 127.0.0.1
+              path: /healthz
+              port: probe-port
+              scheme: HTTPS
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 15
+          name: kube-controller-manager
+          ports:
+          - containerPort: 10257
+            name: probe-port
+            protocol: TCP
+          volumeMounts:
+          - mountPath: /etc/kubernetes/pki
+            name: k8s-certs
+            readOnly: true
+          - mountPath: /etc/kubernetes/controller-manager.conf
+            name: kubeconfig
+            readOnly: true
+        hostNetwork: true
+        priorityClassName: system-node-critical
+        volumes:
+        - hostPath:
+            path: /etc/kubernetes/pki
+            type: DirectoryOrCreate
+          name: k8s-certs
+        - hostPath:
+            path: /etc/kubernetes/controller-manager.conf
+            type: FileOrCreate
+          name: kubeconfig
+    why: 'Removing the flag lets the process start but disables its ServiceAccount token controller, so token Secrets of type kubernetes.io/service-account-token are no longer filled.'
+explanation:
+  correct:
+    en: 'The token controller of the controller manager signs ServiceAccount token Secrets with the private key `/etc/kubernetes/pki/sa.key`; the manifest points to `sa.pub`, the public key the API server uses (`--service-account-key-file`) to verify tokens, so the process exits. Fix `--service-account-private-key-file=/etc/kubernetes/pki/sa.key` in the file on `cp-1`; `kubectl edit` on the mirror Pod would not change the static Pod.'
+references:
+- title: Implementation details
+  url: https://kubernetes.io/docs/reference/setup-tools/kubeadm/implementation-details/
+- title: Create static Pods
+  url: https://kubernetes.io/docs/tasks/configure-pod-container/static-pod/

@@ -1,0 +1,135 @@
+id: ckad-4b-create-role-scale
+objective: "4.2.2"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    In namespace `shop`, create a Role named `deploy-scaler` that allows the verbs `get`, `update` and `patch` on Deployments and on their `scale` subresource, and nothing else.
+
+    Type the single command you would run.
+body:
+  mode: object
+  namespace: default
+answer:
+  checks:
+  - id: kind
+    label: The object is a Role
+    path: kind
+    op: equals
+    value: Role
+  - id: name
+    label: It is named deploy-scaler
+    path: metadata.name
+    op: equals
+    value: deploy-scaler
+  - id: namespace
+    label: It is created in namespace shop
+    path: metadata.namespace
+    op: equals
+    value: shop
+  - id: deployments
+    label: Allows get, update and patch on deployments in the apps group
+    path: rules
+    op: contains
+    value: {apiGroups: [apps], resources: [deployments], verbs: [get, update, patch]}
+  - id: scale
+    label: Allows get, update and patch on deployments/scale in the apps group
+    path: rules
+    op: contains
+    value: {apiGroups: [apps], resources: [deployments/scale], verbs: [get, update, patch]}
+  solution:
+  - command: kubectl create role deploy-scaler --verb=get,update,patch --resource=deployments,deployments/scale -n shop
+    output: |
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: Role
+      metadata:
+        name: deploy-scaler
+        namespace: shop
+      rules:
+      - apiGroups:
+        - apps
+        resources:
+        - deployments
+        - deployments/scale
+        verbs:
+        - get
+        - update
+        - patch
+  - command: k -n shop create role deploy-scaler --verb=get --verb=update --verb=patch --resource=deployments.apps --resource=deployments.apps/scale --dry-run=client -o yaml
+    output: |
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: Role
+      metadata:
+        name: deploy-scaler
+        namespace: shop
+      rules:
+      - apiGroups:
+        - apps
+        resources:
+        - deployments
+        - deployments/scale
+        verbs:
+        - get
+        - update
+        - patch
+  negatives:
+  - command: kubectl create role deploy-scaler --verb=get,update,patch --resource=deployments -n shop
+    why: Without deployments/scale the Role does not cover the scale subresource that kubectl scale uses.
+    output: |
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: Role
+      metadata:
+        name: deploy-scaler
+        namespace: shop
+      rules:
+      - apiGroups:
+        - apps
+        resources:
+        - deployments
+        verbs:
+        - get
+        - update
+        - patch
+  - command: kubectl create clusterrole deploy-scaler --verb=get,update,patch --resource=deployments,deployments/scale
+    why: The task asks for a namespaced Role in shop; a ClusterRole is a cluster-wide object.
+    output: |
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRole
+      metadata:
+        name: deploy-scaler
+      rules:
+      - apiGroups:
+        - apps
+        resources:
+        - deployments
+        - deployments/scale
+        verbs:
+        - get
+        - update
+        - patch
+  - command: kubectl create role deploy-scaler --verb=get,update,patch --resource=deployments,deployments/scale
+    why: Without -n the Role is created in the context namespace, default.
+    output: |
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: Role
+      metadata:
+        name: deploy-scaler
+      rules:
+      - apiGroups:
+        - apps
+        resources:
+        - deployments
+        - deployments/scale
+        verbs:
+        - get
+        - update
+        - patch
+explanation:
+  correct:
+    en: '`kubectl create role NAME --verb=... --resource=...` builds the rules; kubectl resolves `deployments` to the `apps` group, and a subresource is written `resource/subresource` (`deployments/scale`). `--verb` and `--resource` take comma-separated lists or can be repeated. `-n shop` places the Role in the right namespace; a Role grants nothing until a RoleBinding references it.'
+references:
+- title: kubectl create role
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_create/kubectl_create_role/
+- title: Using RBAC Authorization
+  url: https://kubernetes.io/docs/reference/access-authn-authz/rbac/

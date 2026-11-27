@@ -1,0 +1,138 @@
+id: cka-3c-hpa-container-resource
+objective: "3.3.1"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    Deployment `api` in namespace `payments` has two containers: `app` and the log shipper `log-agent`, whose CPU usage is constant and hides the load of `app` when Pod-level CPU is averaged.
+
+    Write a HorizontalPodAutoscaler named `api` in namespace `payments` that scales Deployment `api` between 2 and 8 replicas on the CPU utilization of container `app` only, with a target of 65 %.
+body:
+  starter: ""
+answer:
+  checks:
+  - id: api
+    label: Uses autoscaling/v2
+    path: apiVersion
+    op: equals
+    value: autoscaling/v2
+  - id: meta
+    label: A HorizontalPodAutoscaler named api in namespace payments
+    path: metadata
+    op: subset
+    value: {name: api, namespace: payments}
+  - id: target
+    label: Scales the Deployment api
+    path: spec.scaleTargetRef
+    op: subset
+    value: {kind: Deployment, name: api}
+  - id: range
+    label: Between 2 and 8 replicas
+    path: spec
+    op: subset
+    value: {minReplicas: 2, maxReplicas: 8}
+  - id: container-metric
+    label: ContainerResource metric on cpu of container app at 65%
+    path: spec.metrics
+    op: contains
+    value: {type: ContainerResource, containerResource: {name: cpu, container: app, target: {type: Utilization, averageUtilization: 65}}}
+  - id: one-metric
+    label: It is the only metric
+    path: spec.metrics
+    op: length
+    value: 1
+  solution:
+  - manifest: |
+      apiVersion: autoscaling/v2
+      kind: HorizontalPodAutoscaler
+      metadata:
+        name: api
+        namespace: payments
+      spec:
+        scaleTargetRef:
+          apiVersion: apps/v1
+          kind: Deployment
+          name: api
+        minReplicas: 2
+        maxReplicas: 8
+        metrics:
+        - type: ContainerResource
+          containerResource:
+            name: cpu
+            container: app
+            target:
+              type: Utilization
+              averageUtilization: 65
+  negatives:
+  - manifest: |
+      apiVersion: autoscaling/v2
+      kind: HorizontalPodAutoscaler
+      metadata:
+        name: api
+        namespace: payments
+      spec:
+        scaleTargetRef:
+          apiVersion: apps/v1
+          kind: Deployment
+          name: api
+        minReplicas: 2
+        maxReplicas: 8
+        metrics:
+        - type: Resource
+          resource:
+            name: cpu
+            target:
+              type: Utilization
+              averageUtilization: 65
+    why: A Resource metric averages the CPU of all containers of the Pod, including log-agent.
+  - manifest: |
+      apiVersion: autoscaling/v2
+      kind: HorizontalPodAutoscaler
+      metadata:
+        name: api
+        namespace: payments
+      spec:
+        scaleTargetRef:
+          apiVersion: apps/v1
+          kind: Deployment
+          name: api
+        minReplicas: 2
+        maxReplicas: 8
+        metrics:
+        - type: Resource
+          resource:
+            name: cpu
+            container: app
+            target:
+              type: Utilization
+              averageUtilization: 65
+    why: The resource source has no container field; a per-container target needs type ContainerResource with containerResource.
+  - manifest: |
+      apiVersion: autoscaling/v2
+      kind: HorizontalPodAutoscaler
+      metadata:
+        name: api
+        namespace: payments
+      spec:
+        scaleTargetRef:
+          apiVersion: apps/v1
+          kind: Deployment
+          name: api
+        minReplicas: 2
+        maxReplicas: 8
+        metrics:
+        - type: ContainerResource
+          containerResource:
+            name: cpu
+            container: log-agent
+            target:
+              type: Utilization
+              averageUtilization: 65
+    why: This scales on the log shipper, the container whose usage does not follow the load.
+explanation:
+  correct:
+    en: 'A `ContainerResource` metric (stable since v1.30) targets the usage of one named container across the Pods, here `cpu` of `app` at 65 % of its request, so the sidecar does not dilute the average. A `Resource` metric averages the whole Pod. The `resource` source has no `container` field.'
+references:
+- title: Horizontal Pod Autoscaling
+  url: https://kubernetes.io/docs/concepts/workloads/autoscaling/horizontal-pod-autoscale/

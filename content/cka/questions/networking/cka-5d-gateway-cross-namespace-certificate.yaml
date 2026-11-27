@@ -1,0 +1,272 @@
+id: cka-5d-gateway-cross-namespace-certificate
+objective: "5.4.1"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    The security team keeps the wildcard certificate of `*.example.com` in the Secret `wildcard-tls` (type `kubernetes.io/tls`) in namespace `certs`. It must not be copied to other namespaces.
+
+    Write the manifests (several YAML documents) for:
+
+    - a Gateway named `web` in namespace `infra`, GatewayClass `edge`, with one listener `https` (HTTPS, port 443, hostname `*.example.com`) that terminates TLS with the Secret `wildcard-tls` of namespace `certs` and accepts routes from all namespaces;
+    - the object named `allow-infra-gateways` that allows Gateways of namespace `infra` to reference Secrets of namespace `certs`.
+body:
+  starter: ""
+answer:
+  checks:
+  - id: gateway
+    label: A Gateway named web in namespace infra
+    select: {kind: Gateway}
+    path: metadata
+    op: subset
+    value: {name: web, namespace: infra}
+  - id: class
+    label: The Gateway uses the GatewayClass edge
+    select: {kind: Gateway}
+    path: spec.gatewayClassName
+    op: equals
+    value: edge
+  - id: listener
+    label: Listener https is HTTPS on port 443 for *.example.com
+    select: {kind: Gateway}
+    path: spec.listeners[name=https]
+    op: subset
+    value: {protocol: HTTPS, port: 443, hostname: "*.example.com"}
+  - id: certificate
+    label: The listener references Secret wildcard-tls in namespace certs
+    select: {kind: Gateway}
+    path: spec.listeners[name=https].tls.certificateRefs
+    op: contains
+    value: {name: wildcard-tls, namespace: certs}
+  - id: all-namespaces
+    label: The listener accepts routes from all namespaces
+    select: {kind: Gateway}
+    path: spec.listeners[name=https].allowedRoutes.namespaces.from
+    op: equals
+    value: All
+  - id: grant
+    label: A ReferenceGrant named allow-infra-gateways lives in namespace certs, next to the Secret
+    select: {kind: ReferenceGrant}
+    path: metadata
+    op: subset
+    value: {name: allow-infra-gateways, namespace: certs}
+  - id: grant-from
+    label: The grant is from Gateways of namespace infra
+    select: {kind: ReferenceGrant}
+    path: spec.from
+    op: contains
+    value: {group: gateway.networking.k8s.io, kind: Gateway, namespace: infra}
+  - id: grant-to
+    label: The grant is to Secrets (core group)
+    select: {kind: ReferenceGrant}
+    path: spec.to
+    op: contains
+    value: {kind: Secret}
+  solution:
+  - manifest: |
+      apiVersion: gateway.networking.k8s.io/v1
+      kind: Gateway
+      metadata:
+        name: web
+        namespace: infra
+      spec:
+        gatewayClassName: edge
+        listeners:
+        - name: https
+          protocol: HTTPS
+          port: 443
+          hostname: "*.example.com"
+          tls:
+            mode: Terminate
+            certificateRefs:
+            - kind: Secret
+              group: ""
+              name: wildcard-tls
+              namespace: certs
+          allowedRoutes:
+            namespaces:
+              from: All
+      ---
+      apiVersion: gateway.networking.k8s.io/v1
+      kind: ReferenceGrant
+      metadata:
+        name: allow-infra-gateways
+        namespace: certs
+      spec:
+        from:
+        - group: gateway.networking.k8s.io
+          kind: Gateway
+          namespace: infra
+        to:
+        - group: ""
+          kind: Secret
+  - manifest: |
+      apiVersion: gateway.networking.k8s.io/v1
+      kind: ReferenceGrant
+      metadata:
+        name: allow-infra-gateways
+        namespace: certs
+      spec:
+        from:
+        - group: gateway.networking.k8s.io
+          kind: Gateway
+          namespace: infra
+        to:
+        - group: ""
+          kind: Secret
+          name: wildcard-tls
+      ---
+      apiVersion: gateway.networking.k8s.io/v1
+      kind: Gateway
+      metadata:
+        name: web
+        namespace: infra
+      spec:
+        gatewayClassName: edge
+        listeners:
+        - name: https
+          hostname: "*.example.com"
+          port: 443
+          protocol: HTTPS
+          allowedRoutes:
+            namespaces:
+              from: All
+          tls:
+            certificateRefs:
+            - name: wildcard-tls
+              namespace: certs
+  negatives:
+  - manifest: |
+      apiVersion: gateway.networking.k8s.io/v1
+      kind: Gateway
+      metadata:
+        name: web
+        namespace: infra
+      spec:
+        gatewayClassName: edge
+        listeners:
+        - name: https
+          protocol: HTTPS
+          port: 443
+          hostname: "*.example.com"
+          tls:
+            certificateRefs:
+            - name: wildcard-tls
+              namespace: certs
+          allowedRoutes:
+            namespaces:
+              from: All
+      ---
+      apiVersion: gateway.networking.k8s.io/v1
+      kind: ReferenceGrant
+      metadata:
+        name: allow-infra-gateways
+        namespace: infra
+      spec:
+        from:
+        - group: gateway.networking.k8s.io
+          kind: Gateway
+          namespace: infra
+        to:
+        - group: ""
+          kind: Secret
+    why: A ReferenceGrant only allows references to objects of its own namespace; it must be created in certs, where the Secret is.
+  - manifest: |
+      apiVersion: gateway.networking.k8s.io/v1
+      kind: Gateway
+      metadata:
+        name: web
+        namespace: infra
+      spec:
+        gatewayClassName: edge
+        listeners:
+        - name: https
+          protocol: HTTPS
+          port: 443
+          hostname: "*.example.com"
+          tls:
+            certificateRefs:
+            - name: wildcard-tls
+              namespace: certs
+          allowedRoutes:
+            namespaces:
+              from: All
+    why: Without a ReferenceGrant in certs the cross-namespace certificate reference is refused (listener ResolvedRefs False, reason RefNotPermitted).
+  - manifest: |
+      apiVersion: gateway.networking.k8s.io/v1
+      kind: Gateway
+      metadata:
+        name: web
+        namespace: infra
+      spec:
+        gatewayClassName: edge
+        listeners:
+        - name: https
+          protocol: HTTPS
+          port: 443
+          hostname: "*.example.com"
+          tls:
+            certificateRefs:
+            - name: wildcard-tls
+          allowedRoutes:
+            namespaces:
+              from: All
+      ---
+      apiVersion: gateway.networking.k8s.io/v1
+      kind: ReferenceGrant
+      metadata:
+        name: allow-infra-gateways
+        namespace: certs
+      spec:
+        from:
+        - group: gateway.networking.k8s.io
+          kind: Gateway
+          namespace: infra
+        to:
+        - group: ""
+          kind: Secret
+    why: Without namespace in certificateRefs the Gateway looks for wildcard-tls in its own namespace, infra, where it does not exist.
+  - manifest: |
+      apiVersion: gateway.networking.k8s.io/v1
+      kind: Gateway
+      metadata:
+        name: web
+        namespace: infra
+      spec:
+        gatewayClassName: edge
+        listeners:
+        - name: https
+          protocol: HTTPS
+          port: 443
+          hostname: "*.example.com"
+          tls:
+            certificateRefs:
+            - name: wildcard-tls
+              namespace: certs
+          allowedRoutes:
+            namespaces:
+              from: All
+      ---
+      apiVersion: gateway.networking.k8s.io/v1
+      kind: ReferenceGrant
+      metadata:
+        name: allow-infra-gateways
+        namespace: certs
+      spec:
+        from:
+        - group: gateway.networking.k8s.io
+          kind: HTTPRoute
+          namespace: infra
+        to:
+        - group: ""
+          kind: Secret
+    why: The grant is for HTTPRoutes; the object that references the Secret is the Gateway, so from must name kind Gateway.
+explanation:
+  correct:
+    en: 'A listener may reference a Secret of another namespace with `certificateRefs[].namespace`, but only if a ReferenceGrant in the namespace of the Secret (`certs`) allows it: `from` lists the group, kind and namespace of the referring objects (`gateway.networking.k8s.io`, `Gateway`, `infra`) and `to` the group and kind of the targets (`""`, `Secret`, optionally one `name`). Without it the listener reports `ResolvedRefs` False with reason `RefNotPermitted`. ReferenceGrant is `gateway.networking.k8s.io/v1` since Gateway API v1.5.'
+references:
+- title: TLS Configuration
+  url: https://gateway-api.sigs.k8s.io/guides/tls/
+- title: ReferenceGrant
+  url: https://gateway-api.sigs.k8s.io/api-types/referencegrant/

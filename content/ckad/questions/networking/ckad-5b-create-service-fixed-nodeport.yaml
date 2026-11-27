@@ -1,0 +1,156 @@
+id: ckad-5b-create-service-fixed-nodeport
+objective: "5.2.1"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    In namespace `shop`, the Pods of Deployment `web` carry the label `app=web` and listen on port 8080. The firewall in front of the nodes only lets TCP port 30080 through.
+
+    Create a Service named `web` of type NodePort that selects these Pods, listens on port 80, forwards to port 8080 of the Pods, and is reachable on port 30080 of every node. Type the single command you would run.
+body:
+  mode: object
+  namespace: default
+answer:
+  checks:
+  - id: kind
+    label: The object is a Service
+    path: kind
+    op: equals
+    value: Service
+  - id: meta
+    label: It is named web in namespace shop
+    path: metadata
+    op: subset
+    value: {name: web, namespace: shop}
+  - id: type
+    label: The Service type is NodePort
+    path: spec.type
+    op: equals
+    value: NodePort
+  - id: selector
+    label: It selects the Pods labeled app=web
+    path: spec.selector
+    op: equals
+    value: {app: web}
+  - id: ports
+    label: Port 80 forwards to 8080 and is opened on node port 30080
+    path: spec.ports
+    op: contains
+    value: {port: 80, targetPort: 8080, nodePort: 30080}
+  solution:
+  - command: kubectl create service nodeport web --tcp=80:8080 --node-port=30080 -n shop
+    output: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        labels:
+          app: web
+        name: web
+        namespace: shop
+      spec:
+        ports:
+        - name: 80-8080
+          nodePort: 30080
+          port: 80
+          protocol: TCP
+          targetPort: 8080
+        selector:
+          app: web
+        type: NodePort
+      status:
+        loadBalancer: {}
+  - command: k create svc nodeport web -n shop --node-port 30080 --tcp 80:8080
+    output: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        labels:
+          app: web
+        name: web
+        namespace: shop
+      spec:
+        ports:
+        - name: 80-8080
+          nodePort: 30080
+          port: 80
+          protocol: TCP
+          targetPort: 8080
+        selector:
+          app: web
+        type: NodePort
+      status:
+        loadBalancer: {}
+  negatives:
+  - command: kubectl create service nodeport web --tcp=80:8080 -n shop
+    why: Without --node-port the control plane allocates a random node port, which the firewall blocks.
+    output: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        labels:
+          app: web
+        name: web
+        namespace: shop
+      spec:
+        ports:
+        - name: 80-8080
+          port: 80
+          protocol: TCP
+          targetPort: 8080
+        selector:
+          app: web
+        type: NodePort
+      status:
+        loadBalancer: {}
+  - command: kubectl create service nodeport web --tcp=30080:8080 -n shop
+    why: The first number of --tcp is the Service port, not the node port. The Service then listens on 30080 inside the cluster and its node port is random.
+    output: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        labels:
+          app: web
+        name: web
+        namespace: shop
+      spec:
+        ports:
+        - name: 30080-8080
+          port: 30080
+          protocol: TCP
+          targetPort: 8080
+        selector:
+          app: web
+        type: NodePort
+      status:
+        loadBalancer: {}
+  - command: kubectl create service nodeport web --tcp=8080:80 --node-port=30080 -n shop
+    why: --tcp reads port:targetPort. Here the Service listens on 8080 and forwards to port 80 of the Pods, where nothing listens.
+    output: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        labels:
+          app: web
+        name: web
+        namespace: shop
+      spec:
+        ports:
+        - name: 8080-80
+          nodePort: 30080
+          port: 8080
+          protocol: TCP
+          targetPort: 80
+        selector:
+          app: web
+        type: NodePort
+      status:
+        loadBalancer: {}
+explanation:
+  correct:
+    en: '`kubectl create service nodeport web --tcp=80:8080 --node-port=30080 -n shop` sets `port: 80`, `targetPort: 8080` and the fixed `nodePort: 30080`; `kubectl expose` has no `--node-port` flag. The generator selects `app: NAME`, which matches the Pods here because the Service is named `web`. Without `--node-port`, the control plane picks a port from the NodePort range (30000-32767 by default).'
+references:
+- title: kubectl create service nodeport
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_create/kubectl_create_service_nodeport/
+- title: Service
+  url: https://kubernetes.io/docs/concepts/services-networking/service/

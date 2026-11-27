@@ -1,0 +1,164 @@
+id: ckad-2d-patch-delete-sidecar
+objective: "2.4.3"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    The base `/opt/web/base` contains the Deployment `web` (`apps/v1`) with two containers, `web` and `log-agent`. The development clusters have no log backend, so the `dev` overlay must render `web` **without** the `log-agent` container, leaving `web` unchanged. The order of the containers in the base may change later, so the container must be removed by name, not by list index.
+
+    Create the overlay `/opt/web/overlays/dev` with two files, written in the editor as two YAML documents separated by `---`:
+
+    1. `kustomization.yaml`: built on `../../base`, applies the patch file `drop-log-agent.yaml` through the `patches` field;
+    2. `drop-log-agent.yaml`: a strategic merge patch, identified by the `apiVersion`, `kind` and name of the Deployment, that deletes the container `log-agent`.
+body:
+  starter: |
+    apiVersion: kustomize.config.k8s.io/v1beta1
+    kind: Kustomization
+    ---
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: web
+answer:
+  checks:
+  - id: base
+    label: The kustomization builds on ../../base
+    select: {kind: Kustomization}
+    path: resources
+    op: matches
+    value: '"\.\./\.\./base/?"'
+  - id: patch-file
+    label: The kustomization applies drop-log-agent.yaml in patches
+    select: {kind: Kustomization}
+    path: patches
+    op: contains
+    value: {path: drop-log-agent.yaml}
+  - id: patch-not-resource
+    label: drop-log-agent.yaml is not listed as a resource
+    select: {kind: Kustomization}
+    path: resources
+    op: matches
+    value: '^(?!.*drop-log-agent\.yaml)'
+  - id: patch-api
+    label: The patch is the apps/v1 Deployment web
+    select: {kind: Deployment, name: web}
+    path: apiVersion
+    op: equals
+    value: apps/v1
+  - id: delete
+    label: The patch deletes the container log-agent with $patch delete
+    select: {kind: Deployment, name: web}
+    path: spec.template.spec.containers[name=log-agent]["$patch"]
+    op: equals
+    value: delete
+  - id: web-kept
+    label: The patch does not delete or replace container web
+    select: {kind: Deployment, name: web}
+    path: spec.template.spec
+    op: matches
+    value: '^(?![\s\S]*"\$patch":"replace")(?![\s\S]*\{"name":"web","\$patch":"delete"\})(?![\s\S]*\{"\$patch":"delete","name":"web"\})'
+  solution:
+  - manifest: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      resources:
+      - ../../base
+      patches:
+      - path: drop-log-agent.yaml
+      ---
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: web
+      spec:
+        template:
+          spec:
+            containers:
+            - name: log-agent
+              $patch: delete
+  - manifest: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      resources:
+      - ../../base/
+      patches:
+      - path: drop-log-agent.yaml
+        target:
+          kind: Deployment
+          name: web
+      ---
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: web
+      spec:
+        template:
+          spec:
+            containers:
+            - $patch: delete
+              name: log-agent
+  negatives:
+  - manifest: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      resources:
+      - ../../base
+      patches:
+      - path: drop-log-agent.yaml
+      ---
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: web
+      spec:
+        template:
+          spec:
+            containers:
+            - name: web
+    why: A strategic merge patch merges containers by name; listing only web leaves log-agent in place.
+  - manifest: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      resources:
+      - ../../base
+      patches:
+      - path: drop-log-agent.yaml
+      ---
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: web
+      spec:
+        template:
+          spec:
+            containers:
+            - name: log-agent
+              $patch: remove
+    why: remove is a JSON 6902 operation; the strategic merge directive that deletes a list element is $patch delete.
+  - manifest: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      resources:
+      - ../../base
+      - drop-log-agent.yaml
+      ---
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: web
+      spec:
+        template:
+          spec:
+            containers:
+            - name: log-agent
+              $patch: delete
+    why: Listed in resources, the partial Deployment is read as a second object named web, which conflicts with the base; a patch goes in patches.
+explanation:
+  correct:
+    en: 'In a strategic merge patch, the `containers` list is merged by its key `name`. An entry that carries the key and the directive `$patch: delete` removes the matching element from the base, whatever its position, and the other containers are left as they are. A JSON 6902 `remove` op would need the list index (`/spec/template/spec/containers/1`), which breaks when the order changes.'
+references:
+- title: Declarative Management of Kubernetes Objects Using Kustomize
+  url: https://kubernetes.io/docs/tasks/manage-kubernetes-objects/kustomization/
+- title: Strategic Merge Patch
+  url: https://github.com/kubernetes/community/blob/master/contributors/devel/sig-api-machinery/strategic-merge-patch.md

@@ -1,0 +1,102 @@
+id: ckad-1a-build-arg-release-stage
+objective: "1.1.1"
+difficulty: 3
+status: draft
+type: command
+stem:
+  en: |-
+    You are in `/home/candidate/storefront`, which contains the file `Dockerfile.release` below. Docker and Podman are both installed: use either.
+
+    Build the image `registry.example.com/web/storefront:3.4.0` from `Dockerfile.release` with the current directory as the build context, so that:
+
+    - the final image is the `release` stage (not `dev`);
+    - the base image is Node.js 22;
+    - `APP_VERSION` inside the image is `3.4.0`.
+
+    Type the single command you would run.
+body:
+  mode: invocation
+  tools: [docker, podman]
+  namespace: default
+  files:
+  - name: Dockerfile.release
+    content: |
+      ARG NODE_VERSION=20
+      FROM node:${NODE_VERSION}-alpine AS deps
+      WORKDIR /app
+      COPY package*.json ./
+      RUN npm ci --omit=dev
+
+      FROM node:${NODE_VERSION}-alpine AS release
+      ARG APP_VERSION=0.0.0
+      ENV APP_VERSION=${APP_VERSION}
+      WORKDIR /app
+      COPY --from=deps /app/node_modules ./node_modules
+      COPY . .
+      USER node
+      EXPOSE 3000
+      CMD ["node", "server.js"]
+
+      FROM release AS dev
+      ENV NODE_ENV=development
+      CMD ["npm", "run", "dev"]
+answer:
+  checks:
+  - id: tool
+    label: Uses docker or podman
+    path: tool
+    op: oneOf
+    value: [docker, podman]
+  - id: verb
+    label: It is a build command
+    path: verb
+    op: equals
+    value: build
+  - id: file
+    label: Reads Dockerfile.release
+    path: flags
+    op: matches
+    value: '"file":"(\./)?Dockerfile\.release"'
+  - id: target
+    label: Stops at the release stage
+    path: flags.target
+    op: equals
+    value: release
+  - id: node
+    label: Sets the build argument NODE_VERSION to 22
+    path: flags
+    op: matches
+    value: '"build-arg":(\[("[^"]*",)*)?"NODE_VERSION=22"'
+  - id: version
+    label: Sets the build argument APP_VERSION to 3.4.0
+    path: flags
+    op: matches
+    value: '"build-arg":(\[("[^"]*",)*)?"APP_VERSION=3\.4\.0"'
+  - id: tag
+    label: Tags the image registry.example.com/web/storefront:3.4.0
+    path: flags
+    op: matches
+    value: '"tag":(\[("[^"]*",)*)?"registry\.example\.com/web/storefront:3\.4\.0"'
+  - id: context
+    label: Uses the current directory as the build context
+    path: args
+    op: matches
+    value: '^\["(\./?|/home/candidate/storefront/?)"\]$'
+  solution:
+  - command: docker build -f Dockerfile.release --target release --build-arg NODE_VERSION=22 --build-arg APP_VERSION=3.4.0 -t registry.example.com/web/storefront:3.4.0 .
+  - command: podman build --file Dockerfile.release --target=release --build-arg=APP_VERSION=3.4.0 --build-arg=NODE_VERSION=22 --tag registry.example.com/web/storefront:3.4.0 .
+  negatives:
+  - command: docker build -f Dockerfile.release --build-arg NODE_VERSION=22 --build-arg APP_VERSION=3.4.0 -t registry.example.com/web/storefront:3.4.0 .
+    why: Without --target the last stage, dev, becomes the image.
+  - command: docker build -f Dockerfile.release --target release --build-arg NODE_VERSION=22,APP_VERSION=3.4.0 -t registry.example.com/web/storefront:3.4.0 .
+    why: One --build-arg sets one variable; here NODE_VERSION receives the whole string and APP_VERSION keeps its default 0.0.0.
+  - command: docker build --target release --build-arg NODE_VERSION=22 --build-arg APP_VERSION=3.4.0 -t registry.example.com/web/storefront:3.4.0 .
+    why: Without -f the builder looks for ./Dockerfile, not Dockerfile.release.
+explanation:
+  correct:
+    en: '`--target release` stops at the `release` stage, so the later `dev` stage is not used. `--build-arg` is given once per variable: `NODE_VERSION`, declared before the first `FROM`, selects the base image tag, and `APP_VERSION`, redeclared inside the stage, feeds the `ENV`. `-f Dockerfile.release` is needed because the file is not named `Dockerfile`.'
+references:
+- title: Dockerfile reference
+  url: https://docs.docker.com/reference/dockerfile/
+- title: docker buildx build
+  url: https://docs.docker.com/reference/cli/docker/buildx/build/

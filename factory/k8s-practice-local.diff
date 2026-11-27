@@ -1,0 +1,62 @@
+--- a/lib/content/schema.ts	2026-11-27 09:10:46.136237301 +0100
++++ b/lib/content/schema.ts	2026-11-27 09:10:46.163421692 +0100
+@@ -27,6 +27,8 @@
+   "ordering",
+   "hotarea",
+   "series_yesno",
++  "command",
++  "manifest",
+ ] as const;
+ export const questionTypeSchema = z.enum(questionTypes);
+ export type QuestionTypeCode = z.infer<typeof questionTypeSchema>;
+@@ -151,8 +153,11 @@
+   .strictObject({
+     multi: z.enum(["per_option", "all_or_nothing"]).default("per_option"),
+     dragdrop: z.enum(["per_element", "all_or_nothing"]).default("per_element"),
++    /** Practical exercises (docs/SPECS-KUBERNETES-PRATIQUE.md): 1 point per check, or 1 point if all pass. */
++    command: z.enum(["per_check", "all_or_nothing"]).default("per_check"),
++    manifest: z.enum(["per_check", "all_or_nothing"]).default("per_check"),
+   })
+-  .default({ multi: "per_option", dragdrop: "per_element" });
++  .default({ multi: "per_option", dragdrop: "per_element", command: "per_check", manifest: "per_check" });
+ export type ScoringRules = z.infer<typeof scoringRulesSchema>;
+ export const DEFAULT_SCORING: ScoringRules = scoringRulesSchema.parse(undefined);
+ 
+--- a/lib/questions/schema.ts	2026-11-27 09:10:46.137758237 +0100
++++ b/lib/questions/schema.ts	2026-11-27 09:10:46.163969558 +0100
+@@ -7,6 +7,7 @@
+  */
+ import { z } from "zod";
+ import { DEFAULT_SCORING, localizedSchema, type QuestionTypeCode, type ScoringRules } from "@/lib/content/schema";
++import { commandAnswer, commandBody, commandResponse, manifestAnswer, manifestBody, manifestResponse } from "../../factory/exercise";
+ 
+ export { questionTypes, type QuestionTypeCode } from "@/lib/content/schema";
+ 
+@@ -136,6 +137,8 @@
+   ordering: { body: orderingBody, answer: orderingAnswer, response: orderingResponse },
+   hotarea: { body: hotareaBody, answer: hotareaAnswer, response: hotareaResponse },
+   series_yesno: { body: seriesYesnoBody, answer: seriesYesnoAnswer, response: seriesYesnoResponse },
++  command: { body: commandBody, answer: commandAnswer, response: commandResponse },
++  manifest: { body: manifestBody, answer: manifestAnswer, response: manifestResponse },
+ } as const;
+ 
+ type Schemas = typeof typeSchemas;
+@@ -185,6 +188,8 @@
+     variant("ordering"),
+     variant("hotarea"),
+     variant("series_yesno"),
++    variant("command"),
++    variant("manifest"),
+   ])
+   .superRefine((q, ctx) => {
+     for (const issue of answerIssues(q)) ctx.addIssue({ code: "custom", message: issue, path: ["answer"] });
+@@ -252,6 +257,9 @@
+   },
+   // Yes/No answer of a series: nothing to cross-check with the body.
+   series_yesno: null,
++  // Practical exercises: checked by factory/check-exercise.ts (solutions pass, negatives fail).
++  command: null,
++  manifest: null,
+ };
+ 
+ /** Checks that an answer key is consistent with its body (ids exist, counts match). */

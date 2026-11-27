@@ -1,0 +1,62 @@
+id: ckad-3d-logs-deployment-container-since
+objective: "3.4.1"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    Deployment `api` in namespace `payments` runs two containers per Pod, `api` and `envoy`. Without looking up a Pod name, show the logs written during the last 15 minutes by the `envoy` container of a Pod of this Deployment.
+
+    Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Uses kubectl logs
+    path: verb
+    op: equals
+    value: logs
+  - id: resource
+    label: Targets the Deployment
+    path: resource
+    op: equals
+    value: deployment
+  - id: name
+    label: Names the Deployment api
+    path: names
+    op: contains
+    value: api
+  - id: container
+    label: Reads container envoy
+    path: flags.container
+    op: equals
+    value: envoy
+  - id: since
+    label: Only the last 15 minutes
+    path: flags.since
+    op: matches
+    value: '^(15m|15m0s|900s)$'
+  - id: namespace
+    label: Runs in namespace payments
+    path: flags.namespace
+    op: equals
+    value: payments
+  solution:
+  - command: kubectl logs deployment/api -c envoy --since=15m -n payments
+  - command: k logs deploy/api --container=envoy --since 15m --namespace payments
+  - command: kubectl logs -n payments deployments/api -c envoy --since=900s
+  negatives:
+  - command: kubectl logs deployment/api -c envoy --tail=15 -n payments
+    why: --tail=15 returns the last 15 lines, not the last 15 minutes.
+  - command: kubectl logs api -c envoy --since=15m -n payments
+    why: Without the deployment/ prefix kubectl looks for a Pod named api, which does not exist.
+  - command: kubectl logs deployment/api --since=15m -n payments
+    why: Without -c, kubectl reads the default container (the first one, api) instead of envoy.
+explanation:
+  correct:
+    en: '`kubectl logs deployment/api` picks a Pod of the Deployment for you; `-c envoy` selects the container and `--since=15m` keeps only entries newer than that relative duration. `--tail` counts lines, not time, and a bare name is always read as a Pod name.'
+references:
+- title: kubectl logs
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_logs/

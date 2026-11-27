@@ -1,0 +1,181 @@
+id: ckad-2b-rolling-zero-unavailable
+objective: "2.2.2"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    The editor contains Deployment `web` in namespace `shop` (4 replicas). Configure its update strategy so that during a rollout:
+
+    - the number of available Pods never drops below 4;
+    - at most one extra Pod is created at a time.
+
+    Use absolute numbers, not percentages.
+body:
+  starter: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: web
+      namespace: shop
+    spec:
+      replicas: 4
+      selector:
+        matchLabels:
+          app: web
+      template:
+        metadata:
+          labels:
+            app: web
+        spec:
+          containers:
+          - name: web
+            image: registry.example.com/shop/web:1.5
+answer:
+  checks:
+  - id: meta
+    label: Deployment web in namespace shop
+    path: metadata
+    op: subset
+    value: {name: web, namespace: shop}
+  - id: replicas
+    label: Still 4 replicas
+    path: spec.replicas
+    op: equals
+    value: 4
+  - id: surge
+    label: maxSurge is 1
+    path: spec.strategy.rollingUpdate.maxSurge
+    op: equals
+    value: 1
+  - id: unavailable
+    label: maxUnavailable is 0
+    path: spec.strategy.rollingUpdate.maxUnavailable
+    op: equals
+    value: 0
+  solution:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: web
+        namespace: shop
+      spec:
+        replicas: 4
+        strategy:
+          type: RollingUpdate
+          rollingUpdate:
+            maxSurge: 1
+            maxUnavailable: 0
+        selector:
+          matchLabels:
+            app: web
+        template:
+          metadata:
+            labels:
+              app: web
+          spec:
+            containers:
+            - name: web
+              image: registry.example.com/shop/web:1.5
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: web
+        namespace: shop
+      spec:
+        replicas: 4
+        strategy:
+          rollingUpdate:
+            maxUnavailable: 0
+            maxSurge: 1
+        selector:
+          matchLabels:
+            app: web
+        template:
+          metadata:
+            labels:
+              app: web
+          spec:
+            containers:
+            - name: web
+              image: registry.example.com/shop/web:1.5
+  negatives:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: web
+        namespace: shop
+      spec:
+        replicas: 4
+        strategy:
+          type: RollingUpdate
+          rollingUpdate:
+            maxSurge: 0
+            maxUnavailable: 1
+        selector:
+          matchLabels:
+            app: web
+        template:
+          metadata:
+            labels:
+              app: web
+          spec:
+            containers:
+            - name: web
+              image: registry.example.com/shop/web:1.5
+    why: The values are swapped. maxUnavailable 1 lets the Deployment drop to 3 available Pods.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: web
+        namespace: shop
+      spec:
+        replicas: 4
+        strategy:
+          type: RollingUpdate
+          rollingUpdate:
+            maxSurge: 1
+        selector:
+          matchLabels:
+            app: web
+        template:
+          metadata:
+            labels:
+              app: web
+          spec:
+            containers:
+            - name: web
+              image: registry.example.com/shop/web:1.5
+    why: maxUnavailable then keeps its default of 25 %, which is 1 Pod out of 4, so availability can drop to 3.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: web
+        namespace: shop
+      spec:
+        replicas: 4
+        strategy:
+          type: Recreate
+        selector:
+          matchLabels:
+            app: web
+        template:
+          metadata:
+            labels:
+              app: web
+          spec:
+            containers:
+            - name: web
+              image: registry.example.com/shop/web:1.5
+    why: Recreate kills every old Pod before creating new ones, so the application is down during the update.
+explanation:
+  correct:
+    en: '`maxUnavailable: 0` keeps all 4 Pods available during the update and `maxSurge: 1` lets the Deployment create one extra Pod at a time, so it rolls one Pod after another. Both default to 25 %, and they cannot both be 0. `type: RollingUpdate` is the default and may be omitted.'
+references:
+- title: Deployments
+  url: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/

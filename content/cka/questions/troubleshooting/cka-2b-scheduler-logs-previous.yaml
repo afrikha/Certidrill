@@ -1,0 +1,50 @@
+id: cka-2b-scheduler-logs-previous
+objective: "2.2.2"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    The API server works, but Pod `kube-scheduler-cp-1` in namespace `kube-system` is in `CrashLoopBackOff` with 6 restarts. The container that is starting now has not logged anything yet.
+
+    Print the logs of the previous, crashed instance of its container. The current namespace of your context is `default`. Type the single command you would run.
+body:
+  mode: invocation
+answer:
+  checks:
+  - id: logs
+    label: Uses kubectl logs
+    path: verb
+    op: equals
+    value: logs
+  - id: pod
+    label: Targets Pod kube-scheduler-cp-1
+    path: names
+    op: contains
+    value: kube-scheduler-cp-1
+  - id: namespace
+    label: Runs in namespace kube-system
+    path: flags.namespace
+    op: equals
+    value: kube-system
+  - id: previous
+    label: Reads the previous container instance (-p or --previous)
+    path: flags.previous
+    op: equals
+    value: true
+  solution:
+  - command: kubectl -n kube-system logs kube-scheduler-cp-1 --previous
+  - command: k logs -p pod/kube-scheduler-cp-1 -n kube-system
+  negatives:
+  - command: kubectl -n kube-system logs kube-scheduler-cp-1
+    why: Without --previous, kubectl logs reads the container that is starting now, which has no output yet.
+  - command: kubectl logs kube-scheduler-cp-1 --previous
+    why: Without -n kube-system the command looks for the Pod in the default namespace.
+  - command: kubectl -n kube-system describe pod kube-scheduler-cp-1
+    why: describe shows the restart count, last state and exit code, not the log lines that explain the crash.
+explanation:
+  correct:
+    en: 'Control plane static Pods have mirror Pods in `kube-system`, so `kubectl logs` works as long as the API server is up. `--previous` (`-p`) reads the log of the last terminated instance of the container, which holds the error that caused the crash; without it you see the new attempt.'
+references:
+- title: kubectl logs
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_logs/

@@ -1,0 +1,155 @@
+id: ckad-2a-quarantine-pod-label
+objective: "2.1.3"
+difficulty: 3
+status: draft
+type: command
+stem:
+  en: |-
+    In namespace `shop`, Service `web` selects `app: web` and `serving: "true"`. Deployment `web` selects `app: web` (its ReplicaSet also uses `pod-template-hash`). Pod `web-6d4f8b7c9-q2xkz` (file `pod.yaml`) returns errors and you want to investigate it live.
+
+    Stop Service `web` from sending traffic to this Pod, while keeping it running and owned by its ReplicaSet, so that no replacement Pod is created.
+
+    Type the single command you would run.
+body:
+  mode: object
+  namespace: default
+  files:
+  - name: pod.yaml
+    content: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        labels:
+          app: web
+          pod-template-hash: 6d4f8b7c9
+          serving: "true"
+        name: web-6d4f8b7c9-q2xkz
+        namespace: shop
+      spec:
+        containers:
+        - image: registry.example.com/shop/web:1.4
+          name: web
+answer:
+  checks:
+  - id: kind
+    label: The object is the Pod web-6d4f8b7c9-q2xkz
+    path: metadata.name
+    op: equals
+    value: web-6d4f8b7c9-q2xkz
+  - id: app
+    label: The Pod keeps app web, so the ReplicaSet still owns it
+    path: metadata.labels.app
+    op: equals
+    value: web
+  - id: hash
+    label: The Pod keeps its pod-template-hash label
+    path: metadata.labels["pod-template-hash"]
+    op: equals
+    value: 6d4f8b7c9
+  - id: serving
+    label: The Pod no longer has serving=true, so the Service skips it
+    path: metadata.labels
+    op: matches
+    value: '^(?!.*"serving":"true")'
+  solution:
+  - command: kubectl label pod web-6d4f8b7c9-q2xkz serving=false --overwrite -n shop
+    output: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        labels:
+          app: web
+          pod-template-hash: 6d4f8b7c9
+          serving: "false"
+        name: web-6d4f8b7c9-q2xkz
+        namespace: shop
+      spec:
+        containers:
+        - image: registry.example.com/shop/web:1.4
+          name: web
+  - command: kubectl label pod web-6d4f8b7c9-q2xkz serving- -n shop
+    output: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        labels:
+          app: web
+          pod-template-hash: 6d4f8b7c9
+        name: web-6d4f8b7c9-q2xkz
+        namespace: shop
+      spec:
+        containers:
+        - image: registry.example.com/shop/web:1.4
+          name: web
+  - command: k -n shop label --overwrite po/web-6d4f8b7c9-q2xkz serving=debug
+    output: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        labels:
+          app: web
+          pod-template-hash: 6d4f8b7c9
+          serving: debug
+        name: web-6d4f8b7c9-q2xkz
+        namespace: shop
+      spec:
+        containers:
+        - image: registry.example.com/shop/web:1.4
+          name: web
+  negatives:
+  - command: kubectl label pod web-6d4f8b7c9-q2xkz app- -n shop
+    why: Without app web the Pod no longer matches the ReplicaSet selector. The ReplicaSet releases it and creates a replacement Pod.
+    output: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        labels:
+          pod-template-hash: 6d4f8b7c9
+          serving: "true"
+        name: web-6d4f8b7c9-q2xkz
+        namespace: shop
+      spec:
+        containers:
+        - image: registry.example.com/shop/web:1.4
+          name: web
+  - command: kubectl label pod web-6d4f8b7c9-q2xkz pod-template-hash- -n shop
+    why: The Pod leaves its ReplicaSet, which creates a replacement, and it keeps serving=true, so the Service still sends it traffic.
+    output: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        labels:
+          app: web
+          serving: "true"
+        name: web-6d4f8b7c9-q2xkz
+        namespace: shop
+      spec:
+        containers:
+        - image: registry.example.com/shop/web:1.4
+          name: web
+  - command: kubectl annotate pod web-6d4f8b7c9-q2xkz serving=false -n shop
+    why: Selectors only look at labels. An annotation leaves the label serving=true in place.
+    output: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        annotations:
+          serving: "false"
+        labels:
+          app: web
+          pod-template-hash: 6d4f8b7c9
+          serving: "true"
+        name: web-6d4f8b7c9-q2xkz
+        namespace: shop
+      spec:
+        containers:
+        - image: registry.example.com/shop/web:1.4
+          name: web
+explanation:
+  correct:
+    en: 'A Service routes to the Pods whose labels match all of its selector, and a ReplicaSet owns the Pods that match its own selector, here `app` and `pod-template-hash`. Changing only `serving` (with `--overwrite`, since the label already exists) or removing it with `serving-` takes the Pod out of the Service endpoints while the ReplicaSet still counts it. Removing `app` or `pod-template-hash` instead releases the Pod and the ReplicaSet starts a replacement.'
+references:
+- title: kubectl label
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_label/
+- title: Labels and Selectors
+  url: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/

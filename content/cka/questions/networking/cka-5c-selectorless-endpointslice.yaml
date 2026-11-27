@@ -1,0 +1,214 @@
+id: cka-5c-selectorless-endpointslice
+objective: "5.3.2"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    The PostgreSQL servers of the orders team run outside the cluster, at `10.20.0.15` and `10.20.0.16`, port 5432. Applications of namespace `shop` must reach them through the cluster DNS name `orders-db.shop.svc.cluster.local`.
+
+    Write one file with, in namespace `shop`:
+
+    - a Service `orders-db` **without a selector**, with one port named `postgres` on 5432;
+    - an EndpointSlice `orders-db-1` (IPv4) that attaches both addresses on port 5432 to that Service.
+body:
+  starter: ""
+answer:
+  checks:
+  - id: svc-ns
+    label: Service orders-db is in namespace shop
+    select: {kind: Service, name: orders-db}
+    path: metadata.namespace
+    op: equals
+    value: shop
+  - id: no-selector
+    label: Service orders-db has no selector
+    select: {kind: Service, name: orders-db}
+    path: spec.selector
+    op: absent
+  - id: svc-port
+    label: Service port postgres is 5432
+    select: {kind: Service, name: orders-db}
+    path: spec.ports[name=postgres].port
+    op: equals
+    value: 5432
+  - id: eps-ns
+    label: EndpointSlice orders-db-1 is in namespace shop
+    select: {kind: EndpointSlice, name: orders-db-1}
+    path: metadata.namespace
+    op: equals
+    value: shop
+  - id: eps-link
+    label: The EndpointSlice carries kubernetes.io/service-name=orders-db
+    select: {kind: EndpointSlice, name: orders-db-1}
+    path: metadata.labels["kubernetes.io/service-name"]
+    op: equals
+    value: orders-db
+  - id: eps-family
+    label: addressType is IPv4
+    select: {kind: EndpointSlice, name: orders-db-1}
+    path: addressType
+    op: equals
+    value: IPv4
+  - id: eps-port
+    label: The EndpointSlice port is named postgres, like the Service port, on 5432
+    select: {kind: EndpointSlice, name: orders-db-1}
+    path: ports[name=postgres].port
+    op: equals
+    value: 5432
+  - id: eps-addr-1
+    label: Endpoint 10.20.0.15 is listed
+    select: {kind: EndpointSlice, name: orders-db-1}
+    path: endpoints
+    op: matches
+    value: '"10\.20\.0\.15"'
+  - id: eps-addr-2
+    label: Endpoint 10.20.0.16 is listed
+    select: {kind: EndpointSlice, name: orders-db-1}
+    path: endpoints
+    op: matches
+    value: '"10\.20\.0\.16"'
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: orders-db
+        namespace: shop
+      spec:
+        ports:
+        - name: postgres
+          protocol: TCP
+          port: 5432
+          targetPort: 5432
+      ---
+      apiVersion: discovery.k8s.io/v1
+      kind: EndpointSlice
+      metadata:
+        name: orders-db-1
+        namespace: shop
+        labels:
+          kubernetes.io/service-name: orders-db
+      addressType: IPv4
+      ports:
+      - name: postgres
+        protocol: TCP
+        port: 5432
+      endpoints:
+      - addresses:
+        - "10.20.0.15"
+      - addresses:
+        - "10.20.0.16"
+  - manifest: |
+      apiVersion: discovery.k8s.io/v1
+      kind: EndpointSlice
+      metadata:
+        name: orders-db-1
+        namespace: shop
+        labels:
+          kubernetes.io/service-name: orders-db
+          endpointslice.kubernetes.io/managed-by: orders-team
+      addressType: IPv4
+      ports:
+      - name: postgres
+        port: 5432
+      endpoints:
+      - addresses: ["10.20.0.15"]
+        conditions:
+          ready: true
+      - addresses: ["10.20.0.16"]
+        conditions:
+          ready: true
+      ---
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: orders-db
+        namespace: shop
+      spec:
+        ports:
+        - name: postgres
+          port: 5432
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: orders-db
+        namespace: shop
+      spec:
+        ports:
+        - name: postgres
+          port: 5432
+      ---
+      apiVersion: discovery.k8s.io/v1
+      kind: EndpointSlice
+      metadata:
+        name: orders-db-1
+        namespace: shop
+      addressType: IPv4
+      ports:
+      - name: postgres
+        port: 5432
+      endpoints:
+      - addresses: ["10.20.0.15"]
+      - addresses: ["10.20.0.16"]
+    why: The name prefix does not link a slice to a Service; without the label kubernetes.io/service-name the Service has no endpoints.
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: orders-db
+        namespace: shop
+      spec:
+        ports:
+        - name: postgres
+          port: 5432
+      ---
+      apiVersion: discovery.k8s.io/v1
+      kind: EndpointSlice
+      metadata:
+        name: orders-db-1
+        namespace: shop
+        labels:
+          kubernetes.io/service-name: orders-db
+      addressType: IPv4
+      ports:
+      - name: pg
+        port: 5432
+      endpoints:
+      - addresses: ["10.20.0.15"]
+      - addresses: ["10.20.0.16"]
+    why: The EndpointSlice port must have the same name as the Service port (postgres); with pg, kube-proxy finds no backend for the Service port.
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: orders-db
+        namespace: shop
+      spec:
+        ports:
+        - name: postgres
+          port: 5432
+      ---
+      apiVersion: v1
+      kind: Endpoints
+      metadata:
+        name: orders-db
+        namespace: shop
+      subsets:
+      - addresses:
+        - ip: 10.20.0.15
+        - ip: 10.20.0.16
+        ports:
+        - name: postgres
+          port: 5432
+    why: The task asks for an EndpointSlice; the Endpoints API is deprecated since v1.33 and manual endpoints should be EndpointSlices.
+explanation:
+  correct:
+    en: 'A Service without a selector gets no EndpointSlices from the controller, so you create them: `discovery.k8s.io/v1` EndpointSlice with the label `kubernetes.io/service-name: orders-db` (the link), an `addressType`, `ports` whose names match the Service port names, and the `endpoints` addresses. By convention the slice name starts with the Service name. The Service then gets a ClusterIP and the DNS name `orders-db.shop.svc.cluster.local`.'
+references:
+- title: Service
+  url: https://kubernetes.io/docs/concepts/services-networking/service/
+- title: EndpointSlices
+  url: https://kubernetes.io/docs/concepts/services-networking/endpoint-slices/

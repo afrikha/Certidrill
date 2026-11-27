@@ -1,0 +1,151 @@
+id: ckad-5b-headless-service
+objective: "5.2.1"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    In namespace `data`, the Pods of StatefulSet `pg` carry the label `app=postgres` and listen on container port 5432. The clients connect to each database Pod by its own address, found through DNS, so they need no virtual IP and no load balancing.
+
+    Write the manifest of a Service named `pg` in namespace `data` that selects these Pods, gets no cluster IP (DNS returns the Pod addresses directly), and has one port named `postgres` that listens on 5432 and forwards to 5432.
+body:
+  starter: |
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: pg
+      namespace: data
+    spec:
+answer:
+  checks:
+  - id: kind
+    label: The object is a v1 Service
+    path: apiVersion
+    op: equals
+    value: v1
+  - id: meta
+    label: It is named pg in namespace data
+    path: metadata
+    op: subset
+    value: {name: pg, namespace: data}
+  - id: headless
+    label: clusterIP is None (headless Service)
+    path: spec.clusterIP
+    op: equals
+    value: None
+  - id: type
+    label: The Service type stays ClusterIP (no NodePort, LoadBalancer or ExternalName)
+    path: spec
+    op: matches
+    value: '^(?!.*"type":"(NodePort|LoadBalancer|ExternalName|Headless)")'
+  - id: selector
+    label: It selects the Pods labeled app=postgres
+    path: spec.selector
+    op: equals
+    value: {app: postgres}
+  - id: port
+    label: Port postgres listens on 5432
+    path: spec.ports[name=postgres].port
+    op: equals
+    value: 5432
+  - id: target
+    label: Port postgres forwards to 5432 (written or defaulted)
+    path: spec.ports[name=postgres]
+    op: matches
+    value: '^(?!.*"targetPort")|"targetPort":(5432|"5432")'
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: pg
+        namespace: data
+      spec:
+        clusterIP: None
+        selector:
+          app: postgres
+        ports:
+        - name: postgres
+          port: 5432
+          targetPort: 5432
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: pg
+        namespace: data
+      spec:
+        type: ClusterIP
+        clusterIP: None
+        selector: {app: postgres}
+        ports:
+        - name: postgres
+          protocol: TCP
+          port: 5432
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: pg
+        namespace: data
+      spec:
+        selector:
+          app: postgres
+        ports:
+        - name: postgres
+          port: 5432
+          targetPort: 5432
+    why: Without clusterIP None the Service gets a virtual IP, and its DNS name resolves to that IP instead of the Pod addresses.
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: pg
+        namespace: data
+      spec:
+        type: Headless
+        selector:
+          app: postgres
+        ports:
+        - name: postgres
+          port: 5432
+          targetPort: 5432
+    why: Headless is not a Service type. A headless Service is a ClusterIP Service with clusterIP set to None.
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: pg
+        namespace: data
+      spec:
+        type: NodePort
+        clusterIP: None
+        selector:
+          app: postgres
+        ports:
+        - name: postgres
+          port: 5432
+          targetPort: 5432
+    why: Only a ClusterIP Service can be headless; a NodePort Service needs a cluster IP, so the API server rejects clusterIP None.
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: pg
+        namespace: data
+      spec:
+        clusterIP: None
+        selector:
+          app: pg
+        ports:
+        - name: postgres
+          port: 5432
+          targetPort: 5432
+    why: pg is the name of the StatefulSet, not a label of its Pods; the selector must use the Pod label app=postgres.
+explanation:
+  correct:
+    en: 'Setting `spec.clusterIP: None` makes a headless Service: no cluster IP is allocated, kube-proxy does not handle it, and for a Service with a selector DNS returns A or AAAA records that point directly to the Pods. The type stays `ClusterIP`, written or not. `targetPort` defaults to `port`, so 5432 can be written or left out.'
+references:
+- title: Service
+  url: https://kubernetes.io/docs/concepts/services-networking/service/

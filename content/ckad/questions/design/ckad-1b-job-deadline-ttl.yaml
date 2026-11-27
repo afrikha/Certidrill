@@ -1,0 +1,123 @@
+id: ckad-1b-job-deadline-ttl
+objective: "1.2.3"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    Write the manifest of a Job named `month-end` in namespace `finance` with one container named `report` running `registry.example.com/finance/report:3.1` and `restartPolicy: OnFailure`:
+
+    - the whole Job must be stopped and marked failed if it is still running 600 seconds after it started, whatever retries remain;
+    - the Job and its Pods must be deleted automatically 3600 seconds after the Job finishes.
+body:
+  starter: |
+    apiVersion: batch/v1
+    kind: Job
+    metadata:
+      name: month-end
+      namespace: finance
+    spec:
+      template:
+        spec:
+          containers:
+          - name: report
+            image: registry.example.com/finance/report:3.1
+          restartPolicy: OnFailure
+answer:
+  checks:
+  - id: metadata
+    label: A Job named month-end in namespace finance
+    path: metadata
+    op: subset
+    value: {name: month-end, namespace: finance}
+  - id: image
+    label: Container report runs registry.example.com/finance/report:3.1
+    path: spec.template.spec.containers[name=report].image
+    op: equals
+    value: registry.example.com/finance/report:3.1
+  - id: restart
+    label: restartPolicy is OnFailure
+    path: spec.template.spec.restartPolicy
+    op: equals
+    value: OnFailure
+  - id: deadline
+    label: The Job spec sets activeDeadlineSeconds to 600
+    path: spec.activeDeadlineSeconds
+    op: equals
+    value: 600
+  - id: ttl
+    label: The Job spec sets ttlSecondsAfterFinished to 3600
+    path: spec.ttlSecondsAfterFinished
+    op: equals
+    value: 3600
+  solution:
+  - manifest: |
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: month-end
+        namespace: finance
+      spec:
+        activeDeadlineSeconds: 600
+        ttlSecondsAfterFinished: 3600
+        template:
+          spec:
+            containers:
+            - name: report
+              image: registry.example.com/finance/report:3.1
+            restartPolicy: OnFailure
+  negatives:
+  - manifest: |
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: month-end
+        namespace: finance
+      spec:
+        ttlSecondsAfterFinished: 3600
+        template:
+          spec:
+            activeDeadlineSeconds: 600
+            containers:
+            - name: report
+              image: registry.example.com/finance/report:3.1
+            restartPolicy: OnFailure
+    why: In the Pod template, activeDeadlineSeconds limits each Pod; the Job can still create new Pods. The Job-level field stops the whole Job.
+  - manifest: |
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: month-end
+        namespace: finance
+      spec:
+        activeDeadlineSeconds: 600
+        backoffLimit: 0
+        template:
+          spec:
+            containers:
+            - name: report
+              image: registry.example.com/finance/report:3.1
+            restartPolicy: OnFailure
+    why: Without ttlSecondsAfterFinished the finished Job and its Pods are kept until someone deletes them.
+  - manifest: |
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: month-end
+        namespace: finance
+      spec:
+        activeDeadlineSeconds: 3600
+        ttlSecondsAfterFinished: 600
+        template:
+          spec:
+            containers:
+            - name: report
+              image: registry.example.com/finance/report:3.1
+            restartPolicy: OnFailure
+    why: The two values are swapped.
+explanation:
+  correct:
+    en: '`spec.activeDeadlineSeconds` (Job level) applies to the whole Job and takes precedence over `backoffLimit`: when it is reached, running Pods are terminated and the Job fails with reason `DeadlineExceeded`. `spec.ttlSecondsAfterFinished` lets the TTL controller delete the finished Job, cascading to its Pods. The Pod-level `activeDeadlineSeconds` only limits one Pod.'
+references:
+- title: Jobs
+  url: https://kubernetes.io/docs/concepts/workloads/controllers/job/

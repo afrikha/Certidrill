@@ -1,0 +1,350 @@
+id: cka-2b-etcd-listen-client-urls
+objective: "2.2.1"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    On control plane node `cp-1` (IP 10.0.0.10), the API server keeps restarting and its log repeats `dial tcp 127.0.0.1:2379: connect: connection refused`. Its manifest correctly uses `--etcd-servers=https://127.0.0.1:2379`. The etcd container is `Running`, and `ss -ltnp | grep etcd` shows it listening on 10.0.0.10:2379, 10.0.0.10:2380 and 127.0.0.1:2381 only.
+
+    The editor contains `/etc/kubernetes/manifests/etcd.yaml`. Write the corrected manifest so that etcd serves clients on the loopback address and still on 10.0.0.10. Change nothing else.
+body:
+  starter: |
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      labels:
+        component: etcd
+        tier: control-plane
+      name: etcd
+      namespace: kube-system
+    spec:
+      containers:
+      - command:
+        - etcd
+        - --advertise-client-urls=https://10.0.0.10:2379
+        - --cert-file=/etc/kubernetes/pki/etcd/server.crt
+        - --client-cert-auth=true
+        - --data-dir=/var/lib/etcd
+        - --initial-advertise-peer-urls=https://10.0.0.10:2380
+        - --initial-cluster=cp-1=https://10.0.0.10:2380
+        - --key-file=/etc/kubernetes/pki/etcd/server.key
+        - --listen-client-urls=https://10.0.0.10:2379
+        - --listen-metrics-urls=http://127.0.0.1:2381
+        - --listen-peer-urls=https://10.0.0.10:2380
+        - --name=cp-1
+        - --peer-cert-file=/etc/kubernetes/pki/etcd/peer.crt
+        - --peer-client-cert-auth=true
+        - --peer-key-file=/etc/kubernetes/pki/etcd/peer.key
+        - --peer-trusted-ca-file=/etc/kubernetes/pki/etcd/ca.crt
+        - --snapshot-count=10000
+        - --trusted-ca-file=/etc/kubernetes/pki/etcd/ca.crt
+        image: registry.k8s.io/etcd:3.7.0-0
+        imagePullPolicy: IfNotPresent
+        name: etcd
+        volumeMounts:
+        - mountPath: /var/lib/etcd
+          name: etcd-data
+        - mountPath: /etc/kubernetes/pki/etcd
+          name: etcd-certs
+      hostNetwork: true
+      priorityClassName: system-node-critical
+      volumes:
+      - hostPath:
+          path: /etc/kubernetes/pki/etcd
+          type: DirectoryOrCreate
+        name: etcd-certs
+      - hostPath:
+          path: /var/lib/etcd
+          type: DirectoryOrCreate
+        name: etcd-data
+answer:
+  checks:
+  - id: loopback
+    label: --listen-client-urls includes https://127.0.0.1:2379
+    path: spec.containers[name=etcd].command
+    op: matches
+    value: '"--listen-client-urls=[^"]*https://127\.0\.0\.1:2379'
+  - id: node-ip
+    label: --listen-client-urls still includes https://10.0.0.10:2379
+    path: spec.containers[name=etcd].command
+    op: matches
+    value: '"--listen-client-urls=[^"]*https://10\.0\.0\.10:2379'
+  - id: advertise
+    label: --advertise-client-urls is unchanged
+    path: spec.containers[name=etcd].command
+    op: contains
+    value: --advertise-client-urls=https://10.0.0.10:2379
+  - id: peer
+    label: --listen-peer-urls is unchanged
+    path: spec.containers[name=etcd].command
+    op: contains
+    value: --listen-peer-urls=https://10.0.0.10:2380
+  - id: data-dir
+    label: --data-dir is unchanged
+    path: spec.containers[name=etcd].command
+    op: contains
+    value: --data-dir=/var/lib/etcd
+  - id: data-volume
+    label: The etcd-data volume still mounts /var/lib/etcd
+    path: spec.volumes[name=etcd-data].hostPath.path
+    op: equals
+    value: /var/lib/etcd
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        labels:
+          component: etcd
+          tier: control-plane
+        name: etcd
+        namespace: kube-system
+      spec:
+        containers:
+        - command:
+          - etcd
+          - --advertise-client-urls=https://10.0.0.10:2379
+          - --cert-file=/etc/kubernetes/pki/etcd/server.crt
+          - --client-cert-auth=true
+          - --data-dir=/var/lib/etcd
+          - --initial-advertise-peer-urls=https://10.0.0.10:2380
+          - --initial-cluster=cp-1=https://10.0.0.10:2380
+          - --key-file=/etc/kubernetes/pki/etcd/server.key
+          - --listen-client-urls=https://127.0.0.1:2379,https://10.0.0.10:2379
+          - --listen-metrics-urls=http://127.0.0.1:2381
+          - --listen-peer-urls=https://10.0.0.10:2380
+          - --name=cp-1
+          - --peer-cert-file=/etc/kubernetes/pki/etcd/peer.crt
+          - --peer-client-cert-auth=true
+          - --peer-key-file=/etc/kubernetes/pki/etcd/peer.key
+          - --peer-trusted-ca-file=/etc/kubernetes/pki/etcd/ca.crt
+          - --snapshot-count=10000
+          - --trusted-ca-file=/etc/kubernetes/pki/etcd/ca.crt
+          image: registry.k8s.io/etcd:3.7.0-0
+          imagePullPolicy: IfNotPresent
+          name: etcd
+          volumeMounts:
+          - mountPath: /var/lib/etcd
+            name: etcd-data
+          - mountPath: /etc/kubernetes/pki/etcd
+            name: etcd-certs
+        hostNetwork: true
+        priorityClassName: system-node-critical
+        volumes:
+        - hostPath:
+            path: /etc/kubernetes/pki/etcd
+            type: DirectoryOrCreate
+          name: etcd-certs
+        - hostPath:
+            path: /var/lib/etcd
+            type: DirectoryOrCreate
+          name: etcd-data
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        labels:
+          component: etcd
+          tier: control-plane
+        name: etcd
+        namespace: kube-system
+      spec:
+        containers:
+        - command:
+          - etcd
+          - --advertise-client-urls=https://10.0.0.10:2379
+          - --cert-file=/etc/kubernetes/pki/etcd/server.crt
+          - --client-cert-auth=true
+          - --data-dir=/var/lib/etcd
+          - --initial-advertise-peer-urls=https://10.0.0.10:2380
+          - --initial-cluster=cp-1=https://10.0.0.10:2380
+          - --key-file=/etc/kubernetes/pki/etcd/server.key
+          - --listen-client-urls=https://10.0.0.10:2379,https://127.0.0.1:2379
+          - --listen-metrics-urls=http://127.0.0.1:2381
+          - --listen-peer-urls=https://10.0.0.10:2380
+          - --name=cp-1
+          - --peer-cert-file=/etc/kubernetes/pki/etcd/peer.crt
+          - --peer-client-cert-auth=true
+          - --peer-key-file=/etc/kubernetes/pki/etcd/peer.key
+          - --peer-trusted-ca-file=/etc/kubernetes/pki/etcd/ca.crt
+          - --snapshot-count=10000
+          - --trusted-ca-file=/etc/kubernetes/pki/etcd/ca.crt
+          image: registry.k8s.io/etcd:3.7.0-0
+          imagePullPolicy: IfNotPresent
+          name: etcd
+          volumeMounts:
+          - mountPath: /var/lib/etcd
+            name: etcd-data
+          - mountPath: /etc/kubernetes/pki/etcd
+            name: etcd-certs
+        hostNetwork: true
+        priorityClassName: system-node-critical
+        volumes:
+        - hostPath:
+            path: /etc/kubernetes/pki/etcd
+            type: DirectoryOrCreate
+          name: etcd-certs
+        - hostPath:
+            path: /var/lib/etcd
+            type: DirectoryOrCreate
+          name: etcd-data
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        labels:
+          component: etcd
+          tier: control-plane
+        name: etcd
+        namespace: kube-system
+      spec:
+        containers:
+        - command:
+          - etcd
+          - --advertise-client-urls=https://10.0.0.10:2379
+          - --cert-file=/etc/kubernetes/pki/etcd/server.crt
+          - --client-cert-auth=true
+          - --data-dir=/var/lib/etcd
+          - --initial-advertise-peer-urls=https://10.0.0.10:2380
+          - --initial-cluster=cp-1=https://10.0.0.10:2380
+          - --key-file=/etc/kubernetes/pki/etcd/server.key
+          - --listen-client-urls=https://127.0.0.1:2379
+          - --listen-metrics-urls=http://127.0.0.1:2381
+          - --listen-peer-urls=https://10.0.0.10:2380
+          - --name=cp-1
+          - --peer-cert-file=/etc/kubernetes/pki/etcd/peer.crt
+          - --peer-client-cert-auth=true
+          - --peer-key-file=/etc/kubernetes/pki/etcd/peer.key
+          - --peer-trusted-ca-file=/etc/kubernetes/pki/etcd/ca.crt
+          - --snapshot-count=10000
+          - --trusted-ca-file=/etc/kubernetes/pki/etcd/ca.crt
+          image: registry.k8s.io/etcd:3.7.0-0
+          imagePullPolicy: IfNotPresent
+          name: etcd
+          volumeMounts:
+          - mountPath: /var/lib/etcd
+            name: etcd-data
+          - mountPath: /etc/kubernetes/pki/etcd
+            name: etcd-certs
+        hostNetwork: true
+        priorityClassName: system-node-critical
+        volumes:
+        - hostPath:
+            path: /etc/kubernetes/pki/etcd
+            type: DirectoryOrCreate
+          name: etcd-certs
+        - hostPath:
+            path: /var/lib/etcd
+            type: DirectoryOrCreate
+          name: etcd-data
+    why: 'etcd would stop serving clients on 10.0.0.10:2379, which the task requires to keep.'
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        labels:
+          component: etcd
+          tier: control-plane
+        name: etcd
+        namespace: kube-system
+      spec:
+        containers:
+        - command:
+          - etcd
+          - --advertise-client-urls=https://127.0.0.1:2379,https://10.0.0.10:2379
+          - --cert-file=/etc/kubernetes/pki/etcd/server.crt
+          - --client-cert-auth=true
+          - --data-dir=/var/lib/etcd
+          - --initial-advertise-peer-urls=https://10.0.0.10:2380
+          - --initial-cluster=cp-1=https://10.0.0.10:2380
+          - --key-file=/etc/kubernetes/pki/etcd/server.key
+          - --listen-client-urls=https://10.0.0.10:2379
+          - --listen-metrics-urls=http://127.0.0.1:2381
+          - --listen-peer-urls=https://10.0.0.10:2380
+          - --name=cp-1
+          - --peer-cert-file=/etc/kubernetes/pki/etcd/peer.crt
+          - --peer-client-cert-auth=true
+          - --peer-key-file=/etc/kubernetes/pki/etcd/peer.key
+          - --peer-trusted-ca-file=/etc/kubernetes/pki/etcd/ca.crt
+          - --snapshot-count=10000
+          - --trusted-ca-file=/etc/kubernetes/pki/etcd/ca.crt
+          image: registry.k8s.io/etcd:3.7.0-0
+          imagePullPolicy: IfNotPresent
+          name: etcd
+          volumeMounts:
+          - mountPath: /var/lib/etcd
+            name: etcd-data
+          - mountPath: /etc/kubernetes/pki/etcd
+            name: etcd-certs
+        hostNetwork: true
+        priorityClassName: system-node-critical
+        volumes:
+        - hostPath:
+            path: /etc/kubernetes/pki/etcd
+            type: DirectoryOrCreate
+          name: etcd-certs
+        - hostPath:
+            path: /var/lib/etcd
+            type: DirectoryOrCreate
+          name: etcd-data
+    why: 'advertise-client-urls only tells clients where to connect; etcd still does not listen on 127.0.0.1:2379.'
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        labels:
+          component: etcd
+          tier: control-plane
+        name: etcd
+        namespace: kube-system
+      spec:
+        containers:
+        - command:
+          - etcd
+          - --advertise-client-urls=https://10.0.0.10:2379
+          - --cert-file=/etc/kubernetes/pki/etcd/server.crt
+          - --client-cert-auth=true
+          - --data-dir=/var/lib/etcd
+          - --initial-advertise-peer-urls=https://10.0.0.10:2380
+          - --initial-cluster=cp-1=https://10.0.0.10:2380
+          - --key-file=/etc/kubernetes/pki/etcd/server.key
+          - --listen-client-urls=http://127.0.0.1:2379,https://10.0.0.10:2379
+          - --listen-metrics-urls=http://127.0.0.1:2381
+          - --listen-peer-urls=https://10.0.0.10:2380
+          - --name=cp-1
+          - --peer-cert-file=/etc/kubernetes/pki/etcd/peer.crt
+          - --peer-client-cert-auth=true
+          - --peer-key-file=/etc/kubernetes/pki/etcd/peer.key
+          - --peer-trusted-ca-file=/etc/kubernetes/pki/etcd/ca.crt
+          - --snapshot-count=10000
+          - --trusted-ca-file=/etc/kubernetes/pki/etcd/ca.crt
+          image: registry.k8s.io/etcd:3.7.0-0
+          imagePullPolicy: IfNotPresent
+          name: etcd
+          volumeMounts:
+          - mountPath: /var/lib/etcd
+            name: etcd-data
+          - mountPath: /etc/kubernetes/pki/etcd
+            name: etcd-certs
+        hostNetwork: true
+        priorityClassName: system-node-critical
+        volumes:
+        - hostPath:
+            path: /etc/kubernetes/pki/etcd
+            type: DirectoryOrCreate
+          name: etcd-certs
+        - hostPath:
+            path: /var/lib/etcd
+            type: DirectoryOrCreate
+          name: etcd-data
+    why: 'The loopback listener must use TLS: the API server connects with https and client certificates.'
+explanation:
+  correct:
+    en: '`connection refused` on 127.0.0.1:2379 while etcd runs means nothing listens there: `--listen-client-urls` only has the node IP. kubeadm writes `--listen-client-urls=https://127.0.0.1:2379,https://10.0.0.10:2379`; `--advertise-client-urls` only announces addresses and does not open sockets. The kubelet restarts etcd when the file is saved, then the API server connects.'
+references:
+- title: Create static Pods
+  url: https://kubernetes.io/docs/tasks/configure-pod-container/static-pod/
+- title: Implementation details
+  url: https://kubernetes.io/docs/reference/setup-tools/kubeadm/implementation-details/

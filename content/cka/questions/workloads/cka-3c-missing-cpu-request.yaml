@@ -1,0 +1,205 @@
+id: cka-3c-missing-cpu-request
+objective: "3.3.2"
+difficulty: 3
+status: draft
+type: command
+stem:
+  en: |-
+    The HorizontalPodAutoscaler of Deployment `web` in namespace `shop` targets 70 % CPU utilization but never scales. `kubectl get hpa web -n shop` shows `cpu: <unknown>/70%` and `kubectl describe hpa web -n shop` shows:
+
+    ```text
+    Warning  FailedGetResourceMetric  horizontal-pod-autoscaler  failed to get cpu utilization: missing request for cpu in container log-agent of Pod web-7d9c6b5f4-x2kqp
+    ```
+
+    The Deployment manifest is in `web.yaml`. Give container `log-agent` a CPU request of `50m`, without changing container `app`.
+
+    Type the single command you would run.
+body:
+  mode: object
+  namespace: default
+  files:
+  - name: web.yaml
+    content: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        labels:
+          app: web
+        name: web
+        namespace: shop
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: web
+        template:
+          metadata:
+            labels:
+              app: web
+          spec:
+            containers:
+            - image: registry.example.com/shop/web:3.0
+              name: app
+              resources:
+                requests:
+                  cpu: 250m
+            - image: registry.example.com/tools/log-agent:1.4
+              name: log-agent
+answer:
+  checks:
+  - id: kind
+    label: The object is the Deployment web
+    path: metadata.name
+    op: equals
+    value: web
+  - id: namespace
+    label: It is in namespace shop
+    path: metadata.namespace
+    op: equals
+    value: shop
+  - id: agent-request
+    label: log-agent requests 50m CPU
+    path: spec.template.spec.containers[name=log-agent].resources.requests.cpu
+    op: quantity
+    value: 50m
+  - id: app-request
+    label: app still requests 250m CPU
+    path: spec.template.spec.containers[name=app].resources.requests.cpu
+    op: quantity
+    value: 250m
+  solution:
+  - command: kubectl set resources deployment web -c log-agent --requests=cpu=50m -n shop
+    output: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        labels:
+          app: web
+        name: web
+        namespace: shop
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: web
+        strategy: {}
+        template:
+          metadata:
+            labels:
+              app: web
+          spec:
+            containers:
+            - image: registry.example.com/shop/web:3.0
+              name: app
+              resources:
+                requests:
+                  cpu: 250m
+            - image: registry.example.com/tools/log-agent:1.4
+              name: log-agent
+              resources:
+                requests:
+                  cpu: 50m
+      status: {}
+  - command: k -n shop set resources deploy/web --containers=log-agent --requests cpu=50m
+    output: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        labels:
+          app: web
+        name: web
+        namespace: shop
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: web
+        strategy: {}
+        template:
+          metadata:
+            labels:
+              app: web
+          spec:
+            containers:
+            - image: registry.example.com/shop/web:3.0
+              name: app
+              resources:
+                requests:
+                  cpu: 250m
+            - image: registry.example.com/tools/log-agent:1.4
+              name: log-agent
+              resources:
+                requests:
+                  cpu: 50m
+      status: {}
+  negatives:
+  - command: kubectl set resources deployment web --requests=cpu=50m -n shop
+    why: Without -c, set resources changes every container, so app drops from 250m to 50m and its utilization target changes meaning.
+    output: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        labels:
+          app: web
+        name: web
+        namespace: shop
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: web
+        strategy: {}
+        template:
+          metadata:
+            labels:
+              app: web
+          spec:
+            containers:
+            - image: registry.example.com/shop/web:3.0
+              name: app
+              resources:
+                requests:
+                  cpu: 50m
+            - image: registry.example.com/tools/log-agent:1.4
+              name: log-agent
+              resources:
+                requests:
+                  cpu: 50m
+      status: {}
+  - command: kubectl set resources deployment web -c app --requests=cpu=50m -n shop
+    why: This changes the wrong container; log-agent still has no CPU request, so utilization stays undefined.
+    output: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        labels:
+          app: web
+        name: web
+        namespace: shop
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: web
+        strategy: {}
+        template:
+          metadata:
+            labels:
+              app: web
+          spec:
+            containers:
+            - image: registry.example.com/shop/web:3.0
+              name: app
+              resources:
+                requests:
+                  cpu: 50m
+            - image: registry.example.com/tools/log-agent:1.4
+              name: log-agent
+              resources: {}
+      status: {}
+explanation:
+  correct:
+    en: 'CPU utilization is computed against the requests of every container in the Pod; if one container has no CPU request, utilization is undefined and the HPA takes no action for that metric. `kubectl set resources deployment web -c log-agent --requests=cpu=50m -n shop` adds the missing request to that container only and rolls out new Pods. Without `-c` (`--containers`, default `*`), every container is changed.'
+references:
+- title: Horizontal Pod Autoscaling
+  url: https://kubernetes.io/docs/concepts/workloads/autoscaling/horizontal-pod-autoscale/

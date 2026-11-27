@@ -1,0 +1,61 @@
+id: cka-5f-rollout-restart-coredns
+objective: "5.6.2"
+difficulty: 1
+status: draft
+type: command
+stem:
+  en: |-
+    You have just edited the `coredns` ConfigMap of namespace `kube-system` on a kubeadm cluster. The Corefile of this cluster does not load the `reload` plugin, so the running CoreDNS Pods keep the old configuration.
+
+    Restart the CoreDNS Pods with a rolling restart of their workload, so that name resolution stays available while they are replaced. Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Uses kubectl rollout
+    path: verb
+    op: equals
+    value: rollout
+  - id: restart
+    label: Uses rollout restart
+    path: subverb
+    op: equals
+    value: restart
+  - id: resource
+    label: Restarts a Deployment
+    path: resource
+    op: equals
+    value: deployment
+  - id: name
+    label: Names the Deployment coredns
+    path: names
+    op: contains
+    value: coredns
+  - id: namespace
+    label: Runs in namespace kube-system
+    path: flags.namespace
+    op: equals
+    value: kube-system
+  solution:
+  - command: kubectl -n kube-system rollout restart deployment coredns
+  - command: k rollout restart deploy/coredns -n kube-system
+  - command: kubectl rollout restart deployment/coredns --namespace=kube-system
+  negatives:
+  - command: kubectl -n kube-system rollout restart deployment kube-dns
+    why: kube-dns is the name of the Service (kept for compatibility); the Deployment created by kubeadm is coredns.
+  - command: kubectl -n kube-system rollout restart daemonset coredns
+    why: kubeadm deploys CoreDNS as a Deployment, not a DaemonSet.
+  - command: kubectl -n kube-system delete pod -l k8s-app=kube-dns
+    why: Deleting all CoreDNS Pods at once interrupts name resolution until the new Pods are ready; a rolling restart replaces them gradually.
+  - command: kubectl rollout restart deployment coredns
+    why: Without -n kubectl looks for coredns in the context namespace, default.
+explanation:
+  correct:
+    en: 'On a kubeadm cluster CoreDNS runs as the Deployment `coredns` in `kube-system`, behind the Service `kube-dns` (its Pods are labelled `k8s-app=kube-dns`). `kubectl -n kube-system rollout restart deployment coredns` changes a template annotation, so the Deployment replaces the Pods following its rolling update strategy and the new Pods read the current Corefile. With the `reload` plugin, no restart is needed.'
+references:
+- title: kubectl rollout restart
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_rollout/kubectl_rollout_restart/
+- title: Customizing DNS Service
+  url: https://kubernetes.io/docs/tasks/administer-cluster/dns-custom-nameservers/

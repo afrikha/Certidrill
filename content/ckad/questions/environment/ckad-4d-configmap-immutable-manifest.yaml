@@ -1,0 +1,118 @@
+id: ckad-4d-configmap-immutable-manifest
+objective: "4.4.1"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    Write the manifest of a ConfigMap named `catalog-config` in namespace `shop`:
+
+    - key `PAGE_SIZE` with the value `50`;
+    - key `catalog.properties` whose value is a two-line file: `currency=EUR` then `locale=fr-FR`;
+    - once created, its data must not be modifiable by anyone (a change requires deleting and recreating the ConfigMap).
+body:
+  starter: |
+    apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: catalog-config
+      namespace: shop
+answer:
+  checks:
+  - id: kind
+    label: The object is a ConfigMap
+    path: kind
+    op: equals
+    value: ConfigMap
+  - id: meta
+    label: It is named catalog-config in namespace shop
+    path: metadata
+    op: subset
+    value: {name: catalog-config, namespace: shop}
+  - id: page-size
+    label: Key PAGE_SIZE holds 50
+    path: data.PAGE_SIZE
+    op: equals
+    value: "50"
+  - id: currency
+    label: Key catalog.properties contains currency=EUR
+    path: data["catalog.properties"]
+    op: matches
+    value: "(^|\\n)currency=EUR(\\n|$)"
+  - id: locale
+    label: Key catalog.properties contains locale=fr-FR
+    path: data["catalog.properties"]
+    op: matches
+    value: "(^|\\n)locale=fr-FR(\\n|$)"
+  - id: immutable
+    label: The ConfigMap is immutable
+    path: immutable
+    op: equals
+    value: true
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: catalog-config
+        namespace: shop
+      data:
+        PAGE_SIZE: "50"
+        catalog.properties: |
+          currency=EUR
+          locale=fr-FR
+      immutable: true
+  - manifest: |
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        namespace: shop
+        name: catalog-config
+      immutable: true
+      data:
+        catalog.properties: "currency=EUR\nlocale=fr-FR\n"
+        PAGE_SIZE: '50'
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: catalog-config
+        namespace: shop
+      data:
+        PAGE_SIZE: "50"
+        catalog.properties: |
+          currency=EUR
+          locale=fr-FR
+    why: Without immutable true, anyone with update rights can change the data.
+  - manifest: |
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: catalog-config
+        namespace: shop
+      data:
+        PAGE_SIZE: "50"
+        currency: EUR
+        locale: fr-FR
+      immutable: true
+    why: This creates two separate keys instead of one key catalog.properties holding a two-line file.
+  - manifest: |
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: catalog-config
+        namespace: shop
+      data:
+        PAGE_SIZE: "50"
+        catalog.properties: |
+          currency=EUR
+          locale=fr-FR
+        immutable: "true"
+    why: Inside data, immutable is just another key; the immutable field is at the top level of the ConfigMap.
+explanation:
+  correct:
+    en: 'A ConfigMap has no `spec`: keys go under `data` (UTF-8 strings, so quote numbers such as `"50"`) and a multi-line value is written with a `|` block. `immutable: true` is a top-level field, stable since v1.21: once set, neither `data` nor `binaryData` can change and the flag cannot be reverted; only delete and recreate works.'
+references:
+- title: ConfigMaps
+  url: https://kubernetes.io/docs/concepts/configuration/configmap/

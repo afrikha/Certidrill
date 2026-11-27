@@ -1,0 +1,257 @@
+id: cka-1c-statefulset-claim-templates
+objective: "1.3.2"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    In namespace `payments`, write a StatefulSet `db` with 3 replicas, governed by the existing headless Service `db`, with Pod label `app: db` and one container `postgres` running `registry.example.com/postgres:16.4`.
+
+    - Each replica gets its own 10Gi claim from a claim template named `data`, class `fast-ssd`, mountable by a single Pod only, mounted at `/var/lib/postgresql/data`.
+    - When the StatefulSet is scaled down, the claims of the removed replicas are deleted. When the StatefulSet itself is deleted, the claims are kept.
+body:
+  starter: ""
+answer:
+  checks:
+  - id: api
+    label: An apps/v1 StatefulSet
+    path: apiVersion
+    op: equals
+    value: apps/v1
+  - id: meta
+    label: Named db, in namespace payments
+    path: metadata
+    op: subset
+    value: {name: db, namespace: payments}
+  - id: kind
+    label: The kind is StatefulSet
+    path: kind
+    op: equals
+    value: StatefulSet
+  - id: replicas
+    label: 3 replicas
+    path: spec.replicas
+    op: equals
+    value: 3
+  - id: service
+    label: serviceName is db
+    path: spec.serviceName
+    op: equals
+    value: db
+  - id: image
+    label: Container postgres runs registry.example.com/postgres:16.4
+    path: spec.template.spec.containers[name=postgres].image
+    op: equals
+    value: registry.example.com/postgres:16.4
+  - id: template
+    label: Claim template data, ReadWriteOncePod, class fast-ssd
+    path: spec.volumeClaimTemplates
+    op: contains
+    value: {metadata: {name: data}, spec: {accessModes: [ReadWriteOncePod], storageClassName: fast-ssd}}
+  - id: size
+    label: The template requests 10Gi
+    path: spec.volumeClaimTemplates[0].spec.resources.requests.storage
+    op: quantity
+    value: 10Gi
+  - id: mount
+    label: The container mounts data at /var/lib/postgresql/data
+    path: spec.template.spec.containers[name=postgres].volumeMounts[name=data].mountPath
+    op: equals
+    value: /var/lib/postgresql/data
+  - id: scaled
+    label: whenScaled is Delete
+    path: spec.persistentVolumeClaimRetentionPolicy.whenScaled
+    op: equals
+    value: Delete
+  - id: deleted
+    label: whenDeleted is Retain (or left to its default, Retain)
+    path: spec.persistentVolumeClaimRetentionPolicy
+    op: matches
+    value: '^(?!.*"whenDeleted":"Delete")'
+  solution:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: StatefulSet
+      metadata:
+        name: db
+        namespace: payments
+      spec:
+        serviceName: db
+        replicas: 3
+        selector:
+          matchLabels:
+            app: db
+        persistentVolumeClaimRetentionPolicy:
+          whenDeleted: Retain
+          whenScaled: Delete
+        template:
+          metadata:
+            labels:
+              app: db
+          spec:
+            containers:
+            - name: postgres
+              image: registry.example.com/postgres:16.4
+              volumeMounts:
+              - name: data
+                mountPath: /var/lib/postgresql/data
+        volumeClaimTemplates:
+        - metadata:
+            name: data
+          spec:
+            accessModes: ["ReadWriteOncePod"]
+            storageClassName: fast-ssd
+            resources:
+              requests:
+                storage: 10Gi
+  - manifest: |
+      apiVersion: apps/v1
+      kind: StatefulSet
+      metadata:
+        name: db
+        namespace: payments
+      spec:
+        replicas: 3
+        serviceName: db
+        persistentVolumeClaimRetentionPolicy:
+          whenScaled: Delete
+        selector:
+          matchLabels:
+            app: db
+        template:
+          metadata:
+            labels:
+              app: db
+          spec:
+            containers:
+            - image: registry.example.com/postgres:16.4
+              name: postgres
+              volumeMounts:
+              - mountPath: /var/lib/postgresql/data
+                name: data
+        volumeClaimTemplates:
+        - apiVersion: v1
+          kind: PersistentVolumeClaim
+          metadata:
+            name: data
+          spec:
+            accessModes:
+            - ReadWriteOncePod
+            storageClassName: fast-ssd
+            resources:
+              requests:
+                storage: 10Gi
+  negatives:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: StatefulSet
+      metadata:
+        name: db
+        namespace: payments
+      spec:
+        serviceName: db
+        replicas: 3
+        selector:
+          matchLabels:
+            app: db
+        persistentVolumeClaimRetentionPolicy:
+          whenDeleted: Delete
+          whenScaled: Retain
+        template:
+          metadata:
+            labels:
+              app: db
+          spec:
+            containers:
+            - name: postgres
+              image: registry.example.com/postgres:16.4
+              volumeMounts:
+              - name: data
+                mountPath: /var/lib/postgresql/data
+        volumeClaimTemplates:
+        - metadata:
+            name: data
+          spec:
+            accessModes: ["ReadWriteOncePod"]
+            storageClassName: fast-ssd
+            resources:
+              requests:
+                storage: 10Gi
+    why: The two policies are swapped; claims would be kept on scale-down and deleted with the StatefulSet.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: StatefulSet
+      metadata:
+        name: db
+        namespace: payments
+      spec:
+        serviceName: db
+        replicas: 3
+        selector:
+          matchLabels:
+            app: db
+        persistentVolumeClaimRetentionPolicy:
+          whenScaled: Delete
+        template:
+          metadata:
+            labels:
+              app: db
+          spec:
+            containers:
+            - name: postgres
+              image: registry.example.com/postgres:16.4
+              volumeMounts:
+              - name: db-data
+                mountPath: /var/lib/postgresql/data
+        volumeClaimTemplates:
+        - metadata:
+            name: data
+          spec:
+            accessModes: ["ReadWriteOncePod"]
+            storageClassName: fast-ssd
+            resources:
+              requests:
+                storage: 10Gi
+    why: The container must mount the template by its name, data; db-data matches no volume and the StatefulSet is rejected.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: StatefulSet
+      metadata:
+        name: db
+        namespace: payments
+      spec:
+        serviceName: db
+        replicas: 3
+        selector:
+          matchLabels:
+            app: db
+        persistentVolumeClaimRetentionPolicy:
+          whenScaled: Delete
+        template:
+          metadata:
+            labels:
+              app: db
+          spec:
+            containers:
+            - name: postgres
+              image: registry.example.com/postgres:16.4
+              volumeMounts:
+              - name: data
+                mountPath: /var/lib/postgresql/data
+        volumeClaimTemplates:
+        - metadata:
+            name: data
+          spec:
+            accessModes: ["ReadWriteOnce"]
+            storageClassName: fast-ssd
+            resources:
+              requests:
+                storage: 10Gi
+    why: ReadWriteOnce restricts the volume to one node, not to a single Pod; the task requires ReadWriteOncePod.
+explanation:
+  correct:
+    en: |-
+      `volumeClaimTemplates` gives each replica its own claim, named `<template>-<statefulset>-<ordinal>` (`data-db-0`, `data-db-1`, `data-db-2`), and the container mounts it by the template name. `ReadWriteOncePod` limits each volume to one Pod. `persistentVolumeClaimRetentionPolicy` (stable since v1.32) has `whenScaled` and `whenDeleted`, both `Retain` by default: here `whenScaled: Delete`, and `whenDeleted` stays `Retain`.
+references:
+- title: StatefulSets
+  url: https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/

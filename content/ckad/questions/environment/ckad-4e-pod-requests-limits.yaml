@@ -1,0 +1,141 @@
+id: ckad-4e-pod-requests-limits
+objective: "4.5.1"
+difficulty: 1
+status: draft
+type: manifest
+stem:
+  en: |-
+    Write the manifest of a Pod named `cache` in namespace `shop` with one container named `redis` running `redis:7.4`.
+
+    The container requests 250m CPU and 256Mi of memory and is limited to 512Mi of memory. It has no CPU limit.
+body:
+  starter: |
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: cache
+      namespace: shop
+    spec:
+      containers:
+      - name: redis
+        image: redis:7.4
+answer:
+  checks:
+  - id: pod
+    label: A Pod named cache in namespace shop
+    path: metadata
+    op: subset
+    value: {name: cache, namespace: shop}
+  - id: image
+    label: Container redis runs redis:7.4
+    path: spec.containers[name=redis].image
+    op: equals
+    value: redis:7.4
+  - id: req-cpu
+    label: redis requests 250m CPU
+    path: spec.containers[name=redis].resources.requests.cpu
+    op: quantity
+    value: 250m
+  - id: req-mem
+    label: redis requests 256Mi of memory
+    path: spec.containers[name=redis].resources.requests.memory
+    op: quantity
+    value: 256Mi
+  - id: lim-mem
+    label: redis is limited to 512Mi of memory
+    path: spec.containers[name=redis].resources.limits.memory
+    op: quantity
+    value: 512Mi
+  - id: no-cpu-limit
+    label: redis has no CPU limit
+    path: spec.containers[name=redis].resources.limits.cpu
+    op: absent
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: cache
+        namespace: shop
+      spec:
+        containers:
+        - name: redis
+          image: redis:7.4
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              memory: 512Mi
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: cache
+        namespace: shop
+      spec:
+        containers:
+        - image: redis:7.4
+          name: redis
+          resources:
+            limits: {memory: 0.5Gi}
+            requests: {cpu: 0.25, memory: 256Mi}
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: cache
+        namespace: shop
+      spec:
+        containers:
+        - name: redis
+          image: redis:7.4
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256M
+            limits:
+              memory: 512M
+    why: M is a decimal unit; 256M and 512M are about 244Mi and 488Mi, not 256Mi and 512Mi.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: cache
+        namespace: shop
+      spec:
+        containers:
+        - name: redis
+          image: redis:7.4
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: 250m
+              memory: 512Mi
+    why: The task asks for no CPU limit; a 250m limit would throttle the container at its request.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: cache
+        namespace: shop
+      spec:
+        containers:
+        - name: redis
+          image: redis:7.4
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              memory: 512m
+    why: Lower-case m means milli; 512m of memory is 0.512 bytes, not 512Mi.
+explanation:
+  correct:
+    en: 'Requests and limits are set per container under `resources.requests` and `resources.limits`. CPU uses cores or millicores (`250m` = `0.25`); memory uses bytes with suffixes where `Mi`/`Gi` are binary, `M`/`G` decimal and lower-case `m` means milli. A resource left out of `limits` (here CPU) is not capped by the container itself.'
+references:
+- title: Resource Management for Pods and Containers
+  url: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/

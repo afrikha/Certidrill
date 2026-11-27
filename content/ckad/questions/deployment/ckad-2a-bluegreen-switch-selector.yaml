@@ -1,0 +1,132 @@
+id: ckad-2a-bluegreen-switch-selector
+objective: "2.1.1"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    In namespace `shop`, two Deployments run side by side: `web-blue` (Pods labelled `app: web`, `version: blue`) and `web-green` (Pods labelled `app: web`, `version: green`). The Service `web`, saved in `svc-web.yaml`, currently selects `app: web` and `version: blue`.
+
+    Switch all the traffic of Service `web` to the green Pods without recreating the Service. The Service must keep selecting only Pods of app `web`.
+
+    Type the single command you would run.
+body:
+  mode: object
+  namespace: default
+  files:
+  - name: svc-web.yaml
+    content: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: web
+        namespace: shop
+      spec:
+        selector:
+          app: web
+          version: blue
+        ports:
+        - port: 80
+          targetPort: 8080
+answer:
+  checks:
+  - id: kind
+    label: The object is the Service web
+    path: kind
+    op: equals
+    value: Service
+  - id: name
+    label: It is named web in namespace shop
+    path: metadata
+    op: subset
+    value: {name: web, namespace: shop}
+  - id: version
+    label: The selector targets version green
+    path: spec.selector.version
+    op: equals
+    value: green
+  - id: app
+    label: The selector still requires app web
+    path: spec.selector.app
+    op: equals
+    value: web
+  - id: only-two
+    label: The selector has exactly the two labels app and version
+    path: spec.selector
+    op: length
+    value: 2
+  solution:
+  - command: kubectl set selector service web app=web,version=green -n shop
+    output: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: web
+        namespace: shop
+      spec:
+        ports:
+        - port: 80
+          targetPort: 8080
+        selector:
+          app: web
+          version: green
+      status:
+        loadBalancer: {}
+  - command: k -n shop set selector svc/web version=green,app=web
+    output: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: web
+        namespace: shop
+      spec:
+        ports:
+        - port: 80
+          targetPort: 8080
+        selector:
+          app: web
+          version: green
+      status:
+        loadBalancer: {}
+  negatives:
+  - command: kubectl set selector svc web version=green -n shop
+    why: set selector replaces the whole selector. With only version=green the Service would also route to the green Pods of any other app in the namespace.
+    output: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: web
+        namespace: shop
+      spec:
+        ports:
+        - port: 80
+          targetPort: 8080
+        selector:
+          version: green
+      status:
+        loadBalancer: {}
+  - command: kubectl label svc web version=green --overwrite -n shop
+    why: kubectl label changes the labels of the Service object itself, not the selector it uses to pick Pods. Traffic still goes to blue.
+    output: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        labels:
+          version: green
+        name: web
+        namespace: shop
+      spec:
+        ports:
+        - port: 80
+          targetPort: 8080
+        selector:
+          app: web
+          version: blue
+explanation:
+  correct:
+    en: 'In a blue/green deployment both versions run at full size and the Service selector decides which one is live. `kubectl set selector svc web app=web,version=green -n shop` switches it in place; the new selector overwrites the old one, so every label you want to keep (`app=web`) must be repeated. Switching back to blue is the same command with `version=blue`. `kubectl patch` or `kubectl edit` on the Service give the same result.'
+references:
+- title: kubectl set selector
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_set/kubectl_set_selector/
+- title: Labels and Selectors
+  url: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/

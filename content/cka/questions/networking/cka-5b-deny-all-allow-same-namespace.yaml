@@ -1,0 +1,219 @@
+id: cka-5b-deny-all-allow-same-namespace
+objective: "5.2.2"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    Namespace `vault` must be locked down. Write two NetworkPolicies in namespace `vault`, in one file:
+
+    - `default-deny-all`: blocks all ingress and all egress traffic of every Pod of the namespace, including Pods created later, and allows nothing;
+    - `allow-same-namespace`: lets every Pod of `vault` send traffic to and receive traffic from the other Pods of `vault`, on any port.
+
+    No traffic to or from other namespaces or outside the cluster may be allowed. DNS is handled by another policy later: do not add it.
+body:
+  starter: ""
+answer:
+  checks:
+  - id: deny-meta
+    label: NetworkPolicy default-deny-all is in namespace vault
+    select: {kind: NetworkPolicy, name: default-deny-all}
+    path: metadata.namespace
+    op: equals
+    value: vault
+  - id: deny-all-pods
+    label: default-deny-all selects every Pod (empty podSelector)
+    select: {kind: NetworkPolicy, name: default-deny-all}
+    path: spec.podSelector
+    op: equals
+    value: {}
+  - id: deny-ingress
+    label: default-deny-all lists Ingress in policyTypes
+    select: {kind: NetworkPolicy, name: default-deny-all}
+    path: spec.policyTypes
+    op: contains
+    value: Ingress
+  - id: deny-egress
+    label: default-deny-all lists Egress in policyTypes
+    select: {kind: NetworkPolicy, name: default-deny-all}
+    path: spec.policyTypes
+    op: contains
+    value: Egress
+  - id: deny-no-rules
+    label: default-deny-all has no allow rule
+    select: {kind: NetworkPolicy, name: default-deny-all}
+    path: spec
+    op: matches
+    value: '^(?!.*"(ingress|egress)":\[\{).*$'
+  - id: allow-meta
+    label: NetworkPolicy allow-same-namespace is in namespace vault
+    select: {kind: NetworkPolicy, name: allow-same-namespace}
+    path: metadata.namespace
+    op: equals
+    value: vault
+  - id: allow-all-pods
+    label: allow-same-namespace selects every Pod (empty podSelector)
+    select: {kind: NetworkPolicy, name: allow-same-namespace}
+    path: spec.podSelector
+    op: equals
+    value: {}
+  - id: allow-ingress
+    label: Ingress is allowed from every Pod of vault only, on any port
+    select: {kind: NetworkPolicy, name: allow-same-namespace}
+    path: spec.ingress
+    op: oneOf
+    value:
+    - [{from: [{podSelector: {}}]}]
+    - [{from: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: vault}}}]}]
+  - id: allow-egress
+    label: Egress is allowed to every Pod of vault only, on any port
+    select: {kind: NetworkPolicy, name: allow-same-namespace}
+    path: spec.egress
+    op: oneOf
+    value:
+    - [{to: [{podSelector: {}}]}]
+    - [{to: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: vault}}}]}]
+  solution:
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: default-deny-all
+        namespace: vault
+      spec:
+        podSelector: {}
+        policyTypes:
+        - Ingress
+        - Egress
+      ---
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: allow-same-namespace
+        namespace: vault
+      spec:
+        podSelector: {}
+        policyTypes:
+        - Ingress
+        - Egress
+        ingress:
+        - from:
+          - podSelector: {}
+        egress:
+        - to:
+          - podSelector: {}
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: allow-same-namespace
+        namespace: vault
+      spec:
+        podSelector: {}
+        ingress:
+        - from:
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: vault
+        egress:
+        - to:
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: vault
+      ---
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: default-deny-all
+        namespace: vault
+      spec:
+        podSelector: {}
+        policyTypes: [Egress, Ingress]
+  negatives:
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: default-deny-all
+        namespace: vault
+      spec:
+        podSelector: {}
+        policyTypes:
+        - Ingress
+        - Egress
+      ---
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: allow-same-namespace
+        namespace: vault
+      spec:
+        podSelector: {}
+        policyTypes:
+        - Ingress
+        ingress:
+        - from:
+          - podSelector: {}
+    why: A connection needs egress allowed on the source and ingress on the destination; with egress still denied by default-deny-all, the Pods cannot reach each other.
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: default-deny-all
+        namespace: vault
+      spec:
+        podSelector: {}
+        policyTypes:
+        - Ingress
+        - Egress
+      ---
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: allow-same-namespace
+        namespace: vault
+      spec:
+        podSelector: {}
+        policyTypes:
+        - Ingress
+        - Egress
+        ingress:
+        - from:
+          - namespaceSelector: {}
+        egress:
+        - to:
+          - namespaceSelector: {}
+    why: An empty namespaceSelector selects all namespaces, so every Pod of the cluster is allowed; an empty podSelector in from/to means the Pods of the policy's own namespace.
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: default-deny-all
+        namespace: vault
+      spec:
+        podSelector: {}
+        policyTypes:
+        - Ingress
+        - Egress
+      ---
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: allow-same-namespace
+        namespace: vault
+      spec:
+        podSelector: {}
+        policyTypes:
+        - Ingress
+        - Egress
+        ingress:
+        - {}
+        egress:
+        - {}
+    why: An empty rule ({}) matches all sources and destinations, inside and outside the cluster; policies are additive, so this cancels the default deny.
+explanation:
+  correct:
+    en: '`default-deny-all` selects every Pod (`podSelector: {}`) and lists both `Ingress` and `Egress` with no rule, so nothing is allowed. Policies are additive: `allow-same-namespace` adds `from: [{podSelector: {}}]` and `to: [{podSelector: {}}]`, where an empty podSelector means every Pod of the policy''s own namespace (`namespaceSelector` on `kubernetes.io/metadata.name: vault` is equivalent). Both directions are needed because a connection must be allowed by the egress side of the source and the ingress side of the destination. With egress restricted, DNS queries are blocked until a DNS rule is added.'
+references:
+- title: Network Policies
+  url: https://kubernetes.io/docs/concepts/services-networking/network-policies/

@@ -1,0 +1,147 @@
+id: ckad-4h-seccomp-localhost-container
+objective: "4.8.2"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    The security team copied a seccomp profile to every node at `/var/lib/kubelet/seccomp/profiles/fine-grained.json` (the kubelet uses the default root directory `/var/lib/kubelet`).
+
+    Write the manifest of a Pod `payments-api` in namespace `payments` with two containers:
+
+    - `api`, image `registry.example.com/payments/api:6.0`, which must use the `fine-grained.json` profile;
+    - `log-shipper`, image `registry.example.com/tools/log-shipper:1.2`, which must use the container runtime's default profile.
+
+    Set the runtime default profile at **Pod** level and override it only on `api`.
+body:
+  starter: |
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: payments-api
+      namespace: payments
+    spec:
+      containers:
+      - name: api
+        image: registry.example.com/payments/api:6.0
+      - name: log-shipper
+        image: registry.example.com/tools/log-shipper:1.2
+answer:
+  checks:
+  - id: pod
+    label: The Pod payments-api in namespace payments
+    path: metadata
+    op: subset
+    value: {name: payments-api, namespace: payments}
+  - id: pod-default
+    label: Pod-level seccomp profile type is RuntimeDefault
+    path: spec.securityContext.seccompProfile.type
+    op: equals
+    value: RuntimeDefault
+  - id: api-localhost
+    label: Container api uses a Localhost seccomp profile
+    path: spec.containers[name=api].securityContext.seccompProfile.type
+    op: equals
+    value: Localhost
+  - id: api-profile
+    label: The profile path is profiles/fine-grained.json, relative to the kubelet seccomp directory
+    path: spec.containers[name=api].securityContext.seccompProfile.localhostProfile
+    op: equals
+    value: profiles/fine-grained.json
+  - id: shipper-no-localhost
+    label: Container log-shipper does not use the Localhost profile
+    path: spec.containers[name=log-shipper].securityContext.seccompProfile.localhostProfile
+    op: absent
+  - id: images
+    label: Both containers keep their images
+    path: spec.containers
+    op: subset
+    value:
+    - {name: api, image: registry.example.com/payments/api:6.0}
+    - {name: log-shipper, image: registry.example.com/tools/log-shipper:1.2}
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: payments-api
+        namespace: payments
+      spec:
+        securityContext:
+          seccompProfile:
+            type: RuntimeDefault
+        containers:
+        - name: api
+          image: registry.example.com/payments/api:6.0
+          securityContext:
+            seccompProfile:
+              type: Localhost
+              localhostProfile: profiles/fine-grained.json
+        - name: log-shipper
+          image: registry.example.com/tools/log-shipper:1.2
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: payments-api
+        namespace: payments
+      spec:
+        securityContext:
+          seccompProfile:
+            type: RuntimeDefault
+        containers:
+        - name: api
+          image: registry.example.com/payments/api:6.0
+          securityContext:
+            seccompProfile:
+              type: Localhost
+              localhostProfile: /var/lib/kubelet/seccomp/profiles/fine-grained.json
+        - name: log-shipper
+          image: registry.example.com/tools/log-shipper:1.2
+    why: localhostProfile is a path relative to the kubelet seccomp directory (<root-dir>/seccomp); an absolute path is rejected.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: payments-api
+        namespace: payments
+      spec:
+        securityContext:
+          seccompProfile:
+            type: Localhost
+            localhostProfile: profiles/fine-grained.json
+        containers:
+        - name: api
+          image: registry.example.com/payments/api:6.0
+        - name: log-shipper
+          image: registry.example.com/tools/log-shipper:1.2
+    why: At Pod level the Localhost profile applies to log-shipper too, which must use the runtime default.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: payments-api
+        namespace: payments
+      spec:
+        securityContext:
+          seccompProfile:
+            type: RuntimeDefault
+        containers:
+        - name: api
+          image: registry.example.com/payments/api:6.0
+          securityContext:
+            seccompProfile:
+              type: Localhost
+              localhostProfile: seccomp/profiles/fine-grained.json
+        - name: log-shipper
+          image: registry.example.com/tools/log-shipper:1.2
+    why: The path is already relative to <root-dir>/seccomp; this one points to /var/lib/kubelet/seccomp/seccomp/profiles/fine-grained.json, which does not exist.
+explanation:
+  correct:
+    en: 'The Pod-level `seccompProfile: {type: RuntimeDefault}` applies to every container, and a container-level securityContext overrides it. For `api`, `type: Localhost` with `localhostProfile: profiles/fine-grained.json` loads `<kubelet-root-dir>/seccomp/profiles/fine-grained.json`; the path must be relative to that seccomp directory. `localhostProfile` is only set when the type is Localhost.'
+references:
+- title: Configure a Security Context for a Pod or Container
+  url: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/
+- title: Restrict a Container's Syscalls with seccomp
+  url: https://kubernetes.io/docs/tutorials/security/seccomp/

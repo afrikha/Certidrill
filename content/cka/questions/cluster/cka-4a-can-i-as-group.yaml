@@ -1,0 +1,63 @@
+id: cka-4a-can-i-as-group
+objective: "4.1.2"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    In namespace `qa`, a RoleBinding grants the ClusterRole `edit` to the group `qa-leads`. The user `lena` gets her permissions only through that group (her client certificate has `O=qa-leads`); no binding names her directly.
+
+    Check whether `lena`, as a member of `qa-leads`, can delete Pods in namespace `qa`. You are allowed to impersonate. Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Uses kubectl auth can-i
+    path: subverb
+    op: equals
+    value: can-i
+  - id: action
+    label: Checks the verb delete
+    path: args[1]
+    op: equals
+    value: delete
+  - id: resource
+    label: Checks Pods
+    path: args[2]
+    op: oneOf
+    value: [pods, pod, po]
+  - id: as
+    label: Impersonates the user lena
+    path: flags.as
+    op: equals
+    value: lena
+  - id: group
+    label: Impersonates the group qa-leads
+    path: flags.as-group
+    op: equals
+    value: qa-leads
+  - id: namespace
+    label: Checks namespace qa
+    path: flags.namespace
+    op: equals
+    value: qa
+  solution:
+  - command: kubectl auth can-i delete pods --as=lena --as-group=qa-leads -n qa
+  - command: k auth can-i delete pod -n qa --as lena --as-group qa-leads
+  negatives:
+  - command: kubectl auth can-i delete pods --as=lena -n qa
+    why: Impersonation sends only the groups given with --as-group; without it lena has no qa-leads membership and the answer is no.
+  - command: kubectl auth can-i delete pods --as=qa-leads -n qa
+    why: --as takes a user name; this impersonates a user called qa-leads, not the group.
+  - command: kubectl auth can-i delete pods --as=lena --as-group=qa-leads
+    why: Without -n the check runs in the current namespace, default, where the binding does not exist.
+explanation:
+  correct:
+    en: 'Kubernetes has no user directory: when you impersonate, the request carries only the user given with `--as` and the groups given with `--as-group` (repeatable). A permission granted to the group `qa-leads` is therefore tested with `kubectl auth can-i delete pods --as=lena --as-group=qa-leads -n qa`. With `--as=lena` alone the answer is no, even though the real lena can delete Pods.'
+references:
+- title: kubectl auth can-i
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_auth/kubectl_auth_can-i/
+- title: Using RBAC Authorization
+  url: https://kubernetes.io/docs/reference/access-authn-authz/rbac/

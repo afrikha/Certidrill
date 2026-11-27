@@ -1,0 +1,341 @@
+id: ckad-2b-hpa-memory-behavior
+objective: "2.2.4"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    In namespace `media`, Deployment `thumbnailer` (file `thumbnailer.yaml`) must scale on memory. Its container `thumb` declares no resource requests yet.
+
+    Write one file with two documents:
+
+    1. Deployment `thumbnailer`, unchanged except that container `thumb` requests **200m** CPU and **256Mi** memory.
+    2. An `autoscaling/v2` HorizontalPodAutoscaler `thumbnailer` that keeps the Deployment between **1** and **6** replicas, targets **75 %** average memory utilization and, when scaling down, considers the recommendations of the last **10 minutes**.
+body:
+  starter: ""
+  files:
+  - name: thumbnailer.yaml
+    content: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: thumbnailer
+        namespace: media
+      spec:
+        replicas: 1
+        selector:
+          matchLabels:
+            app: thumbnailer
+        template:
+          metadata:
+            labels:
+              app: thumbnailer
+          spec:
+            containers:
+            - name: thumb
+              image: registry.example.com/media/thumbnailer:1.8
+answer:
+  checks:
+  - id: deploy-ns
+    label: Deployment thumbnailer is in namespace media
+    select: {kind: Deployment, name: thumbnailer}
+    path: metadata.namespace
+    op: equals
+    value: media
+  - id: cpu-request
+    label: Container thumb requests 200m CPU
+    select: {kind: Deployment, name: thumbnailer}
+    path: spec.template.spec.containers[name=thumb].resources.requests.cpu
+    op: quantity
+    value: 200m
+  - id: mem-request
+    label: Container thumb requests 256Mi memory
+    select: {kind: Deployment, name: thumbnailer}
+    path: spec.template.spec.containers[name=thumb].resources.requests.memory
+    op: quantity
+    value: 256Mi
+  - id: image
+    label: Container thumb keeps image thumbnailer:1.8
+    select: {kind: Deployment, name: thumbnailer}
+    path: spec.template.spec.containers[name=thumb].image
+    op: equals
+    value: registry.example.com/media/thumbnailer:1.8
+  - id: hpa-api
+    label: The HPA uses autoscaling/v2
+    select: {kind: HorizontalPodAutoscaler, name: thumbnailer}
+    path: apiVersion
+    op: equals
+    value: autoscaling/v2
+  - id: hpa-ns
+    label: The HPA is in namespace media
+    select: {kind: HorizontalPodAutoscaler, name: thumbnailer}
+    path: metadata.namespace
+    op: equals
+    value: media
+  - id: hpa-target
+    label: The HPA scales Deployment thumbnailer
+    select: {kind: HorizontalPodAutoscaler, name: thumbnailer}
+    path: spec.scaleTargetRef
+    op: subset
+    value: {apiVersion: apps/v1, kind: Deployment, name: thumbnailer}
+  - id: hpa-min
+    label: minReplicas is 1
+    select: {kind: HorizontalPodAutoscaler, name: thumbnailer}
+    path: spec.minReplicas
+    op: equals
+    value: 1
+  - id: hpa-max
+    label: maxReplicas is 6
+    select: {kind: HorizontalPodAutoscaler, name: thumbnailer}
+    path: spec.maxReplicas
+    op: equals
+    value: 6
+  - id: hpa-metric
+    label: A Resource metric targets 75 % average memory utilization
+    select: {kind: HorizontalPodAutoscaler, name: thumbnailer}
+    path: spec.metrics
+    op: contains
+    value: {type: Resource, resource: {name: memory, target: {type: Utilization, averageUtilization: 75}}}
+  - id: hpa-window
+    label: The scale-down stabilization window is 600 seconds
+    select: {kind: HorizontalPodAutoscaler, name: thumbnailer}
+    path: spec.behavior.scaleDown.stabilizationWindowSeconds
+    op: equals
+    value: 600
+  solution:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: thumbnailer
+        namespace: media
+      spec:
+        replicas: 1
+        selector:
+          matchLabels:
+            app: thumbnailer
+        template:
+          metadata:
+            labels:
+              app: thumbnailer
+          spec:
+            containers:
+            - name: thumb
+              image: registry.example.com/media/thumbnailer:1.8
+              resources:
+                requests:
+                  cpu: 200m
+                  memory: 256Mi
+      ---
+      apiVersion: autoscaling/v2
+      kind: HorizontalPodAutoscaler
+      metadata:
+        name: thumbnailer
+        namespace: media
+      spec:
+        scaleTargetRef:
+          apiVersion: apps/v1
+          kind: Deployment
+          name: thumbnailer
+        minReplicas: 1
+        maxReplicas: 6
+        metrics:
+        - type: Resource
+          resource:
+            name: memory
+            target:
+              type: Utilization
+              averageUtilization: 75
+        behavior:
+          scaleDown:
+            stabilizationWindowSeconds: 600
+  - manifest: |
+      apiVersion: autoscaling/v2
+      kind: HorizontalPodAutoscaler
+      metadata:
+        name: thumbnailer
+        namespace: media
+      spec:
+        behavior:
+          scaleDown:
+            stabilizationWindowSeconds: 600
+        maxReplicas: 6
+        metrics:
+        - resource:
+            name: memory
+            target:
+              averageUtilization: 75
+              type: Utilization
+          type: Resource
+        minReplicas: 1
+        scaleTargetRef:
+          apiVersion: apps/v1
+          kind: Deployment
+          name: thumbnailer
+      ---
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: thumbnailer
+        namespace: media
+      spec:
+        replicas: 1
+        selector:
+          matchLabels:
+            app: thumbnailer
+        template:
+          metadata:
+            labels:
+              app: thumbnailer
+          spec:
+            containers:
+            - name: thumb
+              image: registry.example.com/media/thumbnailer:1.8
+              resources:
+                requests:
+                  memory: 0.25Gi
+                  cpu: "0.2"
+  negatives:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: thumbnailer
+        namespace: media
+      spec:
+        replicas: 1
+        selector:
+          matchLabels:
+            app: thumbnailer
+        template:
+          metadata:
+            labels:
+              app: thumbnailer
+          spec:
+            containers:
+            - name: thumb
+              image: registry.example.com/media/thumbnailer:1.8
+      ---
+      apiVersion: autoscaling/v2
+      kind: HorizontalPodAutoscaler
+      metadata:
+        name: thumbnailer
+        namespace: media
+      spec:
+        scaleTargetRef:
+          apiVersion: apps/v1
+          kind: Deployment
+          name: thumbnailer
+        minReplicas: 1
+        maxReplicas: 6
+        metrics:
+        - type: Resource
+          resource:
+            name: memory
+            target:
+              type: Utilization
+              averageUtilization: 75
+        behavior:
+          scaleDown:
+            stabilizationWindowSeconds: 600
+    why: The Deployment still declares no memory request, so memory utilization is not defined and the HPA takes no action.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: thumbnailer
+        namespace: media
+      spec:
+        replicas: 1
+        selector:
+          matchLabels:
+            app: thumbnailer
+        template:
+          metadata:
+            labels:
+              app: thumbnailer
+          spec:
+            containers:
+            - name: thumb
+              image: registry.example.com/media/thumbnailer:1.8
+              resources:
+                requests:
+                  cpu: 200m
+                  memory: 256Mi
+      ---
+      apiVersion: autoscaling/v2
+      kind: HorizontalPodAutoscaler
+      metadata:
+        name: thumbnailer
+        namespace: media
+      spec:
+        scaleTargetRef:
+          apiVersion: apps/v1
+          kind: Deployment
+          name: thumbnailer
+        minReplicas: 1
+        maxReplicas: 6
+        metrics:
+        - type: Resource
+          resource:
+            name: memory
+            target:
+              type: Utilization
+              averageUtilization: 75
+        behavior:
+          scaleUp:
+            stabilizationWindowSeconds: 600
+    why: The window is set on scaleUp, which delays scale-up instead; scale-down keeps its default window of 300 seconds.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: thumbnailer
+        namespace: media
+      spec:
+        replicas: 1
+        selector:
+          matchLabels:
+            app: thumbnailer
+        template:
+          metadata:
+            labels:
+              app: thumbnailer
+          spec:
+            containers:
+            - name: thumb
+              image: registry.example.com/media/thumbnailer:1.8
+              resources:
+                requests:
+                  cpu: 200m
+                  memory: 256Mi
+      ---
+      apiVersion: autoscaling/v2
+      kind: HorizontalPodAutoscaler
+      metadata:
+        name: thumbnailer
+        namespace: media
+      spec:
+        scaleTargetRef:
+          apiVersion: apps/v1
+          kind: Deployment
+          name: thumbnailer
+        minReplicas: 1
+        maxReplicas: 6
+        metrics:
+        - type: Resource
+          resource:
+            name: memory
+            target:
+              type: Utilization
+              averageUtilization: 75
+        behavior:
+          scaleDown:
+            stabilizationWindowSeconds: 10
+    why: stabilizationWindowSeconds is in seconds; 10 minutes is 600.
+explanation:
+  correct:
+    en: 'Utilization is usage divided by the request, so container `thumb` needs `resources.requests` (200m CPU, 256Mi memory) before the HPA can compute memory utilization. The HPA targets `averageUtilization: 75` on the `memory` resource, and `behavior.scaleDown.stabilizationWindowSeconds: 600` makes it use the highest recommendation of the last 10 minutes before removing Pods (the default is 300 seconds).'
+references:
+- title: Horizontal Pod Autoscaling
+  url: https://kubernetes.io/docs/concepts/workloads/autoscaling/horizontal-pod-autoscale/

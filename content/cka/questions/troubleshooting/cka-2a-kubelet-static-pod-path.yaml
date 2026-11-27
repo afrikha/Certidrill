@@ -1,0 +1,140 @@
+id: cka-2a-kubelet-static-pod-path
+objective: "2.1.2"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    Worker node `node-7` runs a static Pod from `/etc/kubernetes/manifests/node-agent.yaml`. After a colleague tidied up the kubelet configuration and restarted the kubelet, the mirror Pod `node-agent-node-7` disappeared, `crictl ps --name node-agent` prints no container, and the node is still `Ready`. The file is still in `/etc/kubernetes/manifests`.
+
+    The editor contains `/var/lib/kubelet/config.yaml` of `node-7`. Write the corrected file so that the kubelet runs the static Pods of `/etc/kubernetes/manifests` again. Change nothing else.
+body:
+  starter: |
+    apiVersion: kubelet.config.k8s.io/v1beta1
+    kind: KubeletConfiguration
+    authentication:
+      x509:
+        clientCAFile: /etc/kubernetes/pki/ca.crt
+    authorization:
+      mode: Webhook
+    cgroupDriver: systemd
+    clusterDNS:
+    - 10.96.0.10
+    clusterDomain: cluster.local
+    containerRuntimeEndpoint: unix:///var/run/containerd/containerd.sock
+    rotateCertificates: true
+    staticPodPath: /etc/kubernetes/manifest
+answer:
+  checks:
+  - id: kind
+    label: The document is a KubeletConfiguration
+    path: kind
+    op: equals
+    value: KubeletConfiguration
+  - id: path
+    label: staticPodPath is /etc/kubernetes/manifests
+    path: staticPodPath
+    op: oneOf
+    value: [/etc/kubernetes/manifests, /etc/kubernetes/manifests/]
+  - id: endpoint
+    label: containerRuntimeEndpoint is unchanged
+    path: containerRuntimeEndpoint
+    op: equals
+    value: unix:///var/run/containerd/containerd.sock
+  - id: cgroup
+    label: cgroupDriver is unchanged (systemd)
+    path: cgroupDriver
+    op: equals
+    value: systemd
+  - id: dns
+    label: clusterDNS is unchanged
+    path: clusterDNS
+    op: contains
+    value: 10.96.0.10
+  solution:
+  - manifest: |
+      apiVersion: kubelet.config.k8s.io/v1beta1
+      kind: KubeletConfiguration
+      authentication:
+        x509:
+          clientCAFile: /etc/kubernetes/pki/ca.crt
+      authorization:
+        mode: Webhook
+      cgroupDriver: systemd
+      clusterDNS:
+      - 10.96.0.10
+      clusterDomain: cluster.local
+      containerRuntimeEndpoint: unix:///var/run/containerd/containerd.sock
+      rotateCertificates: true
+      staticPodPath: /etc/kubernetes/manifests
+  - manifest: |
+      apiVersion: kubelet.config.k8s.io/v1beta1
+      kind: KubeletConfiguration
+      authentication:
+        x509:
+          clientCAFile: /etc/kubernetes/pki/ca.crt
+      authorization:
+        mode: Webhook
+      cgroupDriver: systemd
+      clusterDNS:
+      - 10.96.0.10
+      clusterDomain: cluster.local
+      containerRuntimeEndpoint: unix:///var/run/containerd/containerd.sock
+      rotateCertificates: true
+      staticPodPath: /etc/kubernetes/manifests/
+  negatives:
+  - manifest: |
+      apiVersion: kubelet.config.k8s.io/v1beta1
+      kind: KubeletConfiguration
+      authentication:
+        x509:
+          clientCAFile: /etc/kubernetes/pki/ca.crt
+      authorization:
+        mode: Webhook
+      cgroupDriver: systemd
+      clusterDNS:
+      - 10.96.0.10
+      clusterDomain: cluster.local
+      containerRuntimeEndpoint: unix:///var/run/containerd/containerd.sock
+      rotateCertificates: true
+      podManifestPath: /etc/kubernetes/manifests
+    why: --pod-manifest-path is the deprecated command-line flag; the configuration file field is staticPodPath, so the kubelet still runs no static Pod.
+  - manifest: |
+      apiVersion: kubelet.config.k8s.io/v1beta1
+      kind: KubeletConfiguration
+      authentication:
+        x509:
+          clientCAFile: /etc/kubernetes/pki/ca.crt
+      authorization:
+        mode: Webhook
+      cgroupDriver: systemd
+      clusterDNS:
+      - 10.96.0.10
+      clusterDomain: cluster.local
+      containerRuntimeEndpoint: unix:///var/run/containerd/containerd.sock
+      rotateCertificates: true
+      staticPodURL: /etc/kubernetes/manifests
+    why: staticPodURL downloads a manifest from an HTTP URL; the directory belongs in staticPodPath.
+  - manifest: |
+      apiVersion: kubelet.config.k8s.io/v1beta1
+      kind: KubeletConfiguration
+      authentication:
+        x509:
+          clientCAFile: /etc/kubernetes/pki/ca.crt
+      authorization:
+        mode: Webhook
+      cgroupDriver: systemd
+      clusterDNS:
+      - 10.96.0.10
+      clusterDomain: cluster.local
+      containerRuntimeEndpoint: unix:///var/run/containerd/containerd.sock
+      rotateCertificates: true
+    why: Without staticPodPath (default empty) the kubelet does not run any static Pod.
+explanation:
+  correct:
+    en: 'The kubelet runs static Pods only from `staticPodPath`, here misspelled `/etc/kubernetes/manifest`: it watches an empty or missing directory, so it stopped `node-agent` and removed its mirror Pod. Set `staticPodPath: /etc/kubernetes/manifests` and restart the kubelet; it scans the directory every `fileCheckFrequency` (20 s).'
+references:
+- title: Create static Pods
+  url: https://kubernetes.io/docs/tasks/configure-pod-container/static-pod/
+- title: Kubelet Configuration (v1beta1)
+  url: https://kubernetes.io/docs/reference/config-api/kubelet-config.v1beta1/

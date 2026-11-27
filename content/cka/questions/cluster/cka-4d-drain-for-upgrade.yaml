@@ -1,0 +1,63 @@
+id: cka-4d-drain-for-upgrade
+objective: "4.4.1"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    The control plane has been upgraded to v1.37.2. Before you upgrade the kubelet on the worker `node02`, evict its workloads. `node02` runs:
+
+    - Pods of the DaemonSets `kube-proxy` and `calico-node`;
+    - Pod `cache-6f9c7d5b8-k2lqz` of the Deployment `cache`, which uses an `emptyDir` volume;
+    - Pods of the Deployment `api`, protected by a PodDisruptionBudget that must be respected.
+
+    Every Pod on the node is managed by a controller. Type the single command that marks `node02` unschedulable and evicts every Pod that can be evicted.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: drain
+    label: Uses kubectl drain
+    path: verb
+    op: equals
+    value: drain
+  - id: node
+    label: Drains node02
+    path: args
+    op: contains
+    value: node02
+  - id: daemonsets
+    label: Ignores the DaemonSet Pods (--ignore-daemonsets)
+    path: flags.ignore-daemonsets
+    op: equals
+    value: true
+  - id: emptydir
+    label: Accepts deleting the emptyDir data (--delete-emptydir-data)
+    path: flags.delete-emptydir-data
+    op: equals
+    value: true
+  - id: eviction
+    label: Keeps using the Eviction API, which honors PodDisruptionBudgets
+    path: flags.disable-eviction
+    op: absent
+  solution:
+  - command: kubectl drain node02 --ignore-daemonsets --delete-emptydir-data
+  - command: k drain --delete-emptydir-data --ignore-daemonsets node02
+  negatives:
+  - command: kubectl drain node02 --ignore-daemonsets
+    why: The Pod of cache uses an emptyDir volume; without --delete-emptydir-data the drain stops on it.
+  - command: kubectl cordon node02
+    why: cordon only marks the node unschedulable; it evicts nothing.
+  - command: kubectl drain node02 --ignore-daemonsets --delete-emptydir-data --disable-eviction
+    why: --disable-eviction deletes the Pods directly and bypasses the PodDisruptionBudget of api.
+  - command: kubectl drain node02 --delete-emptydir-data
+    why: Without --ignore-daemonsets, drain does not proceed while DaemonSet Pods run on the node.
+explanation:
+  correct:
+    en: '`kubectl drain node02` cordons the node and evicts its Pods through the Eviction API, which respects PodDisruptionBudgets. DaemonSet Pods block the drain unless you add `--ignore-daemonsets` (they are not deleted, because the DaemonSet controller would recreate them), and Pods with `emptyDir` volumes need `--delete-emptydir-data` because their local data is lost. After the kubelet upgrade, `kubectl uncordon node02` makes the node schedulable again.'
+references:
+- title: kubectl drain
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_drain/
+- title: Safely Drain a Node
+  url: https://kubernetes.io/docs/tasks/administer-cluster/safely-drain-node/

@@ -1,0 +1,55 @@
+id: ckad-3c-get-custom-columns-node
+objective: "3.3.2"
+difficulty: 3
+status: draft
+type: command
+stem:
+  en: |-
+    In namespace `shop`, print a table of the Pods with exactly two columns, in this order:
+
+    - `NAME`: the name of the Pod;
+    - `NODE`: the name of the node the Pod is scheduled on.
+
+    Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Uses kubectl get
+    path: verb
+    op: equals
+    value: get
+  - id: resource
+    label: Lists Pods
+    path: resource
+    op: equals
+    value: pod
+  - id: namespace
+    label: Runs in namespace shop
+    path: flags.namespace
+    op: equals
+    value: shop
+  - id: columns
+    label: Custom columns NAME from metadata.name and NODE from spec.nodeName
+    path: flags.output
+    op: matches
+    value: '^custom-columns=NAME:\{?\.?metadata\.name\}?,NODE:\{?\.?spec\.nodeName\}?$'
+  solution:
+  - command: kubectl get pods -n shop -o custom-columns=NAME:.metadata.name,NODE:.spec.nodeName
+  - command: k get po -n shop --output=custom-columns='NAME:metadata.name,NODE:spec.nodeName'
+  - command: kubectl get pod -o=custom-columns="NAME:.metadata.name,NODE:.spec.nodeName" --namespace=shop
+  negatives:
+  - command: kubectl get pods -n shop -o custom-columns=NAME:.metadata.name,NODE:.status.hostIP
+    why: status.hostIP is the IP address of the node, not its name.
+  - command: kubectl get pods -n shop -o wide
+    why: The wide output has many more columns than NAME and NODE.
+  - command: kubectl get pods -n shop -o jsonpath='{.items[*].spec.nodeName}'
+    why: This prints only the node names on one line, without the Pod names or column headers.
+explanation:
+  correct:
+    en: '`-o custom-columns=HEADER:path,...` prints a table whose columns are JSONPath-like expressions evaluated on each object; the leading dot is optional. The node a Pod runs on is `spec.nodeName`. `status.hostIP` is the node''s IP address, and `-o wide` adds several other columns.'
+references:
+- title: kubectl Quick Reference
+  url: https://kubernetes.io/docs/reference/kubectl/quick-reference/

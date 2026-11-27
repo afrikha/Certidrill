@@ -1,0 +1,186 @@
+id: ckad-5c-ingress-default-backend
+objective: "5.3.1"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    Write the manifest of an Ingress named `portal` in namespace `portal`, handled by the IngressClass `nginx`:
+
+    - for host `portal.example.com`, only the exact path `/status` goes to Service `status` on port 8080 (`/status/details` must not match this rule);
+    - every request that matches no rule, for any host or path, goes to Service `fallback` on port 80.
+body:
+  starter: ""
+answer:
+  checks:
+  - id: ingress
+    label: An Ingress named portal in namespace portal
+    path: metadata
+    op: subset
+    value: {name: portal, namespace: portal}
+  - id: kind
+    label: The object is an Ingress
+    path: kind
+    op: equals
+    value: Ingress
+  - id: class
+    label: It uses the IngressClass nginx
+    path: spec.ingressClassName
+    op: equals
+    value: nginx
+  - id: status-type
+    label: Path /status uses pathType Exact
+    path: spec.rules[host=portal.example.com].http.paths[path=/status].pathType
+    op: equals
+    value: Exact
+  - id: status-backend
+    label: Path /status goes to Service status
+    path: spec.rules[host=portal.example.com].http.paths[path=/status].backend.service.name
+    op: equals
+    value: status
+  - id: status-port
+    label: Path /status uses port 8080
+    path: spec.rules[host=portal.example.com].http.paths[path=/status].backend.service.port.number
+    op: equals
+    value: 8080
+  - id: default-service
+    label: The default backend is Service fallback
+    path: spec.defaultBackend.service.name
+    op: equals
+    value: fallback
+  - id: default-port
+    label: The default backend uses port 80
+    path: spec.defaultBackend.service.port.number
+    op: equals
+    value: 80
+  solution:
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: portal
+        namespace: portal
+      spec:
+        ingressClassName: nginx
+        defaultBackend:
+          service:
+            name: fallback
+            port:
+              number: 80
+        rules:
+        - host: portal.example.com
+          http:
+            paths:
+            - path: /status
+              pathType: Exact
+              backend:
+                service:
+                  name: status
+                  port:
+                    number: 8080
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: portal
+        namespace: portal
+      spec:
+        rules:
+        - host: portal.example.com
+          http:
+            paths:
+            - backend:
+                service:
+                  name: status
+                  port:
+                    number: 8080
+              path: /status
+              pathType: Exact
+        defaultBackend:
+          service:
+            name: fallback
+            port:
+              number: 80
+        ingressClassName: nginx
+  negatives:
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: portal
+        namespace: portal
+      spec:
+        ingressClassName: nginx
+        defaultBackend:
+          service:
+            name: fallback
+            port:
+              number: 80
+        rules:
+        - host: portal.example.com
+          http:
+            paths:
+            - path: /status
+              pathType: Prefix
+              backend:
+                service:
+                  name: status
+                  port:
+                    number: 8080
+    why: Prefix /status also matches /status/details, which must not use this rule.
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: portal
+        namespace: portal
+      spec:
+        ingressClassName: nginx
+        rules:
+        - host: portal.example.com
+          http:
+            paths:
+            - path: /status
+              pathType: Exact
+              backend:
+                service:
+                  name: status
+                  port:
+                    number: 8080
+            - path: /
+              pathType: Prefix
+              backend:
+                service:
+                  name: fallback
+                  port:
+                    number: 80
+    why: A catch-all path under the host only covers portal.example.com; requests for other hosts match no rule. spec.defaultBackend is needed.
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: portal
+        namespace: portal
+      spec:
+        ingressClassName: nginx
+        backend:
+          serviceName: fallback
+          servicePort: 80
+        rules:
+        - host: portal.example.com
+          http:
+            paths:
+            - path: /status
+              pathType: Exact
+              backend:
+                service:
+                  name: status
+                  port:
+                    number: 8080
+    why: spec.backend with serviceName/servicePort is the removed v1beta1 form; v1 uses spec.defaultBackend.service.
+explanation:
+  correct:
+    en: '`spec.defaultBackend` receives the requests that match no rule, whatever the host. `pathType: Exact` matches the path exactly and case-sensitively, so `/status` does not match `/status/` or `/status/details`. A catch-all path inside a host rule only applies to that host.'
+references:
+- title: Ingress
+  url: https://kubernetes.io/docs/concepts/services-networking/ingress/

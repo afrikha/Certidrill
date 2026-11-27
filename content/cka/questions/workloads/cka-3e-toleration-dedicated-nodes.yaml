@@ -1,0 +1,135 @@
+id: cka-3e-toleration-dedicated-nodes
+objective: "3.5.2"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    Nodes `gpu-1` and `gpu-2` are dedicated to the ML team: each carries the taint `dedicated=gpu:NoSchedule` and the label `dedicated=gpu`. No other node has that label.
+
+    Write the manifest of a Pod named `trainer` in namespace `ml` with one container named `trainer` running `registry.example.com/ml/trainer:0.9`. The Pod must be allowed onto the dedicated nodes **and** must run only on them. Restrict the placement with a `nodeSelector`.
+body:
+  starter: ""
+answer:
+  checks:
+  - id: pod
+    label: Pod trainer in namespace ml
+    path: metadata
+    op: subset
+    value: {name: trainer, namespace: ml}
+  - id: kind
+    label: The object is a Pod
+    path: kind
+    op: equals
+    value: Pod
+  - id: image
+    label: Container trainer runs trainer:0.9
+    path: spec.containers[name=trainer].image
+    op: equals
+    value: registry.example.com/ml/trainer:0.9
+  - id: toleration
+    label: The Pod tolerates dedicated=gpu:NoSchedule
+    path: spec.tolerations[key=dedicated]
+    op: oneOf
+    value:
+    - {key: dedicated, operator: Equal, value: gpu, effect: NoSchedule}
+    - {key: dedicated, value: gpu, effect: NoSchedule}
+    - {key: dedicated, operator: Exists, effect: NoSchedule}
+    - {key: dedicated, operator: Equal, value: gpu}
+    - {key: dedicated, value: gpu}
+    - {key: dedicated, operator: Exists}
+  - id: selector
+    label: nodeSelector requires dedicated=gpu
+    path: spec.nodeSelector.dedicated
+    op: equals
+    value: gpu
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: trainer
+        namespace: ml
+      spec:
+        nodeSelector:
+          dedicated: gpu
+        tolerations:
+        - key: dedicated
+          operator: Equal
+          value: gpu
+          effect: NoSchedule
+        containers:
+        - name: trainer
+          image: registry.example.com/ml/trainer:0.9
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: trainer
+        namespace: ml
+      spec:
+        containers:
+        - image: registry.example.com/ml/trainer:0.9
+          name: trainer
+        tolerations:
+        - effect: NoSchedule
+          key: dedicated
+          operator: Exists
+        nodeSelector:
+          dedicated: gpu
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: trainer
+        namespace: ml
+      spec:
+        tolerations:
+        - key: dedicated
+          operator: Equal
+          value: gpu
+          effect: NoSchedule
+        containers:
+        - name: trainer
+          image: registry.example.com/ml/trainer:0.9
+    why: A toleration only allows the Pod onto the tainted nodes; without the nodeSelector it can still be scheduled on any other node.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: trainer
+        namespace: ml
+      spec:
+        nodeSelector:
+          dedicated: gpu
+        containers:
+        - name: trainer
+          image: registry.example.com/ml/trainer:0.9
+    why: Without a toleration the Pod is repelled by the NoSchedule taint of the only nodes its nodeSelector accepts, so it stays Pending.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: trainer
+        namespace: ml
+      spec:
+        nodeSelector:
+          dedicated: gpu
+        tolerations:
+        - key: dedicated
+          operator: Equal
+          value: gpu
+          effect: NoExecute
+        containers:
+        - name: trainer
+          image: registry.example.com/ml/trainer:0.9
+    why: The toleration effect must match the taint effect; a NoExecute toleration does not tolerate a NoSchedule taint.
+explanation:
+  correct:
+    en: 'Taints and node selection solve two halves of dedicated nodes. The toleration (key `dedicated`, `value: gpu` with the default operator `Equal`, or `operator: Exists`, and effect `NoSchedule`) lets the Pod onto the tainted nodes; the `nodeSelector` `dedicated: gpu` keeps it off every other node. A toleration matches a taint only when the keys and effects match; an empty effect matches every effect of the key.'
+references:
+- title: Taints and Tolerations
+  url: https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/
+- title: Assigning Pods to Nodes
+  url: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/

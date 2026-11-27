@@ -1,0 +1,62 @@
+id: ckad-1a-build-containerfile-path
+objective: "1.1.1"
+difficulty: 1
+status: draft
+type: command
+stem:
+  en: |-
+    You are in `/home/candidate/catalog`, the root of the source tree. Docker and Podman are both installed: use either.
+
+    The build instructions are in the file `deploy/Containerfile`, and its `COPY` instructions use paths relative to the root of the source tree. Build the image `registry.example.com/shop/catalog:2.1` from that file, with the current directory as the build context.
+
+    Type the single command you would run.
+body:
+  mode: invocation
+  tools: [docker, podman]
+  namespace: default
+answer:
+  checks:
+  - id: tool
+    label: Uses docker or podman
+    path: tool
+    op: oneOf
+    value: [docker, podman]
+  - id: verb
+    label: It is a build command
+    path: verb
+    op: equals
+    value: build
+  - id: tag
+    label: Tags the image registry.example.com/shop/catalog:2.1
+    path: flags
+    op: matches
+    value: '"tag":(\[("[^"]*",)*)?"registry\.example\.com/shop/catalog:2\.1"'
+  - id: file
+    label: Reads the instructions from deploy/Containerfile
+    path: flags
+    op: matches
+    value: '"file":"(\./)?deploy/Containerfile"'
+  - id: context
+    label: Uses the current directory as the build context
+    path: args
+    op: matches
+    value: '^\["(\./?|/home/candidate/catalog/?)"\]$'
+  solution:
+  - command: docker build -t registry.example.com/shop/catalog:2.1 -f deploy/Containerfile .
+  - command: podman build --file=deploy/Containerfile --tag registry.example.com/shop/catalog:2.1 .
+  - command: docker build -f ./deploy/Containerfile -t registry.example.com/shop/catalog:2.1 /home/candidate/catalog
+  negatives:
+  - command: docker build -t registry.example.com/shop/catalog:2.1 deploy
+    why: The context becomes deploy/, so the COPY sources outside that folder are missing, and the builder looks for deploy/Dockerfile instead of the Containerfile.
+  - command: podman build -t registry.example.com/shop/catalog:2.1 -f deploy/Containerfile
+    why: Without a context argument Podman uses the parent folder of the Containerfile, deploy/, as the context.
+  - command: docker build -t catalog:2.1 -f deploy/Containerfile .
+    why: The tag has no registry part, so the image is not named registry.example.com/shop/catalog:2.1 and a later push would target Docker Hub.
+explanation:
+  correct:
+    en: '`-t` (`--tag`) names the image, `-f` (`--file`) points to a build file that is not `./Dockerfile`, and the last argument is the build context, here `.`. The file path and the context are independent: the context decides what `COPY` can read. Podman uses the parent folder of the file as the context when no context is given, which is the wrong folder here.'
+references:
+- title: docker buildx build
+  url: https://docs.docker.com/reference/cli/docker/buildx/build/
+- title: podman-build
+  url: https://docs.podman.io/en/latest/markdown/podman-build.1.html

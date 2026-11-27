@@ -1,0 +1,110 @@
+id: ckad-1c-helper-shared-volume
+objective: "1.3.2"
+difficulty: 1
+status: draft
+type: manifest
+stem:
+  en: |-
+    Write the manifest of a Pod named `landing` in namespace `web` with two regular containers (both in `containers`) that share an `emptyDir` volume named `content`:
+
+    - `nginx`, image `nginx:1.27`, mounts `content` at `/usr/share/nginx/html`;
+    - `content-sync`, image `registry.example.com/content-sync:4.2`, with `args: ["--dest=/data"]`, mounts `content` at `/data`.
+body: {}
+answer:
+  checks:
+  - id: pod
+    label: A Pod named landing in namespace web
+    path: metadata
+    op: subset
+    value: {name: landing, namespace: web}
+  - id: volume
+    label: Volume content is an emptyDir
+    path: spec.volumes[name=content].emptyDir
+    op: exists
+  - id: nginx
+    label: nginx runs nginx:1.27 and mounts content at /usr/share/nginx/html
+    path: spec.containers[name=nginx]
+    op: subset
+    value: {image: nginx:1.27, volumeMounts: [{name: content, mountPath: /usr/share/nginx/html}]}
+  - id: sync
+    label: content-sync runs registry.example.com/content-sync:4.2 and mounts content at /data
+    path: spec.containers[name=content-sync]
+    op: subset
+    value: {image: registry.example.com/content-sync:4.2, volumeMounts: [{name: content, mountPath: /data}]}
+  - id: sync-args
+    label: content-sync gets --dest=/data
+    path: spec.containers[name=content-sync].args
+    op: equals
+    value: ["--dest=/data"]
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: landing
+        namespace: web
+      spec:
+        volumes:
+        - name: content
+          emptyDir: {}
+        containers:
+        - name: nginx
+          image: nginx:1.27
+          volumeMounts:
+          - name: content
+            mountPath: /usr/share/nginx/html
+        - name: content-sync
+          image: registry.example.com/content-sync:4.2
+          args: ["--dest=/data"]
+          volumeMounts:
+          - name: content
+            mountPath: /data
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: landing
+        namespace: web
+      spec:
+        volumes:
+        - name: content
+          emptyDir: {}
+        containers:
+        - name: nginx
+          image: nginx:1.27
+          volumeMounts:
+          - name: content
+            mountPath: /usr/share/nginx/html
+        - name: content-sync
+          image: registry.example.com/content-sync:4.2
+          command: ["--dest=/data"]
+          volumeMounts:
+          - name: content
+            mountPath: /data
+    why: command replaces the image ENTRYPOINT, so the container would try to execute "--dest=/data"; the flag belongs in args.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: landing
+        namespace: web
+      spec:
+        containers:
+        - name: nginx
+          image: nginx:1.27
+          volumeMounts:
+          - name: content
+            mountPath: /usr/share/nginx/html
+        - name: content-sync
+          image: registry.example.com/content-sync:4.2
+          args: ["--dest=/data"]
+    why: The volume is never declared in spec.volumes and content-sync does not mount it, so nothing is shared (the API server also rejects a mount of an undeclared volume).
+explanation:
+  correct:
+    en: 'Containers of one Pod can share files through a volume declared once in `spec.volumes` and mounted by each container, possibly at different paths: what `content-sync` writes to `/data` appears in `/usr/share/nginx/html` for `nginx`. This is the classic sidecar layout of a web server next to a content synchronizer. The flag goes in `args`, which keeps the image entrypoint.'
+references:
+- title: Communicate Between Containers in the Same Pod Using a Shared Volume
+  url: https://kubernetes.io/docs/tasks/access-application-cluster/communicate-containers-same-pod-shared-volume/
+- title: Pods
+  url: https://kubernetes.io/docs/concepts/workloads/pods/

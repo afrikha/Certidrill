@@ -1,0 +1,141 @@
+id: ckad-4a-cr-served-version
+objective: "4.1.2"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    A database Operator is installed; its CRD is shown in `database-crd.yaml`. An old manifest from the team's repository uses `apiVersion: db.example.com/v1alpha1` and is now rejected with a not found error.
+
+    Write the manifest of a `Database` named `orders-db` in namespace `payments` that the API server accepts today, for a PostgreSQL database with 20 GB of storage and high availability enabled. Use the field names and values of the schema.
+body:
+  starter: ""
+  files:
+  - name: database-crd.yaml
+    content: |
+      apiVersion: apiextensions.k8s.io/v1
+      kind: CustomResourceDefinition
+      metadata:
+        name: databases.db.example.com
+      spec:
+        group: db.example.com
+        scope: Namespaced
+        names:
+          plural: databases
+          singular: database
+          kind: Database
+          shortNames: [db]
+        versions:
+        - name: v1alpha1
+          served: false
+          storage: false
+          schema:
+            openAPIV3Schema:
+              type: object
+              properties:
+                spec:
+                  type: object
+                  properties:
+                    type: {type: string}
+                    size: {type: string}
+        - name: v1
+          served: true
+          storage: true
+          schema:
+            openAPIV3Schema:
+              type: object
+              properties:
+                spec:
+                  type: object
+                  required: [engine, storageGB]
+                  properties:
+                    engine:
+                      type: string
+                      enum: [postgres, mysql]
+                    storageGB:
+                      type: integer
+                      minimum: 1
+                    highAvailability:
+                      type: boolean
+                      default: false
+answer:
+  checks:
+  - id: api
+    label: Uses the served version db.example.com/v1
+    path: apiVersion
+    op: equals
+    value: db.example.com/v1
+  - id: kind
+    label: Kind is Database
+    path: kind
+    op: equals
+    value: Database
+  - id: meta
+    label: Named orders-db in namespace payments
+    path: metadata
+    op: subset
+    value: {name: orders-db, namespace: payments}
+  - id: engine
+    label: spec.engine is postgres (enum value)
+    path: spec.engine
+    op: equals
+    value: postgres
+  - id: storage
+    label: spec.storageGB is 20
+    path: spec.storageGB
+    op: equals
+    value: 20
+  - id: ha
+    label: spec.highAvailability is true
+    path: spec.highAvailability
+    op: equals
+    value: true
+  solution:
+  - manifest: |
+      apiVersion: db.example.com/v1
+      kind: Database
+      metadata:
+        name: orders-db
+        namespace: payments
+      spec:
+        engine: postgres
+        storageGB: 20
+        highAvailability: true
+  negatives:
+  - manifest: |
+      apiVersion: db.example.com/v1alpha1
+      kind: Database
+      metadata:
+        name: orders-db
+        namespace: payments
+      spec:
+        type: postgres
+        size: 20Gi
+    why: v1alpha1 has served set to false, so requests to it get a not found error; only v1 is served.
+  - manifest: |
+      apiVersion: db.example.com/v1
+      kind: Database
+      metadata:
+        name: orders-db
+        namespace: payments
+      spec:
+        engine: PostgreSQL
+        storageGB: 20
+        highAvailability: true
+    why: engine is an enum of postgres and mysql; PostgreSQL is rejected by schema validation.
+  - manifest: |
+      apiVersion: db.example.com/v1
+      kind: Database
+      metadata:
+        name: orders-db
+        namespace: payments
+      spec:
+        engine: postgres
+        storageGB: 20Gi
+    why: storageGB is an integer number of gigabytes, so the string 20Gi is rejected; highAvailability would also stay at its default, false.
+explanation:
+  correct:
+    en: 'A CRD can list several versions; only those with `served: true` are reachable, and requests to a version with `served: false` get a not found error. Use `db.example.com/v1` and the v1 schema: `engine` is an enum (`postgres`), `storageGB` an integer, and `highAvailability` defaults to false unless set. `kubectl explain databases.spec` shows the same schema on a live cluster.'
+references:
+- title: Versions in CustomResourceDefinitions
+  url: https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definition-versioning/

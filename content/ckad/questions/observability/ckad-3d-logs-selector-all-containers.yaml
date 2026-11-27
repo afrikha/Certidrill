@@ -1,0 +1,64 @@
+id: ckad-3d-logs-selector-all-containers
+objective: "3.4.1"
+difficulty: 3
+status: draft
+type: command
+stem:
+  en: |-
+    The Pods with label `app=worker` in namespace `batch` each run two containers. Print the last 50 lines of every container of all these Pods, each line prefixed with the name of the Pod and container it comes from.
+
+    Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Uses kubectl logs
+    path: verb
+    op: equals
+    value: logs
+  - id: selector
+    label: Selects Pods with label app=worker
+    path: flags.selector
+    op: matches
+    value: '^app==?worker$'
+  - id: all-containers
+    label: Reads all containers of each Pod
+    path: flags.all-containers
+    op: equals
+    value: true
+  - id: tail
+    label: Limits output to the last 50 lines
+    path: flags.tail
+    op: equals
+    value: 50
+  - id: prefix
+    label: Prefixes each line with its Pod and container
+    path: flags.prefix
+    op: equals
+    value: true
+  - id: namespace
+    label: Runs in namespace batch
+    path: flags.namespace
+    op: equals
+    value: batch
+  solution:
+  - command: kubectl logs -l app=worker --all-containers --tail=50 --prefix -n batch
+  - command: k logs -n batch --selector=app=worker --all-containers=true --prefix=true --tail 50
+  - command: kubectl logs --prefix -l app=worker -n batch --tail=50 --all-containers
+  negatives:
+  - command: kubectl logs -l app=worker --all-containers --prefix -n batch
+    why: With a selector, --tail defaults to 10 lines, not 50.
+  - command: kubectl logs -l app=worker -c worker --tail=50 --prefix -n batch
+    why: -c reads a single container; the task asks for both containers of each Pod.
+  - command: kubectl logs -l app=worker --all-containers --tail=50 -n batch
+    why: Without --prefix the lines do not say which Pod and container they come from.
+  - command: kubectl logs -l app=worker --all-containers --tail=50 --prefix
+    why: Without -n the selector is evaluated in the context namespace, default.
+explanation:
+  correct:
+    en: '`kubectl logs -l app=worker` reads the logs of every matching Pod; `--all-containers` includes each container, `--prefix` adds the Pod and container name to each line, and `--tail=50` keeps the last 50 lines. With a selector, `--tail` defaults to 10 instead of all lines, a frequent cause of truncated answers.'
+references:
+- title: kubectl logs
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_logs/

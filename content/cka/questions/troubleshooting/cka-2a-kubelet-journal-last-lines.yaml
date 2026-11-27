@@ -1,0 +1,52 @@
+id: cka-2a-kubelet-journal-last-lines
+objective: "2.1.1"
+difficulty: 1
+status: draft
+type: command
+stem:
+  en: |-
+    Node `node-2` is `NotReady`. You are connected to `node-2` as root, and `systemctl status kubelet` shows `Active: activating (auto-restart)`.
+
+    Print the last 50 lines of the journal of the kubelet unit, directly to the terminal (no pager). Type the single command you would run.
+body:
+  mode: invocation
+  tools: [journalctl, systemctl]
+answer:
+  checks:
+  - id: tool
+    label: Uses journalctl
+    path: tool
+    op: equals
+    value: journalctl
+  - id: unit
+    label: Selects the kubelet unit (-u or --unit)
+    path: flags.unit
+    op: matches
+    value: '^kubelet(\.service)?$'
+  - id: lines
+    label: Limits the output to the last 50 lines (-n or --lines)
+    path: flags.lines
+    op: equals
+    value: 50
+  - id: no-pager
+    label: Disables the pager (--no-pager)
+    path: flags.no-pager
+    op: equals
+    value: true
+  solution:
+  - command: journalctl -u kubelet -n 50 --no-pager
+  - command: journalctl --unit=kubelet.service --lines=50 --no-pager
+  - command: journalctl --no-pager -u kubelet -n 50
+  negatives:
+  - command: journalctl -u containerd -n 50 --no-pager
+    why: This reads the container runtime's journal, not the kubelet's.
+  - command: journalctl -u kubelet --no-pager
+    why: Without -n the whole kubelet journal is printed, not the last 50 lines.
+  - command: systemctl status kubelet --no-pager
+    why: systemctl status shows the unit state and only a few recent log lines, not the last 50.
+explanation:
+  correct:
+    en: '`journalctl -u kubelet` selects the entries of the kubelet systemd unit, `-n 50` (`--lines=50`) keeps the last 50 and `--no-pager` prints them without `less`. On a kubelet that restarts in a loop, read the first error after the last start: it names the broken flag, file or socket.'
+references:
+- title: Troubleshooting Clusters
+  url: https://kubernetes.io/docs/tasks/debug/debug-cluster/

@@ -1,0 +1,157 @@
+id: ckad-3a-cronjob-batch-v1
+objective: "3.1.2"
+difficulty: 1
+status: draft
+type: command
+stem:
+  en: |-
+    `nightly-report.yaml` declares a CronJob with `apiVersion: batch/v1beta1`, which the v1.37 cluster refuses. Recreate it imperatively with the current API: CronJob `nightly-report` in namespace `ops`, image `busybox:1.36`, schedule `30 1 * * *`, running the command `date`.
+
+    Type the single command you would run.
+body:
+  mode: object
+  namespace: default
+  files:
+  - name: nightly-report.yaml
+    content: |
+      apiVersion: batch/v1beta1
+      kind: CronJob
+      metadata:
+        name: nightly-report
+        namespace: ops
+      spec:
+        schedule: "30 1 * * *"
+        jobTemplate:
+          spec:
+            template:
+              spec:
+                containers:
+                - name: nightly-report
+                  image: busybox:1.36
+                  command: ["date"]
+                restartPolicy: OnFailure
+answer:
+  checks:
+  - id: api-version
+    label: The CronJob uses batch/v1
+    path: apiVersion
+    op: equals
+    value: batch/v1
+  - id: kind
+    label: The object is a CronJob
+    path: kind
+    op: equals
+    value: CronJob
+  - id: metadata
+    label: Named nightly-report in namespace ops
+    path: metadata
+    op: subset
+    value: {name: nightly-report, namespace: ops}
+  - id: schedule
+    label: Runs on the schedule 30 1 * * *
+    path: spec.schedule
+    op: equals
+    value: 30 1 * * *
+  - id: image
+    label: The container runs busybox:1.36
+    path: spec.jobTemplate.spec.template.spec.containers[0].image
+    op: equals
+    value: busybox:1.36
+  - id: command
+    label: The container runs the command date
+    path: spec.jobTemplate.spec.template.spec.containers[0].command
+    op: contains
+    value: date
+  solution:
+  - command: kubectl create cronjob nightly-report --image=busybox:1.36 --schedule="30 1 * * *" -n ops -- date
+    output: |
+      apiVersion: batch/v1
+      kind: CronJob
+      metadata:
+        name: nightly-report
+        namespace: ops
+      spec:
+        jobTemplate:
+          metadata:
+            name: nightly-report
+          spec:
+            template:
+              metadata: {}
+              spec:
+                containers:
+                - command:
+                  - date
+                  image: busybox:1.36
+                  name: nightly-report
+                  resources: {}
+                restartPolicy: OnFailure
+        schedule: 30 1 * * *
+      status: {}
+  - command: k -n ops create cj nightly-report --schedule '30 1 * * *' --image busybox:1.36 --dry-run=client -o yaml -- date
+    output: |
+      apiVersion: batch/v1
+      kind: CronJob
+      metadata:
+        name: nightly-report
+        namespace: ops
+      spec:
+        jobTemplate:
+          metadata:
+            name: nightly-report
+          spec:
+            template:
+              spec:
+                containers:
+                - command:
+                  - date
+                  image: busybox:1.36
+                  name: nightly-report
+                restartPolicy: OnFailure
+        schedule: 30 1 * * *
+  negatives:
+  - command: kubectl create job nightly-report --image=busybox:1.36 -n ops -- date
+    why: A Job runs once; it has no schedule. The task needs a CronJob.
+    output: |
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: nightly-report
+        namespace: ops
+      spec:
+        template:
+          spec:
+            containers:
+            - command:
+              - date
+              image: busybox:1.36
+              name: nightly-report
+            restartPolicy: Never
+  - command: kubectl create cronjob nightly-report --image=busybox:1.36 --schedule="30 1 * * *" -- date
+    why: Without -n the CronJob is created in the context namespace, default, not in ops.
+    output: |
+      apiVersion: batch/v1
+      kind: CronJob
+      metadata:
+        name: nightly-report
+      spec:
+        jobTemplate:
+          metadata:
+            name: nightly-report
+          spec:
+            template:
+              spec:
+                containers:
+                - command:
+                  - date
+                  image: busybox:1.36
+                  name: nightly-report
+                restartPolicy: OnFailure
+        schedule: 30 1 * * *
+explanation:
+  correct:
+    en: 'CronJob `batch/v1beta1` has not been served since v1.25; `batch/v1` (available since v1.21) has the same fields, and `kubectl create cronjob` generates it. `--schedule` takes the cron expression in quotes, and everything after `--` becomes the container command. kubectl sets `restartPolicy: OnFailure` by default for a CronJob.'
+references:
+- title: kubectl create cronjob
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_create/kubectl_create_cronjob/
+- title: Deprecated API Migration Guide
+  url: https://kubernetes.io/docs/reference/using-api/deprecation-guide/

@@ -1,0 +1,131 @@
+id: cka-4e-init-predefined-cert-key
+objective: "4.5.2"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    The automation that will add `cp2` and `cp3` needs to know the certificate key in advance, so you generated one with `kubeadm certs certificate-key`: `b7e4c1a9d3f60825e19c7b4a3d2f8e6c5b0a9f1e2d3c4b5a6f7e8d9c0b1a2f3e`.
+
+    Complete `/root/kubeadm-config.yaml` (below), used on `cp1` with `kubeadm init --config /root/kubeadm-config.yaml --upload-certs`, so that:
+
+    - the uploaded certificates are encrypted with this key;
+    - the cluster uses the load-balanced endpoint `k8s-api.example.com:6443`;
+    - the API server of `cp1` advertises `192.168.10.11`.
+body:
+  starter: |
+    apiVersion: kubeadm.k8s.io/v1beta4
+    kind: InitConfiguration
+    nodeRegistration:
+      name: cp1
+    ---
+    apiVersion: kubeadm.k8s.io/v1beta4
+    kind: ClusterConfiguration
+    kubernetesVersion: v1.37.1
+    networking:
+      podSubnet: 10.244.0.0/16
+answer:
+  checks:
+  - id: key
+    label: InitConfiguration.certificateKey is the generated key
+    select: {kind: InitConfiguration}
+    path: certificateKey
+    op: equals
+    value: b7e4c1a9d3f60825e19c7b4a3d2f8e6c5b0a9f1e2d3c4b5a6f7e8d9c0b1a2f3e
+  - id: advertise
+    label: InitConfiguration.localAPIEndpoint.advertiseAddress is 192.168.10.11
+    select: {kind: InitConfiguration}
+    path: localAPIEndpoint.advertiseAddress
+    op: equals
+    value: 192.168.10.11
+  - id: endpoint
+    label: ClusterConfiguration.controlPlaneEndpoint is k8s-api.example.com:6443
+    select: {kind: ClusterConfiguration}
+    path: controlPlaneEndpoint
+    op: equals
+    value: k8s-api.example.com:6443
+  - id: no-cluster-key
+    label: The key is not in the ClusterConfiguration
+    select: {kind: ClusterConfiguration}
+    path: certificateKey
+    op: absent
+  - id: version
+    label: The version is kept
+    select: {kind: ClusterConfiguration}
+    path: kubernetesVersion
+    op: equals
+    value: v1.37.1
+  solution:
+  - manifest: |
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: InitConfiguration
+      nodeRegistration:
+        name: cp1
+      localAPIEndpoint:
+        advertiseAddress: 192.168.10.11
+      certificateKey: b7e4c1a9d3f60825e19c7b4a3d2f8e6c5b0a9f1e2d3c4b5a6f7e8d9c0b1a2f3e
+      ---
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: ClusterConfiguration
+      kubernetesVersion: v1.37.1
+      controlPlaneEndpoint: k8s-api.example.com:6443
+      networking:
+        podSubnet: 10.244.0.0/16
+  negatives:
+  - manifest: |
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: InitConfiguration
+      nodeRegistration:
+        name: cp1
+      localAPIEndpoint:
+        advertiseAddress: 192.168.10.11
+      ---
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: ClusterConfiguration
+      kubernetesVersion: v1.37.1
+      controlPlaneEndpoint: k8s-api.example.com:6443
+      certificateKey: b7e4c1a9d3f60825e19c7b4a3d2f8e6c5b0a9f1e2d3c4b5a6f7e8d9c0b1a2f3e
+      networking:
+        podSubnet: 10.244.0.0/16
+    why: certificateKey is a field of the InitConfiguration, not of the ClusterConfiguration; kubeadm would generate a random key.
+  - manifest: |
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: InitConfiguration
+      nodeRegistration:
+        name: cp1
+      localAPIEndpoint:
+        advertiseAddress: 192.168.10.11
+      controlPlane:
+        certificateKey: b7e4c1a9d3f60825e19c7b4a3d2f8e6c5b0a9f1e2d3c4b5a6f7e8d9c0b1a2f3e
+      ---
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: ClusterConfiguration
+      kubernetesVersion: v1.37.1
+      controlPlaneEndpoint: k8s-api.example.com:6443
+      networking:
+        podSubnet: 10.244.0.0/16
+    why: controlPlane.certificateKey is the JoinConfiguration layout; in the InitConfiguration the key is the top-level certificateKey.
+  - manifest: |
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: InitConfiguration
+      nodeRegistration:
+        name: cp1
+      localAPIEndpoint:
+        advertiseAddress: 192.168.10.11
+      certificateKey: b7e4c1a9d3f60825e19c7b4a3d2f8e6c5b0a9f1e2d3c4b5a6f7e8d9c0b1a2f3e
+      ---
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: ClusterConfiguration
+      kubernetesVersion: v1.37.1
+      controlPlaneEndpoint: 192.168.10.11:6443
+      networking:
+        podSubnet: 10.244.0.0/16
+    why: The endpoint is cp1's own address, so every node and kubeconfig depends on cp1 instead of the load balancer k8s-api.example.com:6443.
+explanation:
+  correct:
+    en: 'A predefined key goes in `InitConfiguration.certificateKey` (the `--certificate-key` flag of `kubeadm init`); `--upload-certs` then encrypts the shared certificates with it into the `kubeadm-certs` Secret, for two hours. The joining nodes pass the same key (`--certificate-key` or `controlPlane.certificateKey`). `controlPlaneEndpoint` in the `ClusterConfiguration` must be the load balancer, and `localAPIEndpoint` is the API server of this node.'
+references:
+- title: kubeadm init
+  url: https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-init/
+- title: kubeadm Configuration (v1beta4)
+  url: https://kubernetes.io/docs/reference/config-api/kubeadm-config.v1beta4/

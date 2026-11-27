@@ -1,0 +1,60 @@
+id: cka-2d-logs-since-timestamps
+objective: "2.4.1"
+difficulty: 1
+status: draft
+type: command
+stem:
+  en: |-
+    Pod `api-0` in namespace `payments` runs a single container. Users reported errors a few minutes ago.
+
+    Print only the log lines the container wrote in the last 15 minutes, each with a timestamp. Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Uses kubectl logs
+    path: verb
+    op: equals
+    value: logs
+  - id: pod
+    label: Targets Pod api-0
+    path: names
+    op: contains
+    value: api-0
+  - id: since
+    label: Limits the output to the last 15 minutes
+    path: flags.since
+    op: oneOf
+    value: [15m, 900s, 15m0s]
+  - id: timestamps
+    label: Adds a timestamp to each line
+    path: flags.timestamps
+    op: equals
+    value: true
+  - id: namespace
+    label: Runs in namespace payments
+    path: flags.namespace
+    op: equals
+    value: payments
+  solution:
+  - command: kubectl logs api-0 -n payments --since=15m --timestamps
+  - command: k logs -n payments api-0 --timestamps=true --since 15m
+  - command: kubectl logs pod/api-0 --since=900s --timestamps --namespace=payments
+  negatives:
+  - command: kubectl logs api-0 -n payments --tail=15 --timestamps
+    why: --tail=15 keeps the last 15 lines, whatever their age.
+  - command: kubectl logs api-0 -n payments --since=15m
+    why: The lines are printed without timestamps.
+  - command: kubectl logs api-0 -n payments --since-time=15m --timestamps
+    why: --since-time expects an RFC 3339 date such as 2026-11-27T09:00:00Z; a relative duration goes in --since.
+explanation:
+  correct:
+    en: >-
+      `--since=15m` returns only the lines newer than the relative duration, and `--timestamps` prefixes each line with
+      the time it was written. `--since-time` takes an absolute RFC 3339 date instead, and only one of the two can be
+      used. `--tail` counts lines, not time.
+references:
+- title: kubectl logs
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_logs/

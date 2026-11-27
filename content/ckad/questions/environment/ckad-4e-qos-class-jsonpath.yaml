@@ -1,0 +1,56 @@
+id: ckad-4e-qos-class-jsonpath
+objective: "4.5.2"
+difficulty: 1
+status: draft
+type: command
+stem:
+  en: |-
+    Print only the QoS class that Kubernetes assigned to Pod `api-7d9f` in namespace `shop`.
+
+    Type the single `kubectl get` command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Uses kubectl get
+    path: verb
+    op: equals
+    value: get
+  - id: resource
+    label: Reads a Pod
+    path: resource
+    op: equals
+    value: pod
+  - id: name
+    label: Reads Pod api-7d9f
+    path: names
+    op: contains
+    value: api-7d9f
+  - id: namespace
+    label: Runs in namespace shop
+    path: flags.namespace
+    op: equals
+    value: shop
+  - id: jsonpath
+    label: Prints .status.qosClass with jsonpath
+    path: flags.output
+    op: matches
+    value: '^jsonpath=\{\s*\.status\.qosClass\s*\}$'
+  solution:
+  - command: kubectl get pod api-7d9f -n shop -o jsonpath='{.status.qosClass}'
+  - command: k -n shop get po/api-7d9f -o=jsonpath="{.status.qosClass}"
+  negatives:
+  - command: kubectl get pod api-7d9f -n shop -o jsonpath='{.spec.qosClass}'
+    why: The QoS class is not part of the spec; Kubernetes records it in status.qosClass.
+  - command: kubectl get pod api-7d9f -n shop -o jsonpath='{.status.phase}'
+    why: status.phase is the Pod phase (Pending, Running...), not its QoS class.
+  - command: kubectl get pod api-7d9f -o jsonpath='{.status.qosClass}'
+    why: Without -n the command looks for the Pod in the context namespace, default.
+explanation:
+  correct:
+    en: 'Kubernetes computes the QoS class (`Guaranteed`, `Burstable` or `BestEffort`) from the requests and limits when the Pod is created and stores it in `status.qosClass`; it does not change during the Pod life. `-o jsonpath=''{.status.qosClass}''` prints only that value; `kubectl describe pod` shows it as `QoS Class`.'
+references:
+- title: Pod Quality of Service Classes
+  url: https://kubernetes.io/docs/concepts/workloads/pods/pod-qos/

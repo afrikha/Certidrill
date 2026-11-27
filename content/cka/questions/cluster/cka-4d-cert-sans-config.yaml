@@ -1,0 +1,195 @@
+id: cka-4d-cert-sans-config
+objective: "4.4.3"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    A new load balancer will expose the API server of the kubeadm cluster as `api.example.com` and `10.0.0.100`. Clients that use these names get TLS errors, because the serving certificate of kube-apiserver does not contain them. `kubeadm certs renew` keeps the SANs of the existing certificate, so the certificate will be regenerated with `kubeadm init phase certs apiserver --config /root/kubeadm.yaml` after the old `apiserver.crt` and `apiserver.key` are moved away.
+
+    The editor shows `/root/kubeadm.yaml` (two documents). Update it so that the regenerated certificate also contains `api.example.com` and `10.0.0.100`, and still contains the extra name it has today. Change nothing else.
+body:
+  starter: |
+    apiVersion: kubeadm.k8s.io/v1beta4
+    kind: InitConfiguration
+    localAPIEndpoint:
+      advertiseAddress: 192.168.10.11
+      bindPort: 6443
+    nodeRegistration:
+      name: cp1
+    ---
+    apiVersion: kubeadm.k8s.io/v1beta4
+    kind: ClusterConfiguration
+    kubernetesVersion: v1.37.2
+    controlPlaneEndpoint: cp1.example.com:6443
+    certificatesDir: /etc/kubernetes/pki
+    apiServer:
+      certSANs:
+      - cp1.example.com
+    networking:
+      dnsDomain: cluster.local
+      podSubnet: 10.244.0.0/16
+      serviceSubnet: 10.96.0.0/12
+answer:
+  checks:
+  - id: kind
+    label: The ClusterConfiguration uses kubeadm.k8s.io/v1beta4
+    select: {kind: ClusterConfiguration}
+    path: apiVersion
+    op: equals
+    value: kubeadm.k8s.io/v1beta4
+  - id: dns-san
+    label: apiServer.certSANs contains api.example.com
+    select: {kind: ClusterConfiguration}
+    path: apiServer.certSANs
+    op: contains
+    value: api.example.com
+  - id: ip-san
+    label: apiServer.certSANs contains 10.0.0.100
+    select: {kind: ClusterConfiguration}
+    path: apiServer.certSANs
+    op: contains
+    value: 10.0.0.100
+  - id: kept-san
+    label: apiServer.certSANs still contains cp1.example.com
+    select: {kind: ClusterConfiguration}
+    path: apiServer.certSANs
+    op: contains
+    value: cp1.example.com
+  - id: endpoint
+    label: controlPlaneEndpoint is unchanged
+    select: {kind: ClusterConfiguration}
+    path: controlPlaneEndpoint
+    op: equals
+    value: cp1.example.com:6443
+  - id: advertise
+    label: The InitConfiguration still advertises 192.168.10.11
+    select: {kind: InitConfiguration}
+    path: localAPIEndpoint.advertiseAddress
+    op: equals
+    value: 192.168.10.11
+  solution:
+  - manifest: |
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: InitConfiguration
+      localAPIEndpoint:
+        advertiseAddress: 192.168.10.11
+        bindPort: 6443
+      nodeRegistration:
+        name: cp1
+      ---
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: ClusterConfiguration
+      kubernetesVersion: v1.37.2
+      controlPlaneEndpoint: cp1.example.com:6443
+      certificatesDir: /etc/kubernetes/pki
+      apiServer:
+        certSANs:
+        - cp1.example.com
+        - api.example.com
+        - 10.0.0.100
+      networking:
+        dnsDomain: cluster.local
+        podSubnet: 10.244.0.0/16
+        serviceSubnet: 10.96.0.0/12
+  - manifest: |
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: ClusterConfiguration
+      kubernetesVersion: v1.37.2
+      controlPlaneEndpoint: cp1.example.com:6443
+      certificatesDir: /etc/kubernetes/pki
+      apiServer:
+        certSANs: ["10.0.0.100", "api.example.com", "cp1.example.com"]
+      networking:
+        dnsDomain: cluster.local
+        podSubnet: 10.244.0.0/16
+        serviceSubnet: 10.96.0.0/12
+      ---
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: InitConfiguration
+      localAPIEndpoint:
+        advertiseAddress: 192.168.10.11
+        bindPort: 6443
+      nodeRegistration:
+        name: cp1
+  negatives:
+  - manifest: |
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: InitConfiguration
+      localAPIEndpoint:
+        advertiseAddress: 192.168.10.11
+        bindPort: 6443
+      nodeRegistration:
+        name: cp1
+      ---
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: ClusterConfiguration
+      kubernetesVersion: v1.37.2
+      controlPlaneEndpoint: cp1.example.com:6443
+      certificatesDir: /etc/kubernetes/pki
+      apiServer:
+        certSANs:
+        - api.example.com
+        - 10.0.0.100
+      networking:
+        dnsDomain: cluster.local
+        podSubnet: 10.244.0.0/16
+        serviceSubnet: 10.96.0.0/12
+    why: The list replaces the existing SANs, so cp1.example.com would disappear from the new certificate.
+  - manifest: |
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: InitConfiguration
+      localAPIEndpoint:
+        advertiseAddress: 192.168.10.11
+        bindPort: 6443
+      nodeRegistration:
+        name: cp1
+      ---
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: ClusterConfiguration
+      kubernetesVersion: v1.37.2
+      controlPlaneEndpoint: cp1.example.com:6443
+      certificatesDir: /etc/kubernetes/pki
+      apiServer:
+        certSANs:
+        - cp1.example.com
+      etcd:
+        local:
+          serverCertSANs:
+          - api.example.com
+          - 10.0.0.100
+      networking:
+        dnsDomain: cluster.local
+        podSubnet: 10.244.0.0/16
+        serviceSubnet: 10.96.0.0/12
+    why: etcd.local.serverCertSANs adds names to the etcd server certificate, not to the API server certificate.
+  - manifest: |
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: InitConfiguration
+      localAPIEndpoint:
+        advertiseAddress: 10.0.0.100
+        bindPort: 6443
+      nodeRegistration:
+        name: cp1
+      ---
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: ClusterConfiguration
+      kubernetesVersion: v1.37.2
+      controlPlaneEndpoint: api.example.com:6443
+      certificatesDir: /etc/kubernetes/pki
+      apiServer:
+        certSANs:
+        - cp1.example.com
+      networking:
+        dnsDomain: cluster.local
+        podSubnet: 10.244.0.0/16
+        serviceSubnet: 10.96.0.0/12
+    why: Changing the advertise address and the control plane endpoint reconfigures the node and the cluster; extra names belong in apiServer.certSANs.
+explanation:
+  correct:
+    en: 'Extra Subject Alternative Names of the API server certificate are set in `ClusterConfiguration.apiServer.certSANs`; the new certificate gets only the extra names in that list, so `cp1.example.com` must stay in it. `kubeadm certs renew` reuses the SANs of the current certificate, so a new SAN requires writing a new certificate with `kubeadm init phase certs apiserver --config FILE`, then restarting kube-apiserver. Keep the `kubeadm-config` ConfigMap in sync with the same change.'
+references:
+- title: Reconfiguring a kubeadm cluster
+  url: https://kubernetes.io/docs/tasks/administer-cluster/kubeadm/kubeadm-reconfigure/
+- title: kubeadm Configuration (v1beta4)
+  url: https://kubernetes.io/docs/reference/config-api/kubeadm-config.v1beta4/

@@ -1,0 +1,106 @@
+id: ckad-2d-labels-include-templates
+objective: "2.4.1"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    The directory `/opt/billing` contains `deployment.yaml` (Deployment `billing`, already running in the cluster) and `service.yaml`. Write `/opt/billing/kustomization.yaml` that adds the label `team: finance`:
+
+    - to the metadata of both objects;
+    - to the Pod template of the Deployment, so that the Pods carry it;
+    - but **not** to any selector, because the selector of a running Deployment is immutable.
+body:
+  starter: |
+    apiVersion: kustomize.config.k8s.io/v1beta1
+    kind: Kustomization
+    resources:
+    - deployment.yaml
+    - service.yaml
+answer:
+  checks:
+  - id: resources-deploy
+    label: Lists deployment.yaml in resources
+    path: resources
+    op: contains
+    value: deployment.yaml
+  - id: resources-svc
+    label: Lists service.yaml in resources
+    path: resources
+    op: contains
+    value: service.yaml
+  - id: labels-templates
+    label: Adds team=finance with includeTemplates true
+    path: labels
+    op: contains
+    value: {pairs: {team: finance}, includeTemplates: true}
+  - id: no-selectors
+    label: Does not add the label to selectors (no includeSelectors true)
+    path: labels
+    op: matches
+    value: '^(?!.*"includeSelectors":true)'
+  - id: no-common-labels
+    label: Does not use commonLabels, which always changes selectors
+    path: commonLabels
+    op: absent
+  solution:
+  - manifest: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      resources:
+      - deployment.yaml
+      - service.yaml
+      labels:
+      - pairs:
+          team: finance
+        includeTemplates: true
+  - manifest: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      resources:
+      - deployment.yaml
+      - service.yaml
+      labels:
+      - includeSelectors: false
+        includeTemplates: true
+        pairs:
+          team: finance
+  negatives:
+  - manifest: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      resources:
+      - deployment.yaml
+      - service.yaml
+      commonLabels:
+        team: finance
+    why: commonLabels also adds the label to the Deployment and Service selectors; applying it fails on the immutable Deployment selector.
+  - manifest: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      resources:
+      - deployment.yaml
+      - service.yaml
+      labels:
+      - pairs:
+          team: finance
+        includeSelectors: true
+    why: includeSelectors true writes the label into the selectors too, which the running Deployment refuses.
+  - manifest: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      resources:
+      - deployment.yaml
+      - service.yaml
+      labels:
+      - pairs:
+          team: finance
+    why: With includeTemplates false (the default), only metadata.labels changes; the Pods do not get the label.
+explanation:
+  correct:
+    en: 'The `labels` field adds `pairs` to `metadata.labels` of every object. `includeTemplates: true` also writes them into `spec.template.metadata.labels`, so the Pods carry the label, without touching selectors. `includeSelectors: true`, like the deprecated `commonLabels`, also changes the selectors, which is refused for an existing Deployment.'
+references:
+- title: labels
+  url: https://kubectl.docs.kubernetes.io/references/kustomize/kustomization/labels/
+- title: Declarative Management of Kubernetes Objects Using Kustomize
+  url: https://kubernetes.io/docs/tasks/manage-kubernetes-objects/kustomization/

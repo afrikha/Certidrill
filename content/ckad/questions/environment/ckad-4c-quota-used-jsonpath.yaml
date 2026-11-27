@@ -1,0 +1,56 @@
+id: ckad-4c-quota-used-jsonpath
+objective: "4.3.1"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    In namespace `staging`, the ResourceQuota `objects` sets a hard limit on the resource `pods`.
+
+    Print only the number of Pods that the quota currently counts as used, with a single `kubectl get` command.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Uses kubectl get
+    path: verb
+    op: equals
+    value: get
+  - id: resource
+    label: Reads a ResourceQuota
+    path: resource
+    op: equals
+    value: resourcequota
+  - id: name
+    label: Reads the quota objects
+    path: names
+    op: contains
+    value: objects
+  - id: namespace
+    label: Runs in namespace staging
+    path: flags.namespace
+    op: equals
+    value: staging
+  - id: jsonpath
+    label: Prints .status.used.pods with jsonpath
+    path: flags.output
+    op: matches
+    value: '^jsonpath=\{\s*\.status\.used(\.pods|\[\s*[''"]pods[''"]\s*\])\s*\}$'
+  solution:
+  - command: kubectl get resourcequota objects -n staging -o jsonpath='{.status.used.pods}'
+  - command: k -n staging get quota/objects -o=jsonpath="{.status.used['pods']}"
+  negatives:
+  - command: kubectl get resourcequota objects -n staging -o jsonpath='{.status.hard.pods}'
+    why: status.hard is the limit, not the current usage.
+  - command: kubectl get resourcequota objects -n staging -o jsonpath='{.spec.used.pods}'
+    why: Usage is reported in status.used; the spec only holds the hard limits.
+  - command: kubectl get resourcequota objects -o jsonpath='{.status.used.pods}'
+    why: Without -n the command looks for the quota in the context namespace, default.
+explanation:
+  correct:
+    en: 'The quota controller records consumption in `status.used` and the enforced limits in `status.hard` (copied from `spec.hard`). `kubectl get resourcequota objects -n staging -o jsonpath=''{.status.used.pods}''` prints only the counted Pods; `kubectl describe quota objects -n staging` shows the same data as a Used/Hard table.'
+references:
+- title: Resource Quotas
+  url: https://kubernetes.io/docs/concepts/policy/resource-quotas/

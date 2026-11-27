@@ -1,0 +1,1224 @@
+chapter: 11-images-workloads
+questions:
+  # ------------------------------------------------------------------ 1
+  - id: ckad-qz-11-01
+    objective: "1.1.3"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        The image `registry.example.com/tools/report:2.0` was built with these two instructions:
+
+        ```text
+        ENTRYPOINT ["/usr/bin/report"]
+        CMD ["--format", "html"]
+        ```
+
+        A Pod runs this image. Its container sets `command: ["/usr/bin/report-cli"]` and has no `args` field. Which process does the container start?
+    body:
+      options:
+        - { id: a, text: { en: "`/usr/bin/report-cli --format html`" } }
+        - { id: b, text: { en: "`/usr/bin/report /usr/bin/report-cli`" } }
+        - { id: c, text: { en: "`/usr/bin/report-cli`, with no arguments" } }
+        - { id: d, text: { en: "`/usr/bin/report --format html`, unchanged" } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          `command` replaces the image's `ENTRYPOINT` and `args` replaces its `CMD`. When a container sets `command` but no `args`, only the supplied command runs: the image's `CMD` is ignored along with its `ENTRYPOINT`. The container therefore starts `/usr/bin/report-cli` with no arguments.
+      options:
+        a: { en: "The image's `CMD` is only kept as default arguments when the Pod sets neither `command` nor `args`. Setting `command` alone drops it, so `--format html` is not appended." }
+        b: { en: "`command` does not add an argument to the image's `ENTRYPOINT`: it replaces the `ENTRYPOINT`. Arguments for the image's entrypoint go in `args`." }
+        d: { en: "Kubernetes does not ignore `command` when the image defines an `ENTRYPOINT`. The Pod's `command` always takes precedence over the image's `ENTRYPOINT`." }
+    references:
+      - title: Define a Command and Arguments for a Container
+        url: https://kubernetes.io/docs/tasks/inject-data-application/define-command-argument-container/
+
+  # ------------------------------------------------------------------ 2
+  - id: ckad-qz-11-02
+    objective: "1.2.2"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        A stateless webhook receiver named `hook` must run as exactly one copy in namespace `ops`. It keeps no data. If the node that runs it fails, a replacement must start on another node without manual action, and a new image version must be rolled out by replacing the Pod.
+
+        Which workload resource should you use?
+    body:
+      options:
+        - { id: a, text: { en: "A Pod with `restartPolicy: Always`" } }
+        - { id: b, text: { en: "A Deployment with `replicas: 1`" } }
+        - { id: c, text: { en: "A DaemonSet whose `nodeSelector` matches one node" } }
+        - { id: d, text: { en: "A Job with `parallelism: 1`" } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          A Deployment keeps the requested number of Pods running through its ReplicaSet: when a node fails, the controller creates a replacement Pod and the scheduler places it on a healthy node. Changing the image in its template starts a rollout. `replicas: 1` gives exactly one copy, and nothing in the requirement calls for a stable identity or storage.
+      options:
+        a: { en: "`restartPolicy: Always` only restarts the containers on the same node. A bare Pod has no controller: if its node fails, nothing creates a replacement elsewhere." }
+        c: { en: "A DaemonSet runs one Pod per matching node. When the only matching node fails, its Pod is not moved to another node, because no other node matches the selector." }
+        d: { en: "A Job runs Pods to completion. A long-running server is not a task that completes, and a Job does not roll out a new image version." }
+    references:
+      - title: Pods
+        url: https://kubernetes.io/docs/concepts/workloads/pods/
+      - title: DaemonSet
+        url: https://kubernetes.io/docs/concepts/workloads/controllers/daemonset/
+
+  # ------------------------------------------------------------------ 3
+  - id: ckad-qz-11-03
+    objective: "1.1.1"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        The Dockerfile of the image `registry.example.com/shop/api:2.0` ends with:
+
+        ```text
+        ENTRYPOINT /app/server --log-level info
+        CMD ["--port", "9090"]
+        ```
+
+        A Pod that sets `args: ["--port", "7070"]` still gets a server without the `--port 7070` option. The team needs three things: the server always runs with `--log-level info`; a Pod can replace `--port 9090` with its own `args`; the server runs directly as PID 1, without a shell in front of it.
+
+        Which ending of the Dockerfile meets the three requirements?
+    body:
+      options:
+        - { id: a, text: { en: "`ENTRYPOINT /app/server --log-level info` followed by `CMD --port 9090`" } }
+        - { id: b, text: { en: "`ENTRYPOINT [\"/bin/sh\", \"-c\", \"/app/server --log-level info\"]` followed by `CMD [\"--port\", \"9090\"]`" } }
+        - { id: c, text: { en: "No `ENTRYPOINT`, and `CMD [\"/app/server\", \"--log-level\", \"info\", \"--port\", \"9090\"]`" } }
+        - { id: d, text: { en: "`ENTRYPOINT [\"/app/server\", \"--log-level\", \"info\"]` followed by `CMD [\"--port\", \"9090\"]`" } }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          The shell form of `ENTRYPOINT` runs the command under `/bin/sh -c` and ignores `CMD`, so the Pod's `args`, which replace `CMD`, have no effect. The exec form `ENTRYPOINT ["/app/server", "--log-level", "info"]` starts the server directly as PID 1, always with `--log-level info`, and passes `CMD ["--port", "9090"]` as default arguments. A Pod that sets `args: ["--port", "7070"]` replaces only those defaults.
+      options:
+        a: { en: "The `ENTRYPOINT` is still in shell form: it runs under `/bin/sh -c` and ignores `CMD` and the Pod's `args`, whatever form `CMD` uses." }
+        b: { en: "This is the exec form of a shell, not of the server: `/bin/sh` is PID 1, and the extra arguments become positional parameters of the shell that the command string never uses, so `args` still have no effect." }
+        c: { en: "With no `ENTRYPOINT`, a Pod's `args` replace the whole `CMD`: `args: [\"--port\", \"7070\"]` would try to run `--port` as the executable and drop `/app/server --log-level info`." }
+    references:
+      - title: Define a Command and Arguments for a Container
+        url: https://kubernetes.io/docs/tasks/inject-data-application/define-command-argument-container/
+
+  # ------------------------------------------------------------------ 4
+  - id: ckad-qz-11-04
+    objective: "1.1.4"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        In namespace `billing`, the Pod `invoice` runs the private image `registry.example.com/finance/invoice:3.2` and lists `regcred` in `spec.imagePullSecrets`. The platform team created the Secret `regcred`, of type `kubernetes.io/dockerconfigjson`, in namespace `ci` only. The Pod stays in `ImagePullBackOff`, and its events show the reason `FailedToRetrieveImagePullSecret`.
+
+        What should you do so that the Pod can pull its image?
+    body:
+      options:
+        - { id: a, text: { en: "Create a `docker-registry` Secret named `regcred` in namespace `billing`, then recreate the Pod." } }
+        - { id: b, text: { en: "Add `namespace: ci` to the `regcred` entry of `spec.imagePullSecrets`, then recreate the Pod." } }
+        - { id: c, text: { en: "Move `imagePullSecrets` into the `invoice` container, next to `image`, then recreate the Pod." } }
+        - { id: d, text: { en: "Set `imagePullPolicy: Never` on the `invoice` container, then recreate the Pod." } }
+    answer: { optionId: a }
+    explanation:
+      correct:
+        en: |
+          A Pod can only reference image pull secrets that exist in its own namespace, so `regcred` in namespace `ci` is invisible to a Pod in `billing`. `FailedToRetrieveImagePullSecret` means the kubelet cannot find the named Secret. Creating a `kubernetes.io/dockerconfigjson` Secret with the same name in `billing` (for example with `kubectl create secret docker-registry regcred -n billing ...`) gives the kubelet the credentials.
+      options:
+        b: { en: "Each entry of `imagePullSecrets` is a reference by name only, to a Secret in the Pod's namespace. There is no `namespace` key, and cross-namespace references are not possible." }
+        c: { en: "`imagePullSecrets` is a field of the Pod spec, a sibling of `containers`. A container has no such field, so the manifest would be rejected." }
+        d: { en: "`Never` makes the kubelet use only an image already on the node. The private image is not there, so the container fails to start instead of being pulled." }
+    references:
+      - title: Images
+        url: https://kubernetes.io/docs/concepts/containers/images/
+      - title: Pull an Image from a Private Registry
+        url: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
+
+  # ------------------------------------------------------------------ 5
+  - id: ckad-qz-11-05
+    objective: "1.2.4"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        The CronJob `rates` in namespace `finance` runs every 5 minutes and downloads the latest exchange rates. Some runs hang for more than 5 minutes. Two requirements apply: two Jobs of `rates` must never run at the same time, and every scheduled run must start, because only the newest rates matter.
+
+        Which setting of the CronJob meets both requirements?
+    body:
+      options:
+        - { id: a, text: { en: "`concurrencyPolicy: Allow`" } }
+        - { id: b, text: { en: "`concurrencyPolicy: Forbid`" } }
+        - { id: c, text: { en: "`concurrencyPolicy: Replace`" } }
+        - { id: d, text: { en: "`startingDeadlineSeconds: 300`" } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          With `concurrencyPolicy: Replace`, when a run is due and the previous Job is still running, the CronJob controller replaces the running Job with a new one. Only one Job runs at a time, and the scheduled run always starts with fresh data.
+      options:
+        a: { en: "`Allow` is the default: a new Job starts even while the previous one is still running, so two Jobs can run at the same time." }
+        b: { en: "`Forbid` prevents overlap by skipping the new run while the previous one is still running, which breaks the requirement that every scheduled run starts." }
+        d: { en: "`startingDeadlineSeconds` only decides how late a missed run may still start. It does not prevent two Jobs from running together: with the default `Allow`, they still overlap." }
+    references:
+      - title: CronJob
+        url: https://kubernetes.io/docs/concepts/workloads/controllers/cron-jobs/
+
+  # ------------------------------------------------------------------ 6
+  - id: ckad-qz-11-06
+    objective: "1.1.3"
+    difficulty: 3
+    status: draft
+    type: command
+    stem:
+      en: |-
+        The image `registry.example.com/ops/netcheck:2.0` was built with `ENTRYPOINT ["/netcheck"]` and `CMD ["--help"]`. The team re-pushes the tag `2.0` for every fix. The context namespace is `default`.
+
+        Create a Pod named `probe` in namespace `ops` from this image:
+
+        - the Pod spec must not override the image's entrypoint; the container runs it with the two arguments `--target=db.shop.svc` and `--timeout=5s`, in this order;
+        - the kubelet asks the registry for the image every time it starts the container;
+        - the Pod is not restarted after the check exits.
+
+        Type the single command you would run.
+    body:
+      mode: object
+      namespace: default
+    answer:
+      checks:
+        - id: kind
+          label: The object is a Pod
+          path: kind
+          op: equals
+          value: Pod
+        - id: pod
+          label: The Pod is named probe, in namespace ops
+          path: metadata
+          op: subset
+          value: { name: probe, namespace: ops }
+        - id: image
+          label: The container runs registry.example.com/ops/netcheck:2.0
+          path: spec.containers[0].image
+          op: equals
+          value: registry.example.com/ops/netcheck:2.0
+        - id: no-command
+          label: The container does not override the image's entrypoint (no command)
+          path: spec.containers[0].command
+          op: absent
+        - id: args
+          label: The container args are --target=db.shop.svc then --timeout=5s
+          path: spec.containers[0].args
+          op: equals
+          value: ["--target=db.shop.svc", "--timeout=5s"]
+        - id: pull-policy
+          label: imagePullPolicy is Always
+          path: spec.containers[0].imagePullPolicy
+          op: equals
+          value: Always
+        - id: restart
+          label: restartPolicy is Never
+          path: spec.restartPolicy
+          op: equals
+          value: Never
+      solution:
+        - command: kubectl run probe --image=registry.example.com/ops/netcheck:2.0 --image-pull-policy=Always --restart=Never -n ops -- --target=db.shop.svc --timeout=5s
+          output: |
+            apiVersion: v1
+            kind: Pod
+            metadata:
+              labels:
+                run: probe
+              name: probe
+              namespace: ops
+            spec:
+              containers:
+              - args:
+                - --target=db.shop.svc
+                - --timeout=5s
+                image: registry.example.com/ops/netcheck:2.0
+                imagePullPolicy: Always
+                name: probe
+                resources: {}
+              dnsPolicy: ClusterFirst
+              restartPolicy: Never
+            status: {}
+        - command: k -n ops run probe --image registry.example.com/ops/netcheck:2.0 --restart Never --image-pull-policy Always --dry-run=client -o yaml -- --target=db.shop.svc --timeout=5s
+          output: |
+            apiVersion: v1
+            kind: Pod
+            metadata:
+              labels:
+                run: probe
+              name: probe
+              namespace: ops
+            spec:
+              containers:
+              - args:
+                - --target=db.shop.svc
+                - --timeout=5s
+                image: registry.example.com/ops/netcheck:2.0
+                imagePullPolicy: Always
+                name: probe
+                resources: {}
+              dnsPolicy: ClusterFirst
+              restartPolicy: Never
+            status: {}
+      negatives:
+        - command: kubectl run probe --image=registry.example.com/ops/netcheck:2.0 --image-pull-policy=Always --restart=Never -n ops --command -- /netcheck --target=db.shop.svc --timeout=5s
+          why: With --command, what follows -- becomes the container command, which overrides the image's entrypoint; the task forbids it.
+          output: |
+            apiVersion: v1
+            kind: Pod
+            metadata:
+              labels:
+                run: probe
+              name: probe
+              namespace: ops
+            spec:
+              containers:
+              - command:
+                - /netcheck
+                - --target=db.shop.svc
+                - --timeout=5s
+                image: registry.example.com/ops/netcheck:2.0
+                imagePullPolicy: Always
+                name: probe
+                resources: {}
+              dnsPolicy: ClusterFirst
+              restartPolicy: Never
+            status: {}
+        - command: kubectl run probe --image=registry.example.com/ops/netcheck:2.0 --image-pull-policy=Always --restart=Never -n ops -- /netcheck --target=db.shop.svc --timeout=5s
+          why: Without --command, everything after -- becomes args, so the entrypoint receives /netcheck as its first argument.
+          output: |
+            apiVersion: v1
+            kind: Pod
+            metadata:
+              labels:
+                run: probe
+              name: probe
+              namespace: ops
+            spec:
+              containers:
+              - args:
+                - /netcheck
+                - --target=db.shop.svc
+                - --timeout=5s
+                image: registry.example.com/ops/netcheck:2.0
+                imagePullPolicy: Always
+                name: probe
+                resources: {}
+              dnsPolicy: ClusterFirst
+              restartPolicy: Never
+            status: {}
+        - command: kubectl run probe --image=registry.example.com/ops/netcheck:2.0 --restart=Never -n ops -- --target=db.shop.svc --timeout=5s
+          why: Without --image-pull-policy the API server defaults the policy to IfNotPresent for the tag 2.0, so a node that already has an old 2.0 keeps using it.
+          output: |
+            apiVersion: v1
+            kind: Pod
+            metadata:
+              labels:
+                run: probe
+              name: probe
+              namespace: ops
+            spec:
+              containers:
+              - args:
+                - --target=db.shop.svc
+                - --timeout=5s
+                image: registry.example.com/ops/netcheck:2.0
+                name: probe
+                resources: {}
+              dnsPolicy: ClusterFirst
+              restartPolicy: Never
+            status: {}
+        - command: kubectl run probe --image=registry.example.com/ops/netcheck:2.0 --image-pull-policy=Always -n ops -- --target=db.shop.svc --timeout=5s
+          why: The --restart default of kubectl run is Always, so the kubelet restarts the container every time the check exits.
+          output: |
+            apiVersion: v1
+            kind: Pod
+            metadata:
+              labels:
+                run: probe
+              name: probe
+              namespace: ops
+            spec:
+              containers:
+              - args:
+                - --target=db.shop.svc
+                - --timeout=5s
+                image: registry.example.com/ops/netcheck:2.0
+                imagePullPolicy: Always
+                name: probe
+                resources: {}
+              dnsPolicy: ClusterFirst
+              restartPolicy: Always
+            status: {}
+    explanation:
+      correct:
+        en: |
+          With `kubectl run`, what follows `--` becomes the container `args` unless you add `--command`, so `-- --target=db.shop.svc --timeout=5s` keeps the image's `ENTRYPOINT ["/netcheck"]` and replaces its `CMD`. The tag `2.0` is not `latest`, so the default policy would be `IfNotPresent`: `--image-pull-policy=Always` makes the kubelet check the registry at every container start. `--restart=Never` overrides the `Always` default of `kubectl run`.
+    references:
+      - title: kubectl run
+        url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_run/
+      - title: Images
+        url: https://kubernetes.io/docs/concepts/containers/images/
+
+  # ------------------------------------------------------------------ 7
+  - id: ckad-qz-11-07
+    objective: "1.2.1"
+    difficulty: 3
+    status: draft
+    type: command
+    stem:
+      en: |-
+        The image `registry.example.com/edge/relay:3.2` starts a script `/entrypoint.sh` by default. In production, its container must run the binary `/relay` with the single argument `--listen=:9000` instead, and declare container port 9000. The context namespace is `default`.
+
+        Create a Deployment named `relay` in namespace `edge` with 2 replicas of this image, configured as above.
+
+        Type the single command you would run.
+    body:
+      mode: object
+      namespace: default
+    answer:
+      checks:
+        - id: kind
+          label: The object is a Deployment
+          path: kind
+          op: equals
+          value: Deployment
+        - id: deployment
+          label: The Deployment is named relay, in namespace edge
+          path: metadata
+          op: subset
+          value: { name: relay, namespace: edge }
+        - id: replicas
+          label: It runs 2 replicas
+          path: spec.replicas
+          op: equals
+          value: 2
+        - id: image
+          label: The container runs registry.example.com/edge/relay:3.2
+          path: spec.template.spec.containers[0].image
+          op: equals
+          value: registry.example.com/edge/relay:3.2
+        - id: command
+          label: The container command is /relay --listen=:9000
+          path: spec.template.spec.containers[0].command
+          op: equals
+          value: ["/relay", "--listen=:9000"]
+        - id: port
+          label: The container declares port 9000
+          path: spec.template.spec.containers[0].ports
+          op: contains
+          value: { containerPort: 9000 }
+      solution:
+        - command: kubectl create deployment relay --image=registry.example.com/edge/relay:3.2 --replicas=2 --port=9000 -n edge -- /relay --listen=:9000
+          output: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              labels:
+                app: relay
+              name: relay
+              namespace: edge
+            spec:
+              replicas: 2
+              selector:
+                matchLabels:
+                  app: relay
+              strategy: {}
+              template:
+                metadata:
+                  labels:
+                    app: relay
+                spec:
+                  containers:
+                  - command:
+                    - /relay
+                    - --listen=:9000
+                    image: registry.example.com/edge/relay:3.2
+                    name: relay
+                    ports:
+                    - containerPort: 9000
+                    resources: {}
+            status: {}
+        - command: k -n edge create deploy relay --image registry.example.com/edge/relay:3.2 -r 2 --port 9000 --dry-run=client -o yaml -- /relay --listen=:9000
+          output: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              labels:
+                app: relay
+              name: relay
+              namespace: edge
+            spec:
+              replicas: 2
+              selector:
+                matchLabels:
+                  app: relay
+              strategy: {}
+              template:
+                metadata:
+                  labels:
+                    app: relay
+                spec:
+                  containers:
+                  - command:
+                    - /relay
+                    - --listen=:9000
+                    image: registry.example.com/edge/relay:3.2
+                    name: relay
+                    ports:
+                    - containerPort: 9000
+                    resources: {}
+            status: {}
+      negatives:
+        - command: kubectl create deployment relay --image=registry.example.com/edge/relay:3.2 --replicas=2 -n edge -- /relay --listen=:9000
+          why: Without --port the generated container declares no containerPort.
+          output: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              labels:
+                app: relay
+              name: relay
+              namespace: edge
+            spec:
+              replicas: 2
+              selector:
+                matchLabels:
+                  app: relay
+              strategy: {}
+              template:
+                metadata:
+                  labels:
+                    app: relay
+                spec:
+                  containers:
+                  - command:
+                    - /relay
+                    - --listen=:9000
+                    image: registry.example.com/edge/relay:3.2
+                    name: relay
+                    resources: {}
+            status: {}
+        - command: kubectl create deployment relay --image=registry.example.com/edge/relay:3.2 --replicas=2 --port=9000 -n edge -- --listen=:9000
+          why: With create deployment, what follows -- is the container command, not args; --listen=:9000 alone would replace /entrypoint.sh with a non-existent executable.
+          output: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              labels:
+                app: relay
+              name: relay
+              namespace: edge
+            spec:
+              replicas: 2
+              selector:
+                matchLabels:
+                  app: relay
+              strategy: {}
+              template:
+                metadata:
+                  labels:
+                    app: relay
+                spec:
+                  containers:
+                  - command:
+                    - --listen=:9000
+                    image: registry.example.com/edge/relay:3.2
+                    name: relay
+                    ports:
+                    - containerPort: 9000
+                    resources: {}
+            status: {}
+        - command: kubectl run relay --image=registry.example.com/edge/relay:3.2 --port=9000 -n edge --command -- /relay --listen=:9000
+          why: kubectl run creates a single Pod, not a Deployment with 2 replicas.
+          output: |
+            apiVersion: v1
+            kind: Pod
+            metadata:
+              labels:
+                run: relay
+              name: relay
+              namespace: edge
+            spec:
+              containers:
+              - command:
+                - /relay
+                - --listen=:9000
+                image: registry.example.com/edge/relay:3.2
+                name: relay
+                ports:
+                - containerPort: 9000
+                resources: {}
+              dnsPolicy: ClusterFirst
+              restartPolicy: Always
+            status: {}
+        - command: kubectl create deployment relay --image=registry.example.com/edge/relay:3.2 --replicas=2 --port=9000 -- /relay --listen=:9000
+          why: Without -n the Deployment goes to the context namespace, default, not edge.
+          output: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              labels:
+                app: relay
+              name: relay
+            spec:
+              replicas: 2
+              selector:
+                matchLabels:
+                  app: relay
+              strategy: {}
+              template:
+                metadata:
+                  labels:
+                    app: relay
+                spec:
+                  containers:
+                  - command:
+                    - /relay
+                    - --listen=:9000
+                    image: registry.example.com/edge/relay:3.2
+                    name: relay
+                    ports:
+                    - containerPort: 9000
+                    resources: {}
+            status: {}
+    explanation:
+      correct:
+        en: |
+          `kubectl create deployment NAME --image=IMAGE -- COMMAND ARGS` puts everything after `--` in the container `command`, which replaces the image's entrypoint script: here `["/relay", "--listen=:9000"]`. Unlike `kubectl run`, it has no `--command` flag and cannot set `args`. `--port=9000` adds `containerPort: 9000` to the container, `--replicas=2` (or `-r 2`) sets the replica count, and `-n edge` the namespace.
+    references:
+      - title: kubectl create deployment
+        url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_create/kubectl_create_deployment/
+
+  # ------------------------------------------------------------------ 8
+  - id: ckad-qz-11-08
+    objective: "1.1.2"
+    difficulty: 3
+    status: draft
+    type: manifest
+    stem:
+      en: |-
+        The CI pipeline has just pushed `registry.example.com/shop/api:1.4` to the private registry. The next hotfix build will overwrite the tag `1.4`, but production must keep running exactly this build. On the build host:
+
+        ```text
+        $ docker images --digests registry.example.com/shop/api
+        REPOSITORY                      TAG   DIGEST                                                                    IMAGE ID       CREATED         SIZE
+        registry.example.com/shop/api   1.4   sha256:8b9785a143c29abf4cf97a00e2b33699ed275be4c8b01cda101f42a93d8196ec   09802d1ee48c   5 minutes ago   24.6MB
+        ```
+
+        The Secret `shop-pull`, of type `kubernetes.io/dockerconfigjson`, exists in namespace `shop` and holds the registry credentials.
+
+        Write the manifest of a Deployment named `api` in namespace `shop`:
+
+        - 3 replicas; Pods labelled `app: api` and selected by that label;
+        - one container named `api` that always runs the image of this build, whatever the tag `1.4` points to later;
+        - the image is pulled with the credentials of `shop-pull`.
+    body:
+      starter: ""
+    answer:
+      checks:
+        - id: kind
+          label: apiVersion is apps/v1
+          path: apiVersion
+          op: equals
+          value: apps/v1
+        - id: deployment
+          label: The Deployment is named api, in namespace shop
+          path: metadata
+          op: subset
+          value: { name: api, namespace: shop }
+        - id: is-deployment
+          label: The kind is Deployment
+          path: kind
+          op: equals
+          value: Deployment
+        - id: replicas
+          label: It runs 3 replicas
+          path: spec.replicas
+          op: equals
+          value: 3
+        - id: selector
+          label: The selector matches app=api
+          path: spec.selector.matchLabels.app
+          op: equals
+          value: api
+        - id: labels
+          label: The Pod template carries the label app=api
+          path: spec.template.metadata.labels.app
+          op: equals
+          value: api
+        - id: digest
+          label: Container api references the image by the digest from the DIGEST column
+          path: spec.template.spec.containers[name=api].image
+          op: matches
+          value: '^registry\.example\.com/shop/api(:1\.4)?@sha256:8b9785a143c29abf4cf97a00e2b33699ed275be4c8b01cda101f42a93d8196ec$'
+        - id: pull-secret
+          label: The Pod spec lists shop-pull in imagePullSecrets
+          path: spec.template.spec.imagePullSecrets
+          op: contains
+          value: { name: shop-pull }
+      solution:
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: api
+              namespace: shop
+            spec:
+              replicas: 3
+              selector:
+                matchLabels:
+                  app: api
+              template:
+                metadata:
+                  labels:
+                    app: api
+                spec:
+                  imagePullSecrets:
+                  - name: shop-pull
+                  containers:
+                  - name: api
+                    image: registry.example.com/shop/api@sha256:8b9785a143c29abf4cf97a00e2b33699ed275be4c8b01cda101f42a93d8196ec
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              labels:
+                app: api
+              name: api
+              namespace: shop
+            spec:
+              replicas: 3
+              selector:
+                matchLabels:
+                  app: api
+              template:
+                metadata:
+                  labels:
+                    app: api
+                spec:
+                  containers:
+                  - image: "registry.example.com/shop/api:1.4@sha256:8b9785a143c29abf4cf97a00e2b33699ed275be4c8b01cda101f42a93d8196ec"
+                    imagePullPolicy: IfNotPresent
+                    name: api
+                  imagePullSecrets:
+                  - name: shop-pull
+      negatives:
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: api
+              namespace: shop
+            spec:
+              replicas: 3
+              selector:
+                matchLabels:
+                  app: api
+              template:
+                metadata:
+                  labels:
+                    app: api
+                spec:
+                  imagePullSecrets:
+                  - name: shop-pull
+                  containers:
+                  - name: api
+                    image: registry.example.com/shop/api@sha256:09802d1ee48c
+          why: 09802d1ee48c is the short local image ID, not the registry digest; the reference must use the full sha256 value of the DIGEST column.
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: api
+              namespace: shop
+            spec:
+              replicas: 3
+              selector:
+                matchLabels:
+                  app: api
+              template:
+                metadata:
+                  labels:
+                    app: api
+                spec:
+                  imagePullSecrets:
+                  - name: shop-pull
+                  containers:
+                  - name: api
+                    image: registry.example.com/shop/api:1.4
+                    imagePullPolicy: Always
+          why: A tag is a movable pointer; with Always, new Pods even pick up the hotfix as soon as the tag is overwritten.
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: api
+              namespace: shop
+            spec:
+              replicas: 3
+              selector:
+                matchLabels:
+                  app: api
+              template:
+                metadata:
+                  labels:
+                    app: api
+                spec:
+                  containers:
+                  - name: api
+                    image: registry.example.com/shop/api@sha256:8b9785a143c29abf4cf97a00e2b33699ed275be4c8b01cda101f42a93d8196ec
+                    imagePullSecrets:
+                    - name: shop-pull
+          why: imagePullSecrets belongs to the Pod spec, next to containers; a container has no such field.
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: api
+              namespace: shop
+            spec:
+              replicas: 3
+              selector:
+                matchLabels:
+                  app: api
+              template:
+                metadata:
+                  labels:
+                    app: api
+                spec:
+                  imagePullSecrets:
+                  - name: shop-pull
+                  containers:
+                  - name: api
+                    image: registry.example.com/shop/api:sha256:8b9785a143c29abf4cf97a00e2b33699ed275be4c8b01cda101f42a93d8196ec
+          why: A digest follows the image name after @, not after a colon; with a colon it is read as a tag, which is not even a valid tag.
+    explanation:
+      correct:
+        en: |
+          A reference of the form `NAME@sha256:...` pins the exact content, whatever the tag points to later. The value comes from the DIGEST column, the registry digest; the 12-character IMAGE ID is a local identifier. `NAME:1.4@sha256:...` is also accepted, and only the digest is used to pull. `imagePullSecrets` goes in the Pod template spec, next to `containers`. With a digest, the default `imagePullPolicy` is `IfNotPresent`.
+    references:
+      - title: Images
+        url: https://kubernetes.io/docs/concepts/containers/images/
+      - title: Pull an Image from a Private Registry
+        url: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
+
+  # ------------------------------------------------------------------ 9
+  - id: ckad-qz-11-09
+    objective: "1.2.3"
+    difficulty: 3
+    status: draft
+    type: manifest
+    stem:
+      en: |-
+        The image `registry.example.com/data/shard-export:3.0` exports one shard of a table. It reads the number of its shard, from 0 to 3, from the environment variable `JOB_COMPLETION_INDEX`, which Kubernetes must set to a different value in each Pod.
+
+        Write the manifest of a Job named `shard-export` in namespace `data` with one container named `export` running this image:
+
+        - the Job is complete when each of the shards 0, 1, 2 and 3 has one successful Pod;
+        - at most 2 Pods run at the same time;
+        - a failed container is restarted inside the same Pod instead of being replaced by a new Pod;
+        - the Job is marked failed after 3 retries.
+    body:
+      starter: |
+        apiVersion: batch/v1
+        kind: Job
+        metadata:
+          name: shard-export
+          namespace: data
+        spec:
+          template:
+            spec:
+              containers:
+              - name: export
+                image: registry.example.com/data/shard-export:3.0
+    answer:
+      checks:
+        - id: job
+          label: A batch/v1 Job named shard-export in namespace data
+          path: metadata
+          op: subset
+          value: { name: shard-export, namespace: data }
+        - id: api
+          label: apiVersion is batch/v1
+          path: apiVersion
+          op: equals
+          value: batch/v1
+        - id: kind
+          label: The kind is Job
+          path: kind
+          op: equals
+          value: Job
+        - id: mode
+          label: completionMode is Indexed
+          path: spec.completionMode
+          op: equals
+          value: Indexed
+        - id: completions
+          label: completions is 4
+          path: spec.completions
+          op: equals
+          value: 4
+        - id: parallelism
+          label: parallelism is 2
+          path: spec.parallelism
+          op: equals
+          value: 2
+        - id: restart
+          label: The Pod template uses restartPolicy OnFailure
+          path: spec.template.spec.restartPolicy
+          op: equals
+          value: OnFailure
+        - id: backoff
+          label: backoffLimit is 3
+          path: spec.backoffLimit
+          op: equals
+          value: 3
+        - id: image
+          label: Container export runs registry.example.com/data/shard-export:3.0
+          path: spec.template.spec.containers[name=export].image
+          op: equals
+          value: registry.example.com/data/shard-export:3.0
+      solution:
+        - manifest: |
+            apiVersion: batch/v1
+            kind: Job
+            metadata:
+              name: shard-export
+              namespace: data
+            spec:
+              completionMode: Indexed
+              completions: 4
+              parallelism: 2
+              backoffLimit: 3
+              template:
+                spec:
+                  restartPolicy: OnFailure
+                  containers:
+                  - name: export
+                    image: registry.example.com/data/shard-export:3.0
+        - manifest: |
+            apiVersion: batch/v1
+            kind: Job
+            metadata:
+              name: shard-export
+              namespace: data
+            spec:
+              backoffLimit: 3
+              parallelism: 2
+              completions: 4
+              completionMode: Indexed
+              template:
+                metadata:
+                  labels:
+                    app: shard-export
+                spec:
+                  containers:
+                  - image: registry.example.com/data/shard-export:3.0
+                    name: export
+                  restartPolicy: OnFailure
+      negatives:
+        - manifest: |
+            apiVersion: batch/v1
+            kind: Job
+            metadata:
+              name: shard-export
+              namespace: data
+            spec:
+              completions: 4
+              parallelism: 2
+              backoffLimit: 3
+              template:
+                spec:
+                  restartPolicy: OnFailure
+                  containers:
+                  - name: export
+                    image: registry.example.com/data/shard-export:3.0
+                    env:
+                    - name: JOB_COMPLETION_INDEX
+                      value: "0"
+          why: Without completionMode Indexed the Pods get no completion index; a fixed env value gives every Pod shard 0, and 4 successes do not mean one per shard.
+        - manifest: |
+            apiVersion: batch/v1
+            kind: Job
+            metadata:
+              name: shard-export
+              namespace: data
+            spec:
+              completionMode: Indexed
+              completions: 2
+              parallelism: 4
+              backoffLimit: 3
+              template:
+                spec:
+                  restartPolicy: OnFailure
+                  containers:
+                  - name: export
+                    image: registry.example.com/data/shard-export:3.0
+          why: completions and parallelism are swapped; only indexes 0 and 1 would exist, so shards 2 and 3 are never exported.
+        - manifest: |
+            apiVersion: batch/v1
+            kind: Job
+            metadata:
+              name: shard-export
+              namespace: data
+            spec:
+              completionMode: Indexed
+              completions: 4
+              parallelism: 2
+              backoffLimit: 3
+              template:
+                spec:
+                  restartPolicy: Never
+                  containers:
+                  - name: export
+                    image: registry.example.com/data/shard-export:3.0
+          why: With Never, a failed container makes the whole Pod fail and the Job controller creates a new Pod; the task asks for a restart inside the same Pod.
+        - manifest: |
+            apiVersion: batch/v1
+            kind: Job
+            metadata:
+              name: shard-export
+              namespace: data
+            spec:
+              completionMode: Indexed
+              completions: 4
+              parallelism: 2
+              template:
+                spec:
+                  restartPolicy: OnFailure
+                  backoffLimit: 3
+                  containers:
+                  - name: export
+                    image: registry.example.com/data/shard-export:3.0
+          why: backoffLimit is a field of the Job spec, not of the Pod template spec, where kubectl apply rejects it as an unknown field.
+    explanation:
+      correct:
+        en: |
+          `completionMode: Indexed` gives each Pod a completion index from 0 to `completions - 1`, exposed in the `JOB_COMPLETION_INDEX` environment variable (and in an annotation and the hostname); the Job is complete when every index has one successful Pod, so `completions: 4` covers shards 0 to 3. `parallelism: 2` caps the Pods running at once. `restartPolicy: OnFailure` re-runs the failed container in the same Pod, `Never` would create a new Pod. `backoffLimit: 3` replaces the default of 6.
+    references:
+      - title: Jobs
+        url: https://kubernetes.io/docs/concepts/workloads/controllers/job/
+
+  # ------------------------------------------------------------------ 10
+  - id: ckad-qz-11-10
+    objective: "1.2.4"
+    difficulty: 3
+    status: draft
+    type: manifest
+    stem:
+      en: |-
+        A colleague wrote the CronJob below (it is pre-filled in the editor) for an older cluster. On the v1.37 cluster, `kubectl apply` rejects it.
+
+        Fix it so that it meets every requirement, and keep its name, namespace, container name and image:
+
+        - a Job starts every day at 23:30, Tokyo time, whatever the time zone of the control plane;
+        - the 7 most recent successful Jobs are kept;
+        - a failed container is restarted inside the same Pod;
+        - each Job, all its retries included, is stopped and marked failed if it is still running 900 seconds after it started.
+    body:
+      starter: |
+        apiVersion: batch/v1beta1
+        kind: CronJob
+        metadata:
+          name: ledger-close
+          namespace: finance
+        spec:
+          schedule: "CRON_TZ=Asia/Tokyo 30 23 * * *"
+          jobTemplate:
+            spec:
+              successfulJobsHistoryLimit: 7
+              restartPolicy: OnFailure
+              template:
+                spec:
+                  activeDeadlineSeconds: 900
+                  containers:
+                  - name: close
+                    image: registry.example.com/finance/ledger-close:2.2
+    answer:
+      checks:
+        - id: api
+          label: apiVersion is batch/v1
+          path: apiVersion
+          op: equals
+          value: batch/v1
+        - id: cronjob
+          label: A CronJob named ledger-close in namespace finance
+          path: metadata
+          op: subset
+          value: { name: ledger-close, namespace: finance }
+        - id: kind
+          label: The kind is CronJob
+          path: kind
+          op: equals
+          value: CronJob
+        - id: schedule
+          label: The schedule is 23:30 every day, with no time zone prefix
+          path: spec.schedule
+          op: matches
+          value: '^\s*30 23 \* \* (\*|0-6)\s*$'
+        - id: timezone
+          label: spec.timeZone is Asia/Tokyo
+          path: spec.timeZone
+          op: oneOf
+          value: ["Asia/Tokyo", "Japan"]
+        - id: history
+          label: spec.successfulJobsHistoryLimit is 7
+          path: spec.successfulJobsHistoryLimit
+          op: equals
+          value: 7
+        - id: no-history-in-job
+          label: No successfulJobsHistoryLimit in the job template (unknown field there)
+          path: spec.jobTemplate.spec.successfulJobsHistoryLimit
+          op: absent
+        - id: no-restart-in-job
+          label: No restartPolicy directly in the job template spec (unknown field there)
+          path: spec.jobTemplate.spec.restartPolicy
+          op: absent
+        - id: restart
+          label: The Pod template uses restartPolicy OnFailure
+          path: spec.jobTemplate.spec.template.spec.restartPolicy
+          op: equals
+          value: OnFailure
+        - id: deadline
+          label: The Job spec sets activeDeadlineSeconds to 900
+          path: spec.jobTemplate.spec.activeDeadlineSeconds
+          op: equals
+          value: 900
+        - id: image
+          label: Container close still runs registry.example.com/finance/ledger-close:2.2
+          path: spec.jobTemplate.spec.template.spec.containers[name=close].image
+          op: equals
+          value: registry.example.com/finance/ledger-close:2.2
+      solution:
+        - manifest: |
+            apiVersion: batch/v1
+            kind: CronJob
+            metadata:
+              name: ledger-close
+              namespace: finance
+            spec:
+              schedule: "30 23 * * *"
+              timeZone: "Asia/Tokyo"
+              successfulJobsHistoryLimit: 7
+              jobTemplate:
+                spec:
+                  activeDeadlineSeconds: 900
+                  template:
+                    spec:
+                      restartPolicy: OnFailure
+                      containers:
+                      - name: close
+                        image: registry.example.com/finance/ledger-close:2.2
+        - manifest: |
+            apiVersion: batch/v1
+            kind: CronJob
+            metadata:
+              name: ledger-close
+              namespace: finance
+            spec:
+              jobTemplate:
+                spec:
+                  activeDeadlineSeconds: 900
+                  template:
+                    spec:
+                      containers:
+                      - image: registry.example.com/finance/ledger-close:2.2
+                        name: close
+                      restartPolicy: OnFailure
+              schedule: 30 23 * * *
+              successfulJobsHistoryLimit: 7
+              timeZone: Asia/Tokyo
+      negatives:
+        - manifest: |
+            apiVersion: batch/v1
+            kind: CronJob
+            metadata:
+              name: ledger-close
+              namespace: finance
+            spec:
+              schedule: "CRON_TZ=Asia/Tokyo 30 23 * * *"
+              jobTemplate:
+                spec:
+                  successfulJobsHistoryLimit: 7
+                  restartPolicy: OnFailure
+                  template:
+                    spec:
+                      activeDeadlineSeconds: 900
+                      containers:
+                      - name: close
+                        image: registry.example.com/finance/ledger-close:2.2
+          why: Only the apiVersion is fixed; the CRON_TZ prefix is rejected by validation and the two fields placed in the job template are unknown there.
+        - manifest: |
+            apiVersion: batch/v1
+            kind: CronJob
+            metadata:
+              name: ledger-close
+              namespace: finance
+            spec:
+              schedule: "30 23 * * *"
+              successfulJobsHistoryLimit: 7
+              jobTemplate:
+                spec:
+                  activeDeadlineSeconds: 900
+                  template:
+                    spec:
+                      restartPolicy: OnFailure
+                      containers:
+                      - name: close
+                        image: registry.example.com/finance/ledger-close:2.2
+          why: Without spec.timeZone the schedule is read in the time zone of kube-controller-manager, not Tokyo time.
+        - manifest: |
+            apiVersion: batch/v1
+            kind: CronJob
+            metadata:
+              name: ledger-close
+              namespace: finance
+            spec:
+              schedule: "30 23 * * *"
+              timeZone: "Asia/Tokyo"
+              successfulJobsHistoryLimit: 7
+              jobTemplate:
+                spec:
+                  template:
+                    spec:
+                      activeDeadlineSeconds: 900
+                      restartPolicy: OnFailure
+                      containers:
+                      - name: close
+                        image: registry.example.com/finance/ledger-close:2.2
+          why: activeDeadlineSeconds in the Pod spec is valid but limits each Pod only; when a Pod is stopped, the Job creates a new one, so the Job as a whole can run past 900 seconds.
+        - manifest: |
+            apiVersion: batch/v1
+            kind: CronJob
+            metadata:
+              name: ledger-close
+              namespace: finance
+            spec:
+              schedule: "30 23 * * *"
+              jobTemplate:
+                spec:
+                  timeZone: "Asia/Tokyo"
+                  successfulJobsHistoryLimit: 7
+                  activeDeadlineSeconds: 900
+                  template:
+                    spec:
+                      restartPolicy: OnFailure
+                      containers:
+                      - name: close
+                        image: registry.example.com/finance/ledger-close:2.2
+          why: timeZone and successfulJobsHistoryLimit are CronJob fields; under jobTemplate.spec they are unknown Job fields and the manifest is rejected.
+    explanation:
+      correct:
+        en: |
+          `batch/v1beta1` is no longer served: CronJob is `batch/v1`. A `CRON_TZ=` prefix in `schedule` fails validation; the time zone goes in `spec.timeZone`. `successfulJobsHistoryLimit` is a CronJob field (`spec`), `activeDeadlineSeconds` for the whole Job goes in `spec.jobTemplate.spec`, and `restartPolicy` in the Pod template spec (`spec.jobTemplate.spec.template.spec`). Left in the Pod spec, `activeDeadlineSeconds` would limit each Pod, not the Job with its retries.
+    references:
+      - title: CronJob
+        url: https://kubernetes.io/docs/concepts/workloads/controllers/cron-jobs/
+      - title: Jobs
+        url: https://kubernetes.io/docs/concepts/workloads/controllers/job/

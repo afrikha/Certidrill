@@ -1,0 +1,801 @@
+chapter: 42-kubeadm-install-ha
+questions:
+  # ------------------------------------------------------------------ 1
+  - id: cka-qz-42-01
+    objective: "4.2.1"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        You are preparing the Linux nodes of a new kubeadm cluster. According to the kubernetes.io node preparation steps for v1.37, which kernel parameter must be set on every node, whatever network plugin you choose later?
+    body:
+      options:
+        - { id: a, text: "`net.bridge.bridge-nf-call-iptables = 1`" }
+        - { id: b, text: "`net.ipv4.ip_forward = 1`" }
+        - { id: c, text: "`vm.swappiness = 0`" }
+        - { id: d, text: "`net.ipv4.conf.all.rp_filter = 0`" }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          kubernetes.io lists IPv4 packet forwarding as the one sysctl every node needs: `net.ipv4.ip_forward = 1`, made persistent in a file such as `/etc/sysctl.d/k8s.conf` and applied with `sysctl --system`. Other kernel modules and sysctls depend on the network plugin and are documented by that plugin.
+      options:
+        a: { en: "This setting is only needed with `br_netfilter` loaded, by plugins that filter bridged traffic with iptables; kubernetes.io leaves it to the network plugin's documentation." }
+        c: { en: "Swappiness does not turn swap off. The kubelet requirement is about swap being enabled (`failSwapOn`), handled with `swapoff -a` and `/etc/fstab`, not with a sysctl." }
+        d: { en: "Reverse path filtering is not part of the kubeadm node requirements; any such setting would come from a specific network plugin." }
+    references:
+      - title: Container Runtimes
+        url: https://kubernetes.io/docs/setup/production-environment/container-runtimes/
+
+  # ------------------------------------------------------------------ 2
+  - id: cka-qz-42-02
+    objective: "4.3.2"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        `kubeadm init` was run without `--token-ttl`, and the output ends with a `kubeadm join` command that contains a bootstrap token. What happens to that token?
+    body:
+      options:
+        - { id: a, text: "It expires after 2 hours, together with the uploaded certificates." }
+        - { id: b, text: "It never expires until you run `kubeadm token delete`." }
+        - { id: c, text: "It expires 24 hours after `kubeadm init` created it." }
+        - { id: d, text: "It is deleted as soon as a first node joins with it." }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          The `--token-ttl` flag of `kubeadm init` defaults to `24h0m0s`, after which the token is deleted automatically. Until then it can be reused by several nodes; once it is gone, `kubeadm token create --print-join-command` on a control plane node gives a new join command.
+      options:
+        a: { en: "Two hours is the lifetime of the `kubeadm-certs` Secret and its certificate key created by `--upload-certs`, not of the bootstrap token." }
+        b: { en: "A token never expires only when its TTL is set to `0` (`--token-ttl 0` or `kubeadm token create --ttl 0`); the default is 24 hours." }
+        d: { en: "A bootstrap token is not single-use: every node can join with it until its TTL ends or it is deleted." }
+    references:
+      - title: kubeadm token
+        url: https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-token/
+      - title: kubeadm init
+        url: https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-init/
+
+  # ------------------------------------------------------------------ 3
+  - id: cka-qz-42-03
+    objective: "4.2.2"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Node `node07` (Ubuntu) must join a cluster whose control plane runs v1.37.1, with `kubelet`, `kubeadm` and `kubectl` at exactly `1.37.1`. No Kubernetes package is installed on it yet. A preparation script written last year created `/etc/apt/sources.list.d/kubernetes.list`:
+
+        ```text
+        deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.36/deb/ /
+        ```
+
+        After `sudo apt-get update`, the command `sudo apt-get install -y kubelet='1.37.1-*' kubeadm='1.37.1-*' kubectl='1.37.1-*'` fails: apt reports that version `1.37.1-*` was not found. What should you do?
+    body:
+      options:
+        - { id: a, text: "Run `sudo apt-mark unhold kubelet kubeadm kubectl`, then run the same install command again." }
+        - { id: b, text: "Replace `v1.36` with `v1.37` in `kubernetes.list`, run `sudo apt-get update`, then run the same install command again." }
+        - { id: c, text: "Run `sudo apt-get install -y kubelet kubeadm kubectl` without versions, then run `sudo apt-mark hold kubelet kubeadm kubectl`." }
+        - { id: d, text: "Download the repository signing key again into `/etc/apt/keyrings`, run `sudo apt-get update`, then run the same install command again." }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          Each `pkgs.k8s.io` repository contains the packages of one minor version only, and the minor version is part of the URL. A `v1.36` repository cannot offer `1.37.1`, whatever version string you pass to apt: change the URL to `v1.37`, refresh the package index, install the pinned versions, then hold them with `apt-mark hold`.
+      options:
+        a: { en: "Nothing is installed, so nothing is held; and a hold never makes a version appear that the configured repository does not contain." }
+        c: { en: "Without a version, apt installs the newest package of the configured v1.36 repository, not the required 1.37.1." }
+        d: { en: "A key problem shows as a signature error during `apt-get update`; here the index is read correctly and simply has no 1.37 packages." }
+    references:
+      - title: Installing kubeadm
+        url: https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-kubeadm/
+
+  # ------------------------------------------------------------------ 4
+  - id: cka-qz-42-04
+    objective: "4.5.1"
+    difficulty: 2
+    status: draft
+    type: multi
+    stem:
+      en: |
+        A kubeadm cluster has three control plane nodes in the stacked etcd topology, behind a TCP load balancer. The team discusses how to make the control plane more resilient.
+
+        Which two statements are true?
+    body:
+      choose: 2
+      options:
+        - { id: a, text: "Adding a fourth control plane node raises the etcd quorum to 3, so the cluster still tolerates the loss of only one member." }
+        - { id: b, text: "If two of the three nodes fail, the API server of the last node still accepts writes, because its local etcd member keeps running." }
+        - { id: c, text: "Each etcd member communicates only with the kube-apiserver of its own node." }
+        - { id: d, text: "With external etcd, each etcd host still serves a single kube-apiserver, so losing an etcd host also takes one API server out of service." }
+        - { id: e, text: "Two control plane nodes would tolerate the loss of one node, because the remaining etcd member still holds half of the votes." }
+    answer: { optionIds: [a, c] }
+    explanation:
+      correct:
+        en: |
+          etcd needs a quorum of `(n/2)+1` members: 3 members tolerate one failure, and a fourth member raises the quorum to 3 without tolerating a second failure, which is why odd member counts are recommended. In the stacked topology, the etcd member created on each control plane node talks only to the kube-apiserver of that node, so a node failure loses both an API server and an etcd member.
+      options:
+        b: { en: "With 2 of 3 members down, the single remaining member has no quorum (2 are needed): etcd stops accepting writes, so the API server cannot change anything." }
+        d: { en: "In the external topology every etcd host talks to the kube-apiserver of every control plane node, which is what decouples etcd failures from control plane failures." }
+        e: { en: "With 2 members the quorum is 2, so losing either member stops writes: two members tolerate no failure at all." }
+    references:
+      - title: Options for Highly Available Topology
+        url: https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/ha-topology/
+      - title: FAQ
+        url: https://etcd.io/docs/v3.6/faq/
+
+  # ------------------------------------------------------------------ 5
+  - id: cka-qz-42-05
+    objective: "4.5.2"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Node `cp1` was initialized with `kubeadm init --control-plane-endpoint k8s-api.example.com:6443`, without `--upload-certs`; the cluster uses stacked etcd. Before running the control plane join on `cp2` (with `--control-plane` but without `--certificate-key`), you copy files from `/etc/kubernetes/pki` of `cp1` to the same place on `cp2`.
+
+        Which of these files must stay on `cp1` only, because kubeadm creates it on `cp2` during the join?
+    body:
+      options:
+        - { id: a, text: "`sa.key`" }
+        - { id: b, text: "`front-proxy-ca.key`" }
+        - { id: c, text: "`etcd/ca.key`" }
+        - { id: d, text: "`apiserver.crt`" }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          Only the shared keys and CAs are copied: `ca.crt`, `ca.key`, `sa.key`, `sa.pub`, `front-proxy-ca.crt`, `front-proxy-ca.key`, `etcd/ca.crt` and, with stacked etcd, `etcd/ca.key`. The API server serving certificate is node-specific: kubeadm generates it on `cp2` with that node's addresses as SANs, and copying more than the listed files can make the join fail on missing SANs.
+      options:
+        a: { en: "Every API server must sign and verify ServiceAccount tokens with the same key pair, so `sa.key` (and `sa.pub`) are copied." }
+        b: { en: "The front proxy CA key is shared so that the new node can issue its front proxy client certificate from the same CA." }
+        c: { en: "With stacked etcd, `cp2` runs its own etcd member whose certificates must be signed by the etcd CA, so the etcd CA key is copied; only external etcd skips it." }
+    references:
+      - title: Creating Highly Available Clusters with kubeadm
+        url: https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/high-availability/
+
+  # ------------------------------------------------------------------ 6
+  - id: cka-qz-42-06
+    objective: "4.3.2"
+    difficulty: 3
+    status: draft
+    type: command
+    stem:
+      en: |-
+        A new machine with hostname `ip-10-0-1-25` must join the cluster as the worker node `node05`. Both containerd and CRI-O are installed and running on it; the cluster's nodes use containerd. kubeadm and the kubelet 1.37.1 are installed.
+
+        On `cp1`, `kubeadm token create --print-join-command` printed the command saved in `join.txt` (below).
+
+        Join the machine as a worker so that its Node object is named `node05` and its kubelet uses containerd through its default socket. Type the single command you would run on the machine.
+    body:
+      mode: invocation
+      tools: [kubeadm, kubectl, systemctl, crictl]
+      namespace: default
+      files:
+        - name: join.txt
+          content: |
+            kubeadm join k8s-api.example.com:6443 --token 9xq2lm.v7c3p0r8s1t4w6ya --discovery-token-ca-cert-hash sha256:d057dbc1a703fbbeb2ee7ad5628c4be71fb9b0f89c0d13ebfba6fc3810b35563
+    answer:
+      checks:
+        - id: tool
+          label: Uses kubeadm
+          path: tool
+          op: equals
+          value: kubeadm
+        - id: verb
+          label: Runs kubeadm join
+          path: verb
+          op: equals
+          value: join
+        - id: endpoint
+          label: Joins through k8s-api.example.com:6443
+          path: args
+          op: contains
+          value: k8s-api.example.com:6443
+        - id: token
+          label: Uses the bootstrap token 9xq2lm.v7c3p0r8s1t4w6ya
+          path: flags.token
+          op: equals
+          value: 9xq2lm.v7c3p0r8s1t4w6ya
+        - id: ca-hash
+          label: Keeps the CA pin sha256:d057…5563
+          path: flags.discovery-token-ca-cert-hash
+          op: equals
+          value: sha256:d057dbc1a703fbbeb2ee7ad5628c4be71fb9b0f89c0d13ebfba6fc3810b35563
+        - id: cri-socket
+          label: --cri-socket points to the containerd socket
+          path: flags.cri-socket
+          op: oneOf
+          value:
+            - unix:///run/containerd/containerd.sock
+            - unix:///var/run/containerd/containerd.sock
+            - /run/containerd/containerd.sock
+            - /var/run/containerd/containerd.sock
+        - id: node-name
+          label: The node registers as node05 (--node-name)
+          path: flags.node-name
+          op: equals
+          value: node05
+        - id: worker
+          label: Joins as a worker (no --control-plane)
+          path: flags.control-plane
+          op: absent
+      solution:
+        - command: kubeadm join k8s-api.example.com:6443 --token 9xq2lm.v7c3p0r8s1t4w6ya --discovery-token-ca-cert-hash sha256:d057dbc1a703fbbeb2ee7ad5628c4be71fb9b0f89c0d13ebfba6fc3810b35563 --cri-socket unix:///run/containerd/containerd.sock --node-name node05
+        - command: sudo kubeadm join --node-name=node05 --cri-socket=unix:///var/run/containerd/containerd.sock --token=9xq2lm.v7c3p0r8s1t4w6ya --discovery-token-ca-cert-hash=sha256:d057dbc1a703fbbeb2ee7ad5628c4be71fb9b0f89c0d13ebfba6fc3810b35563 k8s-api.example.com:6443
+      negatives:
+        - command: kubeadm join k8s-api.example.com:6443 --token 9xq2lm.v7c3p0r8s1t4w6ya --discovery-token-ca-cert-hash sha256:d057dbc1a703fbbeb2ee7ad5628c4be71fb9b0f89c0d13ebfba6fc3810b35563 --node-name node05
+          why: With two runtimes installed, kubeadm finds several CRI endpoints and cannot choose one; --cri-socket is required.
+        - command: kubeadm join k8s-api.example.com:6443 --token 9xq2lm.v7c3p0r8s1t4w6ya --discovery-token-ca-cert-hash sha256:d057dbc1a703fbbeb2ee7ad5628c4be71fb9b0f89c0d13ebfba6fc3810b35563 --cri-socket unix:///run/containerd/containerd.sock
+          why: Without --node-name the Node object takes the hostname, ip-10-0-1-25, not node05.
+        - command: kubeadm join k8s-api.example.com:6443 --token 9xq2lm.v7c3p0r8s1t4w6ya --discovery-token-ca-cert-hash sha256:d057dbc1a703fbbeb2ee7ad5628c4be71fb9b0f89c0d13ebfba6fc3810b35563 --cri-socket unix:///var/run/crio/crio.sock --node-name node05
+          why: This is the CRI-O socket; the task requires containerd, like the other nodes.
+        - command: kubeadm join k8s-api.example.com:6443 --token 9xq2lm.v7c3p0r8s1t4w6ya --discovery-token-unsafe-skip-ca-verification --cri-socket unix:///run/containerd/containerd.sock --node-name node05
+          why: The printed command pins the cluster CA; skipping the verification drops that protection for no reason.
+    explanation:
+      correct:
+        en: |
+          Start from the printed command (endpoint, `--token`, `--discovery-token-ca-cert-hash`) and add the two node-specific flags: `--cri-socket unix:///run/containerd/containerd.sock`, needed because kubeadm cannot auto-detect the runtime when more than one CRI is installed, and `--node-name node05`, because the Node name otherwise defaults to the hostname. No `--control-plane`: the machine is a worker.
+    references:
+      - title: kubeadm join
+        url: https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-join/
+      - title: Container Runtimes
+        url: https://kubernetes.io/docs/setup/production-environment/container-runtimes/
+
+  # ------------------------------------------------------------------ 7
+  - id: cka-qz-42-07
+    objective: "4.5.2"
+    difficulty: 3
+    status: draft
+    type: command
+    stem:
+      en: |-
+        The stacked HA cluster behind `k8s-api.example.com:6443` has two control plane nodes, `cp1` and `cp2`. Ten minutes ago, on `cp1`, `kubeadm init phase upload-certs --upload-certs` stored the control plane certificates again and printed the certificate key `aa2056828fc04584a99067617aefe90cc379cc32ae5e1dd92b719936aa82a730`. The bootstrap tokens printed when the cluster was created have expired.
+
+        On `cp1`, with one command, create a new bootstrap token and print the complete `kubeadm join` command that `cp3` will run to join as a third control plane node. Type the single command you would run.
+    body:
+      mode: invocation
+      tools: [kubeadm, kubectl]
+      namespace: default
+    answer:
+      checks:
+        - id: tool
+          label: Uses kubeadm
+          path: tool
+          op: equals
+          value: kubeadm
+        - id: verb
+          label: Runs kubeadm token
+          path: verb
+          op: equals
+          value: token
+        - id: create
+          label: Creates a token (kubeadm token create)
+          path: args[0]
+          op: equals
+          value: create
+        - id: print
+          label: Prints the full join command (--print-join-command)
+          path: flags.print-join-command
+          op: equals
+          value: true
+        - id: cert-key
+          label: Adds the certificate key, so the printed command joins a control plane node
+          path: flags.certificate-key
+          op: equals
+          value: aa2056828fc04584a99067617aefe90cc379cc32ae5e1dd92b719936aa82a730
+        - id: no-control-plane
+          label: No --control-plane flag (kubeadm token create does not accept it)
+          path: flags.control-plane
+          op: absent
+      solution:
+        - command: kubeadm token create --print-join-command --certificate-key aa2056828fc04584a99067617aefe90cc379cc32ae5e1dd92b719936aa82a730
+        - command: sudo kubeadm token create --certificate-key=aa2056828fc04584a99067617aefe90cc379cc32ae5e1dd92b719936aa82a730 --ttl 1h --print-join-command
+      negatives:
+        - command: kubeadm token create --print-join-command
+          why: Without --certificate-key the printed command has no --control-plane and no key, so cp3 would join as a worker.
+        - command: kubeadm init phase upload-certs --upload-certs --certificate-key aa2056828fc04584a99067617aefe90cc379cc32ae5e1dd92b719936aa82a730
+          why: This uploads the certificates again; it neither creates a bootstrap token nor prints a join command.
+        - command: kubeadm token create --certificate-key aa2056828fc04584a99067617aefe90cc379cc32ae5e1dd92b719936aa82a730
+          why: --certificate-key only has an effect with --print-join-command; this prints the new token alone.
+        - command: kubeadm token create --print-join-command --control-plane
+          why: --control-plane is a flag of kubeadm join, not of kubeadm token create, which rejects it; the certificate key is what makes the printed command a control plane join.
+    explanation:
+      correct:
+        en: |
+          `kubeadm token create --print-join-command` creates a token and prints the worker join command; adding `--certificate-key <key>` makes it print the full control plane join command, with `--control-plane --certificate-key <key>`. The key must be the one printed by the last `kubeadm init phase upload-certs --upload-certs`, and the `kubeadm-certs` Secret it decrypts lasts only two hours, so `cp3` must join within that window.
+    references:
+      - title: kubeadm token
+        url: https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-token/
+      - title: Creating Highly Available Clusters with kubeadm
+        url: https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/high-availability/
+
+  # ------------------------------------------------------------------ 8
+  - id: cka-qz-42-08
+    objective: "4.5.1"
+    difficulty: 3
+    status: draft
+    type: command
+    stem:
+      en: |-
+        Node `cp1` is the first of three stacked control plane nodes (`cp1`, `cp2`, `cp3`). A TCP load balancer answers on `k8s-api.example.com:6443` and forwards to port 6443 of the three nodes. `cp1` has two interfaces: `10.0.2.15` (default route, NAT only) and `192.168.10.11` (cluster network).
+
+        Requirements:
+
+        - every node and kubeconfig file reaches the API through the load balancer;
+        - the API server of `cp1` advertises its cluster network address;
+        - Pods use `10.32.0.0/16`, the range of the CNI manifest you will apply;
+        - `cp2` and `cp3` will join later today with `--control-plane --certificate-key`, without any certificate copied by hand.
+
+        Initialize `cp1` with kubeadm, using flags only. Type the single command you would run.
+    body:
+      mode: invocation
+      tools: [kubeadm, kubectl, systemctl]
+      namespace: default
+    answer:
+      checks:
+        - id: tool
+          label: Uses kubeadm
+          path: tool
+          op: equals
+          value: kubeadm
+        - id: verb
+          label: Runs kubeadm init (no phase)
+          path: verb
+          op: equals
+          value: init
+        - id: no-args
+          label: Runs the whole init workflow, not a single phase
+          path: args
+          op: length
+          value: 0
+        - id: endpoint
+          label: --control-plane-endpoint is the load balancer k8s-api.example.com:6443
+          path: flags.control-plane-endpoint
+          op: oneOf
+          value: [k8s-api.example.com:6443, k8s-api.example.com]
+        - id: upload-certs
+          label: Uploads the control plane certificates (--upload-certs)
+          path: flags.upload-certs
+          op: equals
+          value: true
+        - id: advertise
+          label: The API server of cp1 advertises 192.168.10.11
+          path: flags.apiserver-advertise-address
+          op: equals
+          value: 192.168.10.11
+        - id: pod-cidr
+          label: Pods use 10.32.0.0/16 (--pod-network-cidr)
+          path: flags.pod-network-cidr
+          op: equals
+          value: 10.32.0.0/16
+      solution:
+        - command: kubeadm init --control-plane-endpoint k8s-api.example.com:6443 --upload-certs --apiserver-advertise-address 192.168.10.11 --pod-network-cidr 10.32.0.0/16
+        - command: sudo kubeadm init --pod-network-cidr=10.32.0.0/16 --apiserver-advertise-address=192.168.10.11 --control-plane-endpoint=k8s-api.example.com:6443 --kubernetes-version=v1.37.1 --upload-certs
+      negatives:
+        - command: kubeadm init --apiserver-advertise-address 192.168.10.11 --pod-network-cidr 10.32.0.0/16 --upload-certs
+          why: Without --control-plane-endpoint the cluster is a single control plane cluster that kubeadm cannot turn into an HA one; nothing points to the load balancer.
+        - command: kubeadm init --control-plane-endpoint 192.168.10.11:6443 --upload-certs --apiserver-advertise-address 192.168.10.11 --pod-network-cidr 10.32.0.0/16
+          why: The endpoint is cp1's own address, so every node and kubeconfig depends on cp1 instead of the load balancer.
+        - command: kubeadm init --control-plane-endpoint k8s-api.example.com:6443 --apiserver-advertise-address 192.168.10.11 --pod-network-cidr 10.32.0.0/16
+          why: Without --upload-certs there is no kubeadm-certs Secret, so cp2 and cp3 cannot download the certificates with --certificate-key; they would have to be copied by hand.
+        - command: kubeadm init --control-plane-endpoint k8s-api.example.com:6443 --upload-certs --pod-network-cidr 10.32.0.0/16
+          why: Without --apiserver-advertise-address the API server advertises the address of the default interface, 10.0.2.15, the NAT-only network.
+    explanation:
+      correct:
+        en: |
+          `--control-plane-endpoint k8s-api.example.com:6443` writes the load-balanced address into every kubeconfig and join command, and it must be set at `init`: kubeadm cannot add it to an existing single control plane cluster. `--upload-certs` stores the shared certificates in the `kubeadm-certs` Secret for the `--certificate-key` joins, `--apiserver-advertise-address` avoids the default interface, and `--pod-network-cidr` matches the CNI manifest.
+    references:
+      - title: Creating Highly Available Clusters with kubeadm
+        url: https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/high-availability/
+      - title: Creating a cluster with kubeadm
+        url: https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm/
+
+  # ------------------------------------------------------------------ 9
+  - id: cka-qz-42-09
+    objective: "4.2.1"
+    difficulty: 3
+    status: draft
+    type: manifest
+    stem:
+      en: |-
+        Worker `node06` used to run CRI-O with the `cgroupfs` cgroup manager. To align it with the other nodes, it was drained, CRI-O was removed, and containerd 2.1 was installed and started with `SystemdCgroup = true` in the runc options of `/etc/containerd/config.toml`. The `kubelet-config` ConfigMap already uses `cgroupDriver: systemd`.
+
+        Since then the kubelet of `node06` keeps restarting: `journalctl -u kubelet` shows that it cannot connect to the container runtime.
+
+        Fix the kubelet configuration file `/var/lib/kubelet/config.yaml` (below) so that the kubelet talks to containerd through its default socket and so that its `cgroupDriver` fallback setting matches containerd and the `kubelet-config` ConfigMap. Keep the other settings.
+    body:
+      starter: |
+        apiVersion: kubelet.config.k8s.io/v1beta1
+        kind: KubeletConfiguration
+        authentication:
+          anonymous:
+            enabled: false
+          webhook:
+            enabled: true
+          x509:
+            clientCAFile: /etc/kubernetes/pki/ca.crt
+        authorization:
+          mode: Webhook
+        cgroupDriver: cgroupfs
+        clusterDNS:
+        - 10.96.0.10
+        clusterDomain: cluster.local
+        containerRuntimeEndpoint: unix:///var/run/crio/crio.sock
+        rotateCertificates: true
+        staticPodPath: /etc/kubernetes/manifests
+    answer:
+      checks:
+        - id: kind
+          label: The file is a KubeletConfiguration
+          path: kind
+          op: equals
+          value: KubeletConfiguration
+        - id: api
+          label: apiVersion is kubelet.config.k8s.io/v1beta1
+          path: apiVersion
+          op: equals
+          value: kubelet.config.k8s.io/v1beta1
+        - id: cgroup
+          label: The cgroupDriver fallback is systemd, like containerd's SystemdCgroup = true
+          path: cgroupDriver
+          op: equals
+          value: systemd
+        - id: endpoint
+          label: containerRuntimeEndpoint is the containerd socket
+          path: containerRuntimeEndpoint
+          op: oneOf
+          value:
+            - unix:///run/containerd/containerd.sock
+            - unix:///var/run/containerd/containerd.sock
+            - /run/containerd/containerd.sock
+            - /var/run/containerd/containerd.sock
+        - id: dns
+          label: clusterDNS 10.96.0.10 is kept
+          path: clusterDNS
+          op: contains
+          value: 10.96.0.10
+        - id: authz
+          label: Webhook authorization is kept
+          path: authorization.mode
+          op: equals
+          value: Webhook
+        - id: client-ca
+          label: The client CA file is kept
+          path: authentication.x509.clientCAFile
+          op: equals
+          value: /etc/kubernetes/pki/ca.crt
+        - id: static-pods
+          label: staticPodPath is kept
+          path: staticPodPath
+          op: equals
+          value: /etc/kubernetes/manifests
+      solution:
+        - manifest: |
+            apiVersion: kubelet.config.k8s.io/v1beta1
+            kind: KubeletConfiguration
+            authentication:
+              anonymous:
+                enabled: false
+              webhook:
+                enabled: true
+              x509:
+                clientCAFile: /etc/kubernetes/pki/ca.crt
+            authorization:
+              mode: Webhook
+            cgroupDriver: systemd
+            clusterDNS:
+            - 10.96.0.10
+            clusterDomain: cluster.local
+            containerRuntimeEndpoint: unix:///run/containerd/containerd.sock
+            rotateCertificates: true
+            staticPodPath: /etc/kubernetes/manifests
+        - manifest: |
+            kind: KubeletConfiguration
+            apiVersion: kubelet.config.k8s.io/v1beta1
+            containerRuntimeEndpoint: "unix:///var/run/containerd/containerd.sock"
+            cgroupDriver: "systemd"
+            staticPodPath: /etc/kubernetes/manifests
+            clusterDomain: cluster.local
+            clusterDNS: ["10.96.0.10"]
+            rotateCertificates: true
+            authorization:
+              mode: Webhook
+            authentication:
+              x509:
+                clientCAFile: /etc/kubernetes/pki/ca.crt
+              webhook:
+                enabled: true
+              anonymous:
+                enabled: false
+      negatives:
+        - manifest: |
+            apiVersion: kubelet.config.k8s.io/v1beta1
+            kind: KubeletConfiguration
+            authentication:
+              anonymous:
+                enabled: false
+              webhook:
+                enabled: true
+              x509:
+                clientCAFile: /etc/kubernetes/pki/ca.crt
+            authorization:
+              mode: Webhook
+            cgroupDriver: cgroupfs
+            clusterDNS:
+            - 10.96.0.10
+            clusterDomain: cluster.local
+            containerRuntimeEndpoint: unix:///run/containerd/containerd.sock
+            rotateCertificates: true
+            staticPodPath: /etc/kubernetes/manifests
+          why: The kubelet now reaches containerd and, with containerd 2.1, takes the systemd driver from the runtime, but the task asks for the cgroupDriver fallback to match containerd and the kubelet-config ConfigMap; cgroupfs does not.
+        - manifest: |
+            apiVersion: kubelet.config.k8s.io/v1beta1
+            kind: KubeletConfiguration
+            authentication:
+              anonymous:
+                enabled: false
+              webhook:
+                enabled: true
+              x509:
+                clientCAFile: /etc/kubernetes/pki/ca.crt
+            authorization:
+              mode: Webhook
+            cgroupDriver: systemd
+            clusterDNS:
+            - 10.96.0.10
+            clusterDomain: cluster.local
+            containerRuntimeEndpoint: unix:///var/run/crio/crio.sock
+            rotateCertificates: true
+            staticPodPath: /etc/kubernetes/manifests
+          why: The driver is fixed, but the kubelet still dials the socket of CRI-O, which was removed.
+        - manifest: |
+            apiVersion: kubelet.config.k8s.io/v1beta1
+            kind: KubeletConfiguration
+            authentication:
+              anonymous:
+                enabled: false
+              webhook:
+                enabled: true
+              x509:
+                clientCAFile: /etc/kubernetes/pki/ca.crt
+            authorization:
+              mode: Webhook
+            cgroupDriver: cgroupfs
+            SystemdCgroup: true
+            clusterDNS:
+            - 10.96.0.10
+            clusterDomain: cluster.local
+            containerRuntimeEndpoint: unix:///run/containerd/containerd.sock
+            rotateCertificates: true
+            staticPodPath: /etc/kubernetes/manifests
+          why: SystemdCgroup is a containerd runc option of config.toml, not a KubeletConfiguration field; the kubelet's fallback setting is cgroupDriver, still cgroupfs here.
+    explanation:
+      correct:
+        en: |
+          The restarts come from `containerRuntimeEndpoint`, which still points to the removed CRI-O socket: it must be containerd's socket (`unix:///run/containerd/containerd.sock`; `/var/run` is a link to `/run`). The kubelet v1.37 learns the cgroup driver from containerd 2.x through the `RuntimeConfig` CRI call and then ignores `cgroupDriver`, but that setting is still the fallback for a runtime without the call, so set it to `systemd` like containerd and the `kubelet-config` ConfigMap. After saving the file, `systemctl restart kubelet` and uncordon the node.
+    references:
+      - title: Container Runtimes
+        url: https://kubernetes.io/docs/setup/production-environment/container-runtimes/
+      - title: Kubelet Configuration (v1beta1)
+        url: https://kubernetes.io/docs/reference/config-api/kubelet-config.v1beta1/
+
+  # ------------------------------------------------------------------ 10
+  - id: cka-qz-42-10
+    objective: "4.3.1"
+    difficulty: 3
+    status: draft
+    type: manifest
+    stem:
+      en: |-
+        A colleague wrote `/root/kubeadm-config.yaml` (below) for `kubeadm init --config /root/kubeadm-config.yaml` on `cp1`, copying the component flags from an old blog post. kubeadm refuses to read the file.
+
+        Fix the file so that kubeadm accepts it and:
+
+        - kube-controller-manager and kube-scheduler listen on all interfaces (`--bind-address=0.0.0.0`), so that the monitoring system can scrape them;
+        - each node receives a `/25` Pod CIDR (`--node-cidr-mask-size=25`) carved from the cluster's Pod network `10.244.0.0/16`.
+
+        Keep the `kubeadm.k8s.io/v1beta4` API and the other settings.
+    body:
+      starter: |
+        apiVersion: kubeadm.k8s.io/v1beta4
+        kind: InitConfiguration
+        localAPIEndpoint:
+          advertiseAddress: 192.168.10.11
+        nodeRegistration:
+          name: cp1
+          criSocket: unix:///run/containerd/containerd.sock
+        ---
+        apiVersion: kubeadm.k8s.io/v1beta4
+        kind: ClusterConfiguration
+        kubernetesVersion: v1.37.1
+        networking:
+          podSubnet: 10.244.0.0/16
+        controllerManager:
+          extraArgs:
+            bind-address: 0.0.0.0
+        scheduler:
+          extraArgs:
+            bind-address: 0.0.0.0
+    answer:
+      checks:
+        - id: api
+          label: ClusterConfiguration uses kubeadm.k8s.io/v1beta4
+          select: { kind: ClusterConfiguration }
+          path: apiVersion
+          op: equals
+          value: kubeadm.k8s.io/v1beta4
+        - id: kcm-bind
+          label: controllerManager.extraArgs has bind-address 0.0.0.0 as a name/value item
+          select: { kind: ClusterConfiguration }
+          path: controllerManager.extraArgs[name=bind-address].value
+          op: equals
+          value: 0.0.0.0
+        - id: kcm-mask
+          label: controllerManager.extraArgs has node-cidr-mask-size 25
+          select: { kind: ClusterConfiguration }
+          path: controllerManager.extraArgs[name=node-cidr-mask-size].value
+          op: equals
+          value: 25
+        - id: sched-bind
+          label: scheduler.extraArgs has bind-address 0.0.0.0 as a name/value item
+          select: { kind: ClusterConfiguration }
+          path: scheduler.extraArgs[name=bind-address].value
+          op: equals
+          value: 0.0.0.0
+        - id: pod-subnet
+          label: The Pod network 10.244.0.0/16 is kept
+          select: { kind: ClusterConfiguration }
+          path: networking.podSubnet
+          op: equals
+          value: 10.244.0.0/16
+        - id: version
+          label: kubernetesVersion v1.37.1 is kept
+          select: { kind: ClusterConfiguration }
+          path: kubernetesVersion
+          op: oneOf
+          value: [v1.37.1, 1.37.1]
+        - id: advertise
+          label: cp1 still advertises 192.168.10.11
+          select: { kind: InitConfiguration }
+          path: localAPIEndpoint.advertiseAddress
+          op: equals
+          value: 192.168.10.11
+        - id: cri
+          label: The containerd socket is kept
+          select: { kind: InitConfiguration }
+          path: nodeRegistration.criSocket
+          op: equals
+          value: unix:///run/containerd/containerd.sock
+      solution:
+        - manifest: |
+            apiVersion: kubeadm.k8s.io/v1beta4
+            kind: InitConfiguration
+            localAPIEndpoint:
+              advertiseAddress: 192.168.10.11
+            nodeRegistration:
+              name: cp1
+              criSocket: unix:///run/containerd/containerd.sock
+            ---
+            apiVersion: kubeadm.k8s.io/v1beta4
+            kind: ClusterConfiguration
+            kubernetesVersion: v1.37.1
+            networking:
+              podSubnet: 10.244.0.0/16
+            controllerManager:
+              extraArgs:
+              - name: bind-address
+                value: 0.0.0.0
+              - name: node-cidr-mask-size
+                value: "25"
+            scheduler:
+              extraArgs:
+              - name: bind-address
+                value: 0.0.0.0
+        - manifest: |
+            apiVersion: kubeadm.k8s.io/v1beta4
+            kind: ClusterConfiguration
+            kubernetesVersion: "v1.37.1"
+            scheduler:
+              extraArgs:
+                - { name: bind-address, value: "0.0.0.0" }
+            controllerManager:
+              extraArgs:
+                - name: node-cidr-mask-size
+                  value: "25"
+                - name: bind-address
+                  value: "0.0.0.0"
+            networking:
+              podSubnet: "10.244.0.0/16"
+            ---
+            apiVersion: kubeadm.k8s.io/v1beta4
+            kind: InitConfiguration
+            nodeRegistration:
+              criSocket: unix:///run/containerd/containerd.sock
+              name: cp1
+            localAPIEndpoint:
+              advertiseAddress: 192.168.10.11
+      negatives:
+        - manifest: |
+            apiVersion: kubeadm.k8s.io/v1beta4
+            kind: InitConfiguration
+            localAPIEndpoint:
+              advertiseAddress: 192.168.10.11
+            nodeRegistration:
+              name: cp1
+              criSocket: unix:///run/containerd/containerd.sock
+            ---
+            apiVersion: kubeadm.k8s.io/v1beta4
+            kind: ClusterConfiguration
+            kubernetesVersion: v1.37.1
+            networking:
+              podSubnet: 10.244.0.0/16
+            controllerManager:
+              extraArgs:
+                bind-address: 0.0.0.0
+                node-cidr-mask-size: "25"
+            scheduler:
+              extraArgs:
+                bind-address: 0.0.0.0
+          why: In v1beta4, extraArgs is a list of name/value items; the map form of v1beta3 is exactly why kubeadm refuses the file.
+        - manifest: |
+            apiVersion: kubeadm.k8s.io/v1beta4
+            kind: InitConfiguration
+            localAPIEndpoint:
+              advertiseAddress: 192.168.10.11
+            nodeRegistration:
+              name: cp1
+              criSocket: unix:///run/containerd/containerd.sock
+            ---
+            apiVersion: kubeadm.k8s.io/v1beta4
+            kind: ClusterConfiguration
+            kubernetesVersion: v1.37.1
+            networking:
+              podSubnet: 10.244.0.0/16
+            controllerManager:
+              extraArgs:
+              - name: bind-address
+                value: 0.0.0.0
+            scheduler:
+              extraArgs:
+              - name: bind-address
+                value: 0.0.0.0
+              - name: node-cidr-mask-size
+                value: "25"
+          why: Node Pod CIDRs are allocated by kube-controller-manager, so node-cidr-mask-size belongs to controllerManager; the scheduler has no such flag.
+        - manifest: |
+            apiVersion: kubeadm.k8s.io/v1beta4
+            kind: InitConfiguration
+            localAPIEndpoint:
+              advertiseAddress: 192.168.10.11
+            nodeRegistration:
+              name: cp1
+              criSocket: unix:///run/containerd/containerd.sock
+            ---
+            apiVersion: kubeadm.k8s.io/v1beta4
+            kind: ClusterConfiguration
+            kubernetesVersion: v1.37.1
+            networking:
+              podSubnet: 10.244.0.0/16
+            controllerManager:
+              extraArgs:
+              - name: --bind-address
+                value: 0.0.0.0
+              - name: --node-cidr-mask-size
+                value: "25"
+            scheduler:
+              extraArgs:
+              - name: --bind-address
+                value: 0.0.0.0
+          why: The name is the flag name without dashes; kubeadm adds the leading -- itself, so these items would become invalid flags.
+    explanation:
+      correct:
+        en: |
+          Since v1beta4, `apiServer`, `controllerManager`, `scheduler` and `etcd.local` take `extraArgs` as a list of `name`/`value` items (the flag name without dashes), not the `flag: value` map of v1beta3. `bind-address` goes to both components, while `node-cidr-mask-size` goes to `controllerManager` only, because kube-controller-manager allocates each node's Pod CIDR from `podSubnet`. Each `value` is a string, so quote numbers (`value: "25"`).
+    references:
+      - title: kubeadm Configuration (v1beta4)
+        url: https://kubernetes.io/docs/reference/config-api/kubeadm-config.v1beta4/
+      - title: kubeadm init
+        url: https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-init/

@@ -1,0 +1,196 @@
+id: ckad-1d-pvc-block-device
+objective: "1.4.2"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    In namespace `db`, the ingestion engine needs a **raw block device**, not a filesystem. Write two documents:
+
+    1. a PersistentVolumeClaim named `raw-disk`: `50Gi`, ReadWriteOnce, StorageClass `fast-block`, presented as a raw block volume;
+    2. a Pod named `ingest` with one container named `ingest` (`registry.example.com/ingest:3.0`) that sees the claim, through a volume named `data`, as the device `/dev/xvdb`.
+body: {}
+answer:
+  checks:
+  - id: pvc
+    label: A PersistentVolumeClaim raw-disk in namespace db
+    select: {kind: PersistentVolumeClaim, name: raw-disk}
+    path: metadata.namespace
+    op: equals
+    value: db
+  - id: block
+    label: The claim has volumeMode Block
+    select: {kind: PersistentVolumeClaim, name: raw-disk}
+    path: spec.volumeMode
+    op: equals
+    value: Block
+  - id: claim-spec
+    label: The claim uses fast-block with ReadWriteOnce
+    select: {kind: PersistentVolumeClaim, name: raw-disk}
+    path: spec
+    op: subset
+    value: {storageClassName: fast-block, accessModes: [ReadWriteOnce]}
+  - id: size
+    label: The claim requests 50Gi
+    select: {kind: PersistentVolumeClaim, name: raw-disk}
+    path: spec.resources.requests.storage
+    op: quantity
+    value: 50Gi
+  - id: pod
+    label: A Pod ingest in namespace db running registry.example.com/ingest:3.0
+    select: {kind: Pod, name: ingest}
+    path: spec.containers[name=ingest].image
+    op: equals
+    value: registry.example.com/ingest:3.0
+  - id: pod-ns
+    label: The Pod is in namespace db
+    select: {kind: Pod, name: ingest}
+    path: metadata.namespace
+    op: equals
+    value: db
+  - id: claim
+    label: Volume data references claim raw-disk
+    select: {kind: Pod, name: ingest}
+    path: spec.volumes[name=data].persistentVolumeClaim.claimName
+    op: equals
+    value: raw-disk
+  - id: device
+    label: ingest gets data as the device /dev/xvdb (volumeDevices)
+    select: {kind: Pod, name: ingest}
+    path: spec.containers[name=ingest].volumeDevices[name=data].devicePath
+    op: equals
+    value: /dev/xvdb
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: raw-disk
+        namespace: db
+      spec:
+        storageClassName: fast-block
+        accessModes:
+        - ReadWriteOnce
+        volumeMode: Block
+        resources:
+          requests:
+            storage: 50Gi
+      ---
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: ingest
+        namespace: db
+      spec:
+        containers:
+        - name: ingest
+          image: registry.example.com/ingest:3.0
+          volumeDevices:
+          - name: data
+            devicePath: /dev/xvdb
+        volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: raw-disk
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: raw-disk
+        namespace: db
+      spec:
+        storageClassName: fast-block
+        accessModes:
+        - ReadWriteOnce
+        volumeMode: Block
+        resources:
+          requests:
+            storage: 50Gi
+      ---
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: ingest
+        namespace: db
+      spec:
+        containers:
+        - name: ingest
+          image: registry.example.com/ingest:3.0
+          volumeMounts:
+          - name: data
+            mountPath: /dev/xvdb
+        volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: raw-disk
+    why: A Block claim is attached with volumeDevices and devicePath; volumeMounts expects a filesystem and the Pod cannot start.
+  - manifest: |
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: raw-disk
+        namespace: db
+      spec:
+        storageClassName: fast-block
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 50Gi
+      ---
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: ingest
+        namespace: db
+      spec:
+        containers:
+        - name: ingest
+          image: registry.example.com/ingest:3.0
+          volumeDevices:
+          - name: data
+            devicePath: /dev/xvdb
+        volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: raw-disk
+    why: Without volumeMode Block the claim defaults to Filesystem, which cannot be attached as a device.
+  - manifest: |
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: raw-disk
+        namespace: db
+      spec:
+        storageClassName: fast-block
+        accessModes:
+        - ReadWriteOnce
+        volumeMode: Block
+        resources:
+          requests:
+            storage: 50Gi
+      ---
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: ingest
+        namespace: db
+      spec:
+        containers:
+        - name: ingest
+          image: registry.example.com/ingest:3.0
+          volumeDevices:
+          - name: data
+            mountPath: /dev/xvdb
+        volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: raw-disk
+    why: An entry of volumeDevices takes devicePath, not mountPath.
+explanation:
+  correct:
+    en: '`volumeMode: Block` on the claim asks for a raw block volume (the default is `Filesystem`). In the container, a block volume is listed under `volumeDevices` with a `devicePath` instead of under `volumeMounts` with a `mountPath`. The Pod volume still points to the claim with `persistentVolumeClaim.claimName`.'
+references:
+- title: Persistent Volumes
+  url: https://kubernetes.io/docs/concepts/storage/persistent-volumes/

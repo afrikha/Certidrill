@@ -1,0 +1,1656 @@
+chapter: 53-ingress-gateway-api
+questions:
+  # ------------------------------------------------------------------ 1
+  - id: cka-qz-53-01
+    objective: "5.5.1"
+    difficulty: 1
+    status: draft
+    type: multi
+    stem:
+      en: |
+        The Ingress `portal` (IngressClass `edge`) has a single rule: host `portal.example.com`, path `/app` with `pathType: Prefix`, backend Service `app` on port 80. It has no other path and no default backend.
+
+        Which two requests for `portal.example.com` does this path send to Service `app`?
+
+        NOTE: Each correct selection is worth one point.
+    body:
+      choose: 2
+      options:
+        - { id: a, text: "`/application/login`" }
+        - { id: b, text: "`/app/`" }
+        - { id: c, text: "`/App/settings`" }
+        - { id: d, text: "`/app/v1/users`" }
+        - { id: e, text: "`/apps/v1`" }
+    answer: { optionIds: [b, d] }
+    explanation:
+      correct:
+        en: |
+          A `Prefix` path is compared element by element, the elements being the parts of the URL path separated by `/`, and the comparison is case-sensitive. `/app` therefore matches `/app`, `/app/` (a trailing slash is accepted) and every subpath such as `/app/v1/users`.
+      options:
+        a: { en: "`Prefix` is not a string prefix: the first element of `/application/login` is `application`, not `app`." }
+        c: { en: "Matching is case-sensitive, so the element `App` does not match `app`." }
+        e: { en: "The first element is `apps`, which differs from `app`; `/app` does not match `/apps/...` any more than `/aaa/bbb` matches `/aaa/bbbxyz`." }
+    references:
+      - title: Ingress
+        url: https://kubernetes.io/docs/concepts/services-networking/ingress/
+
+  # ------------------------------------------------------------------ 2
+  - id: cka-qz-53-02
+    objective: "5.4.1"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        A Gateway has this listener. The Secret `shop-tls` (type `kubernetes.io/tls`) is in the namespace of the Gateway.
+
+        ```yaml
+        - name: https
+          protocol: HTTPS
+          port: 443
+          hostname: shop.example.com
+          tls:
+            certificateRefs:
+            - name: shop-tls
+        ```
+
+        How does the Gateway handle TLS for this listener?
+    body:
+      options:
+        - { id: a, text: { en: "It passes the encrypted TLS stream through to the backend Pods, which must hold the certificate themselves." } }
+        - { id: b, text: { en: "It refuses the listener, because `tls.mode` has no default and must be set on every HTTPS listener." } }
+        - { id: c, text: { en: "It terminates TLS with the certificate of `shop-tls` and routes the decrypted requests with HTTPRoutes." } }
+        - { id: d, text: { en: "It serves plain HTTP on port 443, because TLS is enabled only when `tls.mode` is set explicitly." } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          `tls.mode` defaults to `Terminate`: the Gateway ends the TLS session with the certificate referenced in `certificateRefs`, which is required in this mode, and the HTTP requests it decrypts are routed by the HTTPRoutes attached to the listener.
+      options:
+        a: { en: "That is `Passthrough`, which must be set explicitly and goes with protocol `TLS` (TLSRoute), not with an `HTTPS` listener and HTTPRoutes." }
+        b: { en: "`tls.mode` is optional: when it is omitted the Gateway uses `Terminate`." }
+        d: { en: "An `HTTPS` listener always uses TLS; omitting `mode` only selects the default, `Terminate`." }
+    references:
+      - title: TLS Configuration | Gateway API
+        url: https://gateway-api.sigs.k8s.io/guides/tls/
+
+  # ------------------------------------------------------------------ 3
+  - id: cka-qz-53-03
+    objective: "5.4.2"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        An HTTPRoute that the Gateway has accepted has one rule, with no `matches`, and these backends:
+
+        ```yaml
+        backendRefs:
+        - name: cart-v1
+          port: 8080
+          weight: 3
+        - name: cart-v2
+          port: 8080
+          weight: 1
+        - name: cart-v3
+          port: 8080
+        ```
+
+        How is the traffic of this rule split?
+    body:
+      options:
+        - { id: a, text: { en: "75 % to `cart-v1`, 25 % to `cart-v2`, nothing to `cart-v3`" } }
+        - { id: b, text: { en: "60 % to `cart-v1`, 20 % to `cart-v2`, 20 % to `cart-v3`" } }
+        - { id: c, text: { en: "3 % to `cart-v1`, 1 % to `cart-v2`, 96 % to `cart-v3`" } }
+        - { id: d, text: { en: "Equally between the three Services, because the weights are not set on every backend" } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          Weights are proportional, not percentages, and a backend without `weight` counts as `1`. The rule has the weights 3, 1 and 1, a total of 5, so `cart-v1` gets 3/5 (60 %) and `cart-v2` and `cart-v3` get 1/5 (20 %) each.
+      options:
+        a: { en: "Only `weight: 0` sends no traffic; an omitted weight defaults to 1, so `cart-v3` takes a share like `cart-v2`." }
+        c: { en: "Weights are not percentages with the remainder going to unweighted backends: each weight is divided by the sum of all weights." }
+        d: { en: "Setting weights on some backends only is valid; the missing ones simply default to 1 and the others keep their values." }
+    references:
+      - title: HTTP traffic splitting | Gateway API
+        url: https://gateway-api.sigs.k8s.io/guides/traffic-splitting/
+
+  # ------------------------------------------------------------------ 4
+  - id: cka-qz-53-04
+    objective: "5.5.2"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        The Ingress `orders` of namespace `shop` was created last week without `ingressClassName`, when no IngressClass was marked as the default. Yesterday you set `ingressclass.kubernetes.io/is-default-class: "true"` on the IngressClass `edge`, the only class of the cluster. Ingresses created since then without a class are served, but `orders` still has no ADDRESS. The `edge` controller serves only Ingresses whose class is `edge`.
+
+        What should you do so that `orders` is served?
+    body:
+      options:
+        - { id: a, text: { en: "Restart the Pods of the `edge` controller so that they read the default class again and pick up `orders`." } }
+        - { id: b, text: { en: "Edit the Ingress `orders` and set its `spec.ingressClassName` field to `edge`, the name of the class." } }
+        - { id: c, text: { en: "Add the annotation `ingressclass.kubernetes.io/is-default-class: \"true\"` to the Ingress `orders`." } }
+        - { id: d, text: { en: "Run the annotate command on `edge` again with `--overwrite`, so that the default class is applied to existing Ingresses." } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          The default class is assigned by the admission controller when an Ingress without `ingressClassName` is created; existing Ingresses are not changed. `orders` therefore still has no class, and the `edge` controller ignores it until `ingressClassName: edge` is set on it, for example with `kubectl edit` or `kubectl patch`.
+      options:
+        a: { en: "The class is a field of the Ingress object, set at admission; restarting the controller does not change the stored `orders` object, which still has no class." }
+        c: { en: "`ingressclass.kubernetes.io/is-default-class` is read on IngressClass objects only; on an Ingress it is an unused annotation." }
+        d: { en: "Re-annotating `edge` does not revisit existing objects: the default class is filled in only for new Ingresses, when they are created." }
+    references:
+      - title: Ingress
+        url: https://kubernetes.io/docs/concepts/services-networking/ingress/
+
+  # ------------------------------------------------------------------ 5
+  - id: cka-qz-53-05
+    objective: "5.4.2"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        An HTTPRoute attached to a Gateway for `api.example.com` has these rules:
+
+        ```yaml
+        rules:
+        - matches:
+          - path:
+              type: PathPrefix
+              value: /api
+            headers:
+            - name: x-beta
+              value: "true"
+          backendRefs:
+          - { name: api-beta, port: 80 }
+        - matches:
+          - path:
+              type: PathPrefix
+              value: /api/v2
+          backendRefs:
+          - { name: api-v2, port: 80 }
+        - backendRefs:
+          - { name: web, port: 80 }
+        ```
+
+        A client sends `GET /api/v2/orders` to `api.example.com` with the header `x-beta: true`. Which Service receives the request?
+    body:
+      options:
+        - { id: a, text: "`api-beta`" }
+        - { id: b, text: "`api-v2`" }
+        - { id: c, text: "`web`" }
+        - { id: d, text: { en: "`api-beta` or `api-v2`, alternately, because both rules match" } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          The request matches the first rule (prefix `/api` and the header) and the second (prefix `/api/v2`). Gateway API ranks matches by an `Exact` path first, then by the longest prefix, and only then by method, number of header matches and number of query parameter matches. `/api/v2` is longer than `/api`, so the second rule wins before headers are considered.
+      options:
+        a: { en: "Header matches only break a tie between paths of the same precedence; here the longer prefix `/api/v2` decides first." }
+        c: { en: "The rule without `matches` (a `PathPrefix /` match) matches every request, but it has the shortest prefix, so it loses to both other rules." }
+        d: { en: "Only one rule handles a request: the precedence rules pick the most specific match, and ties in one route go to the first rule listed." }
+    references:
+      - title: API Reference
+        url: https://gateway-api.sigs.k8s.io/reference/spec/
+      - title: HTTPRoute
+        url: https://gateway-api.sigs.k8s.io/api-types/httproute/
+
+  # ------------------------------------------------------------------ 6
+  - id: cka-qz-53-06
+    objective: "5.5.2"
+    difficulty: 3
+    status: draft
+    type: command
+    stem:
+      en: |-
+        The IngressClasses `edge` and `legacy` (manifests in `edge-class.yaml` and `legacy-class.yaml`) both carry `ingressclass.kubernetes.io/is-default-class: "true"`. Since the second one was installed, every new Ingress created without `ingressClassName` is rejected at admission.
+
+        The platform team decided that `edge` remains the cluster default and that `legacy` stays installed for the Ingresses that name it explicitly. Fix the problem with one change to an IngressClass.
+        Type the single command you would run.
+    body:
+      mode: object
+      namespace: default
+      files:
+        - name: edge-class.yaml
+          content: |
+            apiVersion: networking.k8s.io/v1
+            kind: IngressClass
+            metadata:
+              annotations:
+                ingressclass.kubernetes.io/is-default-class: "true"
+              name: edge
+            spec:
+              controller: example.com/edge-ingress
+        - name: legacy-class.yaml
+          content: |
+            apiVersion: networking.k8s.io/v1
+            kind: IngressClass
+            metadata:
+              annotations:
+                example.com/owner: platform
+                ingressclass.kubernetes.io/is-default-class: "true"
+              name: legacy
+            spec:
+              controller: example.com/legacy-ingress
+    answer:
+      checks:
+        - id: kind
+          label: The object is an IngressClass
+          path: kind
+          op: equals
+          value: IngressClass
+        - id: name
+          label: The change is made on the class legacy, not on edge
+          path: metadata.name
+          op: equals
+          value: legacy
+        - id: not-default
+          label: legacy no longer has ingressclass.kubernetes.io/is-default-class set to "true"
+          path: metadata
+          op: matches
+          value: '^(?!.*"ingressclass\.kubernetes\.io/is-default-class":"true")'
+        - id: controller
+          label: The controller of legacy is unchanged
+          path: spec.controller
+          op: equals
+          value: example.com/legacy-ingress
+      solution:
+        - command: kubectl annotate ingressclass legacy ingressclass.kubernetes.io/is-default-class-
+          output: |
+            apiVersion: networking.k8s.io/v1
+            kind: IngressClass
+            metadata:
+              annotations:
+                example.com/owner: platform
+              name: legacy
+            spec:
+              controller: example.com/legacy-ingress
+        - command: k annotate ingressclasses/legacy ingressclass.kubernetes.io/is-default-class=false --overwrite
+          output: |
+            apiVersion: networking.k8s.io/v1
+            kind: IngressClass
+            metadata:
+              annotations:
+                example.com/owner: platform
+                ingressclass.kubernetes.io/is-default-class: "false"
+              name: legacy
+            spec:
+              controller: example.com/legacy-ingress
+      negatives:
+        - command: kubectl annotate ingressclass edge ingressclass.kubernetes.io/is-default-class-
+          why: This removes the marker from edge, which must remain the default; legacy becomes the only default class.
+          output: |
+            apiVersion: networking.k8s.io/v1
+            kind: IngressClass
+            metadata:
+              name: edge
+            spec:
+              controller: example.com/edge-ingress
+        - command: kubectl label ingressclass legacy ingressclass.kubernetes.io/is-default-class-
+          why: The default marker is an annotation; removing a label with that key changes nothing and legacy stays a default class.
+          output: |
+            apiVersion: networking.k8s.io/v1
+            kind: IngressClass
+            metadata:
+              annotations:
+                example.com/owner: platform
+                ingressclass.kubernetes.io/is-default-class: "true"
+              name: legacy
+            spec:
+              controller: example.com/legacy-ingress
+        - command: kubectl annotate ingressclass legacy kubernetes.io/ingress.class-
+          why: kubernetes.io/ingress.class is the deprecated class annotation of Ingress objects; legacy keeps its default marker.
+          output: |
+            apiVersion: networking.k8s.io/v1
+            kind: IngressClass
+            metadata:
+              annotations:
+                example.com/owner: platform
+                ingressclass.kubernetes.io/is-default-class: "true"
+              name: legacy
+            spec:
+              controller: example.com/legacy-ingress
+    explanation:
+      correct:
+        en: |
+          With more than one IngressClass marked as the default, the admission controller rejects new Ingresses without `ingressClassName`; the fix is to keep at most one default. `kubectl annotate ingressclass legacy ingressclass.kubernetes.io/is-default-class-` removes the marker (a trailing `-` removes an annotation and needs no `--overwrite`). Setting it to `false` also works, but changing an existing annotation requires `--overwrite`. IngressClass is cluster-scoped, so no `-n` is needed.
+    references:
+      - title: Ingress
+        url: https://kubernetes.io/docs/concepts/services-networking/ingress/
+      - title: kubectl annotate
+        url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_annotate/
+
+  # ------------------------------------------------------------------ 7
+  - id: cka-qz-53-07
+    objective: "5.5.1"
+    difficulty: 3
+    status: draft
+    type: command
+    stem:
+      en: |-
+        In namespace `media`, Service `images` exposes port 8080 and Service `video` exposes a port named `stream`. Create an Ingress named `assets`, handled by the IngressClass `internal`, that applies to requests for **any host name**:
+
+        - the path `/img` and every path below it go to Service `images` on port 8080;
+        - the path `/video` and every path below it go to Service `video` on its port named `stream`.
+
+        The controller of `internal` reads the annotation `internal.example.com/cache-ttl`: set it to `300` on the Ingress.
+        Type the single command you would run.
+    body:
+      mode: object
+      namespace: default
+    answer:
+      checks:
+        - id: kind
+          label: The object is an Ingress named assets in namespace media
+          path: "."
+          op: subset
+          value: { kind: Ingress, metadata: { name: assets, namespace: media } }
+        - id: class
+          label: It uses the IngressClass internal
+          path: spec.ingressClassName
+          op: equals
+          value: internal
+        - id: annotation
+          label: The annotation internal.example.com/cache-ttl is 300
+          path: metadata.annotations["internal.example.com/cache-ttl"]
+          op: equals
+          value: "300"
+        - id: any-host
+          label: The rules have no host, so they apply to every host name
+          path: spec.rules
+          op: matches
+          value: '^(?!.*"host")'
+        - id: img
+          label: /img and the paths below it (Prefix) go to Service images on port 8080
+          path: spec.rules
+          op: matches
+          value: '"backend":\{"service":\{"name":"images","port":\{"number":8080\}\}\},"path":"/img/?","pathType":"Prefix"'
+        - id: video
+          label: /video and the paths below it (Prefix) go to Service video on its port named stream
+          path: spec.rules
+          op: matches
+          value: '"backend":\{"service":\{"name":"video","port":\{"name":"stream"\}\}\},"path":"/video/?","pathType":"Prefix"'
+      solution:
+        - command: kubectl create ingress assets -n media --class=internal --rule="/img*=images:8080" --rule="/video*=video:stream" --annotation=internal.example.com/cache-ttl=300
+          output: |
+            apiVersion: networking.k8s.io/v1
+            kind: Ingress
+            metadata:
+              annotations:
+                internal.example.com/cache-ttl: "300"
+              name: assets
+              namespace: media
+            spec:
+              ingressClassName: internal
+              rules:
+              - http:
+                  paths:
+                  - backend:
+                      service:
+                        name: images
+                        port:
+                          number: 8080
+                    path: /img
+                    pathType: Prefix
+                  - backend:
+                      service:
+                        name: video
+                        port:
+                          name: stream
+                    path: /video
+                    pathType: Prefix
+            status:
+              loadBalancer: {}
+        - command: k create ingress assets --namespace media --annotation internal.example.com/cache-ttl=300 --rule '/video*=video:stream' --rule '/img*=images:8080' --class internal --dry-run=client -o yaml
+          output: |
+            apiVersion: networking.k8s.io/v1
+            kind: Ingress
+            metadata:
+              annotations:
+                internal.example.com/cache-ttl: "300"
+              name: assets
+              namespace: media
+            spec:
+              ingressClassName: internal
+              rules:
+              - http:
+                  paths:
+                  - backend:
+                      service:
+                        name: video
+                        port:
+                          name: stream
+                    path: /video
+                    pathType: Prefix
+                  - backend:
+                      service:
+                        name: images
+                        port:
+                          number: 8080
+                    path: /img
+                    pathType: Prefix
+            status:
+              loadBalancer: {}
+      negatives:
+        - command: kubectl create ingress assets -n media --class=internal --rule="/img=images:8080" --rule="/video=video:stream" --annotation=internal.example.com/cache-ttl=300
+          why: Without the trailing *, kubectl creates Exact paths, so /img/logo.png and /video/intro.mp4 match no rule.
+          output: |
+            apiVersion: networking.k8s.io/v1
+            kind: Ingress
+            metadata:
+              annotations:
+                internal.example.com/cache-ttl: "300"
+              name: assets
+              namespace: media
+            spec:
+              ingressClassName: internal
+              rules:
+              - http:
+                  paths:
+                  - backend:
+                      service:
+                        name: images
+                        port:
+                          number: 8080
+                    path: /img
+                    pathType: Exact
+                  - backend:
+                      service:
+                        name: video
+                        port:
+                          name: stream
+                    path: /video
+                    pathType: Exact
+            status:
+              loadBalancer: {}
+        - command: kubectl create ingress assets -n media --rule="/img*=images:8080" --rule="/video*=video:stream" --annotation=internal.example.com/cache-ttl=300
+          why: Without --class the Ingress has no ingressClassName and the internal controller does not serve it unless internal is the default class, which the task does not say.
+          output: |
+            apiVersion: networking.k8s.io/v1
+            kind: Ingress
+            metadata:
+              annotations:
+                internal.example.com/cache-ttl: "300"
+              name: assets
+              namespace: media
+            spec:
+              rules:
+              - http:
+                  paths:
+                  - backend:
+                      service:
+                        name: images
+                        port:
+                          number: 8080
+                    path: /img
+                    pathType: Prefix
+                  - backend:
+                      service:
+                        name: video
+                        port:
+                          name: stream
+                    path: /video
+                    pathType: Prefix
+            status:
+              loadBalancer: {}
+        - command: kubectl create ingress assets -n media --class=internal --rule="/img*=images:8080" --rule="/video*=video:stream"
+          why: The annotation that sets the cache TTL for the controller is missing.
+          output: |
+            apiVersion: networking.k8s.io/v1
+            kind: Ingress
+            metadata:
+              name: assets
+              namespace: media
+            spec:
+              ingressClassName: internal
+              rules:
+              - http:
+                  paths:
+                  - backend:
+                      service:
+                        name: images
+                        port:
+                          number: 8080
+                    path: /img
+                    pathType: Prefix
+                  - backend:
+                      service:
+                        name: video
+                        port:
+                          name: stream
+                    path: /video
+                    pathType: Prefix
+            status:
+              loadBalancer: {}
+    explanation:
+      correct:
+        en: |
+          A `--rule` whose host part is empty (`/img*=...`) creates a rule without `host`, which applies to every host name, as in the catch-all example of the kubectl reference. The trailing `*` gives `pathType: Prefix`; without it the path is `Exact`. `video:stream` is written as a port name because it is not a number, and `--annotation key=value` adds the controller-specific annotation. Rules for the same (empty) host are merged into one rule with two paths.
+    references:
+      - title: kubectl create ingress
+        url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_create/kubectl_create_ingress/
+      - title: Ingress
+        url: https://kubernetes.io/docs/concepts/services-networking/ingress/
+
+  # ------------------------------------------------------------------ 8
+  - id: cka-qz-53-08
+    objective: "5.4.1"
+    difficulty: 3
+    status: draft
+    type: manifest
+    stem:
+      en: |-
+        The GatewayClass `public` is installed. In namespace `infra`, the TLS Secrets `shop-tls` (certificate of `shop.example.com`) and `admin-tls` (certificate of `admin.example.com`) exist. Namespace `shop` carries only the labels that Kubernetes sets automatically, and you may not add labels to it.
+
+        Write the manifest of a Gateway named `edge-gw` in namespace `infra`, class `public`, with exactly three listeners:
+
+        - `http`: plain HTTP on port 80 for every host name, accepting routes from all namespaces;
+        - `shop`: HTTPS on port 443 for `shop.example.com`, terminating TLS with `shop-tls`, accepting routes only from namespace `shop`;
+        - `admin`: HTTPS on port 443 for `admin.example.com`, terminating TLS with `admin-tls`, accepting routes only from the Gateway's own namespace.
+    body:
+      starter: ""
+    answer:
+      checks:
+        - id: kind
+          label: The document is a Gateway of gateway.networking.k8s.io/v1
+          path: "."
+          op: subset
+          value: { apiVersion: gateway.networking.k8s.io/v1, kind: Gateway }
+        - id: meta
+          label: It is named edge-gw, in namespace infra
+          path: metadata
+          op: subset
+          value: { name: edge-gw, namespace: infra }
+        - id: class
+          label: It uses the GatewayClass public
+          path: spec.gatewayClassName
+          op: equals
+          value: public
+        - id: count
+          label: It has exactly three listeners
+          path: spec.listeners
+          op: length
+          value: 3
+        - id: http
+          label: Listener http is HTTP on port 80 and accepts routes from all namespaces
+          path: spec.listeners[name=http]
+          op: subset
+          value: { protocol: HTTP, port: 80, allowedRoutes: { namespaces: { from: All } } }
+        - id: http-host
+          label: Listener http has no hostname, so it serves every host name
+          path: spec.listeners[name=http].hostname
+          op: absent
+        - id: shop
+          label: Listener shop is HTTPS on port 443 for shop.example.com
+          path: spec.listeners[name=shop]
+          op: subset
+          value: { protocol: HTTPS, port: 443, hostname: shop.example.com }
+        - id: shop-cert
+          label: Listener shop uses the certificate of Secret shop-tls
+          path: spec.listeners[name=shop].tls.certificateRefs
+          op: contains
+          value: { name: shop-tls }
+        - id: shop-from
+          label: Listener shop selects the namespaces allowed to attach routes (from Selector)
+          path: spec.listeners[name=shop].allowedRoutes.namespaces.from
+          op: equals
+          value: Selector
+        - id: shop-selector
+          label: The selector uses the automatic label kubernetes.io/metadata.name with the value shop
+          path: spec.listeners[name=shop].allowedRoutes.namespaces.selector
+          op: matches
+          value: 'kubernetes\.io/metadata\.name.*"shop"'
+        - id: admin
+          label: Listener admin is HTTPS on port 443 for admin.example.com
+          path: spec.listeners[name=admin]
+          op: subset
+          value: { protocol: HTTPS, port: 443, hostname: admin.example.com }
+        - id: admin-cert
+          label: Listener admin uses the certificate of Secret admin-tls
+          path: spec.listeners[name=admin].tls.certificateRefs
+          op: contains
+          value: { name: admin-tls }
+        - id: admin-same
+          label: Listener admin accepts routes only from namespace infra (from Same, the default)
+          path: spec.listeners[name=admin]
+          op: matches
+          value: '^(?!.*"from":"(All|Selector)")'
+        - id: terminate
+          label: TLS is terminated by the Gateway (no Passthrough)
+          path: spec.listeners
+          op: matches
+          value: '^(?!.*Passthrough)'
+      solution:
+        - manifest: |
+            apiVersion: gateway.networking.k8s.io/v1
+            kind: Gateway
+            metadata:
+              name: edge-gw
+              namespace: infra
+            spec:
+              gatewayClassName: public
+              listeners:
+              - name: http
+                protocol: HTTP
+                port: 80
+                allowedRoutes:
+                  namespaces:
+                    from: All
+              - name: shop
+                protocol: HTTPS
+                port: 443
+                hostname: shop.example.com
+                tls:
+                  mode: Terminate
+                  certificateRefs:
+                  - kind: Secret
+                    group: ""
+                    name: shop-tls
+                allowedRoutes:
+                  namespaces:
+                    from: Selector
+                    selector:
+                      matchLabels:
+                        kubernetes.io/metadata.name: shop
+              - name: admin
+                protocol: HTTPS
+                port: 443
+                hostname: admin.example.com
+                tls:
+                  certificateRefs:
+                  - name: admin-tls
+        - manifest: |
+            apiVersion: gateway.networking.k8s.io/v1
+            kind: Gateway
+            metadata:
+              namespace: infra
+              name: edge-gw
+            spec:
+              gatewayClassName: public
+              listeners:
+              - name: admin
+                hostname: admin.example.com
+                port: 443
+                protocol: HTTPS
+                tls:
+                  mode: Terminate
+                  certificateRefs:
+                  - name: admin-tls
+                allowedRoutes:
+                  namespaces:
+                    from: Same
+              - name: shop
+                hostname: shop.example.com
+                port: 443
+                protocol: HTTPS
+                tls:
+                  certificateRefs:
+                  - name: shop-tls
+                allowedRoutes:
+                  namespaces:
+                    from: Selector
+                    selector:
+                      matchExpressions:
+                      - key: kubernetes.io/metadata.name
+                        operator: In
+                        values: ["shop"]
+              - name: http
+                port: 80
+                protocol: HTTP
+                allowedRoutes:
+                  kinds:
+                  - kind: HTTPRoute
+                  namespaces:
+                    from: All
+      negatives:
+        - manifest: |
+            apiVersion: gateway.networking.k8s.io/v1
+            kind: Gateway
+            metadata:
+              name: edge-gw
+              namespace: infra
+            spec:
+              gatewayClassName: public
+              listeners:
+              - name: http
+                protocol: HTTP
+                port: 80
+                allowedRoutes:
+                  namespaces:
+                    from: All
+              - name: shop
+                protocol: HTTPS
+                port: 443
+                hostname: shop.example.com
+                tls:
+                  certificateRefs:
+                  - name: shop-tls
+                allowedRoutes:
+                  namespaces:
+                    from: Selector
+                    selector:
+                      matchLabels:
+                        name: shop
+              - name: admin
+                protocol: HTTPS
+                port: 443
+                hostname: admin.example.com
+                tls:
+                  certificateRefs:
+                  - name: admin-tls
+          why: Namespace shop has no label name=shop; the selector must use the label kubernetes.io/metadata.name that the control plane sets on every namespace.
+        - manifest: |
+            apiVersion: gateway.networking.k8s.io/v1
+            kind: Gateway
+            metadata:
+              name: edge-gw
+              namespace: infra
+            spec:
+              gatewayClassName: public
+              listeners:
+              - name: http
+                protocol: HTTP
+                port: 80
+              - name: shop
+                protocol: HTTPS
+                port: 443
+                hostname: shop.example.com
+                tls:
+                  certificateRefs:
+                  - name: shop-tls
+                allowedRoutes:
+                  namespaces:
+                    from: Selector
+                    selector:
+                      matchLabels:
+                        kubernetes.io/metadata.name: shop
+              - name: admin
+                protocol: HTTPS
+                port: 443
+                hostname: admin.example.com
+                tls:
+                  certificateRefs:
+                  - name: admin-tls
+          why: Without allowedRoutes the http listener uses the default from Same and accepts routes of namespace infra only, not of all namespaces.
+        - manifest: |
+            apiVersion: gateway.networking.k8s.io/v1
+            kind: Gateway
+            metadata:
+              name: edge-gw
+              namespace: infra
+            spec:
+              gatewayClassName: public
+              listeners:
+              - name: http
+                protocol: HTTP
+                port: 80
+                allowedRoutes:
+                  namespaces:
+                    from: All
+              - name: shop
+                protocol: HTTPS
+                port: 443
+                hostname: shop.example.com
+                tls:
+                  certificateRefs:
+                  - name: shop-tls
+                allowedRoutes:
+                  namespaces:
+                    from: Selector
+                    selector:
+                      matchLabels:
+                        kubernetes.io/metadata.name: shop
+              - name: admin
+                protocol: HTTPS
+                port: 443
+                hostname: admin.example.com
+                tls:
+                  certificateRefs:
+                  - name: admin-tls
+                allowedRoutes:
+                  namespaces:
+                    from: All
+          why: from All on the admin listener lets every namespace attach routes for admin.example.com; the task restricts it to the Gateway's namespace.
+        - manifest: |
+            apiVersion: gateway.networking.k8s.io/v1
+            kind: Gateway
+            metadata:
+              name: edge-gw
+              namespace: infra
+            spec:
+              gatewayClassName: public
+              listeners:
+              - name: http
+                protocol: HTTP
+                port: 80
+                allowedRoutes:
+                  namespaces:
+                    from: All
+              - name: https
+                protocol: HTTPS
+                port: 443
+                tls:
+                  certificateRefs:
+                  - name: shop-tls
+                  - name: admin-tls
+                allowedRoutes:
+                  namespaces:
+                    from: Same
+          why: One HTTPS listener with both certificates cannot give each host name its own allowedRoutes, and the listeners shop and admin that routes target by sectionName do not exist.
+        - manifest: |
+            apiVersion: gateway.networking.k8s.io/v1
+            kind: Gateway
+            metadata:
+              name: edge-gw
+              namespace: infra
+            spec:
+              gatewayClassName: public
+              listeners:
+              - name: http
+                protocol: HTTP
+                port: 80
+                allowedRoutes:
+                  namespaces:
+                    from: All
+              - name: shop
+                protocol: HTTPS
+                port: 443
+                hostname: shop.example.com
+                tls:
+                  mode: Passthrough
+                  certificateRefs:
+                  - name: shop-tls
+                allowedRoutes:
+                  namespaces:
+                    from: Selector
+                    selector:
+                      matchLabels:
+                        kubernetes.io/metadata.name: shop
+              - name: admin
+                protocol: HTTPS
+                port: 443
+                hostname: admin.example.com
+                tls:
+                  certificateRefs:
+                  - name: admin-tls
+          why: Passthrough does not terminate TLS (the certificate is ignored) and is used with protocol TLS, not with an HTTPS listener.
+    explanation:
+      correct:
+        en: |
+          Two HTTPS listeners can share port 443 when their hostnames differ; each carries its own certificate and its own `allowedRoutes`. `tls.mode` defaults to `Terminate`. A listener accepts routes from its own namespace by default (`from: Same`), so `admin` needs nothing, `http` needs `from: All`, and `shop` needs `from: Selector` with a selector on `kubernetes.io/metadata.name: shop`, the immutable label the control plane sets on every namespace with the namespace name as value.
+    references:
+      - title: TLS Configuration | Gateway API
+        url: https://gateway-api.sigs.k8s.io/guides/tls/
+      - title: Namespaces
+        url: https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/
+
+  # ------------------------------------------------------------------ 9
+  - id: cka-qz-53-09
+    objective: "5.4.2"
+    difficulty: 3
+    status: draft
+    type: manifest
+    stem:
+      en: |-
+        The Gateway `edge-gw` of namespace `infra` has the listeners `http` (port 80, routes from all namespaces), `shop` (HTTPS, port 443, `shop.example.com`, routes from namespace `shop` only) and `admin` (HTTPS, port 443, `admin.example.com`, routes from `infra` only). The catalog team runs Service `catalog-api` (port 8080) in namespace `catalog`; its API serves `/v1/...`.
+
+        Write the manifests (several YAML documents) for:
+
+        - an HTTPRoute named `legacy-catalog` in namespace `shop`, attached only to listener `shop`, that sends the requests for `shop.example.com` whose path starts with `/legacy/catalog` to `catalog-api`, the Gateway replacing that prefix with `/v1` in the request it forwards (`/legacy/catalog/items/42` reaches the Service as `/v1/items/42`; the client is not redirected);
+        - the object named `allow-shop-routes` that permits this reference to the Service of namespace `catalog`.
+    body:
+      starter: ""
+    answer:
+      checks:
+        - id: route
+          label: The HTTPRoute legacy-catalog is in namespace shop (gateway.networking.k8s.io/v1)
+          select: { kind: HTTPRoute }
+          path: "."
+          op: subset
+          value: { apiVersion: gateway.networking.k8s.io/v1, metadata: { name: legacy-catalog, namespace: shop } }
+        - id: parent
+          label: It attaches to Gateway edge-gw of namespace infra
+          select: { kind: HTTPRoute }
+          path: spec.parentRefs
+          op: contains
+          value: { name: edge-gw, namespace: infra }
+        - id: section
+          label: It attaches only to listener shop (sectionName shop)
+          select: { kind: HTTPRoute }
+          path: spec.parentRefs
+          op: matches
+          value: '"sectionName":"shop"|"port":443'
+        - id: hostname
+          label: It serves shop.example.com (hostnames list it, or inherit the listener hostname)
+          select: { kind: HTTPRoute }
+          path: spec
+          op: matches
+          value: '^(?!.*"hostnames")|"hostnames":\[[^\]]*"shop\.example\.com"'
+        - id: path
+          label: The rule matches the prefix /legacy/catalog
+          select: { kind: HTTPRoute }
+          path: spec.rules[0].matches[0].path.value
+          op: oneOf
+          value: [/legacy/catalog, /legacy/catalog/]
+        - id: path-type
+          label: The path match is a PathPrefix (the default), not Exact or RegularExpression
+          select: { kind: HTTPRoute }
+          path: spec.rules[0].matches[0].path
+          op: matches
+          value: '^(?!.*"type":"(Exact|RegularExpression)")'
+        - id: rewrite
+          label: A URLRewrite filter replaces the matched prefix (ReplacePrefixMatch)
+          select: { kind: HTTPRoute }
+          path: spec.rules[0].filters
+          op: contains
+          value: { type: URLRewrite, urlRewrite: { path: { type: ReplacePrefixMatch } } }
+        - id: rewrite-value
+          label: The prefix is replaced with /v1
+          select: { kind: HTTPRoute }
+          path: spec.rules[0].filters[type=URLRewrite].urlRewrite.path.replacePrefixMatch
+          op: oneOf
+          value: [/v1, /v1/]
+        - id: no-redirect
+          label: The client is not redirected (no RequestRedirect filter)
+          select: { kind: HTTPRoute }
+          path: spec.rules[0]
+          op: matches
+          value: '^(?!.*RequestRedirect)'
+        - id: backend
+          label: The backend is Service catalog-api of namespace catalog, port 8080
+          select: { kind: HTTPRoute }
+          path: spec.rules[0].backendRefs
+          op: contains
+          value: { name: catalog-api, namespace: catalog, port: 8080 }
+        - id: grant
+          label: The ReferenceGrant allow-shop-routes is in namespace catalog, the Service's namespace
+          select: { kind: ReferenceGrant }
+          path: "."
+          op: subset
+          value: { apiVersion: gateway.networking.k8s.io/v1, metadata: { name: allow-shop-routes, namespace: catalog } }
+        - id: grant-from
+          label: It allows HTTPRoutes of namespace shop
+          select: { kind: ReferenceGrant }
+          path: spec.from
+          op: contains
+          value: { group: gateway.networking.k8s.io, kind: HTTPRoute, namespace: shop }
+        - id: grant-to
+          label: It allows references to Services (core group "")
+          select: { kind: ReferenceGrant }
+          path: spec.to
+          op: contains
+          value: { group: "", kind: Service }
+      solution:
+        - manifest: |
+            apiVersion: gateway.networking.k8s.io/v1
+            kind: HTTPRoute
+            metadata:
+              name: legacy-catalog
+              namespace: shop
+            spec:
+              parentRefs:
+              - name: edge-gw
+                namespace: infra
+                sectionName: shop
+              hostnames:
+              - shop.example.com
+              rules:
+              - matches:
+                - path:
+                    type: PathPrefix
+                    value: /legacy/catalog
+                filters:
+                - type: URLRewrite
+                  urlRewrite:
+                    path:
+                      type: ReplacePrefixMatch
+                      replacePrefixMatch: /v1
+                backendRefs:
+                - name: catalog-api
+                  namespace: catalog
+                  port: 8080
+            ---
+            apiVersion: gateway.networking.k8s.io/v1
+            kind: ReferenceGrant
+            metadata:
+              name: allow-shop-routes
+              namespace: catalog
+            spec:
+              from:
+              - group: gateway.networking.k8s.io
+                kind: HTTPRoute
+                namespace: shop
+              to:
+              - group: ""
+                kind: Service
+        - manifest: |
+            apiVersion: gateway.networking.k8s.io/v1
+            kind: ReferenceGrant
+            metadata:
+              name: allow-shop-routes
+              namespace: catalog
+            spec:
+              from:
+              - group: gateway.networking.k8s.io
+                kind: HTTPRoute
+                namespace: shop
+              to:
+              - group: ""
+                kind: Service
+                name: catalog-api
+            ---
+            apiVersion: gateway.networking.k8s.io/v1
+            kind: HTTPRoute
+            metadata:
+              name: legacy-catalog
+              namespace: shop
+            spec:
+              hostnames: ["shop.example.com"]
+              parentRefs:
+              - group: gateway.networking.k8s.io
+                kind: Gateway
+                name: edge-gw
+                namespace: infra
+                sectionName: shop
+              rules:
+              - backendRefs:
+                - kind: Service
+                  name: catalog-api
+                  namespace: catalog
+                  port: 8080
+                filters:
+                - urlRewrite:
+                    path:
+                      replacePrefixMatch: /v1/
+                      type: ReplacePrefixMatch
+                  type: URLRewrite
+                matches:
+                - path:
+                    value: /legacy/catalog
+      negatives:
+        - manifest: |
+            apiVersion: gateway.networking.k8s.io/v1
+            kind: HTTPRoute
+            metadata:
+              name: legacy-catalog
+              namespace: shop
+            spec:
+              parentRefs:
+              - name: edge-gw
+                namespace: infra
+                sectionName: shop
+              hostnames:
+              - shop.example.com
+              rules:
+              - matches:
+                - path:
+                    type: PathPrefix
+                    value: /legacy/catalog
+                filters:
+                - type: URLRewrite
+                  urlRewrite:
+                    path:
+                      type: ReplacePrefixMatch
+                      replacePrefixMatch: /v1
+                backendRefs:
+                - name: catalog-api
+                  namespace: catalog
+                  port: 8080
+            ---
+            apiVersion: gateway.networking.k8s.io/v1
+            kind: ReferenceGrant
+            metadata:
+              name: allow-shop-routes
+              namespace: shop
+            spec:
+              from:
+              - group: gateway.networking.k8s.io
+                kind: HTTPRoute
+                namespace: shop
+              to:
+              - group: ""
+                kind: Service
+          why: A ReferenceGrant only covers objects of its own namespace; in shop it does not permit the reference to the Service of catalog (ResolvedRefs False, RefNotPermitted).
+        - manifest: |
+            apiVersion: gateway.networking.k8s.io/v1
+            kind: HTTPRoute
+            metadata:
+              name: legacy-catalog
+              namespace: shop
+            spec:
+              parentRefs:
+              - name: edge-gw
+                namespace: infra
+                sectionName: shop
+              hostnames:
+              - shop.example.com
+              rules:
+              - matches:
+                - path:
+                    type: PathPrefix
+                    value: /legacy/catalog
+                filters:
+                - type: URLRewrite
+                  urlRewrite:
+                    path:
+                      type: ReplacePrefixMatch
+                      replacePrefixMatch: /v1
+                backendRefs:
+                - name: catalog-api
+                  namespace: catalog
+                  port: 8080
+            ---
+            apiVersion: gateway.networking.k8s.io/v1
+            kind: ReferenceGrant
+            metadata:
+              name: allow-shop-routes
+              namespace: catalog
+            spec:
+              from:
+              - group: gateway.networking.k8s.io
+                kind: Gateway
+                namespace: infra
+              to:
+              - group: ""
+                kind: Service
+          why: The object that references the Service is the HTTPRoute of namespace shop, not the Gateway of infra; this grant does not match the reference.
+        - manifest: |
+            apiVersion: gateway.networking.k8s.io/v1
+            kind: HTTPRoute
+            metadata:
+              name: legacy-catalog
+              namespace: shop
+            spec:
+              parentRefs:
+              - name: edge-gw
+                namespace: infra
+                sectionName: shop
+              hostnames:
+              - shop.example.com
+              rules:
+              - matches:
+                - path:
+                    type: PathPrefix
+                    value: /legacy/catalog
+                filters:
+                - type: URLRewrite
+                  urlRewrite:
+                    path:
+                      type: ReplaceFullPath
+                      replaceFullPath: /v1
+                backendRefs:
+                - name: catalog-api
+                  namespace: catalog
+                  port: 8080
+            ---
+            apiVersion: gateway.networking.k8s.io/v1
+            kind: ReferenceGrant
+            metadata:
+              name: allow-shop-routes
+              namespace: catalog
+            spec:
+              from:
+              - group: gateway.networking.k8s.io
+                kind: HTTPRoute
+                namespace: shop
+              to:
+              - group: ""
+                kind: Service
+          why: ReplaceFullPath replaces the whole path, so /legacy/catalog/items/42 would reach the Service as /v1 instead of /v1/items/42.
+        - manifest: |
+            apiVersion: gateway.networking.k8s.io/v1
+            kind: HTTPRoute
+            metadata:
+              name: legacy-catalog
+              namespace: shop
+            spec:
+              parentRefs:
+              - name: edge-gw
+                namespace: infra
+                sectionName: shop
+              hostnames:
+              - shop.example.com
+              rules:
+              - matches:
+                - path:
+                    type: PathPrefix
+                    value: /legacy/catalog
+                filters:
+                - type: URLRewrite
+                  urlRewrite:
+                    path:
+                      type: ReplacePrefixMatch
+                      replacePrefixMatch: /v1
+                backendRefs:
+                - name: catalog-api
+                  port: 8080
+            ---
+            apiVersion: gateway.networking.k8s.io/v1
+            kind: ReferenceGrant
+            metadata:
+              name: allow-shop-routes
+              namespace: catalog
+            spec:
+              from:
+              - group: gateway.networking.k8s.io
+                kind: HTTPRoute
+                namespace: shop
+              to:
+              - group: ""
+                kind: Service
+          why: Without namespace, the backendRef points to a Service catalog-api in namespace shop, which does not exist (BackendNotFound).
+        - manifest: |
+            apiVersion: gateway.networking.k8s.io/v1
+            kind: HTTPRoute
+            metadata:
+              name: legacy-catalog
+              namespace: shop
+            spec:
+              parentRefs:
+              - name: edge-gw
+                namespace: infra
+                sectionName: shop
+              hostnames:
+              - shop.example.com
+              rules:
+              - matches:
+                - path:
+                    type: PathPrefix
+                    value: /legacy/catalog
+                filters:
+                - type: RequestRedirect
+                  requestRedirect:
+                    path:
+                      type: ReplacePrefixMatch
+                      replacePrefixMatch: /v1
+            ---
+            apiVersion: gateway.networking.k8s.io/v1
+            kind: ReferenceGrant
+            metadata:
+              name: allow-shop-routes
+              namespace: catalog
+            spec:
+              from:
+              - group: gateway.networking.k8s.io
+                kind: HTTPRoute
+                namespace: shop
+              to:
+              - group: ""
+                kind: Service
+          why: RequestRedirect answers the client with a redirect to /v1/... instead of forwarding the rewritten request to catalog-api.
+        - manifest: |
+            apiVersion: gateway.networking.k8s.io/v1
+            kind: HTTPRoute
+            metadata:
+              name: legacy-catalog
+              namespace: shop
+            spec:
+              parentRefs:
+              - name: edge-gw
+                namespace: infra
+              hostnames:
+              - shop.example.com
+              rules:
+              - matches:
+                - path:
+                    type: PathPrefix
+                    value: /legacy/catalog
+                filters:
+                - type: URLRewrite
+                  urlRewrite:
+                    path:
+                      type: ReplacePrefixMatch
+                      replacePrefixMatch: /v1
+                backendRefs:
+                - name: catalog-api
+                  namespace: catalog
+                  port: 8080
+            ---
+            apiVersion: gateway.networking.k8s.io/v1
+            kind: ReferenceGrant
+            metadata:
+              name: allow-shop-routes
+              namespace: catalog
+            spec:
+              from:
+              - group: gateway.networking.k8s.io
+                kind: HTTPRoute
+                namespace: shop
+              to:
+              - group: ""
+                kind: Service
+          why: Without sectionName the route also attaches to listener http, which accepts all namespaces and has no hostname, so the catalog would also be served over plain HTTP.
+    explanation:
+      correct:
+        en: |
+          A `URLRewrite` filter with `ReplacePrefixMatch` swaps the matched `PathPrefix` for `/v1` and keeps the rest of the path; it changes the forwarded request, whereas `RequestRedirect` would answer the client. `sectionName: shop` limits the attachment to that listener. A `backendRefs` entry with `namespace: catalog` is valid only if a ReferenceGrant in the **target** namespace `catalog` allows HTTPRoutes of `shop` (`from`) to reference Services, core group `""` (`to`).
+    references:
+      - title: HTTP path redirects and rewrites
+        url: https://gateway-api.sigs.k8s.io/guides/http-redirect-rewrite/
+      - title: ReferenceGrant
+        url: https://gateway-api.sigs.k8s.io/api-types/referencegrant/
+
+  # ------------------------------------------------------------------ 10
+  - id: cka-qz-53-10
+    objective: "5.4.2"
+    difficulty: 3
+    status: draft
+    type: manifest
+    stem:
+      en: |-
+        In namespace `shop`, the HTTPRoute `store` (manifest in the editor) must serve `https://shop.example.com/`, every path, from the shop's Service, through the HTTPS listener of Gateway `edge-gw` for that host only. Plain HTTP is already redirected to HTTPS by another route on listener `http`. The Gateway is in `gateway.yaml`, the status part of `kubectl describe httproute store -n shop` in `route-status.txt`, and `kubectl get svc -n shop` in `services.txt`.
+
+        Correct the HTTPRoute so that the Gateway accepts it and its requests reach the Service. Keep its name and namespace.
+    body:
+      starter: |
+        apiVersion: gateway.networking.k8s.io/v1
+        kind: HTTPRoute
+        metadata:
+          name: store
+          namespace: shop
+        spec:
+          parentRefs:
+          - name: edge-gw
+            namespace: infra
+            sectionName: https
+          hostnames:
+          - www.shop.example.com
+          rules:
+          - matches:
+            - path:
+                type: PathPrefix
+                value: /
+            backendRefs:
+            - name: storefront-svc
+              port: 80
+      files:
+        - name: gateway.yaml
+          content: |
+            apiVersion: gateway.networking.k8s.io/v1
+            kind: Gateway
+            metadata:
+              name: edge-gw
+              namespace: infra
+            spec:
+              gatewayClassName: public
+              listeners:
+              - name: http
+                protocol: HTTP
+                port: 80
+                allowedRoutes:
+                  namespaces:
+                    from: All
+              - name: shop
+                protocol: HTTPS
+                port: 443
+                hostname: shop.example.com
+                tls:
+                  certificateRefs:
+                  - name: shop-tls
+                allowedRoutes:
+                  namespaces:
+                    from: Selector
+                    selector:
+                      matchLabels:
+                        kubernetes.io/metadata.name: shop
+              - name: admin
+                protocol: HTTPS
+                port: 443
+                hostname: admin.example.com
+                tls:
+                  certificateRefs:
+                  - name: admin-tls
+        - name: route-status.txt
+          content: |
+            Status:
+              Parents:
+                Conditions:
+                  Last Transition Time:  2026-11-26T09:12:44Z
+                  Message:               no listener named "https" in Gateway infra/edge-gw
+                  Observed Generation:   1
+                  Reason:                NoMatchingParent
+                  Status:                False
+                  Type:                  Accepted
+                  Last Transition Time:  2026-11-26T09:12:44Z
+                  Message:               Service "shop/storefront-svc" not found
+                  Observed Generation:   1
+                  Reason:                BackendNotFound
+                  Status:                False
+                  Type:                  ResolvedRefs
+                Controller Name:         example.com/gateway-controller
+                Parent Ref:
+                  Group:         gateway.networking.k8s.io
+                  Kind:          Gateway
+                  Name:          edge-gw
+                  Namespace:     infra
+                  Section Name:  https
+        - name: services.txt
+          content: |
+            NAME         TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)    AGE
+            storefront   ClusterIP   10.96.41.17    <none>        8080/TCP   12d
+    answer:
+      checks:
+        - id: route
+          label: Still the HTTPRoute store of namespace shop (gateway.networking.k8s.io/v1)
+          path: "."
+          op: subset
+          value: { apiVersion: gateway.networking.k8s.io/v1, kind: HTTPRoute, metadata: { name: store, namespace: shop } }
+        - id: parent
+          label: It attaches to Gateway edge-gw of namespace infra
+          path: spec.parentRefs
+          op: contains
+          value: { name: edge-gw, namespace: infra }
+        - id: one-parent
+          label: It has a single parent reference
+          path: spec.parentRefs
+          op: length
+          value: 1
+        - id: section
+          label: It targets the listener named shop (sectionName shop), not https
+          path: spec.parentRefs
+          op: matches
+          value: '"sectionName":"shop"|"port":443'
+        - id: hostname
+          label: Its hostnames intersect the listener hostname shop.example.com (or are left to the listener)
+          path: spec
+          op: matches
+          value: '^(?!.*"hostnames")|"hostnames":\["(shop|\*)\.example\.com"\]'
+        - id: backend
+          label: The backend is Service storefront on its port 8080
+          path: spec.rules[0].backendRefs
+          op: contains
+          value: { name: storefront, port: 8080 }
+        - id: backend-ns
+          label: The backend stays in the route's namespace (no namespace, or shop)
+          path: spec.rules[0].backendRefs
+          op: matches
+          value: '^(?!.*"namespace":"(?!shop"))'
+        - id: every-path
+          label: The rule still serves every path (PathPrefix / or no matches)
+          path: spec.rules[0]
+          op: matches
+          value: '^(?!.*"type":"(Exact|RegularExpression)")'
+      solution:
+        - manifest: |
+            apiVersion: gateway.networking.k8s.io/v1
+            kind: HTTPRoute
+            metadata:
+              name: store
+              namespace: shop
+            spec:
+              parentRefs:
+              - name: edge-gw
+                namespace: infra
+                sectionName: shop
+              hostnames:
+              - shop.example.com
+              rules:
+              - matches:
+                - path:
+                    type: PathPrefix
+                    value: /
+                backendRefs:
+                - name: storefront
+                  port: 8080
+        - manifest: |
+            apiVersion: gateway.networking.k8s.io/v1
+            kind: HTTPRoute
+            metadata:
+              name: store
+              namespace: shop
+            spec:
+              parentRefs:
+              - kind: Gateway
+                name: edge-gw
+                namespace: infra
+                sectionName: shop
+              rules:
+              - backendRefs:
+                - kind: Service
+                  name: storefront
+                  port: 8080
+      negatives:
+        - manifest: |
+            apiVersion: gateway.networking.k8s.io/v1
+            kind: HTTPRoute
+            metadata:
+              name: store
+              namespace: shop
+            spec:
+              parentRefs:
+              - name: edge-gw
+                namespace: infra
+                sectionName: https
+              hostnames:
+              - shop.example.com
+              rules:
+              - matches:
+                - path:
+                    type: PathPrefix
+                    value: /
+                backendRefs:
+                - name: storefront
+                  port: 8080
+          why: sectionName names a listener, and edge-gw has no listener named https (its HTTPS listener is shop), so the route stays NoMatchingParent.
+        - manifest: |
+            apiVersion: gateway.networking.k8s.io/v1
+            kind: HTTPRoute
+            metadata:
+              name: store
+              namespace: shop
+            spec:
+              parentRefs:
+              - name: edge-gw
+                namespace: infra
+              hostnames:
+              - shop.example.com
+              rules:
+              - matches:
+                - path:
+                    type: PathPrefix
+                    value: /
+                backendRefs:
+                - name: storefront
+                  port: 8080
+          why: Without sectionName the route also attaches to listener http, which accepts every namespace, and competes there with the route that redirects plain HTTP to HTTPS.
+        - manifest: |
+            apiVersion: gateway.networking.k8s.io/v1
+            kind: HTTPRoute
+            metadata:
+              name: store
+              namespace: shop
+            spec:
+              parentRefs:
+              - name: edge-gw
+                namespace: infra
+                sectionName: shop
+              hostnames:
+              - www.shop.example.com
+              rules:
+              - matches:
+                - path:
+                    type: PathPrefix
+                    value: /
+                backendRefs:
+                - name: storefront
+                  port: 8080
+          why: www.shop.example.com does not intersect the listener hostname shop.example.com, so the route is not accepted (NoMatchingListenerHostname) once the sectionName is fixed.
+        - manifest: |
+            apiVersion: gateway.networking.k8s.io/v1
+            kind: HTTPRoute
+            metadata:
+              name: store
+              namespace: shop
+            spec:
+              parentRefs:
+              - name: edge-gw
+                namespace: infra
+                sectionName: shop
+              hostnames:
+              - shop.example.com
+              rules:
+              - matches:
+                - path:
+                    type: PathPrefix
+                    value: /
+                backendRefs:
+                - name: storefront
+                  port: 80
+          why: backendRefs.port is the Service port, and Service storefront exposes 8080, not 80.
+        - manifest: |
+            apiVersion: gateway.networking.k8s.io/v1
+            kind: HTTPRoute
+            metadata:
+              name: store
+              namespace: shop
+            spec:
+              parentRefs:
+              - name: edge-gw
+                namespace: infra
+                sectionName: shop
+              hostnames:
+              - shop.example.com
+              rules:
+              - matches:
+                - path:
+                    type: PathPrefix
+                    value: /
+                backendRefs:
+                - name: storefront
+                  namespace: infra
+                  port: 8080
+          why: The Service is in namespace shop, like the route; namespace infra points to a Service that does not exist there (and would need a ReferenceGrant).
+        - manifest: |
+            apiVersion: gateway.networking.k8s.io/v1
+            kind: HTTPRoute
+            metadata:
+              name: store
+              namespace: shop
+            spec:
+              parentRefs:
+              - name: edge-gw
+                sectionName: shop
+              hostnames:
+              - shop.example.com
+              rules:
+              - matches:
+                - path:
+                    type: PathPrefix
+                    value: /
+                backendRefs:
+                - name: storefront
+                  port: 8080
+          why: parentRefs.namespace defaults to the route's namespace, so the route would look for a Gateway edge-gw in shop.
+    explanation:
+      correct:
+        en: |
+          Four fields are wrong. `NoMatchingParent` means the `sectionName` (or port) of `parentRefs` matches no listener: the HTTPS listener of `edge-gw` is named `shop`. Once it attaches there, the route `hostnames` must intersect the listener hostname, so `www.shop.example.com` must become `shop.example.com` (or be removed to inherit it). `BackendNotFound` points to the Service name, `storefront`, and `backendRefs.port` must be its port 8080 shown in `services.txt`.
+    references:
+      - title: API Reference
+        url: https://gateway-api.sigs.k8s.io/reference/spec/
+      - title: Cross-Namespace routing
+        url: https://gateway-api.sigs.k8s.io/guides/multiple-ns/

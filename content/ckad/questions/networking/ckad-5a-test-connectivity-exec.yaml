@@ -1,0 +1,66 @@
+id: ckad-5a-test-connectivity-exec
+objective: "5.1.2"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    You have just applied an ingress NetworkPolicy in namespace `payments` that should let Pods of namespace `shop` reach the Service `api` of namespace `payments` on port 8080.
+
+    Test it from the running Pod `client` in namespace `shop` (image `busybox:1.36`): send an HTTP request with `wget` to Service `api` of namespace `payments` on port 8080, giving up after 2 seconds. Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Runs a command in an existing Pod with kubectl exec
+    path: verb
+    op: equals
+    value: exec
+  - id: pod
+    label: Targets Pod client
+    path: names
+    op: contains
+    value: client
+  - id: namespace
+    label: Targets namespace shop
+    path: flags.namespace
+    op: equals
+    value: shop
+  - id: wget
+    label: Runs wget after --
+    path: rest[0]
+    op: equals
+    value: wget
+  - id: target
+    label: Calls Service api of namespace payments on port 8080
+    path: rest
+    op: matches
+    value: '"(http://)?api\.payments(\.svc(\.cluster\.local)?)?:8080/?"'
+  - id: timeout
+    label: Gives up after 2 seconds
+    path: rest
+    op: matches
+    value: '"(-T2|--timeout=2)"|"(-T|--timeout)","2"'
+  solution:
+  - command: kubectl exec client -n shop -- wget -qO- -T 2 http://api.payments:8080
+  - command: k -n shop exec -it client -- wget -O- --timeout=2 http://api.payments.svc.cluster.local:8080
+  - command: kubectl exec -n shop pod/client -- wget -q -T2 -O - api.payments.svc:8080
+  negatives:
+  - command: kubectl exec client -n shop -- wget -qO- -T 2 http://api:8080
+    why: The short name api resolves in the Pod's own namespace (shop), not in payments.
+  - command: kubectl exec client -- wget -qO- -T 2 http://api.payments:8080
+    why: Without -n, kubectl looks for Pod client in the context namespace, default.
+  - command: kubectl run client -n shop --image=busybox:1.36 --rm -it --restart=Never -- wget -qO- -T 2 http://api.payments:8080
+    why: The task says to test from the running Pod client; kubectl run tries to create a new Pod with that name, which already exists.
+  - command: kubectl exec client -n shop -- wget -qO- http://api.payments:8080
+    why: Without -T 2 (or --timeout=2), wget does not give up after 2 seconds when the policy drops the packets.
+explanation:
+  correct:
+    en: '`kubectl exec client -n shop -- wget -qO- -T 2 http://api.payments:8080` runs wget inside the existing Pod; everything after `--` is the command. `api.payments` (or `api.payments.svc.cluster.local`) is the DNS name of Service `api` in namespace `payments`; the short name `api` would be looked up in `shop`. A timeout matters because a NetworkPolicy usually drops packets, so a blocked request hangs instead of failing at once.'
+references:
+- title: kubectl exec
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_exec/
+- title: DNS for Services and Pods
+  url: https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/

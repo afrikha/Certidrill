@@ -1,0 +1,75 @@
+id: cka-2e-dns-temp-pod-nslookup
+objective: "2.5.2"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    Applications in namespace `qa` report that they cannot reach Service `orders` of namespace `sales`. You want to test name resolution from namespace `qa` itself.
+
+    Start a temporary Pod in namespace `qa` with image `busybox:1.37`, attached to your terminal, never restarted and deleted as soon as the command ends, that runs `nslookup` directly (no shell) on the fully qualified name of the Service. The cluster domain is `cluster.local`. Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Uses kubectl run
+    path: verb
+    op: equals
+    value: run
+  - id: image
+    label: Runs busybox:1.37
+    path: flags.image
+    op: equals
+    value: busybox:1.37
+  - id: rm
+    label: Deletes the Pod when the command ends (--rm)
+    path: flags.rm
+    op: equals
+    value: true
+  - id: restart
+    label: The Pod is never restarted
+    path: flags.restart
+    op: equals
+    value: Never
+  - id: namespace
+    label: Runs in namespace qa
+    path: flags.namespace
+    op: equals
+    value: qa
+  - id: nslookup
+    label: Runs nslookup as the command
+    path: rest[0]
+    op: equals
+    value: nslookup
+  - id: fqdn
+    label: Looks up orders.sales.svc.cluster.local
+    path: rest[1]
+    op: matches
+    value: '^orders\.sales\.svc\.cluster\.local\.?$'
+  solution:
+  - command: kubectl run dns-test --rm -it --restart=Never --image=busybox:1.37 -n qa -- nslookup orders.sales.svc.cluster.local
+  - command: k -n qa run tmp --image busybox:1.37 --restart Never --rm -i -- nslookup orders.sales.svc.cluster.local.
+  - command: kubectl run dns-test -n qa --image=busybox:1.37 --restart=Never --rm --attach -- nslookup orders.sales.svc.cluster.local
+  negatives:
+  - command: kubectl run dns-test --rm -it --restart=Never --image=busybox:1.37 -n qa -- nslookup orders
+    why: From namespace qa the short name orders is searched as orders.qa.svc.cluster.local, not in namespace sales.
+  - command: kubectl run dns-test -it --restart=Never --image=busybox:1.37 -n qa -- nslookup orders.sales.svc.cluster.local
+    why: Without --rm the Pod stays in namespace qa after the test.
+  - command: kubectl run dns-test --rm -it --image=busybox:1.37 -n qa -- nslookup orders.sales.svc.cluster.local
+    why: The default restart policy is Always, so the Pod is restarted each time nslookup exits.
+  - command: kubectl run dns-test --rm -it --restart=Never --image=busybox:1.37 -- nslookup orders.sales.svc.cluster.local
+    why: Without -n the Pod runs in the context namespace, default, not in qa where the problem is reported.
+explanation:
+  correct:
+    en: >-
+      `kubectl run NAME --rm -it --restart=Never --image=busybox:1.37 -n qa -- nslookup orders.sales.svc.cluster.local`
+      creates a plain Pod in `qa`, attaches to it and deletes it when nslookup ends. `--rm` is only valid when attached
+      (`-i` or `--attach`), and `--restart` defaults to `Always`. A Service name is `SERVICE.NAMESPACE.svc.cluster.local`;
+      a short name only resolves inside the Pod's own namespace through the `search` list of `/etc/resolv.conf`.
+references:
+- title: kubectl run
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_run/
+- title: DNS for Services and Pods
+  url: https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/

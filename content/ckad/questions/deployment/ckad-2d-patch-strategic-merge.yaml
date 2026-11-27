@@ -1,0 +1,134 @@
+id: ckad-2d-patch-strategic-merge
+objective: "2.4.3"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    The overlay `/opt/web/overlays/prod/kustomization.yaml` (shown in the working directory) applies the patch file `web-patch.yaml` to the base, which contains the Deployment `web` (`apps/v1`) with one container named `web`.
+
+    Write `/opt/web/overlays/prod/web-patch.yaml`, a strategic merge patch that sets the Deployment to 5 replicas and the memory limit of container `web` to `512Mi`, leaving every other field of the base unchanged.
+body:
+  starter: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: web
+  files:
+  - name: overlays/prod/kustomization.yaml
+    content: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      resources:
+      - ../../base
+      patches:
+      - path: web-patch.yaml
+answer:
+  checks:
+  - id: api
+    label: The patch uses apiVersion apps/v1
+    path: apiVersion
+    op: equals
+    value: apps/v1
+  - id: kind
+    label: The patch targets a Deployment
+    path: kind
+    op: equals
+    value: Deployment
+  - id: name
+    label: The patch names the Deployment web
+    path: metadata.name
+    op: equals
+    value: web
+  - id: replicas
+    label: Sets 5 replicas
+    path: spec.replicas
+    op: equals
+    value: 5
+  - id: memory
+    label: Sets the memory limit of container web to 512Mi
+    path: spec.template.spec.containers[name=web].resources.limits.memory
+    op: quantity
+    value: 512Mi
+  solution:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: web
+      spec:
+        replicas: 5
+        template:
+          spec:
+            containers:
+            - name: web
+              resources:
+                limits:
+                  memory: 512Mi
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: web
+      spec:
+        template:
+          spec:
+            containers:
+            - name: web
+              resources:
+                limits:
+                  memory: "536870912"
+        replicas: 5
+  negatives:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: web
+      spec:
+        replicas: 5
+        template:
+          spec:
+            containers:
+            - resources:
+                limits:
+                  memory: 512Mi
+    why: 'Containers are merged by their name; an entry without name: web does not match the existing container.'
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: web
+      spec:
+        replicas: 5
+        template:
+          spec:
+            containers:
+            - name: web
+              resources:
+                limits:
+                  memory: 512M
+    why: 512M is 512,000,000 bytes (decimal), not 512Mi (536,870,912 bytes).
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: web
+      spec:
+        template:
+          spec:
+            replicas: 5
+            containers:
+            - name: web
+              resources:
+                limits:
+                  memory: 512Mi
+    why: replicas belongs to the Deployment spec, not to the Pod template spec.
+explanation:
+  correct:
+    en: 'A strategic merge patch is a partial manifest: `apiVersion`, `kind` and `metadata.name` identify the object to patch, and only the fields written are changed. Containers are a list merged by `name`, so the entry must carry `name: web` to update that container instead of adding a new one. `512Mi` is a binary quantity, different from `512M`.'
+references:
+- title: Update API Objects in Place Using kubectl patch
+  url: https://kubernetes.io/docs/tasks/manage-kubernetes-objects/update-api-object-kubectl-patch/
+- title: Declarative Management of Kubernetes Objects Using Kustomize
+  url: https://kubernetes.io/docs/tasks/manage-kubernetes-objects/kustomization/

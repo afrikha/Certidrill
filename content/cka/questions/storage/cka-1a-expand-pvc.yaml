@@ -1,0 +1,66 @@
+id: cka-1a-expand-pvc
+objective: "1.1.2"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    In namespace `payments`, the claim `db-data` is `Bound` to a 10Gi volume provisioned from the StorageClass `fast-ssd`, which has `allowVolumeExpansion: true`. The database needs 20Gi.
+
+    Grow the claim to 20Gi with a single non-interactive command (no editor). Type the command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Uses kubectl patch
+    path: verb
+    op: equals
+    value: patch
+  - id: resource
+    label: Patches a PersistentVolumeClaim
+    path: resource
+    op: equals
+    value: persistentvolumeclaim
+  - id: name
+    label: Names the claim db-data
+    path: names
+    op: contains
+    value: db-data
+  - id: namespace
+    label: Runs in namespace payments
+    path: flags.namespace
+    op: equals
+    value: payments
+  - id: request
+    label: Sets spec.resources.requests.storage to 20Gi
+    path: flags
+    op: matches
+    value: 'requests\W+storage\W+(value\W+)?20Gi'
+  solution:
+  - command: |-
+      kubectl patch pvc db-data -n payments -p '{"spec":{"resources":{"requests":{"storage":"20Gi"}}}}'
+  - command: |-
+      k -n payments patch persistentvolumeclaim/db-data --type=merge --patch '{"spec":{"resources":{"requests":{"storage":"20Gi"}}}}'
+  - command: |-
+      kubectl patch pvc db-data --namespace payments --type json -p '[{"op":"replace","path":"/spec/resources/requests/storage","value":"20Gi"}]'
+  negatives:
+  - command: |-
+      kubectl patch pv pvc-2e7b41c9-58a3-4f0d-9c16-b4d07a3e5f12 -p '{"spec":{"capacity":{"storage":"20Gi"}}}'
+    why: Editing the PV capacity does not resize the storage and can prevent the real resize; raise the request on the claim.
+  - command: |-
+      kubectl patch pvc db-data -n payments -p '{"spec":{"resources":{"limits":{"storage":"20Gi"}}}}'
+    why: Expansion is triggered by raising resources.requests.storage, not a limit.
+  - command: |-
+      kubectl patch pvc db-data -p '{"spec":{"resources":{"requests":{"storage":"20Gi"}}}}'
+    why: Without -n payments kubectl looks for db-data in the context namespace, default.
+explanation:
+  correct:
+    en: |-
+      To expand a bound claim whose class has `allowVolumeExpansion: true`, raise `spec.resources.requests.storage` on the **claim**: `kubectl patch pvc db-data -n payments -p '{"spec":{"resources":{"requests":{"storage":"20Gi"}}}}'`. The existing volume is resized, no new PV is created, and the file system grows when a Pod uses the claim. You can only grow a claim, never shrink it.
+references:
+- title: Persistent Volumes
+  url: https://kubernetes.io/docs/concepts/storage/persistent-volumes/
+- title: kubectl patch
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_patch/

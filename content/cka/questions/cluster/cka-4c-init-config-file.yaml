@@ -1,0 +1,166 @@
+id: cka-4c-init-config-file
+objective: "4.3.1"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    Write the file `/root/kubeadm-config.yaml` that will initialize the first control plane node with `kubeadm init --config /root/kubeadm-config.yaml`. Use the `kubeadm.k8s.io/v1beta4` API, an `InitConfiguration` and a `ClusterConfiguration`:
+
+    - the node registers as `cp1` and its API server advertises `10.0.0.11` on port `6443`;
+    - the control plane runs Kubernetes `v1.37.1`;
+    - Pods use `192.168.0.0/16` (the CIDR of the chosen Calico manifest);
+    - the API server runs with the flag `--service-node-port-range=30000-31000`.
+body:
+  starter: |
+    apiVersion: kubeadm.k8s.io/v1beta4
+    kind: InitConfiguration
+    ---
+    apiVersion: kubeadm.k8s.io/v1beta4
+    kind: ClusterConfiguration
+answer:
+  checks:
+  - id: node-name
+    label: InitConfiguration registers the node as cp1
+    select: {kind: InitConfiguration}
+    path: nodeRegistration.name
+    op: equals
+    value: cp1
+  - id: advertise
+    label: InitConfiguration localAPIEndpoint advertises 10.0.0.11
+    select: {kind: InitConfiguration}
+    path: localAPIEndpoint.advertiseAddress
+    op: equals
+    value: 10.0.0.11
+  - id: init-api
+    label: InitConfiguration uses kubeadm.k8s.io/v1beta4
+    select: {kind: InitConfiguration}
+    path: apiVersion
+    op: equals
+    value: kubeadm.k8s.io/v1beta4
+  - id: version
+    label: ClusterConfiguration targets v1.37.1
+    select: {kind: ClusterConfiguration}
+    path: kubernetesVersion
+    op: oneOf
+    value: [v1.37.1, 1.37.1]
+  - id: pod-subnet
+    label: ClusterConfiguration networking.podSubnet is 192.168.0.0/16
+    select: {kind: ClusterConfiguration}
+    path: networking.podSubnet
+    op: equals
+    value: 192.168.0.0/16
+  - id: extra-arg
+    label: apiServer.extraArgs (v1beta4 list of name/value) sets service-node-port-range to 30000-31000
+    select: {kind: ClusterConfiguration}
+    path: apiServer.extraArgs[name=service-node-port-range].value
+    op: equals
+    value: 30000-31000
+  - id: cluster-api
+    label: ClusterConfiguration uses kubeadm.k8s.io/v1beta4
+    select: {kind: ClusterConfiguration}
+    path: apiVersion
+    op: equals
+    value: kubeadm.k8s.io/v1beta4
+  solution:
+  - manifest: |
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: InitConfiguration
+      nodeRegistration:
+        name: cp1
+      localAPIEndpoint:
+        advertiseAddress: 10.0.0.11
+        bindPort: 6443
+      ---
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: ClusterConfiguration
+      kubernetesVersion: v1.37.1
+      networking:
+        podSubnet: 192.168.0.0/16
+      apiServer:
+        extraArgs:
+        - name: service-node-port-range
+          value: "30000-31000"
+  - manifest: |
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: ClusterConfiguration
+      kubernetesVersion: "v1.37.1"
+      apiServer:
+        extraArgs:
+          - name: service-node-port-range
+            value: 30000-31000
+      networking:
+        serviceSubnet: 10.96.0.0/12
+        podSubnet: 192.168.0.0/16
+      ---
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: InitConfiguration
+      localAPIEndpoint:
+        advertiseAddress: 10.0.0.11
+      nodeRegistration:
+        name: cp1
+  negatives:
+  - manifest: |
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: InitConfiguration
+      nodeRegistration:
+        name: cp1
+      localAPIEndpoint:
+        advertiseAddress: 10.0.0.11
+        bindPort: 6443
+      ---
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: ClusterConfiguration
+      kubernetesVersion: v1.37.1
+      networking:
+        podSubnet: 192.168.0.0/16
+      apiServer:
+        extraArgs:
+          service-node-port-range: "30000-31000"
+    why: In v1beta4, extraArgs is a list of name/value entries; the map form is the old v1beta3 layout.
+  - manifest: |
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: InitConfiguration
+      nodeRegistration:
+        name: cp1
+      ---
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: ClusterConfiguration
+      kubernetesVersion: v1.37.1
+      localAPIEndpoint:
+        advertiseAddress: 10.0.0.11
+        bindPort: 6443
+      networking:
+        podSubnet: 192.168.0.0/16
+      apiServer:
+        extraArgs:
+        - name: service-node-port-range
+          value: "30000-31000"
+    why: localAPIEndpoint describes this node's API server and belongs to the InitConfiguration, not to the ClusterConfiguration.
+  - manifest: |
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: InitConfiguration
+      nodeRegistration:
+        name: cp1
+      localAPIEndpoint:
+        advertiseAddress: 10.0.0.11
+        bindPort: 6443
+      ---
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: ClusterConfiguration
+      kubernetesVersion: v1.37.1
+      networking:
+        serviceSubnet: 192.168.0.0/16
+      apiServer:
+        extraArgs:
+        - name: service-node-port-range
+          value: "30000-31000"
+    why: The range is set as the Service subnet; the Pod subnet must be networking.podSubnet.
+explanation:
+  correct:
+    en: 'Node-specific settings go in the `InitConfiguration` (`nodeRegistration.name`, `localAPIEndpoint.advertiseAddress` and `bindPort`, default 6443); cluster-wide settings go in the `ClusterConfiguration` (`kubernetesVersion`, `networking.podSubnet`, `apiServer`). In `kubeadm.k8s.io/v1beta4`, `extraArgs` is a list of `name`/`value` entries (flag name without dashes), which allows duplicates; v1beta3 used a map. The Pod subnet must match the CNI manifest and not overlap the host networks.'
+references:
+- title: kubeadm Configuration (v1beta4)
+  url: https://kubernetes.io/docs/reference/config-api/kubeadm-config.v1beta4/
+- title: kubeadm init
+  url: https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-init/

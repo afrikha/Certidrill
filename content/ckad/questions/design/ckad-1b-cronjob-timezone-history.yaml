@@ -1,0 +1,183 @@
+id: ckad-1b-cronjob-timezone-history
+objective: "1.2.4"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    Write the manifest of a CronJob named `invoices` in namespace `billing`:
+
+    - it runs at 06:00 Paris time, Monday to Friday, whatever the time zone of the control plane;
+    - it is created suspended, so that no run starts before the team enables it;
+    - it keeps the 5 most recent successful Jobs and the 2 most recent failed Jobs;
+    - each Job runs one container named `invoices` with `registry.example.com/billing/invoices:2.6`, uses `restartPolicy: Never` and is marked failed after 2 retries.
+body:
+  starter: ""
+answer:
+  checks:
+  - id: metadata
+    label: A CronJob named invoices in namespace billing
+    path: metadata
+    op: subset
+    value: {name: invoices, namespace: billing}
+  - id: kind
+    label: The object is a batch/v1 CronJob
+    path: apiVersion
+    op: equals
+    value: batch/v1
+  - id: schedule
+    label: The schedule is 06:00 Monday to Friday
+    path: spec.schedule
+    op: oneOf
+    value: ["0 6 * * 1-5", "0 6 * * MON-FRI", "00 06 * * 1-5"]
+  - id: timezone
+    label: timeZone is Europe/Paris
+    path: spec.timeZone
+    op: equals
+    value: Europe/Paris
+  - id: suspend
+    label: The CronJob is suspended
+    path: spec.suspend
+    op: equals
+    value: true
+  - id: success-history
+    label: successfulJobsHistoryLimit is 5
+    path: spec.successfulJobsHistoryLimit
+    op: equals
+    value: 5
+  - id: failed-history
+    label: failedJobsHistoryLimit is 2
+    path: spec.failedJobsHistoryLimit
+    op: equals
+    value: 2
+  - id: backoff
+    label: Each Job has backoffLimit 2
+    path: spec.jobTemplate.spec.backoffLimit
+    op: equals
+    value: 2
+  - id: image
+    label: Container invoices runs registry.example.com/billing/invoices:2.6
+    path: spec.jobTemplate.spec.template.spec.containers[name=invoices].image
+    op: equals
+    value: registry.example.com/billing/invoices:2.6
+  - id: restart
+    label: restartPolicy is Never
+    path: spec.jobTemplate.spec.template.spec.restartPolicy
+    op: equals
+    value: Never
+  solution:
+  - manifest: |
+      apiVersion: batch/v1
+      kind: CronJob
+      metadata:
+        name: invoices
+        namespace: billing
+      spec:
+        schedule: "0 6 * * 1-5"
+        timeZone: Europe/Paris
+        suspend: true
+        successfulJobsHistoryLimit: 5
+        failedJobsHistoryLimit: 2
+        jobTemplate:
+          spec:
+            backoffLimit: 2
+            template:
+              spec:
+                containers:
+                - name: invoices
+                  image: registry.example.com/billing/invoices:2.6
+                restartPolicy: Never
+  negatives:
+  - manifest: |
+      apiVersion: batch/v1
+      kind: CronJob
+      metadata:
+        name: invoices
+        namespace: billing
+      spec:
+        schedule: "CRON_TZ=Europe/Paris 0 6 * * 1-5"
+        suspend: true
+        successfulJobsHistoryLimit: 5
+        failedJobsHistoryLimit: 2
+        jobTemplate:
+          spec:
+            backoffLimit: 2
+            template:
+              spec:
+                containers:
+                - name: invoices
+                  image: registry.example.com/billing/invoices:2.6
+                restartPolicy: Never
+    why: CRON_TZ or TZ inside schedule is not supported and fails validation; the time zone goes in spec.timeZone.
+  - manifest: |
+      apiVersion: batch/v1
+      kind: CronJob
+      metadata:
+        name: invoices
+        namespace: billing
+      spec:
+        schedule: "0 6 * * 1-5"
+        timeZone: Europe/Paris
+        successfulJobsHistoryLimit: 5
+        failedJobsHistoryLimit: 2
+        jobTemplate:
+          spec:
+            suspend: true
+            backoffLimit: 2
+            template:
+              spec:
+                containers:
+                - name: invoices
+                  image: registry.example.com/billing/invoices:2.6
+                restartPolicy: Never
+    why: suspend in the job template suspends each created Job, but the CronJob still creates one every weekday; the CronJob-level suspend stops the schedule.
+  - manifest: |
+      apiVersion: batch/v1
+      kind: CronJob
+      metadata:
+        name: invoices
+        namespace: billing
+      spec:
+        schedule: "0 6 * * 1-5"
+        timeZone: Europe/Paris
+        suspend: true
+        successfulJobsHistoryLimit: 2
+        failedJobsHistoryLimit: 5
+        jobTemplate:
+          spec:
+            backoffLimit: 2
+            template:
+              spec:
+                containers:
+                - name: invoices
+                  image: registry.example.com/billing/invoices:2.6
+                restartPolicy: Never
+    why: The two history limits are swapped.
+  - manifest: |
+      apiVersion: batch/v1
+      kind: CronJob
+      metadata:
+        name: invoices
+        namespace: billing
+      spec:
+        schedule: "0 6 * * 1-5"
+        timeZone: Europe/Paris
+        suspend: true
+        successfulJobsHistoryLimit: 5
+        failedJobsHistoryLimit: 2
+        backoffLimit: 2
+        jobTemplate:
+          spec:
+            template:
+              spec:
+                containers:
+                - name: invoices
+                  image: registry.example.com/billing/invoices:2.6
+                restartPolicy: Never
+    why: backoffLimit is a Job field; it belongs in jobTemplate.spec, not in the CronJob spec.
+explanation:
+  correct:
+    en: '`spec.timeZone: Europe/Paris` makes the schedule `0 6 * * 1-5` follow Paris time instead of the time zone of kube-controller-manager; `CRON_TZ` in `schedule` is rejected. `spec.suspend: true` stops new runs without affecting started Jobs. The history limits default to 3 successful and 1 failed; Job settings such as `backoffLimit` go in `jobTemplate.spec`.'
+references:
+- title: CronJob
+  url: https://kubernetes.io/docs/concepts/workloads/controllers/cron-jobs/

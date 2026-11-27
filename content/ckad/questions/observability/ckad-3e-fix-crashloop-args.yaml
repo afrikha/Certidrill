@@ -1,0 +1,119 @@
+id: ckad-3e-fix-crashloop-args
+objective: "3.5.3"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    Pod `worker` in namespace `queue` is in `CrashLoopBackOff`. `kubectl logs worker -n queue --previous` shows:
+
+    ```text
+    python: can't open file '/app/run.py': [Errno 2] No such file or directory
+    ```
+
+    The image's ENTRYPOINT is `python`. The script is at `/srv/app/run.py` (it is not executable) and must be started with the options `--queue orders`. Fix the manifest below by changing only the arguments: keep the image's ENTRYPOINT.
+body:
+  starter: |
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: worker
+      namespace: queue
+    spec:
+      containers:
+      - name: worker
+        image: registry.example.com/worker:2.3
+        args: ["/app/run.py"]
+answer:
+  checks:
+  - id: pod
+    label: A Pod named worker in namespace queue
+    path: metadata
+    op: subset
+    value: {name: worker, namespace: queue}
+  - id: image
+    label: Image is unchanged
+    path: spec.containers[name=worker].image
+    op: equals
+    value: registry.example.com/worker:2.3
+  - id: no-command
+    label: command is not set, so the ENTRYPOINT python is kept
+    path: spec.containers[name=worker].command
+    op: absent
+  - id: args
+    label: args run /srv/app/run.py with --queue orders
+    path: spec.containers[name=worker].args
+    op: oneOf
+    value:
+    - ["/srv/app/run.py", "--queue", "orders"]
+    - ["/srv/app/run.py", "--queue=orders"]
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: worker
+        namespace: queue
+      spec:
+        containers:
+        - name: worker
+          image: registry.example.com/worker:2.3
+          args: ["/srv/app/run.py", "--queue", "orders"]
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: worker
+        namespace: queue
+      spec:
+        containers:
+        - name: worker
+          image: registry.example.com/worker:2.3
+          args:
+          - /srv/app/run.py
+          - --queue=orders
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: worker
+        namespace: queue
+      spec:
+        containers:
+        - name: worker
+          image: registry.example.com/worker:2.3
+          command: ["/srv/app/run.py", "--queue", "orders"]
+    why: command replaces the ENTRYPOINT python, and the script is not executable, so the container cannot start.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: worker
+        namespace: queue
+      spec:
+        containers:
+        - name: worker
+          image: registry.example.com/worker:2.3
+          args: ["/srv/app/run.py --queue orders"]
+    why: A single list item is passed as one argument, so python looks for a file literally named "/srv/app/run.py --queue orders".
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: worker
+        namespace: queue
+      spec:
+        containers:
+        - name: worker
+          image: registry.example.com/worker:2.3
+          args: ["/app/run.py", "--queue", "orders"]
+    why: The script path is still /app/run.py, which does not exist in the image.
+explanation:
+  correct:
+    en: '`command` replaces the image ENTRYPOINT and `args` replaces its CMD. Setting only `args: ["/srv/app/run.py", "--queue", "orders"]` keeps `python` as the executable and passes it the script and its options. Each list item is one argument with no shell splitting, so the options must be separate items (or `--queue=orders`).'
+references:
+- title: Debug Running Pods
+  url: https://kubernetes.io/docs/tasks/debug/debug-application/debug-running-pod/
+- title: Define a Command and Arguments for a Container
+  url: https://kubernetes.io/docs/tasks/inject-data-application/define-command-argument-container/

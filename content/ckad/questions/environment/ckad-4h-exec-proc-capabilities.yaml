@@ -1,0 +1,52 @@
+id: ckad-4h-exec-proc-capabilities
+objective: "4.8.2"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    Pod `edge-proxy` in namespace `gateway` has a single container, `proxy`, whose manifest drops `ALL` capabilities and adds `NET_BIND_SERVICE`. Check the capability sets that the kernel actually gave to the container's main process (PID 1): print the status file of that process from the `/proc` filesystem.
+
+    Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Uses kubectl exec
+    path: verb
+    op: equals
+    value: exec
+  - id: pod
+    label: Targets Pod edge-proxy
+    path: names
+    op: contains
+    value: edge-proxy
+  - id: namespace
+    label: Runs in namespace gateway
+    path: flags.namespace
+    op: equals
+    value: gateway
+  - id: proc
+    label: Reads /proc/1/status inside the container
+    path: rest
+    op: contains
+    value: /proc/1/status
+  solution:
+  - command: kubectl exec edge-proxy -n gateway -- cat /proc/1/status
+  - command: k -n gateway exec edge-proxy -c proxy -- grep Cap /proc/1/status
+  - command: kubectl exec -it pod/edge-proxy --namespace=gateway -- cat /proc/1/status
+  negatives:
+  - command: kubectl exec edge-proxy -- cat /proc/1/status
+    why: Without -n gateway kubectl looks for the Pod in the context namespace, default.
+  - command: kubectl get pod edge-proxy -n gateway -o jsonpath='{.spec.containers[0].securityContext.capabilities}'
+    why: This prints what the manifest asks for, not the capabilities the running process received.
+  - command: kubectl exec edge-proxy -n gateway -- cat /proc/1/cgroup
+    why: /proc/1/cgroup lists control groups; the CapPrm, CapEff and CapBnd lines are in /proc/1/status.
+explanation:
+  correct:
+    en: '`kubectl exec edge-proxy -n gateway -- cat /proc/1/status` prints the status of PID 1 in the container; its `CapPrm`, `CapEff` and `CapBnd` lines are bitmasks of the capabilities the process holds (bit 10 is CAP_NET_BIND_SERVICE). Comparing them with another container shows the effect of `capabilities.add` and `drop`. With a single container, `-c proxy` is optional.'
+references:
+- title: Configure a Security Context for a Pod or Container
+  url: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/

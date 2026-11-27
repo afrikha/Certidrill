@@ -1,0 +1,113 @@
+id: cka-4g-storageclass-csi-provisioner
+objective: "4.7.1"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    The file `csi.txt` holds what you found in the cluster. Volumes must come from the NFS export `/exports/k8s` on the server `nfs.example.com`, through the NFS CSI driver (its StorageClass parameters are `server` and `share`), and must be kept when their claim is deleted.
+
+    Write the manifest of a StorageClass named `nfs-shared` that does this.
+body:
+  starter: |
+    apiVersion: storage.k8s.io/v1
+    kind: StorageClass
+    metadata:
+      name: nfs-shared
+  files:
+  - name: csi.txt
+    content: |
+      $ kubectl get csidrivers
+      NAME                  ATTACHREQUIRED   PODINFOONMOUNT   MODES                  AGE
+      hostpath.csi.k8s.io   true             true             Persistent,Ephemeral   41d
+      nfs.csi.k8s.io        false            false            Persistent             12d
+
+      $ kubectl get deployments -n kube-system
+      NAME                 READY   UP-TO-DATE   AVAILABLE   AGE
+      coredns              2/2     2            2           41d
+      csi-nfs-controller   1/1     1            1           12d
+answer:
+  checks:
+  - id: name
+    label: A StorageClass named nfs-shared
+    path: metadata.name
+    op: equals
+    value: nfs-shared
+  - id: provisioner
+    label: provisioner is the CSI driver name nfs.csi.k8s.io
+    path: provisioner
+    op: equals
+    value: nfs.csi.k8s.io
+  - id: params
+    label: parameters server nfs.example.com and share /exports/k8s
+    path: parameters
+    op: subset
+    value: {server: nfs.example.com, share: /exports/k8s}
+  - id: reclaim
+    label: reclaimPolicy is Retain
+    path: reclaimPolicy
+    op: equals
+    value: Retain
+  solution:
+  - manifest: |
+      apiVersion: storage.k8s.io/v1
+      kind: StorageClass
+      metadata:
+        name: nfs-shared
+      provisioner: nfs.csi.k8s.io
+      parameters:
+        server: nfs.example.com
+        share: /exports/k8s
+      reclaimPolicy: Retain
+  - manifest: |
+      apiVersion: storage.k8s.io/v1
+      kind: StorageClass
+      metadata:
+        name: nfs-shared
+      provisioner: nfs.csi.k8s.io
+      reclaimPolicy: Retain
+      volumeBindingMode: Immediate
+      parameters:
+        share: /exports/k8s
+        server: nfs.example.com
+  negatives:
+  - manifest: |
+      apiVersion: storage.k8s.io/v1
+      kind: StorageClass
+      metadata:
+        name: nfs-shared
+      provisioner: csi-nfs-controller
+      parameters:
+        server: nfs.example.com
+        share: /exports/k8s
+      reclaimPolicy: Retain
+    why: csi-nfs-controller is the Deployment of the driver; the provisioner is the driver name registered in its CSIDriver object.
+  - manifest: |
+      apiVersion: storage.k8s.io/v1
+      kind: StorageClass
+      metadata:
+        name: nfs-shared
+      provisioner: nfs.csi.k8s.io
+      parameters:
+        server: nfs.example.com
+        share: /exports/k8s
+    why: Without reclaimPolicy a dynamically provisioned volume uses Delete and is removed with its claim.
+  - manifest: |
+      apiVersion: storage.k8s.io/v1
+      kind: StorageClass
+      metadata:
+        name: nfs-shared
+      provisioner: hostpath.csi.k8s.io
+      parameters:
+        server: nfs.example.com
+        share: /exports/k8s
+      reclaimPolicy: Retain
+    why: hostpath.csi.k8s.io is the other installed driver; it creates volumes on a node's disk, not on the NFS server.
+explanation:
+  correct:
+    en: 'A StorageClass''s `provisioner` must be the name of an installed CSI driver, as listed by `kubectl get csidrivers`: here `nfs.csi.k8s.io`, not the name of the controller Deployment. The driver-specific `parameters` are `server` and `share`, and `reclaimPolicy: Retain` keeps the PersistentVolume (default `Delete`).'
+references:
+- title: Storage Classes
+  url: https://kubernetes.io/docs/concepts/storage/storage-classes/
+- title: CSIDriver
+  url: https://kubernetes.io/docs/reference/kubernetes-api/config-and-storage-resources/csi-driver-v1/

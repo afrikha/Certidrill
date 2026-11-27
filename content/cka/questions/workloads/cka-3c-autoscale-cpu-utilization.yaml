@@ -1,0 +1,68 @@
+id: cka-3c-autoscale-cpu-utilization
+objective: "3.3.1"
+difficulty: 1
+status: draft
+type: command
+stem:
+  en: |-
+    metrics-server runs in the cluster and every container of Deployment `web` in namespace `shop` has a CPU request.
+
+    Create a HorizontalPodAutoscaler for Deployment `web` that keeps between 2 and 10 replicas and targets an average CPU utilization of 70 % of the requests. Use the current kubectl flag (`--cpu-percent` is deprecated since kubectl v1.34).
+
+    Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Uses kubectl autoscale
+    path: verb
+    op: equals
+    value: autoscale
+  - id: target
+    label: Targets a Deployment
+    path: resource
+    op: equals
+    value: deployment
+  - id: name
+    label: Names the Deployment web
+    path: names
+    op: contains
+    value: web
+  - id: min
+    label: At least 2 replicas
+    path: flags.min
+    op: equals
+    value: "2"
+  - id: max
+    label: At most 10 replicas
+    path: flags.max
+    op: equals
+    value: "10"
+  - id: cpu
+    label: Targets 70% CPU utilization
+    path: flags.cpu
+    op: equals
+    value: 70%
+  - id: namespace
+    label: Runs in namespace shop
+    path: flags.namespace
+    op: equals
+    value: shop
+  solution:
+  - command: kubectl autoscale deployment web --min=2 --max=10 --cpu=70% -n shop
+  - command: k -n shop autoscale deploy/web --max 10 --min 2 --cpu 70%
+  negatives:
+  - command: kubectl autoscale deployment web --min=2 --max=10 --cpu=70 -n shop
+    why: A value without % is a quantity in millicores; --cpu=70 targets an average of 70m per Pod, not 70% utilization.
+  - command: kubectl autoscale deployment web --max=10 --cpu=70% -n shop
+    why: Without --min the server applies its default minimum of 1 replica instead of 2.
+  - command: kubectl scale deployment web --replicas=10 -n shop
+    why: scale sets a fixed replica count once; it creates no autoscaler.
+explanation:
+  correct:
+    en: '`kubectl autoscale deployment web --min=2 --max=10 --cpu=70% -n shop` creates an autoscaling/v2 HorizontalPodAutoscaler named `web`. With `%`, `--cpu` targets average utilization relative to the CPU requests; without `%`, the value is an average quantity in millicores (`500` means `500m`). `--max` is required; when `--min` is omitted the minimum defaults to 1.'
+references:
+- title: kubectl autoscale
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_autoscale/

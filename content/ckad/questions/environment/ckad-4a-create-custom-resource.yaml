@@ -1,0 +1,124 @@
+id: ckad-4a-create-custom-resource
+objective: "4.1.2"
+difficulty: 1
+status: draft
+type: manifest
+stem:
+  en: |-
+    The CRD in `webapp-crd.yaml` is installed in the cluster. Write the manifest of a `WebApp` object named `storefront` in namespace `shop` with:
+
+    - `spec.image`: `registry.example.com/storefront:3.1`
+    - `spec.replicas`: 2
+    - `spec.port`: 8080
+body:
+  starter: ""
+  files:
+  - name: webapp-crd.yaml
+    content: |
+      apiVersion: apiextensions.k8s.io/v1
+      kind: CustomResourceDefinition
+      metadata:
+        name: webapps.apps.example.com
+      spec:
+        group: apps.example.com
+        scope: Namespaced
+        names:
+          plural: webapps
+          singular: webapp
+          kind: WebApp
+        versions:
+        - name: v1
+          served: true
+          storage: true
+          schema:
+            openAPIV3Schema:
+              type: object
+              properties:
+                spec:
+                  type: object
+                  properties:
+                    image: {type: string}
+                    replicas: {type: integer}
+                    port: {type: integer}
+answer:
+  checks:
+  - id: api
+    label: apiVersion is apps.example.com/v1 (group/version of the CRD)
+    path: apiVersion
+    op: equals
+    value: apps.example.com/v1
+  - id: kind
+    label: Kind is WebApp
+    path: kind
+    op: equals
+    value: WebApp
+  - id: meta
+    label: Named storefront in namespace shop
+    path: metadata
+    op: subset
+    value: {name: storefront, namespace: shop}
+  - id: image
+    label: spec.image is registry.example.com/storefront:3.1
+    path: spec.image
+    op: equals
+    value: registry.example.com/storefront:3.1
+  - id: replicas
+    label: spec.replicas is 2
+    path: spec.replicas
+    op: equals
+    value: 2
+  - id: port
+    label: spec.port is 8080
+    path: spec.port
+    op: equals
+    value: 8080
+  solution:
+  - manifest: |
+      apiVersion: apps.example.com/v1
+      kind: WebApp
+      metadata:
+        name: storefront
+        namespace: shop
+      spec:
+        image: registry.example.com/storefront:3.1
+        replicas: 2
+        port: 8080
+  negatives:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: WebApp
+      metadata:
+        name: storefront
+        namespace: shop
+      spec:
+        image: registry.example.com/storefront:3.1
+        replicas: 2
+        port: 8080
+    why: apps/v1 is the built-in group of Deployments; the WebApp kind is served at apps.example.com/v1, the group declared in the CRD.
+  - manifest: |
+      apiVersion: apps.example.com/v1
+      kind: webapps
+      metadata:
+        name: storefront
+        namespace: shop
+      spec:
+        image: registry.example.com/storefront:3.1
+        replicas: 2
+        port: 8080
+    why: The kind field takes the kind declared in spec.names.kind, WebApp, not the plural used in URLs and kubectl get.
+  - manifest: |
+      apiVersion: apps.example.com/v1
+      kind: WebApp
+      metadata:
+        name: storefront
+        namespace: shop
+      image: registry.example.com/storefront:3.1
+      replicas: 2
+      port: 8080
+    why: The CRD schema puts image, replicas and port under spec; at the top level they are unknown fields that the API server prunes.
+explanation:
+  correct:
+    en: 'A custom object uses `apiVersion: <spec.group>/<version>` from its CRD (`apps.example.com/v1`) and `kind: <spec.names.kind>` (`WebApp`). Its fields follow the version''s OpenAPI schema, here under `spec`; unknown fields are pruned. Create it with `kubectl apply -f`, then list it with `kubectl get webapps -n shop`.'
+references:
+- title: Extend the Kubernetes API with CustomResourceDefinitions
+  url: https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/

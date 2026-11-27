@@ -1,0 +1,63 @@
+id: cka-4d-etcd-snapshot-restore
+objective: "4.4.2"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    On the control plane node `cp1` of a kubeadm cluster with a single stacked etcd member, the snapshot `/srv/backup/etcd-2026-11-27.db` must be restored. `etcdctl` and `etcdutl` from etcd 3.6 or later are installed.
+
+    Restore the snapshot into the new directory `/var/lib/etcd-from-backup`, which does not exist yet. The current data directory `/var/lib/etcd` must stay untouched. You will point the etcd static Pod to the new directory in a later step.
+
+    Type the single command you would run.
+body:
+  mode: invocation
+  tools: [etcdutl, etcdctl]
+  namespace: default
+answer:
+  checks:
+  - id: tool
+    label: Uses etcdutl, the tool that restores snapshots in etcd 3.6 and later
+    path: tool
+    op: equals
+    value: etcdutl
+  - id: snapshot
+    label: Runs a snapshot command
+    path: verb
+    op: equals
+    value: snapshot
+  - id: restore
+    label: The snapshot subcommand is restore
+    path: args[0]
+    op: equals
+    value: restore
+  - id: file
+    label: Restores /srv/backup/etcd-2026-11-27.db
+    path: args[1]
+    op: equals
+    value: /srv/backup/etcd-2026-11-27.db
+  - id: data-dir
+    label: Creates the data in /var/lib/etcd-from-backup (--data-dir)
+    path: flags.data-dir
+    op: oneOf
+    value: [/var/lib/etcd-from-backup, /var/lib/etcd-from-backup/]
+  solution:
+  - command: etcdutl snapshot restore /srv/backup/etcd-2026-11-27.db --data-dir /var/lib/etcd-from-backup
+  - command: sudo etcdutl --data-dir=/var/lib/etcd-from-backup snapshot restore /srv/backup/etcd-2026-11-27.db
+  negatives:
+  - command: etcdctl snapshot restore /srv/backup/etcd-2026-11-27.db --data-dir /var/lib/etcd-from-backup
+    why: Restoring with etcdctl was deprecated in etcd 3.5 and removed in 3.6; from 3.6 on, etcdctl only takes snapshots and etcdutl restores them.
+  - command: etcdutl snapshot restore /srv/backup/etcd-2026-11-27.db
+    why: Without --data-dir the data goes to <name>.etcd (default.etcd) in the current directory, not to /var/lib/etcd-from-backup.
+  - command: etcdutl snapshot restore /srv/backup/etcd-2026-11-27.db --data-dir /var/lib/etcd
+    why: /var/lib/etcd is the data directory in use, which must stay untouched; the task asks for a new directory.
+  - command: etcdutl snapshot status /srv/backup/etcd-2026-11-27.db --write-out=table
+    why: snapshot status only prints the hash, revision, key count and size of the snapshot.
+explanation:
+  correct:
+    en: '`etcdutl snapshot restore SNAPSHOT --data-dir DIR` builds a new data directory from the snapshot; the directory is created by the restore. `etcdctl` is used only to take snapshots from a running member, and its restore command, deprecated in etcd 3.5 in favor of `etcdutl`, was removed in etcd 3.6. The restored directory is then used by changing the `hostPath` of the `etcd-data` volume in `/etc/kubernetes/manifests/etcd.yaml`.'
+references:
+- title: Operating etcd clusters for Kubernetes
+  url: https://kubernetes.io/docs/tasks/administer-cluster/configure-upgrade-etcd/
+- title: Disaster recovery
+  url: https://etcd.io/docs/v3.6/op-guide/recovery/

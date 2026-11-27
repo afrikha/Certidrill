@@ -1,0 +1,157 @@
+id: ckad-2b-recreate-strategy
+objective: "2.2.2"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    The editor contains Deployment `reports` in namespace `analytics`. Version 7.0 changes the database schema on startup and must never run at the same time as an older version.
+
+    Update the manifest so that every update first terminates all existing Pods and only then creates new ones, and roll out image `registry.example.com/analytics/reports:7.0` in container `reports`.
+body:
+  starter: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: reports
+      namespace: analytics
+    spec:
+      replicas: 2
+      strategy:
+        type: RollingUpdate
+        rollingUpdate:
+          maxSurge: 1
+          maxUnavailable: 0
+      selector:
+        matchLabels:
+          app: reports
+      template:
+        metadata:
+          labels:
+            app: reports
+        spec:
+          containers:
+          - name: reports
+            image: registry.example.com/analytics/reports:6.9
+answer:
+  checks:
+  - id: meta
+    label: Deployment reports in namespace analytics
+    path: metadata
+    op: subset
+    value: {name: reports, namespace: analytics}
+  - id: type
+    label: The strategy type is Recreate
+    path: spec.strategy.type
+    op: equals
+    value: Recreate
+  - id: no-rolling
+    label: There is no rollingUpdate block (the API rejects it with Recreate)
+    path: spec.strategy.rollingUpdate
+    op: absent
+  - id: image
+    label: Container reports runs reports:7.0
+    path: spec.template.spec.containers[name=reports].image
+    op: equals
+    value: registry.example.com/analytics/reports:7.0
+  solution:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: reports
+        namespace: analytics
+      spec:
+        replicas: 2
+        strategy:
+          type: Recreate
+        selector:
+          matchLabels:
+            app: reports
+        template:
+          metadata:
+            labels:
+              app: reports
+          spec:
+            containers:
+            - name: reports
+              image: registry.example.com/analytics/reports:7.0
+  negatives:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: reports
+        namespace: analytics
+      spec:
+        replicas: 2
+        strategy:
+          type: Recreate
+          rollingUpdate:
+            maxSurge: 1
+            maxUnavailable: 0
+        selector:
+          matchLabels:
+            app: reports
+        template:
+          metadata:
+            labels:
+              app: reports
+          spec:
+            containers:
+            - name: reports
+              image: registry.example.com/analytics/reports:7.0
+    why: The API rejects rollingUpdate parameters when the strategy type is Recreate; the block must be removed.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: reports
+        namespace: analytics
+      spec:
+        replicas: 2
+        strategy:
+          type: RollingUpdate
+          rollingUpdate:
+            maxSurge: 0
+            maxUnavailable: 1
+        selector:
+          matchLabels:
+            app: reports
+        template:
+          metadata:
+            labels:
+              app: reports
+          spec:
+            containers:
+            - name: reports
+              image: registry.example.com/analytics/reports:7.0
+    why: A rolling update replaces Pods one at a time, so a 6.9 Pod and a 7.0 Pod run together during the update.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: reports
+        namespace: analytics
+      spec:
+        replicas: 2
+        strategy:
+          type: recreate
+        selector:
+          matchLabels:
+            app: reports
+        template:
+          metadata:
+            labels:
+              app: reports
+          spec:
+            containers:
+            - name: reports
+              image: registry.example.com/analytics/reports:7.0
+    why: Enum values are case-sensitive; the accepted values are Recreate and RollingUpdate.
+explanation:
+  correct:
+    en: 'With `strategy.type: Recreate`, all existing Pods are killed before new ones are created, so two versions never run together; the price is downtime during the update. The `rollingUpdate` block only applies to `RollingUpdate` and must be removed, otherwise the API rejects the Deployment.'
+references:
+- title: Deployments
+  url: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/

@@ -1,0 +1,132 @@
+id: ckad-1b-create-deployment-replicas
+objective: "1.2.1"
+difficulty: 1
+status: draft
+type: command
+stem:
+  en: |-
+    In namespace `shop`, create a Deployment named `web` that runs the image `nginx:1.27` with 3 replicas.
+
+    Type the single command you would run.
+body:
+  mode: object
+  namespace: default
+answer:
+  checks:
+  - id: kind
+    label: The object is a Deployment
+    path: kind
+    op: equals
+    value: Deployment
+  - id: name
+    label: It is named web
+    path: metadata.name
+    op: equals
+    value: web
+  - id: namespace
+    label: It is created in namespace shop
+    path: metadata.namespace
+    op: equals
+    value: shop
+  - id: replicas
+    label: It runs 3 replicas
+    path: spec.replicas
+    op: equals
+    value: 3
+  - id: image
+    label: Its container runs nginx:1.27
+    path: spec.template.spec.containers[0].image
+    op: equals
+    value: nginx:1.27
+  solution:
+  - command: kubectl create deployment web --image=nginx:1.27 --replicas=3 -n shop
+    output: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        labels:
+          app: web
+        name: web
+        namespace: shop
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: web
+        strategy: {}
+        template:
+          metadata:
+            labels:
+              app: web
+          spec:
+            containers:
+            - image: nginx:1.27
+              name: nginx
+              resources: {}
+      status: {}
+  - command: k -n shop create deploy web --image nginx:1.27 -r 3 --dry-run=client -o yaml
+    output: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        labels:
+          app: web
+        name: web
+        namespace: shop
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: web
+        template:
+          metadata:
+            labels:
+              app: web
+          spec:
+            containers:
+            - image: nginx:1.27
+              name: nginx
+  negatives:
+  - command: kubectl create deployment web --image=nginx:1.27 --replicas=3
+    why: Without -n the Deployment goes to the context namespace, default.
+    output: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        labels:
+          app: web
+        name: web
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: web
+        template:
+          metadata:
+            labels:
+              app: web
+          spec:
+            containers:
+            - image: nginx:1.27
+              name: nginx
+  - command: kubectl run web --image=nginx:1.27 -n shop
+    why: kubectl run creates a single Pod, not a Deployment.
+    output: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        labels:
+          run: web
+        name: web
+        namespace: shop
+      spec:
+        containers:
+        - image: nginx:1.27
+          name: web
+        restartPolicy: Always
+explanation:
+  correct:
+    en: '`kubectl create deployment NAME --image=IMAGE --replicas=N` creates the Deployment, its label `app: web` and the matching selector; `-n shop` (or `--namespace=shop`) puts it in the right namespace. `--replicas` has the shorthand `-r`. Without `-n`, kubectl uses the namespace of the current context. `kubectl run` would create a bare Pod, with no ReplicaSet to keep 3 copies running.'
+references:
+- title: kubectl create deployment
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_create/kubectl_create_deployment/

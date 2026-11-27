@@ -1,0 +1,248 @@
+id: cka-4c-kcm-allocate-node-cidrs
+objective: "4.3.1"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    The single control plane `cp1` was initialized without a Pod network CIDR. Flannel was then installed with its default network `10.244.0.0/16` and `--kube-subnet-mgr`: its Pods restart on every node, and their logs say that the node has no Pod CIDR assigned. `kubectl get nodes -o jsonpath='{.items[*].spec.podCIDR}'` prints nothing.
+
+    As the immediate fix (the `kubeadm-config` ConfigMap is updated separately), edit the static Pod manifest `/etc/kubernetes/manifests/kube-controller-manager.yaml` (below) so that the controller manager allocates a Pod CIDR to every node from `10.244.0.0/16`. Keep the other flags.
+body:
+  starter: |
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      labels:
+        component: kube-controller-manager
+        tier: control-plane
+      name: kube-controller-manager
+      namespace: kube-system
+    spec:
+      containers:
+      - command:
+        - kube-controller-manager
+        - --authentication-kubeconfig=/etc/kubernetes/controller-manager.conf
+        - --authorization-kubeconfig=/etc/kubernetes/controller-manager.conf
+        - --bind-address=127.0.0.1
+        - --client-ca-file=/etc/kubernetes/pki/ca.crt
+        - --cluster-name=kubernetes
+        - --cluster-signing-cert-file=/etc/kubernetes/pki/ca.crt
+        - --cluster-signing-key-file=/etc/kubernetes/pki/ca.key
+        - --controllers=*,bootstrapsigner,tokencleaner
+        - --kubeconfig=/etc/kubernetes/controller-manager.conf
+        - --leader-elect=true
+        - --requestheader-client-ca-file=/etc/kubernetes/pki/front-proxy-ca.crt
+        - --root-ca-file=/etc/kubernetes/pki/ca.crt
+        - --service-account-private-key-file=/etc/kubernetes/pki/sa.key
+        - --use-service-account-credentials=true
+        image: registry.k8s.io/kube-controller-manager:v1.37.1
+        imagePullPolicy: IfNotPresent
+        name: kube-controller-manager
+        volumeMounts:
+        - mountPath: /etc/kubernetes/pki
+          name: k8s-certs
+          readOnly: true
+        - mountPath: /etc/kubernetes/controller-manager.conf
+          name: kubeconfig
+          readOnly: true
+      hostNetwork: true
+      priorityClassName: system-node-critical
+      volumes:
+      - hostPath:
+          path: /etc/kubernetes/pki
+          type: DirectoryOrCreate
+        name: k8s-certs
+      - hostPath:
+          path: /etc/kubernetes/controller-manager.conf
+          type: FileOrCreate
+        name: kubeconfig
+answer:
+  checks:
+  - id: pod
+    label: Static Pod kube-controller-manager in kube-system
+    path: metadata
+    op: subset
+    value: {name: kube-controller-manager, namespace: kube-system}
+  - id: allocate
+    label: The controller manager runs with --allocate-node-cidrs=true
+    path: spec.containers[name=kube-controller-manager].command
+    op: matches
+    value: '"--allocate-node-cidrs(=true)?"'
+  - id: cluster-cidr
+    label: The controller manager runs with --cluster-cidr=10.244.0.0/16
+    path: spec.containers[name=kube-controller-manager].command
+    op: contains
+    value: --cluster-cidr=10.244.0.0/16
+  - id: kubeconfig
+    label: --kubeconfig is kept
+    path: spec.containers[name=kube-controller-manager].command
+    op: contains
+    value: --kubeconfig=/etc/kubernetes/controller-manager.conf
+  - id: image
+    label: The image is unchanged
+    path: spec.containers[name=kube-controller-manager].image
+    op: equals
+    value: registry.k8s.io/kube-controller-manager:v1.37.1
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        labels:
+          component: kube-controller-manager
+          tier: control-plane
+        name: kube-controller-manager
+        namespace: kube-system
+      spec:
+        containers:
+        - command:
+          - kube-controller-manager
+          - --allocate-node-cidrs=true
+          - --authentication-kubeconfig=/etc/kubernetes/controller-manager.conf
+          - --authorization-kubeconfig=/etc/kubernetes/controller-manager.conf
+          - --bind-address=127.0.0.1
+          - --client-ca-file=/etc/kubernetes/pki/ca.crt
+          - --cluster-cidr=10.244.0.0/16
+          - --cluster-name=kubernetes
+          - --cluster-signing-cert-file=/etc/kubernetes/pki/ca.crt
+          - --cluster-signing-key-file=/etc/kubernetes/pki/ca.key
+          - --controllers=*,bootstrapsigner,tokencleaner
+          - --kubeconfig=/etc/kubernetes/controller-manager.conf
+          - --leader-elect=true
+          - --requestheader-client-ca-file=/etc/kubernetes/pki/front-proxy-ca.crt
+          - --root-ca-file=/etc/kubernetes/pki/ca.crt
+          - --service-account-private-key-file=/etc/kubernetes/pki/sa.key
+          - --use-service-account-credentials=true
+          image: registry.k8s.io/kube-controller-manager:v1.37.1
+          imagePullPolicy: IfNotPresent
+          name: kube-controller-manager
+          volumeMounts:
+          - mountPath: /etc/kubernetes/pki
+            name: k8s-certs
+            readOnly: true
+          - mountPath: /etc/kubernetes/controller-manager.conf
+            name: kubeconfig
+            readOnly: true
+        hostNetwork: true
+        priorityClassName: system-node-critical
+        volumes:
+        - hostPath:
+            path: /etc/kubernetes/pki
+            type: DirectoryOrCreate
+          name: k8s-certs
+        - hostPath:
+            path: /etc/kubernetes/controller-manager.conf
+            type: FileOrCreate
+          name: kubeconfig
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: kube-controller-manager
+        namespace: kube-system
+      spec:
+        containers:
+        - name: kube-controller-manager
+          image: registry.k8s.io/kube-controller-manager:v1.37.1
+          command:
+          - kube-controller-manager
+          - --authentication-kubeconfig=/etc/kubernetes/controller-manager.conf
+          - --authorization-kubeconfig=/etc/kubernetes/controller-manager.conf
+          - --bind-address=127.0.0.1
+          - --client-ca-file=/etc/kubernetes/pki/ca.crt
+          - --cluster-name=kubernetes
+          - --cluster-signing-cert-file=/etc/kubernetes/pki/ca.crt
+          - --cluster-signing-key-file=/etc/kubernetes/pki/ca.key
+          - --controllers=*,bootstrapsigner,tokencleaner
+          - --kubeconfig=/etc/kubernetes/controller-manager.conf
+          - --leader-elect=true
+          - --requestheader-client-ca-file=/etc/kubernetes/pki/front-proxy-ca.crt
+          - --root-ca-file=/etc/kubernetes/pki/ca.crt
+          - --service-account-private-key-file=/etc/kubernetes/pki/sa.key
+          - --use-service-account-credentials=true
+          - --allocate-node-cidrs
+          - --cluster-cidr=10.244.0.0/16
+          volumeMounts:
+          - mountPath: /etc/kubernetes/pki
+            name: k8s-certs
+            readOnly: true
+          - mountPath: /etc/kubernetes/controller-manager.conf
+            name: kubeconfig
+            readOnly: true
+        hostNetwork: true
+        priorityClassName: system-node-critical
+        volumes:
+        - hostPath:
+            path: /etc/kubernetes/pki
+            type: DirectoryOrCreate
+          name: k8s-certs
+        - hostPath:
+            path: /etc/kubernetes/controller-manager.conf
+            type: FileOrCreate
+          name: kubeconfig
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: kube-controller-manager
+        namespace: kube-system
+      spec:
+        containers:
+        - name: kube-controller-manager
+          image: registry.k8s.io/kube-controller-manager:v1.37.1
+          command:
+          - kube-controller-manager
+          - --cluster-cidr=10.244.0.0/16
+          - --kubeconfig=/etc/kubernetes/controller-manager.conf
+          - --leader-elect=true
+          - --use-service-account-credentials=true
+        hostNetwork: true
+    why: --cluster-cidr is ignored unless --allocate-node-cidrs=true is also set, so no node gets a Pod CIDR.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: kube-controller-manager
+        namespace: kube-system
+      spec:
+        containers:
+        - name: kube-controller-manager
+          image: registry.k8s.io/kube-controller-manager:v1.37.1
+          command:
+          - kube-controller-manager
+          - --allocate-node-cidrs=true
+          - --pod-network-cidr=10.244.0.0/16
+          - --kubeconfig=/etc/kubernetes/controller-manager.conf
+          - --leader-elect=true
+          - --use-service-account-credentials=true
+        hostNetwork: true
+    why: --pod-network-cidr is a kubeadm init flag; the controller manager flag is --cluster-cidr, and the unknown flag stops the component from starting.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: kube-controller-manager
+        namespace: kube-system
+      spec:
+        containers:
+        - name: kube-controller-manager
+          image: registry.k8s.io/kube-controller-manager:v1.37.1
+          command:
+          - kube-controller-manager
+          - --allocate-node-cidrs=true
+          - --service-cluster-ip-range=10.244.0.0/16
+          - --kubeconfig=/etc/kubernetes/controller-manager.conf
+          - --leader-elect=true
+          - --use-service-account-credentials=true
+        hostNetwork: true
+    why: --service-cluster-ip-range is the Service range; the Pod range is --cluster-cidr.
+explanation:
+  correct:
+    en: 'Node Pod CIDRs are allocated by the controller manager when it runs with `--allocate-node-cidrs=true` and `--cluster-cidr=<Pod range>` (`--cluster-cidr` is ignored otherwise); each node gets a /24 by default (`--node-cidr-mask-size`). kubeadm sets these flags when `--pod-network-cidr` or `networking.podSubnet` is given. The kubelet recreates the static Pod when the manifest file changes. Also add `podSubnet` to the `kubeadm-config` ConfigMap, or `kubeadm upgrade` will regenerate the manifest without these flags.'
+references:
+- title: kube-controller-manager
+  url: https://kubernetes.io/docs/reference/command-line-tools-reference/kube-controller-manager/
+- title: kubeadm init
+  url: https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-init/

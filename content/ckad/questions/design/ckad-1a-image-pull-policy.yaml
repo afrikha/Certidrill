@@ -1,0 +1,116 @@
+id: ckad-1a-image-pull-policy
+objective: "1.1.3"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    Write the manifest of a Pod named `checkout` in namespace `shop` with two containers:
+
+    - `app` runs `registry.example.com/shop/checkout:2.3`. The CI pipeline re-pushes this tag for every hotfix, so the kubelet must ask the registry for the image every time it starts this container.
+    - `geoip` runs `registry.example.com/shop/geoip-db:2026.11`. This image is preloaded on every node; the kubelet must never contact the registry for it, and the container must fail to start if the image is missing.
+body:
+  starter: |
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: checkout
+      namespace: shop
+    spec:
+      containers:
+      - name: app
+        image: registry.example.com/shop/checkout:2.3
+      - name: geoip
+        image: registry.example.com/shop/geoip-db:2026.11
+answer:
+  checks:
+  - id: pod
+    label: A Pod named checkout in namespace shop
+    path: metadata
+    op: subset
+    value: {name: checkout, namespace: shop}
+  - id: app-image
+    label: Container app runs registry.example.com/shop/checkout:2.3
+    path: spec.containers[name=app].image
+    op: equals
+    value: registry.example.com/shop/checkout:2.3
+  - id: geoip-image
+    label: Container geoip runs registry.example.com/shop/geoip-db:2026.11
+    path: spec.containers[name=geoip].image
+    op: equals
+    value: registry.example.com/shop/geoip-db:2026.11
+  - id: app-policy
+    label: Container app has imagePullPolicy Always
+    path: spec.containers[name=app].imagePullPolicy
+    op: equals
+    value: Always
+  - id: geoip-policy
+    label: Container geoip has imagePullPolicy Never
+    path: spec.containers[name=geoip].imagePullPolicy
+    op: equals
+    value: Never
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: checkout
+        namespace: shop
+      spec:
+        containers:
+        - name: app
+          image: registry.example.com/shop/checkout:2.3
+          imagePullPolicy: Always
+        - name: geoip
+          image: registry.example.com/shop/geoip-db:2026.11
+          imagePullPolicy: Never
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: checkout
+        namespace: shop
+      spec:
+        containers:
+        - imagePullPolicy: Never
+          image: registry.example.com/shop/geoip-db:2026.11
+          name: geoip
+        - imagePullPolicy: Always
+          image: registry.example.com/shop/checkout:2.3
+          name: app
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: checkout
+        namespace: shop
+      spec:
+        containers:
+        - name: app
+          image: registry.example.com/shop/checkout:2.3
+        - name: geoip
+          image: registry.example.com/shop/geoip-db:2026.11
+          imagePullPolicy: Never
+    why: With a tag other than latest and no policy, the default is IfNotPresent, so a node that already has an old 2.3 never fetches the hotfix.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: checkout
+        namespace: shop
+      spec:
+        containers:
+        - name: app
+          image: registry.example.com/shop/checkout:2.3
+          imagePullPolicy: Always
+        - name: geoip
+          image: registry.example.com/shop/geoip-db:2026.11
+          imagePullPolicy: IfNotPresent
+    why: IfNotPresent pulls the image when it is missing; only Never forbids any pull.
+explanation:
+  correct:
+    en: '`imagePullPolicy` is set per container. `Always` makes the kubelet resolve the tag against the registry at each container start (only new layers are downloaded); `Never` uses only a local image and fails otherwise. When the field is omitted and the tag is neither `latest` nor absent, the default is `IfNotPresent`.'
+references:
+- title: Images
+  url: https://kubernetes.io/docs/concepts/containers/images/

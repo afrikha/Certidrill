@@ -1,0 +1,268 @@
+id: ckad-1b-statefulset-headless-storage
+objective: "1.2.2"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    In namespace `finance`, the database `ledger-db` runs 3 replicas. Each replica needs a stable name and DNS record (`ledger-db-0.ledger-db`, `ledger-db-1.ledger-db`…) and its own 10Gi `ReadWriteOnce` volume that stays attached to the same replica after a reschedule.
+
+    Write one file with two documents:
+
+    - the headless Service `ledger-db` that selects `app: ledger-db` on port 5432;
+    - the workload `ledger-db`: Pods labelled `app: ledger-db`, one container named `postgres` running `postgres:17`, and a per-replica claim named `data` mounted at `/var/lib/postgresql/data`.
+body:
+  starter: ""
+answer:
+  checks:
+  - id: svc-headless
+    label: Service ledger-db is headless (clusterIP None)
+    select: {kind: Service, name: ledger-db}
+    path: spec.clusterIP
+    op: equals
+    value: None
+  - id: svc-selector
+    label: Service ledger-db selects app=ledger-db
+    select: {kind: Service, name: ledger-db}
+    path: spec.selector
+    op: equals
+    value: {app: ledger-db}
+  - id: svc-port
+    label: Service ledger-db exposes port 5432
+    select: {kind: Service, name: ledger-db}
+    path: spec.ports
+    op: contains
+    value: {port: 5432}
+  - id: sts-ns
+    label: A StatefulSet named ledger-db in namespace finance
+    select: {kind: StatefulSet, name: ledger-db}
+    path: metadata.namespace
+    op: equals
+    value: finance
+  - id: sts-service
+    label: The StatefulSet uses ledger-db as its governing Service
+    select: {kind: StatefulSet, name: ledger-db}
+    path: spec.serviceName
+    op: equals
+    value: ledger-db
+  - id: sts-replicas
+    label: It runs 3 replicas
+    select: {kind: StatefulSet, name: ledger-db}
+    path: spec.replicas
+    op: equals
+    value: 3
+  - id: sts-selector
+    label: Its selector and template labels are app=ledger-db
+    select: {kind: StatefulSet, name: ledger-db}
+    path: spec.template.metadata.labels.app
+    op: equals
+    value: ledger-db
+  - id: sts-image
+    label: Container postgres runs postgres:17
+    select: {kind: StatefulSet, name: ledger-db}
+    path: spec.template.spec.containers[name=postgres].image
+    op: equals
+    value: postgres:17
+  - id: vct-size
+    label: Claim template data requests 10Gi
+    select: {kind: StatefulSet, name: ledger-db}
+    path: spec.volumeClaimTemplates[0].spec.resources.requests.storage
+    op: quantity
+    value: 10Gi
+  - id: vct-mode
+    label: Claim template data is ReadWriteOnce
+    select: {kind: StatefulSet, name: ledger-db}
+    path: spec.volumeClaimTemplates[0].spec.accessModes
+    op: contains
+    value: ReadWriteOnce
+  - id: vct-name
+    label: The claim template is named data
+    select: {kind: StatefulSet, name: ledger-db}
+    path: spec.volumeClaimTemplates[0].metadata.name
+    op: equals
+    value: data
+  - id: mount
+    label: data is mounted at /var/lib/postgresql/data
+    select: {kind: StatefulSet, name: ledger-db}
+    path: spec.template.spec.containers[name=postgres].volumeMounts
+    op: contains
+    value: {name: data, mountPath: /var/lib/postgresql/data}
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: ledger-db
+        namespace: finance
+      spec:
+        clusterIP: None
+        selector:
+          app: ledger-db
+        ports:
+        - name: postgres
+          port: 5432
+      ---
+      apiVersion: apps/v1
+      kind: StatefulSet
+      metadata:
+        name: ledger-db
+        namespace: finance
+      spec:
+        serviceName: ledger-db
+        replicas: 3
+        selector:
+          matchLabels:
+            app: ledger-db
+        template:
+          metadata:
+            labels:
+              app: ledger-db
+          spec:
+            containers:
+            - name: postgres
+              image: postgres:17
+              ports:
+              - containerPort: 5432
+              volumeMounts:
+              - name: data
+                mountPath: /var/lib/postgresql/data
+        volumeClaimTemplates:
+        - metadata:
+            name: data
+          spec:
+            accessModes: ["ReadWriteOnce"]
+            resources:
+              requests:
+                storage: 10Gi
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: ledger-db
+        namespace: finance
+      spec:
+        clusterIP: None
+        selector:
+          app: ledger-db
+        ports:
+        - port: 5432
+      ---
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: ledger-db
+        namespace: finance
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: ledger-db
+        template:
+          metadata:
+            labels:
+              app: ledger-db
+          spec:
+            containers:
+            - name: postgres
+              image: postgres:17
+              volumeMounts:
+              - name: data
+                mountPath: /var/lib/postgresql/data
+            volumes:
+            - name: data
+              persistentVolumeClaim:
+                claimName: data
+    why: Deployment Pods get random names and all three share one claim; only a StatefulSet gives ordinal names and one claim per replica.
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: ledger-db
+        namespace: finance
+      spec:
+        selector:
+          app: ledger-db
+        ports:
+        - port: 5432
+      ---
+      apiVersion: apps/v1
+      kind: StatefulSet
+      metadata:
+        name: ledger-db
+        namespace: finance
+      spec:
+        serviceName: ledger-db
+        replicas: 3
+        selector:
+          matchLabels:
+            app: ledger-db
+        template:
+          metadata:
+            labels:
+              app: ledger-db
+          spec:
+            containers:
+            - name: postgres
+              image: postgres:17
+              volumeMounts:
+              - name: data
+                mountPath: /var/lib/postgresql/data
+        volumeClaimTemplates:
+        - metadata:
+            name: data
+          spec:
+            accessModes: ["ReadWriteOnce"]
+            resources:
+              requests:
+                storage: 10Gi
+    why: Without clusterIP None the Service gets a virtual IP and DNS does not publish a record for each Pod.
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: ledger-db
+        namespace: finance
+      spec:
+        clusterIP: None
+        selector:
+          app: ledger-db
+        ports:
+        - port: 5432
+      ---
+      apiVersion: apps/v1
+      kind: StatefulSet
+      metadata:
+        name: ledger-db
+        namespace: finance
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: ledger-db
+        template:
+          metadata:
+            labels:
+              app: ledger-db
+          spec:
+            containers:
+            - name: postgres
+              image: postgres:17
+              volumeMounts:
+              - name: data
+                mountPath: /var/lib/postgresql/data
+        volumeClaimTemplates:
+        - metadata:
+            name: data
+          spec:
+            accessModes: ["ReadWriteOnce"]
+            resources:
+              requests:
+                storage: 10Gi
+    why: Without serviceName the StatefulSet has no governing Service, so the Pods get no ledger-db-N.ledger-db DNS names.
+explanation:
+  correct:
+    en: 'A StatefulSet gives its Pods ordinal names (`ledger-db-0`, `-1`, `-2`) and creates one PVC per Pod from each `volumeClaimTemplates` entry (`data-ledger-db-0`…), reattached after a reschedule. The per-Pod DNS records come from the headless Service (`clusterIP: None`) named in `spec.serviceName`. A Deployment shares one claim and uses random Pod names.'
+references:
+- title: StatefulSets
+  url: https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/

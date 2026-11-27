@@ -1,0 +1,184 @@
+id: cka-5c-expose-loadbalancer-named-port
+objective: "5.3.1"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    Deployment `api` in namespace `payments` (manifest in `api.yaml`) runs Pods whose container port 8443 is named `https`. The cluster has a load balancer integration.
+
+    Expose the Deployment to clients outside the cluster with a Service named `api-public` of type LoadBalancer that listens on port 443 and targets the container port **by its name**, so that the Service keeps working when the port number changes in a later release. Type the single command you would run.
+body:
+  mode: object
+  namespace: default
+  files:
+  - name: api.yaml
+    content: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: api
+        namespace: payments
+        labels:
+          app.kubernetes.io/name: api
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app.kubernetes.io/name: api
+        template:
+          metadata:
+            labels:
+              app.kubernetes.io/name: api
+          spec:
+            containers:
+            - name: api
+              image: registry.example.com/payments/api:3.2
+              ports:
+              - name: https
+                containerPort: 8443
+answer:
+  checks:
+  - id: kind
+    label: The object is a Service
+    path: kind
+    op: equals
+    value: Service
+  - id: name
+    label: It is named api-public
+    path: metadata.name
+    op: equals
+    value: api-public
+  - id: namespace
+    label: It is created in namespace payments
+    path: metadata.namespace
+    op: equals
+    value: payments
+  - id: type
+    label: Its type is LoadBalancer
+    path: spec.type
+    op: equals
+    value: LoadBalancer
+  - id: port
+    label: It listens on port 443
+    path: spec.ports[0].port
+    op: equals
+    value: 443
+  - id: target-port
+    label: It targets the container port named https
+    path: spec.ports[0].targetPort
+    op: equals
+    value: https
+  - id: selector
+    label: It selects the Pods of Deployment api
+    path: spec.selector
+    op: subset
+    value: {app.kubernetes.io/name: api}
+  solution:
+  - command: kubectl expose deployment api --name=api-public --type=LoadBalancer --port=443 --target-port=https -n payments
+    output: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        labels:
+          app.kubernetes.io/name: api
+        name: api-public
+        namespace: payments
+      spec:
+        ports:
+        - port: 443
+          protocol: TCP
+          targetPort: https
+        selector:
+          app.kubernetes.io/name: api
+        type: LoadBalancer
+      status:
+        loadBalancer: {}
+  - command: k -n payments expose deploy api --port 443 --target-port https --type LoadBalancer --name api-public --dry-run=client -o yaml
+    output: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        labels:
+          app.kubernetes.io/name: api
+        name: api-public
+        namespace: payments
+      spec:
+        ports:
+        - port: 443
+          protocol: TCP
+          targetPort: https
+        selector:
+          app.kubernetes.io/name: api
+        type: LoadBalancer
+      status:
+        loadBalancer: {}
+  negatives:
+  - command: kubectl expose deployment api --name=api-public --type=LoadBalancer --port=443 --target-port=8443 -n payments
+    why: The number works today but the task asks for the port name, so the Service follows the container port when its number changes.
+    output: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        labels:
+          app.kubernetes.io/name: api
+        name: api-public
+        namespace: payments
+      spec:
+        ports:
+        - port: 443
+          protocol: TCP
+          targetPort: 8443
+        selector:
+          app.kubernetes.io/name: api
+        type: LoadBalancer
+      status:
+        loadBalancer: {}
+  - command: kubectl expose deployment api --type=LoadBalancer --port=443 --target-port=https -n payments
+    why: Without --name the Service is named after the Deployment, api.
+    output: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        labels:
+          app.kubernetes.io/name: api
+        name: api
+        namespace: payments
+      spec:
+        ports:
+        - port: 443
+          protocol: TCP
+          targetPort: https
+        selector:
+          app.kubernetes.io/name: api
+        type: LoadBalancer
+      status:
+        loadBalancer: {}
+  - command: kubectl expose deployment api --name=api-public --type=NodePort --port=443 --target-port=https -n payments
+    why: A NodePort Service opens a port on every node but does not provision the external load balancer.
+    output: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        labels:
+          app.kubernetes.io/name: api
+        name: api-public
+        namespace: payments
+      spec:
+        ports:
+        - port: 443
+          protocol: TCP
+          targetPort: https
+        selector:
+          app.kubernetes.io/name: api
+        type: NodePort
+      status:
+        loadBalancer: {}
+explanation:
+  correct:
+    en: '`--target-port` accepts a number or the name of a container port; with `https` each Pod is reached on whatever port it declares under that name. `--type=LoadBalancer` makes the control plane allocate a node port as for NodePort, then the cloud controller provisions the external load balancer and writes its address in `status.loadBalancer`. `--name` overrides the default name, which is the name of the exposed resource.'
+references:
+- title: kubectl expose
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_expose/
+- title: Service
+  url: https://kubernetes.io/docs/concepts/services-networking/service/

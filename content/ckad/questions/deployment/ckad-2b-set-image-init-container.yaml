@@ -1,0 +1,191 @@
+id: ckad-2b-set-image-init-container
+objective: "2.2.1"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    In namespace `payments`, Deployment `api` (file `api.yaml`) runs the init container `migrate` (`registry.example.com/payments/api-migrate:2.0`), which applies the database schema, and the container `api` (`registry.example.com/payments/api:2.0`).
+
+    Release 2.1 needs both images updated in **one** rollout: `migrate` to `registry.example.com/payments/api-migrate:2.1` and `api` to `registry.example.com/payments/api:2.1`.
+
+    Type the single command you would run.
+body:
+  mode: object
+  namespace: default
+  files:
+  - name: api.yaml
+    content: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        labels:
+          app: api
+        name: api
+        namespace: payments
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: api
+        template:
+          metadata:
+            labels:
+              app: api
+          spec:
+            initContainers:
+            - image: registry.example.com/payments/api-migrate:2.0
+              name: migrate
+            containers:
+            - image: registry.example.com/payments/api:2.0
+              name: api
+answer:
+  checks:
+  - id: name
+    label: The object is the Deployment api
+    path: metadata.name
+    op: equals
+    value: api
+  - id: namespace
+    label: It is in namespace payments
+    path: metadata.namespace
+    op: equals
+    value: payments
+  - id: migrate-image
+    label: Init container migrate runs api-migrate:2.1
+    path: spec.template.spec.initContainers[name=migrate].image
+    op: equals
+    value: registry.example.com/payments/api-migrate:2.1
+  - id: api-image
+    label: Container api runs api:2.1
+    path: spec.template.spec.containers[name=api].image
+    op: equals
+    value: registry.example.com/payments/api:2.1
+  solution:
+  - command: kubectl set image deployment/api migrate=registry.example.com/payments/api-migrate:2.1 api=registry.example.com/payments/api:2.1 -n payments
+    output: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        labels:
+          app: api
+        name: api
+        namespace: payments
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: api
+        strategy: {}
+        template:
+          metadata:
+            labels:
+              app: api
+          spec:
+            containers:
+            - image: registry.example.com/payments/api:2.1
+              name: api
+              resources: {}
+            initContainers:
+            - image: registry.example.com/payments/api-migrate:2.1
+              name: migrate
+              resources: {}
+      status: {}
+  - command: k -n payments set image deploy api api=registry.example.com/payments/api:2.1 migrate=registry.example.com/payments/api-migrate:2.1
+    output: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        labels:
+          app: api
+        name: api
+        namespace: payments
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: api
+        strategy: {}
+        template:
+          metadata:
+            labels:
+              app: api
+          spec:
+            containers:
+            - image: registry.example.com/payments/api:2.1
+              name: api
+              resources: {}
+            initContainers:
+            - image: registry.example.com/payments/api-migrate:2.1
+              name: migrate
+              resources: {}
+      status: {}
+  negatives:
+  - command: kubectl set image deployment/api api=registry.example.com/payments/api:2.1 -n payments
+    why: Only api changes; the new Pods still run the 2.0 migration before the 2.1 application, and a second set image would start a second rollout.
+    output: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        labels:
+          app: api
+        name: api
+        namespace: payments
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: api
+        strategy: {}
+        template:
+          metadata:
+            labels:
+              app: api
+          spec:
+            containers:
+            - image: registry.example.com/payments/api:2.1
+              name: api
+              resources: {}
+            initContainers:
+            - image: registry.example.com/payments/api-migrate:2.0
+              name: migrate
+              resources: {}
+      status: {}
+  - command: kubectl set image deployment/api *=registry.example.com/payments/api:2.1 -n payments
+    why: The * wildcard also matches init containers, so migrate would run the application image instead of api-migrate:2.1.
+    output: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        labels:
+          app: api
+        name: api
+        namespace: payments
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: api
+        strategy: {}
+        template:
+          metadata:
+            labels:
+              app: api
+          spec:
+            containers:
+            - image: registry.example.com/payments/api:2.1
+              name: api
+              resources: {}
+            initContainers:
+            - image: registry.example.com/payments/api:2.1
+              name: migrate
+              resources: {}
+      status: {}
+explanation:
+  correct:
+    en: '`kubectl set image` takes several `CONTAINER_NAME=IMAGE` pairs in one command and looks the names up in both `containers` and `initContainers`. One command changes the Pod template once, so the Deployment creates one new ReplicaSet (one revision) with both images. `*=IMAGE` would give every container, init containers included, the same image.'
+references:
+- title: kubectl set image
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_set/kubectl_set_image/
+- title: Deployments
+  url: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/

@@ -1,0 +1,148 @@
+id: ckad-5a-allow-from-pods-port
+objective: "5.1.1"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    In namespace `payments`, the database Pods carry the label `app: db` and the API Pods carry the label `app: api`.
+
+    Write a NetworkPolicy named `db-allow-api` in namespace `payments` so that the `app: db` Pods accept ingress traffic only from the `app: api` Pods of the same namespace, and only on TCP port 5432.
+body:
+  starter: |
+    apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: db-allow-api
+      namespace: payments
+    spec:
+answer:
+  checks:
+  - id: kind
+    label: The object is a networking.k8s.io/v1 NetworkPolicy
+    path: apiVersion
+    op: equals
+    value: networking.k8s.io/v1
+  - id: meta
+    label: It is named db-allow-api in namespace payments
+    path: metadata
+    op: subset
+    value: {name: db-allow-api, namespace: payments}
+  - id: target
+    label: The policy selects the app=db Pods
+    path: spec.podSelector.matchLabels
+    op: equals
+    value: {app: db}
+  - id: source
+    label: An ingress rule allows traffic from the app=api Pods
+    path: spec.ingress
+    op: contains
+    value: {from: [{podSelector: {matchLabels: {app: api}}}]}
+  - id: port
+    label: The ingress rule is limited to port 5432
+    path: spec.ingress
+    op: contains
+    value: {from: [{podSelector: {matchLabels: {app: api}}}], ports: [{port: 5432}]}
+  solution:
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: db-allow-api
+        namespace: payments
+      spec:
+        podSelector:
+          matchLabels:
+            app: db
+        policyTypes:
+        - Ingress
+        ingress:
+        - from:
+          - podSelector:
+              matchLabels:
+                app: api
+          ports:
+          - protocol: TCP
+            port: 5432
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        namespace: payments
+        name: db-allow-api
+      spec:
+        podSelector:
+          matchLabels: {app: db}
+        ingress:
+        - ports:
+          - port: 5432
+          from:
+          - podSelector:
+              matchLabels: {app: api}
+  negatives:
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: db-allow-api
+        namespace: payments
+      spec:
+        podSelector:
+          matchLabels:
+            app: api
+        policyTypes:
+        - Ingress
+        ingress:
+        - from:
+          - podSelector:
+              matchLabels:
+                app: db
+          ports:
+          - protocol: TCP
+            port: 5432
+    why: The selectors are swapped. spec.podSelector chooses the Pods the policy protects (the db Pods); the from podSelector chooses the allowed clients.
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: db-allow-api
+        namespace: payments
+      spec:
+        podSelector:
+          matchLabels:
+            app: db
+        policyTypes:
+        - Ingress
+        ingress:
+        - from:
+          - podSelector:
+              matchLabels:
+                app: api
+    why: Without a ports list the rule allows the api Pods on every port, not only 5432.
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: db-allow-api
+        namespace: payments
+      spec:
+        podSelector:
+          matchLabels:
+            app: db
+        policyTypes:
+        - Ingress
+        ingress:
+        - from:
+          - namespaceSelector:
+              matchLabels:
+                app: api
+          ports:
+          - protocol: TCP
+            port: 5432
+    why: namespaceSelector matches labels of namespaces, not of Pods; the api Pods are not selected.
+explanation:
+  correct:
+    en: '`spec.podSelector` picks the Pods the policy applies to (`app: db`); once selected for Ingress they accept only what a rule allows. The rule `from: - podSelector: {matchLabels: {app: api}}` matches Pods of the policy''s own namespace, and `ports: - protocol: TCP, port: 5432` limits it to that port. Leaving out `ports` would open every port to the api Pods.'
+references:
+- title: Network Policies
+  url: https://kubernetes.io/docs/concepts/services-networking/network-policies/

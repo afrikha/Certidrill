@@ -1,0 +1,235 @@
+id: ckad-2a-canary-abort
+objective: "2.1.3"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    In namespace `catalog`, Service `search` (file `svc-search.yaml`) selects `app: search`, so it routes to both `search-stable` (Pods `app: search`, `track: stable`) and the canary `search-canary` (file `search-canary.yaml`). The canary returns errors.
+
+    Write one file with two documents that rolls the canary back:
+
+    1. The Service `search`, changed so that only stable Pods receive traffic, even if the canary is scaled up again later for debugging.
+    2. The Deployment `search-canary`, kept for investigation (same image) but running no Pod.
+body:
+  starter: ""
+  files:
+  - name: svc-search.yaml
+    content: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: search
+        namespace: catalog
+      spec:
+        selector:
+          app: search
+        ports:
+        - port: 80
+          targetPort: 8080
+  - name: search-canary.yaml
+    content: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: search-canary
+        namespace: catalog
+      spec:
+        replicas: 1
+        selector:
+          matchLabels:
+            app: search
+            track: canary
+        template:
+          metadata:
+            labels:
+              app: search
+              track: canary
+          spec:
+            containers:
+            - name: search
+              image: registry.example.com/catalog/search:5.1
+answer:
+  checks:
+  - id: svc-ns
+    label: Service search is in namespace catalog
+    select: {kind: Service, name: search}
+    path: metadata.namespace
+    op: equals
+    value: catalog
+  - id: svc-selector
+    label: Service search selects exactly app search and track stable
+    select: {kind: Service, name: search}
+    path: spec.selector
+    op: equals
+    value: {app: search, track: stable}
+  - id: svc-target
+    label: Service search still forwards to 8080
+    select: {kind: Service, name: search}
+    path: spec.ports[0].targetPort
+    op: equals
+    value: 8080
+  - id: canary-ns
+    label: Deployment search-canary is in namespace catalog
+    select: {kind: Deployment, name: search-canary}
+    path: metadata.namespace
+    op: equals
+    value: catalog
+  - id: canary-zero
+    label: search-canary is scaled to 0 replicas
+    select: {kind: Deployment, name: search-canary}
+    path: spec.replicas
+    op: equals
+    value: 0
+  - id: canary-image
+    label: search-canary keeps image search:5.1 for investigation
+    select: {kind: Deployment, name: search-canary}
+    path: spec.template.spec.containers[name=search].image
+    op: equals
+    value: registry.example.com/catalog/search:5.1
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: search
+        namespace: catalog
+      spec:
+        selector:
+          app: search
+          track: stable
+        ports:
+        - port: 80
+          targetPort: 8080
+      ---
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: search-canary
+        namespace: catalog
+      spec:
+        replicas: 0
+        selector:
+          matchLabels:
+            app: search
+            track: canary
+        template:
+          metadata:
+            labels:
+              app: search
+              track: canary
+          spec:
+            containers:
+            - name: search
+              image: registry.example.com/catalog/search:5.1
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: search
+        namespace: catalog
+      spec:
+        selector:
+          app: search
+          track: stable
+        ports:
+        - port: 80
+          targetPort: 8080
+      ---
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: search-canary
+        namespace: catalog
+      spec:
+        selector:
+          matchLabels:
+            app: search
+            track: canary
+        template:
+          metadata:
+            labels:
+              app: search
+              track: canary
+          spec:
+            containers:
+            - name: search
+              image: registry.example.com/catalog/search:5.1
+    why: Removing the replicas field does not mean zero; on apply the field defaults to 1, so a canary Pod keeps running.
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: search
+        namespace: catalog
+      spec:
+        selector:
+          track: stable
+        ports:
+        - port: 80
+          targetPort: 8080
+      ---
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: search-canary
+        namespace: catalog
+      spec:
+        replicas: 0
+        selector:
+          matchLabels:
+            app: search
+            track: canary
+        template:
+          metadata:
+            labels:
+              app: search
+              track: canary
+          spec:
+            containers:
+            - name: search
+              image: registry.example.com/catalog/search:5.1
+    why: The selector lost app search, so the Service would pick up the stable Pods of every application in the namespace.
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: search
+        namespace: catalog
+      spec:
+        selector:
+          app: search
+        ports:
+        - port: 80
+          targetPort: 8080
+      ---
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: search-canary
+        namespace: catalog
+      spec:
+        replicas: 0
+        selector:
+          matchLabels:
+            app: search
+            track: canary
+        template:
+          metadata:
+            labels:
+              app: search
+              track: canary
+          spec:
+            containers:
+            - name: search
+              image: registry.example.com/catalog/search:5.1
+    why: Scaling to 0 stops the traffic now, but the Service still matches canary Pods, so they would receive traffic again as soon as the canary is scaled up.
+explanation:
+  correct:
+    en: 'Scaling the canary to `replicas: 0` stops its Pods while keeping the Deployment and its template for investigation, as the canary tutorial recommends. Adding `track: stable` to the Service selector (and keeping `app: search`) makes sure a canary scaled up again for debugging receives no traffic. Omitting `replicas` is not the same as 0: the field defaults to 1.'
+references:
+- title: Deploy a Release Using a Canary Deployment
+  url: https://kubernetes.io/docs/tutorials/stateless-application/canary-deployment/
+- title: Deployments
+  url: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/

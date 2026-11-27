@@ -1,0 +1,135 @@
+id: ckad-1c-job-native-sidecar
+objective: "1.3.2"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    Write the manifest of a Job named `export` in namespace `reports`:
+
+    - one container named `export`, image `registry.example.com/exporter:1.4`; it connects to a database proxy on `127.0.0.1:5432`;
+    - the proxy runs in the same Pod: name `db-proxy`, image `registry.example.com/db-proxy:2.2`. It must already be running when `export` starts, and it must **not** prevent the Job from completing when `export` exits;
+    - the Pod is never restarted in place (`restartPolicy: Never`) and the Job retries at most 2 times (`backoffLimit: 2`).
+body: {}
+answer:
+  checks:
+  - id: job
+    label: A batch/v1 Job
+    path: apiVersion
+    op: equals
+    value: batch/v1
+  - id: meta
+    label: Named export in namespace reports
+    path: metadata
+    op: subset
+    value: {name: export, namespace: reports}
+  - id: backoff
+    label: backoffLimit is 2
+    path: spec.backoffLimit
+    op: equals
+    value: 2
+  - id: restart
+    label: Pod restartPolicy is Never
+    path: spec.template.spec.restartPolicy
+    op: equals
+    value: Never
+  - id: export
+    label: Container export runs registry.example.com/exporter:1.4
+    path: spec.template.spec.containers[name=export].image
+    op: equals
+    value: registry.example.com/exporter:1.4
+  - id: one-container
+    label: export is the only entry in containers
+    path: spec.template.spec.containers
+    op: length
+    value: 1
+  - id: proxy-image
+    label: db-proxy is an init container running registry.example.com/db-proxy:2.2
+    path: spec.template.spec.initContainers[name=db-proxy].image
+    op: equals
+    value: registry.example.com/db-proxy:2.2
+  - id: proxy-sidecar
+    label: db-proxy has restartPolicy Always (native sidecar)
+    path: spec.template.spec.initContainers[name=db-proxy].restartPolicy
+    op: equals
+    value: Always
+  solution:
+  - manifest: |
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: export
+        namespace: reports
+      spec:
+        backoffLimit: 2
+        template:
+          spec:
+            restartPolicy: Never
+            initContainers:
+            - name: db-proxy
+              image: registry.example.com/db-proxy:2.2
+              restartPolicy: Always
+            containers:
+            - name: export
+              image: registry.example.com/exporter:1.4
+  negatives:
+  - manifest: |
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: export
+        namespace: reports
+      spec:
+        backoffLimit: 2
+        template:
+          spec:
+            restartPolicy: Never
+            containers:
+            - name: export
+              image: registry.example.com/exporter:1.4
+            - name: db-proxy
+              image: registry.example.com/db-proxy:2.2
+    why: A proxy in containers never exits, so the Pod never succeeds and the Job never completes; it is not guaranteed to start first either.
+  - manifest: |
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: export
+        namespace: reports
+      spec:
+        backoffLimit: 2
+        template:
+          spec:
+            restartPolicy: Never
+            initContainers:
+            - name: db-proxy
+              image: registry.example.com/db-proxy:2.2
+            containers:
+            - name: export
+              image: registry.example.com/exporter:1.4
+    why: Without its own restartPolicy Always, db-proxy is a regular init container that must exit before export starts; the proxy never exits.
+  - manifest: |
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: export
+        namespace: reports
+      spec:
+        backoffLimit: 2
+        template:
+          spec:
+            restartPolicy: Always
+            initContainers:
+            - name: db-proxy
+              image: registry.example.com/db-proxy:2.2
+              restartPolicy: Always
+            containers:
+            - name: export
+              image: registry.example.com/exporter:1.4
+    why: A Job Pod template accepts only restartPolicy Never or OnFailure; Always is rejected (and the task asks for Never).
+explanation:
+  correct:
+    en: 'Declaring `db-proxy` in `initContainers` with `restartPolicy: Always` makes it a native sidecar: it is started before `export` and, as the Sidecar Containers page states, does not prevent the Job from completing after the main container has finished. A proxy listed in `containers` would keep the Pod running forever. The Pod-level `restartPolicy` of a Job must be `Never` or `OnFailure`.'
+references:
+- title: Sidecar Containers
+  url: https://kubernetes.io/docs/concepts/workloads/pods/sidecar-containers/

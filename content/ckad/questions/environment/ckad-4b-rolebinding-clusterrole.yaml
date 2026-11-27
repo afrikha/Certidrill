@@ -1,0 +1,117 @@
+id: ckad-4b-rolebinding-clusterrole
+objective: "4.2.2"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    The QA team needs read-only access to most objects of namespace `staging`, and nowhere else. Use the built-in ClusterRole `view`.
+
+    Write a binding named `qa-view` that grants it in namespace `staging` to the group `qa-team` and to the user `jane@example.com`.
+body:
+  starter: ""
+answer:
+  checks:
+  - id: kind
+    label: The object is a RoleBinding (namespace scope)
+    path: kind
+    op: equals
+    value: RoleBinding
+  - id: meta
+    label: Named qa-view in namespace staging
+    path: metadata
+    op: subset
+    value: {name: qa-view, namespace: staging}
+  - id: roleref
+    label: References the ClusterRole view
+    path: roleRef
+    op: subset
+    value: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: view}
+  - id: group
+    label: Subject Group qa-team
+    path: subjects
+    op: contains
+    value: {kind: Group, name: qa-team}
+  - id: user
+    label: Subject User jane@example.com
+    path: subjects
+    op: contains
+    value: {kind: User, name: jane@example.com}
+  solution:
+  - manifest: |
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: RoleBinding
+      metadata:
+        name: qa-view
+        namespace: staging
+      subjects:
+      - kind: Group
+        name: qa-team
+        apiGroup: rbac.authorization.k8s.io
+      - kind: User
+        name: jane@example.com
+        apiGroup: rbac.authorization.k8s.io
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: view
+  negatives:
+  - manifest: |
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRoleBinding
+      metadata:
+        name: qa-view
+      subjects:
+      - kind: Group
+        name: qa-team
+        apiGroup: rbac.authorization.k8s.io
+      - kind: User
+        name: jane@example.com
+        apiGroup: rbac.authorization.k8s.io
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: view
+    why: A ClusterRoleBinding grants view in every namespace; the task limits access to staging.
+  - manifest: |
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: RoleBinding
+      metadata:
+        name: qa-view
+        namespace: staging
+      subjects:
+      - kind: Group
+        name: qa-team
+        apiGroup: rbac.authorization.k8s.io
+      - kind: User
+        name: jane@example.com
+        apiGroup: rbac.authorization.k8s.io
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: Role
+        name: view
+    why: view is a ClusterRole; roleRef kind Role looks for a Role named view in staging, which does not exist.
+  - manifest: |
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: RoleBinding
+      metadata:
+        name: qa-view
+        namespace: staging
+      subjects:
+      - kind: User
+        name: qa-team
+        apiGroup: rbac.authorization.k8s.io
+      - kind: User
+        name: jane@example.com
+        apiGroup: rbac.authorization.k8s.io
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: view
+    why: qa-team is a group; as kind User it matches only a user literally named qa-team, not the members of the group.
+explanation:
+  correct:
+    en: 'A RoleBinding may reference a ClusterRole: the permissions then apply only in the binding''s namespace, here `staging`. A ClusterRoleBinding would grant them cluster-wide. Users and groups are subjects with `apiGroup: rbac.authorization.k8s.io`. The `view` role is read-only and excludes Secrets, Roles and RoleBindings. The imperative form is `kubectl create rolebinding qa-view --clusterrole=view --group=qa-team --user=jane@example.com -n staging`.'
+references:
+- title: Using RBAC Authorization
+  url: https://kubernetes.io/docs/reference/access-authn-authz/rbac/

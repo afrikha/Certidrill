@@ -1,0 +1,57 @@
+id: ckad-3c-top-pods-label-all-ns
+objective: "3.3.1"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    The batch workers of several teams carry the label `tier=batch` and run in different namespaces. List the CPU and memory usage of only these Pods, across all namespaces, with the largest memory consumer first.
+
+    Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Uses kubectl top
+    path: verb
+    op: equals
+    value: top
+  - id: resource
+    label: Reports usage of Pods
+    path: resource
+    op: equals
+    value: pod
+  - id: all-ns
+    label: Covers all namespaces
+    path: flags.all-namespaces
+    op: equals
+    value: true
+  - id: selector
+    label: Selects Pods with label tier=batch
+    path: flags.selector
+    op: matches
+    value: '^tier==?batch$'
+  - id: sort
+    label: Sorts by memory
+    path: flags.sort-by
+    op: equals
+    value: memory
+  solution:
+  - command: kubectl top pod -A -l tier=batch --sort-by=memory
+  - command: k top pods --all-namespaces --selector=tier=batch --sort-by memory
+  - command: kubectl top po -l tier==batch -A --sort-by=memory
+  negatives:
+  - command: kubectl top pod -n batch -l tier=batch --sort-by=memory
+    why: The Pods run in several namespaces; -n batch only covers one namespace.
+  - command: kubectl top pod -A --field-selector tier=batch --sort-by=memory
+    why: tier is a label, so it needs a label selector (-l), not a field selector.
+  - command: kubectl top pod -A -l tier=batch
+    why: Without --sort-by=memory the output is not ordered by memory usage.
+explanation:
+  correct:
+    en: '`kubectl top pod` accepts `-A` (`--all-namespaces`), a label selector with `-l` (`--selector`) and `--sort-by=cpu|memory`, so `kubectl top pod -A -l tier=batch --sort-by=memory` lists the batch Pods of every namespace, largest memory first. Field selectors filter on object fields such as `status.phase`, not on labels.'
+references:
+- title: kubectl top pod
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_top/kubectl_top_pod/

@@ -1,0 +1,127 @@
+id: cka-4g-runtimeclass-gvisor-pod
+objective: "4.7.2"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    containerd on every worker is configured with an extra runtime handler named `runsc` (gVisor).
+
+    Write the manifests of:
+
+    - a RuntimeClass named `gvisor` that uses this handler;
+    - a Pod named `parser` in namespace `untrusted`, with one container named `parser` running `registry.example.com/tools/parser:3.2`, that runs with this RuntimeClass.
+body:
+  starter: ""
+answer:
+  checks:
+  - id: rc-api
+    label: The RuntimeClass gvisor uses apiVersion node.k8s.io/v1
+    select: {kind: RuntimeClass, name: gvisor}
+    path: apiVersion
+    op: equals
+    value: node.k8s.io/v1
+  - id: rc-handler
+    label: The RuntimeClass handler is runsc
+    select: {kind: RuntimeClass, name: gvisor}
+    path: handler
+    op: equals
+    value: runsc
+  - id: pod-ns
+    label: The Pod parser is in namespace untrusted
+    select: {kind: Pod, name: parser}
+    path: metadata.namespace
+    op: equals
+    value: untrusted
+  - id: pod-image
+    label: Container parser runs registry.example.com/tools/parser:3.2
+    select: {kind: Pod, name: parser}
+    path: spec.containers[name=parser].image
+    op: equals
+    value: registry.example.com/tools/parser:3.2
+  - id: pod-rc
+    label: The Pod sets runtimeClassName gvisor
+    select: {kind: Pod, name: parser}
+    path: spec.runtimeClassName
+    op: equals
+    value: gvisor
+  solution:
+  - manifest: |
+      apiVersion: node.k8s.io/v1
+      kind: RuntimeClass
+      metadata:
+        name: gvisor
+      handler: runsc
+      ---
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: parser
+        namespace: untrusted
+      spec:
+        runtimeClassName: gvisor
+        containers:
+        - name: parser
+          image: registry.example.com/tools/parser:3.2
+  negatives:
+  - manifest: |
+      apiVersion: node.k8s.io/v1
+      kind: RuntimeClass
+      metadata:
+        name: gvisor
+      handler: gvisor
+      ---
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: parser
+        namespace: untrusted
+      spec:
+        runtimeClassName: gvisor
+        containers:
+        - name: parser
+          image: registry.example.com/tools/parser:3.2
+    why: The handler must be the name configured in containerd, runsc; no handler gvisor exists, so the Pod fails to start.
+  - manifest: |
+      apiVersion: node.k8s.io/v1
+      kind: RuntimeClass
+      metadata:
+        name: gvisor
+      handler: runsc
+      ---
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: parser
+        namespace: untrusted
+      spec:
+        runtimeClassName: runsc
+        containers:
+        - name: parser
+          image: registry.example.com/tools/parser:3.2
+    why: runtimeClassName takes the RuntimeClass name, gvisor, not the handler name.
+  - manifest: |
+      apiVersion: node.k8s.io/v1
+      kind: RuntimeClass
+      metadata:
+        name: gvisor
+      spec:
+        handler: runsc
+      ---
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: parser
+        namespace: untrusted
+      spec:
+        runtimeClassName: gvisor
+        containers:
+        - name: parser
+          image: registry.example.com/tools/parser:3.2
+    why: RuntimeClass has no spec; handler is a top-level field.
+explanation:
+  correct:
+    en: 'A RuntimeClass (`node.k8s.io/v1`, cluster-scoped) maps a name to a CRI handler configured on the nodes: `handler: runsc` at the top level, with no `spec`. A Pod selects it with `spec.runtimeClassName: gvisor`, the RuntimeClass name. If the class does not exist or the runtime cannot run the handler, the Pod fails and an event gives the error.'
+references:
+- title: Runtime Class
+  url: https://kubernetes.io/docs/concepts/containers/runtime-class/

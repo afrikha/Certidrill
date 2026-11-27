@@ -1,0 +1,53 @@
+id: cka-4e-reupload-control-plane-certs
+objective: "4.5.2"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    The HA cluster was created last week with `kubeadm init --control-plane-endpoint k8s-api.example.com:6443 --upload-certs` on `cp1`. Today you must add the control plane node `cp3`, but the certificate key printed by `kubeadm init` no longer works.
+
+    On `cp1`, upload the control plane certificates to the cluster again and print a new certificate key, without re-running the rest of `kubeadm init`. Type the single command you would run.
+body:
+  mode: invocation
+  tools: [kubeadm, kubectl]
+  namespace: default
+answer:
+  checks:
+  - id: tool
+    label: Uses kubeadm
+    path: tool
+    op: equals
+    value: kubeadm
+  - id: verb
+    label: It is a kubeadm init command
+    path: verb
+    op: equals
+    value: init
+  - id: phase
+    label: Runs only the upload-certs phase
+    path: args
+    op: equals
+    value: [phase, upload-certs]
+  - id: upload
+    label: Really uploads the certificates (--upload-certs)
+    path: flags.upload-certs
+    op: exists
+  solution:
+  - command: kubeadm init phase upload-certs --upload-certs
+  - command: sudo kubeadm init phase upload-certs --upload-certs --config=/root/kubeadm-config.yaml
+  negatives:
+  - command: kubeadm init phase upload-certs
+    why: Without --upload-certs the phase does not upload anything, so no new key is usable.
+  - command: kubeadm certs certificate-key
+    why: This only generates a random key; it does not encrypt and upload the certificates to the kubeadm-certs Secret.
+  - command: kubeadm token create --print-join-command
+    why: This creates a new bootstrap token, but the control plane certificates are still not available in the cluster.
+explanation:
+  correct:
+    en: '`--upload-certs` stores the shared control plane certificates, encrypted with the certificate key, in the `kubeadm-certs` Secret; the Secret and the key expire after two hours. `kubeadm init phase upload-certs --upload-certs` re-uploads them and prints a new key (generated unless `--certificate-key` or `certificateKey` in the config is given). Then join with `kubeadm join ... --control-plane --certificate-key <key>`, with a valid token.'
+references:
+- title: Creating Highly Available Clusters with kubeadm
+  url: https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/high-availability/
+- title: kubeadm init
+  url: https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-init/

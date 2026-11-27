@@ -1,0 +1,248 @@
+id: cka-5b-ingress-namespace-and-agents
+objective: "5.2.1"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    The Pods labeled `app: api` in namespace `payments` serve the API on TCP port 8443 and metrics on TCP port 9090. Namespace `frontend` has only the labels Kubernetes sets automatically. A monitoring agent runs as Pods labeled `app: metrics-agent` in several namespaces, some of them created later.
+
+    Write a NetworkPolicy named `api-ingress` in namespace `payments` so that the `app: api` Pods accept ingress only:
+
+    - on TCP port 8443, from every Pod of namespace `frontend`;
+    - on TCP port 9090, from the Pods labeled `app: metrics-agent` in any namespace.
+
+    Egress traffic of the API Pods must not be affected.
+body:
+  starter: ""
+answer:
+  checks:
+  - id: kind
+    label: The object is a NetworkPolicy
+    path: kind
+    op: equals
+    value: NetworkPolicy
+  - id: meta
+    label: It is named api-ingress in namespace payments
+    path: metadata
+    op: subset
+    value: {name: api-ingress, namespace: payments}
+  - id: target
+    label: The policy selects the app=api Pods
+    path: spec.podSelector.matchLabels
+    op: equals
+    value: {app: api}
+  - id: no-egress
+    label: The policy does not isolate egress
+    path: spec
+    op: matches
+    value: '^(?!.*"Egress").*$'
+  - id: frontend-rule
+    label: Port 8443 is allowed from namespace frontend, selected by kubernetes.io/metadata.name
+    path: spec.ingress
+    op: contains
+    value:
+      from:
+      - namespaceSelector:
+          matchLabels: {kubernetes.io/metadata.name: frontend}
+      ports:
+      - {port: 8443}
+  - id: frontend-all-pods
+    label: The frontend source is the whole namespace, with no podSelector
+    path: spec.ingress
+    op: matches
+    value: '\{"namespaceSelector":\{"matchLabels":\{"kubernetes\.io/metadata\.name":"frontend"\}\}\}'
+  - id: agent-rule
+    label: Port 9090 is allowed from app=metrics-agent Pods, with namespaceSelector and podSelector in the same from element
+    path: spec.ingress
+    op: contains
+    value:
+      from:
+      - namespaceSelector: {}
+        podSelector:
+          matchLabels: {app: metrics-agent}
+      ports:
+      - {port: 9090}
+  - id: agent-any-namespace
+    label: The namespaceSelector of the agent source is empty (all namespaces)
+    path: spec.ingress
+    op: matches
+    value: '"namespaceSelector":\{\}'
+  - id: tcp
+    label: The ports use TCP (written or default)
+    path: spec.ingress
+    op: matches
+    value: '^(?!.*"protocol":"(UDP|SCTP)").*$'
+  solution:
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: api-ingress
+        namespace: payments
+      spec:
+        podSelector:
+          matchLabels:
+            app: api
+        policyTypes:
+        - Ingress
+        ingress:
+        - from:
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: frontend
+          ports:
+          - protocol: TCP
+            port: 8443
+        - from:
+          - namespaceSelector: {}
+            podSelector:
+              matchLabels:
+                app: metrics-agent
+          ports:
+          - protocol: TCP
+            port: 9090
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: api-ingress
+        namespace: payments
+      spec:
+        podSelector:
+          matchLabels: {app: api}
+        ingress:
+        - ports:
+          - port: 9090
+          from:
+          - podSelector:
+              matchLabels: {app: metrics-agent}
+            namespaceSelector: {}
+        - ports:
+          - port: 8443
+          from:
+          - namespaceSelector:
+              matchLabels: {kubernetes.io/metadata.name: frontend}
+  negatives:
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: api-ingress
+        namespace: payments
+      spec:
+        podSelector:
+          matchLabels:
+            app: api
+        policyTypes:
+        - Ingress
+        ingress:
+        - from:
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: frontend
+          ports:
+          - protocol: TCP
+            port: 8443
+        - from:
+          - podSelector:
+              matchLabels:
+                app: metrics-agent
+          ports:
+          - protocol: TCP
+            port: 9090
+    why: A podSelector alone selects Pods of the policy's own namespace, so only agents running in payments could scrape port 9090.
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: api-ingress
+        namespace: payments
+      spec:
+        podSelector:
+          matchLabels:
+            app: api
+        policyTypes:
+        - Ingress
+        ingress:
+        - from:
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: frontend
+          ports:
+          - protocol: TCP
+            port: 8443
+        - from:
+          - namespaceSelector: {}
+          - podSelector:
+              matchLabels:
+                app: metrics-agent
+          ports:
+          - protocol: TCP
+            port: 9090
+    why: Two from elements are ORed; namespaceSelector {} on its own opens port 9090 to every Pod of every namespace.
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: api-ingress
+        namespace: payments
+      spec:
+        podSelector:
+          matchLabels:
+            app: api
+        policyTypes:
+        - Ingress
+        ingress:
+        - from:
+          - namespaceSelector:
+              matchLabels:
+                name: frontend
+          ports:
+          - protocol: TCP
+            port: 8443
+        - from:
+          - namespaceSelector: {}
+            podSelector:
+              matchLabels:
+                app: metrics-agent
+          ports:
+          - protocol: TCP
+            port: 9090
+    why: Namespace frontend has no label name=frontend; only the automatic label kubernetes.io/metadata.name=frontend identifies it.
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: api-ingress
+        namespace: payments
+      spec:
+        podSelector:
+          matchLabels:
+            app: api
+        policyTypes:
+        - Ingress
+        - Egress
+        ingress:
+        - from:
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: frontend
+          ports:
+          - protocol: TCP
+            port: 8443
+        - from:
+          - namespaceSelector: {}
+            podSelector:
+              matchLabels:
+                app: metrics-agent
+          ports:
+          - protocol: TCP
+            port: 9090
+    why: Egress listed in policyTypes with no egress rule blocks every outgoing connection of the API Pods.
+explanation:
+  correct:
+    en: 'Each source needs its own ingress rule so that each port goes with the right peers. The control plane sets the immutable label `kubernetes.io/metadata.name` on every namespace, so `namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: frontend}}` alone admits every Pod of `frontend`. For the agents, an empty `namespaceSelector: {}` (all namespaces) and the `podSelector` sit in the **same** from element, which means AND; a `podSelector` alone would only look in `payments`. Leaving `Egress` out of `policyTypes` keeps egress unrestricted.'
+references:
+- title: Network Policies
+  url: https://kubernetes.io/docs/concepts/services-networking/network-policies/

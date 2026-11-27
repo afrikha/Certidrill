@@ -1,0 +1,57 @@
+id: ckad-3e-exec-env-container
+objective: "3.5.2"
+difficulty: 1
+status: draft
+type: command
+stem:
+  en: |-
+    Pod `web` in namespace `shop` runs two containers, `nginx` (listed first) and `app`. Print the environment variables that the process of container `app` actually sees, without opening an interactive shell.
+
+    Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Uses kubectl exec
+    path: verb
+    op: equals
+    value: exec
+  - id: name
+    label: Targets Pod web
+    path: names
+    op: contains
+    value: web
+  - id: container
+    label: Runs in container app
+    path: flags.container
+    op: equals
+    value: app
+  - id: namespace
+    label: Runs in namespace shop
+    path: flags.namespace
+    op: equals
+    value: shop
+  - id: command
+    label: Runs env (or printenv) after --
+    path: rest[0]
+    op: oneOf
+    value: [env, printenv]
+  solution:
+  - command: kubectl exec web -c app -n shop -- env
+  - command: k exec -n shop web -c app -- printenv
+  - command: kubectl exec pod/web --container=app --namespace=shop -- env
+  negatives:
+  - command: kubectl exec web -n shop -- env
+    why: Without -c, kubectl exec runs in the default container, nginx.
+  - command: kubectl exec -it web -c app -n shop -- sh
+    why: This opens an interactive shell instead of printing the variables.
+  - command: kubectl describe pod web -n shop
+    why: describe lists the variables declared in the spec, not the full environment the process sees (image ENV, Service variables, envFrom values).
+explanation:
+  correct:
+    en: '`kubectl exec POD -c CONTAINER -- COMMAND` runs a command in a running container; everything after `--` is the command. Without `-c` kubectl uses the `kubectl.kubernetes.io/default-container` annotation or the first container. Running `env` shows the real environment, including variables from the image and those injected by Kubernetes.'
+references:
+- title: kubectl exec
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_exec/
