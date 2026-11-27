@@ -63,10 +63,12 @@ export function XpBar({ xp, from, next, t }: Readonly<{ xp: number; from: number
 }
 
 /** Dashboard: level, XP, domain mastery and badges of a certification. Private to the user. */
-export function ProgressionCard({ progression: p, rules, domainTitles }: Readonly<{
+export function ProgressionCard({ progression: p, rules, domainTitles, certificationFormat }: Readonly<{
   progression: { xp: number; level: { n: number; from: number; next: number | null }; levels: number; title: string; nextTitle: string | null; badges: readonly Badge[]; mastery: readonly { code: string; scaledScore: number; tier: MasteryTier }[] };
   rules: Pick<ProgressionConfig, "badges" | "mastery">;
   domainTitles: Readonly<Record<string, string>>;
+  /** certification.format: practice series rather than mock exams in the badge rules. */
+  certificationFormat?: string;
 }>) {
   const t = useTranslations("progression");
   const format = useFormatter();
@@ -109,7 +111,7 @@ export function ProgressionCard({ progression: p, rules, domainTitles }: Readonl
               <span aria-hidden className={cn("text-2xl", !badge && "opacity-40 grayscale")}>{ICON[code]}</span>
               <span>
                 <span className="block font-semibold">{t(`badge_${code}`)}</span>
-                <span className="block">{t(`badge_${code}_how`, badgeValues(code, rules))}</span>
+                <span className="block">{t(`badge_${code}_how`, { ...badgeValues(code, rules), format: certificationFormat === "performance" ? "performance" : "other" })}</span>
                 <span className="block text-xs">{badge ? t("earnedOn", { date: format.dateTime(badge.earnedAt, { dateStyle: "medium" }) }) : t("locked")}</span>
               </span>
             </li>

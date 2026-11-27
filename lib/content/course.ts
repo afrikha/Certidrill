@@ -19,6 +19,7 @@ import remarkGfm from "remark-gfm";
 import { visit } from "unist-util-visit";
 import type { Code, Nodes, Root, RootContent } from "mdast";
 import { locales, type Locale, type Localized } from "@/lib/i18n/config";
+import { frenchProblems, served } from "./languages";
 import { compareCodeUnits } from "@/lib/sort";
 import { ContentError, parseWith, readYaml, type CertificationContent } from "./loader";
 import { courseFileSchema, type CourseFile } from "./schema";
@@ -28,7 +29,7 @@ import { docsPage, isDocsUrl, vendorOf } from "@/lib/vendors";
 export const INTRO_MODULE = "intro";
 
 /** Code block languages a chapter may use. */
-export const COURSE_CODE_LANGUAGES = ["bash", "powershell", "json", "bicep", "kusto", "yaml", "python", "javascript", "typescript", "java", "text"] as const;
+export const COURSE_CODE_LANGUAGES = ["bash", "powershell", "json", "bicep", "kusto", "yaml", "python", "javascript", "typescript", "java", "sql", "text"] as const;
 
 /** Callouts: a quotation that starts with one of these bold labels. */
 export const CALLOUTS = {
@@ -440,20 +441,22 @@ export async function validateCourse(content: CertificationContent): Promise<Cou
   }
 
   const problems = manifestProblems(manifestFile, manifest, content);
-  const read = await readChapters(dir, manifest);
+  const { languages } = content.blueprint.certification;
+  for (const message of frenchProblems(manifest, languages)) problems.push({ file: manifestFile, message });
+  const read = await readChapters(dir, manifest, languages);
   problems.push(...read.problems);
   const english = new Map(read.chapters.flatMap((c) => (c.byLocale.en ? [[c.id, c.byLocale.en] as const] : [])));
   problems.push(...objectiveProblems(manifest, english, content, manifestFile));
   const expected = new Set([manifestFile, ...read.files]);
   for (const file of present.filter((f) => !expected.has(f))) problems.push({ file, message: "orphan file (not a chapter file of course.yaml)" });
   if (problems.length > 0) return { course: null, problems };
-  return { problems, course: assembleCourse(dir, manifest, read.chapters) };
+  return { problems, course: assembleCourse(dir, manifest, read.chapters, languages) };
 }
 
 type ChapterFiles = { id: string; byLocale: Partial<Record<Locale, ParsedChapter>> };
 
 /** Reads and parses the chapter files of the manifest, in both languages, and compares the languages. */
-async function readChapters(dir: string, manifest: CourseFile): Promise<{ files: string[]; chapters: ChapterFiles[]; problems: CourseProblem[] }> {
+async function readChapters(dir: string, manifest: CourseFile, languages: readonly Locale[]): Promise<{ files: string[]; chapters: ChapterFiles[]; problems: CourseProblem[] }> {
   const problems: CourseProblem[] = [];
   const reads = await Promise.all(
     manifest.chapters.flatMap((c) => locales.map(async (locale) => {
@@ -465,7 +468,8 @@ async function readChapters(dir: string, manifest: CourseFile): Promise<{ files:
     const byLocale: ChapterFiles["byLocale"] = {};
     for (const r of reads.filter((x) => x.id === c.id)) {
       if (r.text === null) {
-        problems.push({ file: r.file, message: `missing: chapter "${c.id}" has no ${r.locale} file` });
+        // A language the certification does not offer may have no file (docs/SPECS-AWS.md §3.7).
+        if (languages.includes(r.locale)) problems.push({ file: r.file, message: `missing: chapter "${c.id}" has no ${r.locale} file` });
         continue;
       }
       const chapter = parseChapter(r.file, r.text, r.locale);
@@ -475,18 +479,24 @@ async function readChapters(dir: string, manifest: CourseFile): Promise<{ files:
     if (byLocale.en && byLocale.fr) problems.push(...parityProblems(byLocale.en, byLocale.fr));
     return { id: c.id, byLocale };
   });
-  return { files: reads.map((r) => r.file), chapters, problems };
+  return { files: reads.filter((r) => r.text !== null).map((r) => r.file), chapters, problems };
 }
 
-/** The course, once every check passed (both languages of every chapter are there). */
-function assembleCourse(dir: string, manifest: CourseFile, chapters: ChapterFiles[]): Course {
+/**
+ * The course, once every check passed (every offered language of every
+ * chapter is there). Without French, the French course is the English one:
+ * a French file kept for later is checked, not served.
+ */
+function assembleCourse(dir: string, manifest: CourseFile, chapters: ChapterFiles[], languages: readonly Locale[]): Course {
   return {
     dir,
-    modules: manifest.modules,
+    modules: manifest.modules.map((m) => ({ ...m, title: served(m.title, languages) })),
     chapters: manifest.chapters.map((c, i) => {
-      const { en, fr } = chapters[i]!.byLocale as Record<Locale, ParsedChapter>;
+      const { en, fr: french } = chapters[i]!.byLocale as Partial<Record<Locale, ParsedChapter>> & { en: ParsedChapter };
+      const fr = languages.includes("fr") && french ? french : en;
       return {
         ...c,
+        title: served(c.title, languages),
         summary: { en: en.summary, fr: fr.summary },
         sections: en.sections.map((s, k) => ({
           id: s.id,

@@ -21,6 +21,8 @@ import { assembleExam } from "./assembler";
 import { loadAssemblyBank, loadAssemblyBlueprint, loadHistory } from "./bank-query";
 import { createRng } from "./random";
 import { scoreExam, scoreItem, scoringRules } from "./scoring";
+import { exerciseTypes, isExerciseType, type ExerciseQuestion, type Grading } from "@/lib/exercises/grade";
+import { gradeOnServer } from "@/lib/exercises/server";
 
 /** Writes arriving up to this long after the deadline are still accepted (network latency). */
 export const DEADLINE_GRACE_MS = 5_000;
@@ -183,7 +185,8 @@ export interface AttemptView {
   id: string;
   status: "not_started" | "in_progress" | "submitted" | "expired";
   locale: Locale;
-  certification: { code: string; title: string };
+  /** languages: those of the official exam; without the attempt's locale, its content is in English (docs/SPECS-AWS.md §3.7). */
+  certification: { code: string; title: string; languages: string[]; format: string };
   durationMin: number;
   totalQuestions: number;
   /** Blueprint range, to tell the candidate when the bank is still too small. */
@@ -225,7 +228,7 @@ export async function getAttemptView(db: PrismaClient, { attemptId, userId, now 
     id: attempt.id,
     status,
     locale,
-    certification: { code: attempt.certification.code, title: attempt.certification.title },
+    certification: { code: attempt.certification.code, title: attempt.certification.title, languages: attempt.certification.languages, format: attempt.certification.format },
     durationMin: attempt.blueprint.durationMin,
     totalQuestions: attempt.items.length,
     questionRange: { min: attempt.blueprint.minQuestions, max: attempt.blueprint.maxQuestions },
@@ -400,6 +403,9 @@ export async function submitAttempt(
   // "submitted" but is dated at the deadline.
   const submittedAt = attempt.deadlineAt && attempt.deadlineAt < now ? attempt.deadlineAt : now;
 
+  // Practical exercises are checked first, outside the transaction (kubectl takes up to seconds).
+  const gradings = await gradeExercises(db, attemptId);
+
   const result = await db.$transaction(async (tx) => {
     // Exclusive lock on the attempt: no answer can be saved between the
     // scoring below and the closing (saveItem takes a shared lock), and only
@@ -407,15 +413,43 @@ export async function submitAttempt(
     if ((await lockAttempt(tx, attemptId, "update")) !== "in_progress") return null;
     const items = await tx.attemptItem.findMany({ where: { attemptId }, include: { question: { select: { type: true, body: true, answer: true } } } });
     const rules = scoringRules(attempt.blueprint.scoring);
-    const scores = items.map((i) => ({ id: i.id, ...scoreItem(i.question, i.response, rules) }));
+    const scores = [];
+    for (const i of items) {
+      // An answer saved after the checks above (in the grace period) is checked again here.
+      let grading: Grading | null = null;
+      if (isExerciseType(i.question.type) && i.response !== null) {
+        const done = gradings.get(i.id);
+        grading = done && done.key === JSON.stringify(i.response) ? done.grading : await gradeOnServer(i.question as ExerciseQuestion, i.response); // NOSONAR: rare, sequential on purpose
+      }
+      scores.push({ id: i.id, grading, ...scoreItem(i.question, i.response, rules, grading) });
+    }
     const total = scoreExam(scores, attempt.blueprint);
     await tx.attempt.update({ where: { id: attemptId }, data: { status: reason, submittedAt, scaledScore: total.scaledScore, passed: total.passed } });
-    for (const s of scores) await tx.attemptItem.update({ where: { id: s.id }, data: { pointsEarned: s.earned, pointsMax: s.max } }); // NOSONAR: one interactive transaction (single connection)
+    for (const s of scores) {
+      // NOSONAR: one interactive transaction (single connection)
+      await tx.attemptItem.update({ where: { id: s.id }, data: { pointsEarned: s.earned, pointsMax: s.max, ...(s.grading && { grading: s.grading as Prisma.InputJsonValue }) } });
+    }
     await tx.attemptSection.updateMany({ where: { attemptId, lockedAt: null }, data: { lockedAt: submittedAt } });
     return total;
   }, { maxWait: 10_000, timeout: 30_000 }); // up to ~75 item updates (SAP-C03): leave room on a slow or busy database
   if (result) logEvent(reason === "expired" ? "exam.expired" : "exam.submitted", { attemptId, userId, scaledScore: result.scaledScore, passed: result.passed });
   return db.attempt.findUniqueOrThrow({ where: { id: attemptId } });
+}
+
+/** Checks the answered practical exercises of an attempt (by item id, with the response checked). */
+async function gradeExercises(db: PrismaClient, attemptId: string): Promise<Map<string, { key: string; grading: Grading }>> {
+  const items = await db.attemptItem.findMany({
+    where: { attemptId, response: { not: Prisma.DbNull }, question: { type: { in: [...exerciseTypes] } } },
+    select: { id: true, response: true, question: { select: { type: true, body: true, answer: true } } },
+  });
+  const out = new Map<string, { key: string; grading: Grading }>();
+  // At most KUBECTL_LIMITS.maxConcurrent kubectl runs at once (the others wait their turn).
+  await Promise.all(
+    items.map(async (i) => {
+      out.set(i.id, { key: JSON.stringify(i.response), grading: await gradeOnServer(i.question as ExerciseQuestion, i.response) });
+    }),
+  );
+  return out;
 }
 
 /** Closes the attempt as expired if its deadline (plus grace) has passed. */

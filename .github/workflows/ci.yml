@@ -39,11 +39,23 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # kubectl v1.37 (checksum verified): the practical exercises (CKAD, CKA)
+      # are graded with it, and content:validate runs every solution and
+      # negative with it (REQUIRE_KUBECTL: no fallback on the written outputs).
+      - run: sudo ./scripts/install-kubectl.sh
       - run: npm run content:check
       # Every certification: each file and course with every problem listed,
       # and 10 exams of one candidate without a repeated question.
-      - run: npm run content:validate -- --cert all
-      - run: npm run content:simulate -- --cert all 10
+      - run: npm run content:validate -- --cert all --mismatches kubectl-mismatches.md
+        env:
+          REQUIRE_KUBECTL: "1"
+      - run: cat kubectl-mismatches.md >> "$GITHUB_STEP_SUMMARY"
+        if: always() && hashFiles('kubectl-mismatches.md') != ''
+      - run: npm run content:simulate -- --cert 'all,!ckad,!cka' 10
+      # CKAD and CKA: 17 exercises a series; their banks hold 9 series without a
+      # repeated exercise (CKAD networking 36 for 4 a series, CKA troubleshooting
+      # 48 for 5). Back to 10 with the others once the banks have grown.
+      - run: npm run content:simulate -- --cert ckad,cka 9
       - run: npm run lint
       - run: npm run typecheck
       # Unit + integration (real PostgreSQL) + React components.
@@ -125,6 +137,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # The practical exercises are graded with kubectl (lib/exercises/kubectl.ts).
+      - run: ./scripts/install-kubectl.sh
       # End-to-end journeys + non-regression suite (ARIA snapshots, access
       # control, HTTP contract) against a production build.
       - run: npm run test:e2e
@@ -136,3 +150,34 @@ jobs:
             playwright-report/
             test-results/
           retention-days: 14
+
+  # Every merge into main that passes all the checks gets a version tag,
+  # vYYYY.MM.DD.N (N-th of the day, UTC). The server builds the image with
+  # `git describe --tags` of the commit it deploys (README, "Version").
+  tag:
+    runs-on: ubuntu-latest
+    needs: [check, windows, e2e]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+    # Two merges in a row never pick the same number.
+    concurrency:
+      group: version-tag
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Tag the version
+        run: |
+          set -euo pipefail
+          if git tag --points-at HEAD | grep -q '^v'; then
+            echo "::notice::Already tagged: $(git tag --points-at HEAD | grep '^v' | head -1)"
+            exit 0
+          fi
+          day=$(date -u +%Y.%m.%d)
+          n=$(git tag -l "v${day}.*" | sed "s/^v${day}\.//" | sort -n | tail -1)
+          tag="v${day}.$(( ${n:-0} + 1 ))"
+          git tag "$tag" "$GITHUB_SHA"
+          git push origin "refs/tags/$tag"
+          echo "::notice::Version $tag"

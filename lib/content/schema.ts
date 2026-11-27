@@ -1,9 +1,13 @@
 import { z } from "zod";
 
-/** Text available in every supported locale. */
+/**
+ * Text in the content languages: English always, French when the
+ * certification offers it (blueprint certification.languages; checked by
+ * missingFrench in lib/content/languages.ts, not here).
+ */
 export const localizedSchema = z.strictObject({
   en: z.string().min(1),
-  fr: z.string().min(1),
+  fr: z.string().min(1).optional(),
 });
 
 const share = z.number().min(0).max(1);
@@ -23,8 +27,14 @@ export const questionTypes = [
   "ordering",
   "hotarea",
   "series_yesno",
+  "command",
+  "manifest",
 ] as const;
 export const questionTypeSchema = z.enum(questionTypes);
+
+/** Exam formats (blueprint certification.format). */
+export const certificationFormats = ["multiple-choice", "performance"] as const;
+export type CertificationFormat = (typeof certificationFormats)[number];
 export type QuestionTypeCode = z.infer<typeof questionTypeSchema>;
 
 export const typeMixSchema = z.partialRecord(questionTypeSchema, shareRange);
@@ -147,8 +157,11 @@ export const scoringRulesSchema = z
   .strictObject({
     multi: z.enum(["per_option", "all_or_nothing"]).default("per_option"),
     dragdrop: z.enum(["per_element", "all_or_nothing"]).default("per_element"),
+    /** Practical exercises (docs/SPECS-KUBERNETES-PRATIQUE.md): 1 point per check, or 1 point if all pass. */
+    command: z.enum(["per_check", "all_or_nothing"]).default("per_check"),
+    manifest: z.enum(["per_check", "all_or_nothing"]).default("per_check"),
   })
-  .default({ multi: "per_option", dragdrop: "per_element" });
+  .default({ multi: "per_option", dragdrop: "per_element", command: "per_check", manifest: "per_check" });
 export type ScoringRules = z.infer<typeof scoringRulesSchema>;
 export const DEFAULT_SCORING: ScoringRules = scoringRulesSchema.parse(undefined);
 
@@ -166,6 +179,19 @@ export const blueprintFileSchema = z
       title: z.string().min(1),
       vendor: z.string().min(1),
       active: z.boolean().default(true),
+      /** The languages of the official exam, among those of the site (docs/SPECS-AWS.md §3.7). */
+      languages: z
+        .array(z.enum(["en", "fr"]))
+        .min(1)
+        .default(["en", "fr"])
+        .refine((l) => l.includes("en"), "languages must include en")
+        .refine((l) => new Set(l).size === l.length, "languages must be unique"),
+      /**
+       * `performance`: a practical exam on real clusters (CKAD, CKA). The site
+       * then offers practice sets of exercises, never labelled mock exams
+       * (docs/SPECS-KUBERNETES-PRATIQUE.md §5).
+       */
+      format: z.enum(certificationFormats).default("multiple-choice"),
     }),
     blueprint: z.object({
       version: z.string().min(1),
@@ -204,7 +230,7 @@ export type BlueprintFile = z.infer<typeof blueprintFileSchema>;
 export const objectiveFileSchema = z.object({
   code: z.string().regex(/^\d+(\.\d+)*$/),
   en: z.string().min(1),
-  fr: z.string().min(1),
+  fr: z.string().min(1).optional(),
   learnUrl: z.url().optional(),
 });
 

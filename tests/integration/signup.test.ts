@@ -21,6 +21,7 @@ import { AccessError } from "@/lib/access";
 import { createAttempt, startAttempt } from "@/lib/exam/session";
 import { SWITCHES } from "@/lib/settings";
 import { EMAIL_VERIFY_HOURS } from "@/lib/auth/email";
+import { drainOutbox, type Mail } from "@/lib/email/outbox";
 import { publishSampleBank } from "./sample-bank";
 import { grantFullAccess } from "./access";
 
@@ -139,6 +140,45 @@ describe("following the link", () => {
     expect(await confirm(token, "alice's own password")).toEqual({ status: "invalid" });
     expect(await peekSignup(db, token)).toEqual({ status: "invalid" });
     expect(await db.signupRequest.count({ where: { email: "alice@example.com" } })).toBe(0);
+  });
+
+  it("tells the owner (ADMIN_NOTIFY_EMAIL) of each new account, in the owner's language, and nothing without the setting", async () => {
+    vi.stubEnv("ADMIN_NOTIFY_EMAIL", "");
+    await signup("quiet@example.com");
+    await confirm(tokenOf());
+    const quiet = await db.user.findUniqueOrThrow({ where: { email: "quiet@example.com" } });
+    expect(await db.emailOutbox.count({ where: { userId: quiet.id } })).toBe(0);
+
+    vi.stubEnv("ADMIN_NOTIFY_EMAIL", " Owner@Example.com ");
+    try {
+      await createUser(db, { email: "owner@example.com", role: "admin", locale: "en" });
+      await signup("newcomer@example.com", { locale: "fr" });
+      await confirm(tokenOf(1));
+      const newcomer = await db.user.findUniqueOrThrow({ where: { email: "newcomer@example.com" } });
+      // No account, no notice: only the confirmed sign-up queued one.
+      expect((await db.emailOutbox.findMany({ where: { kind: "signup_notice" } })).map((e) => e.userId)).toEqual([newcomer.id]);
+      const sent: Mail[] = [];
+      expect(await drainOutbox(db, { now: hours(2), sender: async (m) => void sent.push(m), base: BASE })).toMatchObject({ sent: 1 });
+      expect(sent[0]).toMatchObject({ to: "Owner@Example.com", kind: "signup_notice", link: `${BASE}/admin/users/${newcomer.id}` });
+      expect(sent[0]!.message.subject).toBe("New sign-up on Certidrill: newcomer@example.com");
+      expect(sent[0]!.message.text).toContain("language FR");
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("skips a queued notice once ADMIN_NOTIFY_EMAIL is removed", async () => {
+    vi.stubEnv("ADMIN_NOTIFY_EMAIL", "owner@example.com");
+    await signup("later@example.com");
+    await confirm(tokenOf());
+    vi.stubEnv("ADMIN_NOTIFY_EMAIL", "");
+    try {
+      const sent: Mail[] = [];
+      expect(await drainOutbox(db, { now: hours(2), sender: async (m) => void sent.push(m), base: BASE })).toMatchObject({ sent: 0, skipped: 1 });
+      expect(sent).toHaveLength(0);
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it("a wrong password keeps the link, and is limited to 5 tries", async () => {

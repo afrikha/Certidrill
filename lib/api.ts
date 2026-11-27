@@ -6,6 +6,7 @@ import { SessionError } from "@/lib/exam/session";
 import { AccessError } from "@/lib/access";
 import { BillingError } from "@/lib/billing/checkout";
 import { logError } from "@/lib/log";
+import { ExerciseBusyError } from "@/lib/exercises/grade";
 
 export type ApiUser = { id: string; role: "user" | "admin"; locale: string };
 
@@ -32,6 +33,8 @@ export function apiRoute<P>(handler: (ctx: { request: Request; user: ApiUser; pa
       if (err instanceof ZodError) return NextResponse.json({ error: "invalid_request", issues: err.issues.map((i) => i.message) }, { status: 400 });
       if (err instanceof SyntaxError) return NextResponse.json({ error: "invalid_json" }, { status: 400 });
       if (err instanceof PayloadTooLargeError) return NextResponse.json({ error: "payload_too_large" }, { status: 413 });
+      // kubectl busy checking other exercises (docs/SPECS-KUBERNETES-PRATIQUE.md §3.5): retry.
+      if (err instanceof ExerciseBusyError) return NextResponse.json({ error: "busy" }, { status: 503, headers: { "Retry-After": "5" } });
       logError("api.error", err, { url: request.url, method: request.method });
       return NextResponse.json({ error: "internal" }, { status: 500 });
     }

@@ -89,7 +89,7 @@ describe("score report", () => {
   it("scores multi and dragdrop all or nothing when the blueprint says so (the AWS rule), the report included", async () => {
     const blueprint = await db.blueprint.findFirstOrThrow({ where: { current: true, certification: { code: "az-104" } } });
     // The same answers as the manual calculation: the Microsoft rule first, as stored by the seed.
-    expect(blueprint.scoring).toEqual({ multi: "per_option", dragdrop: "per_element" });
+    expect(blueprint.scoring).toEqual({ multi: "per_option", dragdrop: "per_element", command: "per_check", manifest: "per_check" });
     const answers = (id: string, key: unknown) => {
       if (id.startsWith("stor-") || id.startsWith("cs-nw-lab") || id === "cs-nw-lifecycle") return key;
       if (id === "net-peering-transitivity") return { optionIds: ["b"] };

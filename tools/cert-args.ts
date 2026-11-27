@@ -4,6 +4,7 @@
  *   --cert az-900            one certification
  *   --cert az-900,dp-900     several (or --cert repeated)
  *   --cert all               every certification of content/
+ *   --cert 'all,!ckad'       every certification but ckad (a `!` code is left out)
  * The value is checked against the folders of content/ that hold a
  * blueprint.yaml, so a typo fails with the list of known codes.
  */
@@ -35,13 +36,15 @@ export async function parseCertArgs(argv: readonly string[], root = CONTENT_ROOT
   }
   if (codes.length === 0) return { dirs: null, rest };
   const known = await listCertificationDirs(root);
-  if (codes.includes("all")) return { dirs: known, rest };
   const byCode = new Map(known.map((dir) => [path.basename(dir), dir]));
-  const unknown = codes.filter((c) => !byCode.has(c));
+  const excluded = codes.filter((c) => c.startsWith("!")).map((c) => c.slice(1));
+  const asked = codes.filter((c) => !c.startsWith("!"));
+  const unknown = [...asked.filter((c) => c !== "all"), ...excluded].filter((c) => !byCode.has(c));
   if (unknown.length > 0) {
     throw new Error(`unknown certification ${unknown.join(", ")}; known: ${[...byCode.keys()].join(", ")}`);
   }
-  return { dirs: [...new Set(codes)].sort((a, b) => a.localeCompare(b)).map((c) => byCode.get(c)!), rest };
+  const chosen = asked.includes("all") ? [...byCode.keys()] : asked;
+  return { dirs: [...new Set(chosen)].filter((c) => !excluded.includes(c)).sort((a, b) => a.localeCompare(b)).map((c) => byCode.get(c)!), rest };
 }
 
 /** The folders asked for, or a clear error when the command needs --cert. */

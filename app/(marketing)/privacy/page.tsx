@@ -4,7 +4,7 @@ import { getFormatter, getTranslations } from "next-intl/server";
 export const metadata: Metadata = { title: "Privacy" };
 
 /** Date of the policy's last change: update it with the text (messages, namespace privacy). */
-const UPDATED = new Date("2026-11-18T00:00:00Z");
+const UPDATED = new Date("2026-11-23T00:00:00Z");
 const SECTIONS = ["controller", "data", "purposes", "recipients", "retention", "rights", "cookies"] as const;
 
 /**

@@ -11,7 +11,7 @@ import fr from "@/messages/fr.json";
 const MESSAGES = { en, fr } as const;
 
 /** The version of the terms shown on /terms, stored with each payment. Change it with the text. */
-export const TERMS_VERSION = "2026-11-20";
+export const TERMS_VERSION = "2026-11-24";
 
 /** The seller, on invoices (as on /legal). */
 export const SELLER = "Square-soft, SARL en cours d'immatriculation, 4 rue Saint-Michel, 78430 Louveciennes, France";

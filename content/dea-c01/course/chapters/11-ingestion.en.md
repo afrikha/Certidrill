@@ -15,7 +15,7 @@ Ingestion questions give you a source, a rate and a deadline, and ask how to get
 
 Streaming ingestion into Redshift needs an external schema mapped to the stream service and a materialized view per stream:
 
-```text
+```sql
 CREATE EXTERNAL SCHEMA kds
 FROM KINESIS
 IAM_ROLE 'arn:aws:iam::111122223333:role/redshift-streaming-role';

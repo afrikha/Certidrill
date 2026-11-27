@@ -18,6 +18,8 @@ function formatters(locale: string) {
 }
 
 const label = (code: string) => code.toUpperCase();
+/** certification.format for the ICU messages: a performance-based exam is a practice series, not a mock exam. */
+const formatValue = (format: string | undefined) => (format === "performance" ? "performance" : "other");
 
 /** The version of the terms as a date (YYYY-MM-DD), or as stored when it is not one: never an error. */
 function termsVersionLabel(version: string, date: (d: Date) => string): string {
@@ -33,10 +35,10 @@ export interface WaiverRecord {
   termsUrl: string;
 }
 
-export function purchaseMessage(p: { locale: string; certification: string; expiresAt: Date; amountCents: number; currency: string; url: string; waiver?: WaiverRecord | null }): EmailMessage {
+export function purchaseMessage(p: { locale: string; certification: string; format?: string; expiresAt: Date; amountCents: number; currency: string; url: string; waiver?: WaiverRecord | null }): EmailMessage {
   const t = translator(p.locale);
   const f = formatters(p.locale);
-  const values = { certification: label(p.certification), date: f.date(p.expiresAt) };
+  const values = { certification: label(p.certification), date: f.date(p.expiresAt), format: formatValue(p.format) };
   const waiver = p.waiver
     ? [
         t("purchaseWaiver", { date: f.dateTime(p.waiver.acceptedAt), version: termsVersionLabel(p.waiver.termsVersion, f.date), text: p.waiver.text }),
@@ -54,9 +56,9 @@ export function purchaseMessage(p: { locale: string; certification: string; expi
   });
 }
 
-export function reminderMessage(p: { locale: string; certification: string; expiresAt: Date; days: number; url: string }): EmailMessage {
+export function reminderMessage(p: { locale: string; certification: string; format?: string; expiresAt: Date; days: number; url: string }): EmailMessage {
   const t = translator(p.locale);
-  const values = { certification: label(p.certification), date: formatters(p.locale).date(p.expiresAt), days: p.days };
+  const values = { certification: label(p.certification), date: formatters(p.locale).date(p.expiresAt), days: p.days, format: formatValue(p.format) };
   return render({
     locale: p.locale,
     subject: t("reminderSubject", values),

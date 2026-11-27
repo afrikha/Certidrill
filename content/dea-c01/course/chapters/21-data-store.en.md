@@ -83,7 +83,7 @@ DataSync copies only changed data on later runs, encrypts in transit and checks 
 | Other clusters or accounts read the same data without copies | Redshift data sharing |
 | Migrate the data once into Redshift | `COPY` from S3 (or DMS for a database source) |
 
-```text
+```sql
 CREATE EXTERNAL SCHEMA ops
 FROM POSTGRES DATABASE 'orders' SCHEMA 'public'
 URI 'orders-db.cluster-abc123.eu-west-1.rds.amazonaws.com'
@@ -109,7 +109,7 @@ On RA3 nodes, Spectrum runs in a separate fleet; RG nodes and Redshift Serverles
 
 **Redshift.** Transactions run in **SNAPSHOT** isolation by default on provisioned clusters and serverless workgroups; **SERIALIZABLE** is stricter and cancels a conflicting transaction with error 1023. Concurrent `INSERT` and `COPY` share a table lock; `UPDATE`, `DELETE`, `MERGE` and DDL need an exclusive lock. `LOCK` takes an `ACCESS EXCLUSIVE` lock that makes other reads and writes wait until the transaction ends.
 
-```text
+```sql
 BEGIN;
 LOCK sales;
 DELETE FROM sales USING sales_stage WHERE sales.sale_id = sales_stage.sale_id;
@@ -144,7 +144,7 @@ Apache Iceberg adds a metadata layer (metadata files, manifest lists, manifests)
 
 Apache Hudi and Delta Lake offer similar features. Lake Formation Governed Tables are shut down: Iceberg is the transactional table answer on AWS.
 
-```text
+```sql
 CREATE TABLE curated.orders (order_id string, customer_id string, amount double, ts timestamp)
 PARTITIONED BY (day(ts))
 LOCATION 's3://example-lake/curated/orders/'
@@ -186,7 +186,7 @@ An embedding is a vector of numbers that represents the meaning of a text, image
 | Build speed | Slower | Faster |
 | Recall and latency | High recall at low latency | Lower recall for the same latency; drops when new data no longer matches the centroids (rebuild) |
 
-```text
+```sql
 CREATE EXTENSION IF NOT EXISTS vector;
 CREATE INDEX ON docs USING hnsw (embedding vector_cosine_ops) WITH (m = 16, ef_construction = 256);
 SET hnsw.ef_search = 100;

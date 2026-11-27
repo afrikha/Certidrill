@@ -173,8 +173,10 @@ for (const { id, count } of [
   });
 }
 
-test("AWS ordering in French — SCS-C03 actions are rendered in French", async ({ page }) => {
+test("AWS ordering in French — SCS-C03, offered in English only, keeps its actions in English", async ({ page }) => {
+  // docs/SPECS-AWS.md §3.7: the French file is kept, not served.
   await page.goto("/admin/questions/scsc03-4c-order-external-finding-fix?lang=fr");
-  await expect(page.getByText("Examiner le résultat pour identifier le principal externe et la politique qui accorde l'accès.")).toBeVisible();
+  await expect(page.getByText("Review the finding to identify the external principal and the policy that grants the access.")).toBeVisible();
+  await expect(page.getByText("Examiner le résultat pour identifier le principal externe")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Add →" })).toHaveCount(6); // the interface follows the session language
 });

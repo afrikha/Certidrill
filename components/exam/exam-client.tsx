@@ -132,8 +132,10 @@ export function ExamClient({ initial, resumed }: Readonly<{ initial: AttemptView
       if (err instanceof ApiError && (err.code === "expired" || err.code === "finished")) return goToResults();
       // Access refused when the clock starts (quota used meanwhile, Pass ended): the offer screen says why.
       if (err instanceof ApiError && err.status === 402 && isRefusalCode(err.code)) return router.push(`/offer?${new URLSearchParams({ reason: err.code, certification: view.certification.code })}`);
-      if (err instanceof ApiError && err.code === "email_unverified") return setError(t("emailUnverified"));
+      if (err instanceof ApiError && err.code === "email_unverified") return setError(t("emailUnverified", { format: view.certification.format === "performance" ? "performance" : "other" }));
       if (err instanceof UnsavedError) return setError(t("unsavedRetry"));
+      // The exercises are checked at submission; kubectl stayed busy (spec §3.5): nothing is lost, retry.
+      if (err instanceof ApiError && err.status === 503 && err.code === "busy") return setError(t("busyRetry"));
       setError(t("error"));
       await refresh();
     } finally {

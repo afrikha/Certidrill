@@ -90,7 +90,7 @@ aws redshift-data execute-statement \
 | Role (RBAC) | Bundle of object and system permissions; granted to users or other roles; the recommended model |
 | System roles | `sys:monitor` (catalog and system tables), `sys:operator` (plus `ANALYZE`, `VACUUM`, cancel queries), `sys:dba` (create and drop schemas, tables, views, procedures), `sys:secadmin` (users, roles, RLS and masking policies, no data access by default), `sys:superuser` |
 
-```text
+```sql
 CREATE ROLE sales_analyst;
 GRANT USAGE ON SCHEMA sales TO ROLE sales_analyst;
 GRANT SELECT ON ALL TABLES IN SCHEMA sales TO ROLE sales_analyst;

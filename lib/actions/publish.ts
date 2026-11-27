@@ -51,6 +51,8 @@ export async function setQuestionStatusesAction(_prev: PublishState, formData: F
   const to = formString(formData, "to");
   const type = formString(formData, "type");
   const status = formString(formData, "status");
+  const usage = formString(formData, "usage") || "exam";
+  if (usage !== "exam" && usage !== "quiz") return { error: "invalid" };
   if (!isBatchStatus(to) || (type && !(questionTypes as readonly string[]).includes(type)) || (status && !isChapterStatus(status))) return { error: "invalid" };
   if (formString(formData, "confirm") !== "yes") return { error: "unconfirmed" };
   const state = await run(() =>
@@ -59,6 +61,8 @@ export async function setQuestionStatusesAction(_prev: PublishState, formData: F
       type: (type || undefined) as QuestionType | undefined,
       status: (status || undefined) as ContentStatus | undefined,
       domain: formString(formData, "domain") || undefined,
+      usage,
+      chapter: (usage === "quiz" && formString(formData, "chapter")) || undefined,
       to,
     }),
   );

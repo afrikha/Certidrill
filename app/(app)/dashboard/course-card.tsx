@@ -27,7 +27,7 @@ export async function CourseCard({ outline, suggestions }: Readonly<{ outline: C
       )}
       {suggestions.length > 0 && (
         <section aria-labelledby={`suggest-${code}`} className="border-t border-border pt-4" data-testid="course-suggestions">
-          <h3 id={`suggest-${code}`} className="font-semibold">{t("suggestTitle")}</h3>
+          <h3 id={`suggest-${code}`} className="font-semibold">{t("suggestTitle", { format: outline.certification.format === "performance" ? "performance" : "other" })}</h3>
           <p className="text-sm text-muted-foreground">{t("suggestText")}</p>
           <ol className="mt-2 list-decimal space-y-1 pl-5 text-sm">
             {suggestions.map((s) => (

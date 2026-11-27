@@ -20,6 +20,8 @@ import { CourseCard } from "./course-card";
 import { OverviewCard } from "@/components/progress/overview-card";
 import { progressOverview, selectedCertification } from "@/lib/progress/overview";
 import { groupByVendor } from "@/lib/vendors";
+import { formatArg, PerformanceNotice } from "@/components/performance";
+import { EnglishOnlyBadge } from "@/components/english-only";
 
 export const metadata = { title: "Dashboard" };
 export const dynamic = "force-dynamic";
@@ -87,9 +89,9 @@ export default async function DashboardPage({ searchParams }: Readonly<{ searchP
 
       {certifications.length > 1 && (
         <form method="get" className="flex flex-wrap items-end gap-3" data-testid="certification-picker">
-          <div>
+          <div className="min-w-0 max-w-full">
             <label htmlFor="dashboard-certification" className="block text-sm font-medium">{t("chooseCertification")}</label>
-            <select id="dashboard-certification" name="certification" defaultValue={selected ?? undefined} className="mt-1 rounded-md border border-border bg-background px-3 py-2 text-sm">
+            <select id="dashboard-certification" name="certification" defaultValue={selected ?? undefined} className="mt-1 w-full max-w-full rounded-lg border border-border bg-background px-3 py-2 text-sm shadow-sm shadow-slate-900/5 sm:w-auto">
               {/* Several vendors: one group per vendor, named. */}
               {groupByVendor(certifications).map((g, _, groups) => {
                 const options = g.certifications.map((c) => <option key={c.code} value={c.code}>{c.code.toUpperCase()} — {c.title}</option>);
@@ -106,14 +108,15 @@ export default async function DashboardPage({ searchParams }: Readonly<{ searchP
         const busy = inProgress.some((a) => a.certificationId === c.id);
         return (
           <Card key={c.id}>
-            <h2 className="mb-1 font-semibold">{t("newExamFor", { code: c.code.toUpperCase() })}</h2>
+            <h2 className="mb-1 font-semibold">{t("newExamFor", { code: c.code.toUpperCase(), format: formatArg(c.format) })}<EnglishOnlyBadge languages={c.languages} /></h2>
+            <PerformanceNotice format={c.format} className="mb-3 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900" />
             {bp && (
               <p className="mb-4 text-sm text-muted-foreground">
                 {c.title} — {bp.durationMin} min, {bp.minQuestions}–{bp.maxQuestions} questions, {bp.passScore}/{bp.maxScore}
               </p>
             )}
-            {access.get(c.code) && <AccessBadge access={access.get(c.code)!} certification={c.code} />}
-            {!busy && access.get(c.code)?.examsLeft !== 0 && <NewExamForm code={c.code} defaultLocale={user.locale} />}
+            {access.get(c.code) && <AccessBadge access={access.get(c.code)!} certification={c.code} certificationFormat={c.format} />}
+            {!busy && access.get(c.code)?.examsLeft !== 0 && <NewExamForm code={c.code} defaultLocale={user.locale} format={c.format} />}
           </Card>
         );
       })}
@@ -142,12 +145,13 @@ export default async function DashboardPage({ searchParams }: Readonly<{ searchP
                   bands={[ready.config.bands.progressing, ready.config.bands.almost, ready.config.bands.ready]}
                   weights={ready.config.weights}
                   domainTitles={domainTitles}
+                  format={c.format}
                 />
               </div>
             )}
             {progression && (
               <div className="lg:col-span-3">
-                <ProgressionCard progression={progression} rules={progression.config} domainTitles={domainTitles} />
+                <ProgressionCard progression={progression} rules={progression.config} domainTitles={domainTitles} certificationFormat={c.format} />
               </div>
             )}
             <div className="lg:col-span-3">

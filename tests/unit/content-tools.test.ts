@@ -26,6 +26,9 @@ describe("--cert", () => {
     const all = (await parseCertArgs(["--cert", "all"])).dirs!;
     expect(all.length).toBeGreaterThanOrEqual(23);
     expect(all.map((d) => path.basename(d))).toContain("az-104");
+    const but = (await parseCertArgs(["--cert", "all,!ckad", "--cert=!cka"])).dirs!.map((d) => path.basename(d));
+    expect(but).toEqual(all.map((d) => path.basename(d)).filter((c) => c !== "ckad" && c !== "cka"));
+    await expect(parseCertArgs(["--cert", "all,!ckd"])).rejects.toThrow(/unknown certification ckd/);
   });
 
   it("fails on an unknown code with the known ones, on a missing value, and when the command needs it", async () => {
@@ -162,8 +165,8 @@ describe("AWS glossary", () => {
 
 describe("compare-blind: blueprint.scoring", () => {
   it("reads the rules of the certification, Microsoft by default", async () => {
-    expect(await blueprintScoring(dir("scs-c03"))).toEqual({ multi: "all_or_nothing", dragdrop: "all_or_nothing" });
-    expect(await blueprintScoring(dir("az-104"))).toEqual({ multi: "per_option", dragdrop: "per_element" });
+    expect(await blueprintScoring(dir("scs-c03"))).toEqual({ multi: "all_or_nothing", dragdrop: "all_or_nothing", command: "per_check", manifest: "per_check" });
+    expect(await blueprintScoring(dir("az-104"))).toEqual({ multi: "per_option", dragdrop: "per_element", command: "per_check", manifest: "per_check" });
   });
 
   it("names the blueprint when it is missing, not YAML, or its scoring is invalid", async () => {

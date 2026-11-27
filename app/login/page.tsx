@@ -24,8 +24,8 @@ export default async function LoginPage({ searchParams }: Readonly<{ searchParam
   return (
     <>
       <SiteHeader />
-      <main id="main" className="mx-auto max-w-md px-4 py-12">
-        <h1 className="mb-6 text-2xl font-bold">{t("login.title")}</h1>
+      <main id="main" className="relative isolate mx-auto max-w-md px-4 py-14 before:pointer-events-none before:fixed before:inset-x-0 before:top-0 before:-z-10 before:h-[32rem] before:bg-[radial-gradient(60%_60%_at_50%_0%,var(--color-blue-100),transparent)] before:content-['']">
+        <h1 className="mb-8 text-center text-3xl font-bold tracking-tight">{t("login.title")}</h1>
         {sent && <Alert tone="success" className="mb-6">{t("login.sent")}</Alert>}
         {error && !sent && <Alert tone="error" className="mb-6">{t("login.error")}</Alert>}
         {/* After the sign-up link (app/verify-email): the account exists, sign in with the chosen password. */}

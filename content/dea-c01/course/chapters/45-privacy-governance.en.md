@@ -7,7 +7,7 @@ Governance questions combine a sharing request ("give the finance account live a
 
 Steps for a cross-account share:
 
-```text
+```sql
 -- Producer (account 111122223333)
 CREATE DATASHARE sales_share;
 ALTER DATASHARE sales_share ADD SCHEMA sales;

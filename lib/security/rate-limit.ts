@@ -74,6 +74,9 @@ export const checkoutLimiter = createRateLimiter({ limit: 10, windowMs: 60 * 60_
 /** "Mark as read" in the course: 60 per minute per user, far above reading speed. */
 export const courseReadLimiter = createRateLimiter({ limit: 60, windowMs: 60_000 });
 
+/** Chapter quizzes (start, answer): 60 per minute per user, far above answering speed. */
+export const quizLimiter = createRateLimiter({ limit: 60, windowMs: 60_000 });
+
 /** Wrong passwords on a sign-up confirmation link: 5 per 15 minutes per link. */
 export const confirmLimiter = createRateLimiter({ limit: 5, windowMs: 15 * 60_000 });
 

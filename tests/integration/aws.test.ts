@@ -57,7 +57,7 @@ describe("SAA-C03 (docs/SPECS-AWS.md §5)", () => {
     await db.question.updateMany({ where: { certificationId: cert.id }, data: { status: "published" } });
     await grantFullAccess(db, userId, "saa-c03");
     const blueprint = await db.blueprint.findFirstOrThrow({ where: { certificationId: cert.id, current: true } });
-    expect(blueprint.scoring).toEqual({ multi: "all_or_nothing", dragdrop: "all_or_nothing" });
+    expect(blueprint.scoring).toEqual({ multi: "all_or_nothing", dragdrop: "all_or_nothing", command: "per_check", manifest: "per_check" });
 
     const { attemptId, shortfall } = await createAttempt(db, { userId, certificationCode: "saa-c03", locale: "fr", now: T0 });
     expect(shortfall).toBe(0);
@@ -111,7 +111,7 @@ describe("the other AWS certifications", () => {
     await db.question.updateMany({ where: { certificationId: cert.id }, data: { status: "published" } });
     await grantFullAccess(db, userId, "sap-c03");
     const blueprint = await db.blueprint.findFirstOrThrow({ where: { certificationId: cert.id, current: true } });
-    expect([blueprint.durationMin, blueprint.scoring]).toEqual([180, { multi: "all_or_nothing", dragdrop: "all_or_nothing" }]);
+    expect([blueprint.durationMin, blueprint.scoring]).toEqual([180, { multi: "all_or_nothing", dragdrop: "all_or_nothing", command: "per_check", manifest: "per_check" }]);
 
     const { attemptId, shortfall } = await createAttempt(db, { userId, certificationCode: "sap-c03", locale: "en", now: T0 });
     expect(shortfall).toBe(0);
@@ -161,7 +161,7 @@ describe.each([
     expect(cert).toMatchObject({ vendor: "AWS", active: false, title });
     expect(await db.question.count({ where: { certificationId: cert.id, status: { not: "draft" } } })).toBe(0);
     const blueprint = await db.blueprint.findFirstOrThrow({ where: { certificationId: cert.id, current: true } });
-    expect([blueprint.durationMin, blueprint.scoring]).toEqual([durationMin, { multi: "all_or_nothing", dragdrop: "all_or_nothing" }]);
+    expect([blueprint.durationMin, blueprint.scoring]).toEqual([durationMin, { multi: "all_or_nothing", dragdrop: "all_or_nothing", command: "per_check", manifest: "per_check" }]);
   });
 
   it("serves them in an exam worth 1 point each, with no credit for a partial match or a wrong order", async () => {

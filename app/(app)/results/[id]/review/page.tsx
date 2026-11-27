@@ -7,9 +7,11 @@ import { getAttemptResults } from "@/lib/exam/results";
 import { SessionError } from "@/lib/exam/session";
 import { isLocale } from "@/lib/i18n/config";
 import { cn } from "@/lib/utils";
+import { EnglishOnlyNotice } from "@/components/english-only";
 import { Card } from "@/components/ui/card";
 import { buttonClasses } from "@/components/ui/button";
 import { Html } from "@/components/questions/html";
+import { ExerciseChecks } from "@/components/questions/exercise-checks";
 import { AnsweredQuestion } from "./answered-question";
 import { ReportForm } from "./report-form";
 import { withKeys } from "@/components/with-keys";
@@ -64,6 +66,8 @@ export default async function CorrectionPage({ params, searchParams }: Readonly<
     viewer: { userId: user.id, isAdmin: user.role === "admin" },
     locale: r.locale,
   });
+  // A certification offered in English only: its content (and links) in English (docs/SPECS-AWS.md §3.7).
+  const contentLocale = r.certification.languages.includes(r.locale) ? r.locale : "en";
   const pill = (active: boolean) => cn("rounded-full border px-3 py-1 text-sm", active ? "border-primary bg-primary text-primary-foreground" : "border-border hover:bg-muted");
 
   return (
@@ -82,13 +86,16 @@ export default async function CorrectionPage({ params, searchParams }: Readonly<
         {r.domains.map((d) => (
           <Link key={d.key} href={href({ domain: d.key })} aria-current={sp.domain === d.key ? "page" : undefined} className={pill(sp.domain === d.key)}>{d.title}</Link>
         ))}
-        <span className="ml-auto text-sm">
-          {t("language")} :{" "}
-          {(["en", "fr"] as const).map((l) => (
-            <Link key={l} href={href({ lang: l })} aria-current={r.locale === l ? "true" : undefined} className={cn("ml-2 uppercase", r.locale === l ? "font-bold" : "underline")}>{l}</Link>
-          ))}
-        </span>
+        {r.certification.languages.length > 1 && (
+          <span className="ml-auto text-sm">
+            {t("language")} :{" "}
+            {(["en", "fr"] as const).map((l) => (
+              <Link key={l} href={href({ lang: l })} aria-current={r.locale === l ? "true" : undefined} className={cn("ml-2 uppercase", r.locale === l ? "font-bold" : "underline")}>{l}</Link>
+            ))}
+          </span>
+        )}
       </nav>
+      <EnglishOnlyNotice languages={r.certification.languages} locale={r.locale} />
 
       {r.correction.level === "free" && r.correction.locked.length > 0 && (
         <Card className="flex flex-wrap items-center justify-between gap-4 border-primary bg-primary/5" data-testid="correction-locked-banner">
@@ -132,6 +139,7 @@ export default async function CorrectionPage({ params, searchParams }: Readonly<
             </header>
             <AnsweredQuestion question={i.question} response={i.response} seriesStemHtml={i.seriesStemHtml} />
             {i.response == null && <p className="text-sm font-medium text-danger">{t("noAnswer")}</p>}
+            <ExerciseChecks checks={i.checks} error={i.exerciseError} />
             <section className="rounded-md bg-green-50 p-4 text-sm">
               <h2 className="mb-2 font-semibold text-green-900">{t("correctAnswer")}</h2>
               <ul className="space-y-1">
@@ -169,7 +177,7 @@ export default async function CorrectionPage({ params, searchParams }: Readonly<
                 {i.references.map((ref) => (
                   <li key={ref.url}>
                     {/* The documentation in the language of the correction, named after its site (else the certification's vendor). */}
-                    <a href={localizeDocsUrl(ref.url, r.locale)} target="_blank" rel="noreferrer" className="text-primary underline">{(vendorOfUrl(ref.url) ?? vendorOf(r.certification.vendor)).docsName} — {ref.title}</a>
+                    <a href={localizeDocsUrl(ref.url, contentLocale)} target="_blank" rel="noreferrer" className="text-primary underline">{(vendorOfUrl(ref.url) ?? vendorOf(r.certification.vendor)).docsName} — {ref.title}</a>
                   </li>
                 ))}
               </ul>

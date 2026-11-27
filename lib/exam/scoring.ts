@@ -8,12 +8,18 @@
  * - The blueprint may score multi or dragdrop all or nothing instead
  *   (blueprint.scoring, the AWS rule): 1 point, only for the exact answer.
  * - ordering: 1 point only if the sequence is exactly right.
+ * - command / manifest (practical exercises): 1 point per check passed
+ *   (blueprint.scoring `per_check`), or 1 point when all pass
+ *   (`all_or_nothing`). The checks are run beforehand (lib/exercises): the
+ *   stored grading is passed in; without one, only what needs no kubectl is
+ *   graded here (a manifest, a command of mode invocation).
  * - No negative points; no answer (or an invalid one) scores 0.
  * - Scaled score = round(maxScore × earned / possible); pass at passScore.
  */
 import { DEFAULT_SCORING, scoringRulesSchema, type ScoringRules } from "@/lib/content/schema";
 import { allOrNothing, maxPoints, parseResponse, type QuestionAnswer, type QuestionBody, type QuestionTypeCode } from "@/lib/questions/schema";
 import { logError } from "@/lib/log";
+import { checksPassed, gradeWithoutKubectl, isExerciseType, type ExerciseQuestion, type Grading } from "@/lib/exercises/grade";
 
 export interface ItemScore {
   earned: number;
@@ -57,15 +63,24 @@ export function scoringRules(stored: unknown): ScoringRules {
   return DEFAULT_SCORING;
 }
 
-export function scoreItem(question: ScorableQuestion, response: unknown, rules: ScoringRules = DEFAULT_SCORING): ItemScore {
-  const max = maxPoints(question.type, question.body, rules);
+export function scoreItem(question: ScorableQuestion, response: unknown, rules: ScoringRules = DEFAULT_SCORING, grading?: Grading | null): ItemScore {
+  const max = maxPoints(question.type, question.body, rules, question.answer);
   if (response === null || response === undefined) return { earned: 0, max };
+  if (isExerciseType(question.type)) return scoreExercise(question as ExerciseQuestion, response, rules, max, grading);
   const parsed = parseResponse(question.type, response);
   if (!parsed.success) return { earned: 0, max };
   const earned = earnedPoints(question, parsed.data);
   // All or nothing: the point only when every element is right (no extra option checked).
-  if (allOrNothing(question.type, rules)) return { earned: earned === maxPoints(question.type, question.body) ? 1 : 0, max };
+  if (allOrNothing(question.type, rules)) return { earned: earned === maxPoints(question.type, question.body, DEFAULT_SCORING, question.answer) ? 1 : 0, max };
   return { earned: Math.min(max, earned), max };
+}
+
+/** A practical exercise: the checks passed, from the grading computed when the answer was checked. */
+function scoreExercise(q: ExerciseQuestion, response: unknown, rules: ScoringRules, max: number, grading?: Grading | null): ItemScore {
+  const result = grading ?? gradeWithoutKubectl(q, response);
+  const passed = checksPassed(q.answer.checks, result);
+  if (allOrNothing(q.type, rules)) return { earned: passed === q.answer.checks.length ? 1 : 0, max };
+  return { earned: Math.min(max, passed), max };
 }
 
 function countMatches(expected: Record<string, unknown>, given: Record<string, unknown>): number {
@@ -95,6 +110,9 @@ function earnedPoints(q: ScorableQuestion, r: unknown): number {
     }
     case "series_yesno":
       return (r as { value: boolean }).value === (q.answer as QuestionAnswer<"series_yesno">).value ? 1 : 0;
+    case "command":
+    case "manifest":
+      return 0; // scored by scoreExercise
   }
 }
 

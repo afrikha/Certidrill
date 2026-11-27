@@ -74,7 +74,7 @@ export function CourseBatchForm({ code }: Readonly<{ code: string }>) {
  * `groups`: the case studies and series a publishing batch would publish
  * although none of their questions changes (see groupsToPublish).
  */
-export function QuestionBatchForm({ code, filters, byStatus, groups }: Readonly<{ code: string; filters: { type?: string; status?: string; domain?: string }; byStatus: Record<BatchStatus, number>; groups: number }>) {
+export function QuestionBatchForm({ code, filters, byStatus, groups }: Readonly<{ code: string; filters: { usage?: string; chapter?: string; type?: string; status?: string; domain?: string }; byStatus: Record<BatchStatus, number>; groups: number }>) {
   const t = useTranslations("publishAdmin");
   const [state, action, pending] = useActionState(setQuestionStatusesAction, undefined);
   const [to, setTo] = useState<BatchStatus>("published");
@@ -84,6 +84,8 @@ export function QuestionBatchForm({ code, filters, byStatus, groups }: Readonly<
   return (
     <form action={action} className="flex flex-wrap items-center gap-2 rounded-lg border border-border p-3" data-testid="question-batch">
       <input type="hidden" name="certification" value={code} />
+      <input type="hidden" name="usage" value={filters.usage ?? "exam"} />
+      <input type="hidden" name="chapter" value={filters.chapter ?? ""} />
       <input type="hidden" name="type" value={filters.type ?? ""} />
       <input type="hidden" name="status" value={filters.status ?? ""} />
       <input type="hidden" name="domain" value={filters.domain ?? ""} />

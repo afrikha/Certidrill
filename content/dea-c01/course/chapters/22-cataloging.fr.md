@@ -29,7 +29,7 @@ Il existe un Glue Data Catalog par compte et par Région. Il contient des **base
 | CloudFormation (`AWS::Glue::Table`), CDK ou API Glue | Tables déployées sous forme de code avec le pipeline |
 | Tâche ETL Glue avec `enableUpdateCatalog` | La tâche qui écrit les données enregistre la table et ses partitions |
 
-```text
+```sql
 CREATE EXTERNAL TABLE raw.clicks (
   user_id string,
   url string,
@@ -99,7 +99,7 @@ Les nouveaux dossiers S3 restent invisibles pour Athena et Spectrum tant que leu
 | API Glue `BatchCreatePartition` | Une fonction Lambda déclenchée par des événements S3 enregistre chaque nouveau dossier |
 | Projection de partitions Athena | Valeurs prévisibles (dates, entiers, énumérations, chaînes injectées) : partitions calculées à l'exécution, rien à enregistrer |
 
-```text
+```sql
 ALTER TABLE raw.clicks ADD IF NOT EXISTS
 PARTITION (dt = '2026-11-20') LOCATION 's3://example-lake/raw/clicks/dt=2026-11-20/';
 

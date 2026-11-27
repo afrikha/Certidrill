@@ -100,7 +100,7 @@ Ce que fait CloudTrail Lake pour les clients existants :
 - La conservation dépend de l'option tarifaire : conservation d'un an prolongeable (jusqu'à 3 653 jours) ou conservation de sept ans (jusqu'à 2 557 jours).
 - Les requêtes sont en SQL (`SELECT` Trino), facturées selon les données analysées, avec des jointures entre magasins de données d'événements ; les résultats sont conservés sept jours et peuvent être enregistrés dans S3. Un magasin peut être fédéré dans le Glue Data Catalog et interrogé avec Athena.
 
-```text
+```sql
 SELECT eventSource, eventName, userIdentity.arn, COUNT(*) AS calls
 FROM a1b2c3d4-5678-90ab-cdef-EXAMPLE11111
 WHERE eventTime > '2026-11-01 00:00:00'
@@ -144,7 +144,7 @@ fields @timestamp, jobName, rowsRejected, @message
 
 **Athena** lit les journaux là où ils arrivent dans S3. Pour CloudTrail, créez la table depuis la console CloudTrail, ou avec un DDL qui utilise la **projection de partitions** (partition projection) pour que les nouveaux jours soient interrogeables sans `ALTER TABLE ADD PARTITION` ni robot d'analyse (extrait) :
 
-```text
+```sql
 CREATE EXTERNAL TABLE cloudtrail_logs (
   eventtime STRING, eventsource STRING, eventname STRING, awsregion STRING,
   sourceipaddress STRING, errorcode STRING, requestparameters STRING,

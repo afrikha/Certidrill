@@ -33,7 +33,7 @@ Verification answers "is the data complete, unique, valid and consistent?" befor
 | **SageMaker Data Wrangler** (now in **SageMaker Canvas**) | Low-code data flows with transforms, a Data Quality and Insights report, export to S3, Feature Store, SageMaker Pipelines or a Python script |
 | **Glue DataBrew** | Visual cleaning recipes and profile jobs with data quality rules |
 
-```text
+```sql
 SELECT order_id, COUNT(*) AS copies
 FROM raw.orders
 WHERE dt = '2026-11-21'
@@ -53,7 +53,7 @@ HAVING COUNT(*) > 1;
 | Materialized view | Persist results with CTAS or `INSERT INTO` | `CREATE MATERIALIZED VIEW`: stored result, incremental or full refresh, `AUTO REFRESH YES`, automatic query rewriting |
 | Querying S3 | Native (tables of the Data Catalog) | Redshift Spectrum external schema on the Data Catalog |
 
-```text
+```sql
 CREATE MATERIALIZED VIEW mv_daily_sales
 AUTO REFRESH YES
 AS
@@ -129,7 +129,7 @@ Trade-offs:
 | Rolling (moving) average | Average over a sliding window of rows, smoothing daily noise | Window function `AVG(...) OVER (PARTITION BY ... ORDER BY ... ROWS BETWEEN 6 PRECEDING AND CURRENT ROW)` |
 | Pivoting | Turn row values into columns (one column per month) | Redshift `PIVOT` and `UNPIVOT`; in Athena, conditional aggregation |
 
-```text
+```sql
 SELECT store_id,
        sale_date,
        total_amount,

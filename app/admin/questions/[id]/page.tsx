@@ -23,7 +23,7 @@ export default async function QuestionPreviewPage({ params, searchParams }: Read
   const sp = await searchParams;
   const locale: Locale = isLocale(sp.lang) ? sp.lang : "en";
   const t = await getTranslations("admin");
-  const q = await prisma.question.findUnique({ where: { id }, include: { series: true, objective: true } });
+  const q = await prisma.question.findUnique({ where: { id }, include: { series: true, objective: true, chapter: { select: { code: true } } } });
   if (!q) notFound();
 
   const order = sp.shuffle ? buildOptionOrder(q.type, q.body, q.shuffle, Math.random) : {};
@@ -55,6 +55,7 @@ export default async function QuestionPreviewPage({ params, searchParams }: Read
         </div>
       </div>
       <p className="text-sm text-muted-foreground">
+        {q.chapter && q.quizPosition && <span data-testid="quiz-of">{t("quizOf", { chapter: q.chapter.code, position: q.quizPosition })} · </span>}
         {q.type} · {t("objective")} {q.objective.code} · {t("difficulty")} {q.difficulty} · {q.status} · {t("maxPoints", { n: question.maxPoints })}
       </p>
       <Card>

@@ -6,12 +6,13 @@
  * is recorded in the audit log, in the same transaction. For administrators
  * only: the pages and the actions check the role, these functions do not.
  */
-import type { ContentStatus, Prisma, PrismaClient, QuestionType } from "@prisma/client";
+import type { ContentStatus, Prisma, PrismaClient, QuestionType, QuestionUsage } from "@prisma/client";
 import { audit } from "@/lib/audit";
 import { assembleExam } from "@/lib/exam/assembler";
 import { examStatuses, loadAssemblyBank, loadAssemblyBlueprint } from "@/lib/exam/bank-query";
 import type { BatchStatus } from "./batch-status";
 import { compareCodeUnits } from "@/lib/sort";
+import { EXAM_USAGE, QUIZ_USAGE, withUsage } from "@/lib/questions/usage";
 
 
 /** Seeds of the trial exams: a few draws, as candidates would get them. */
@@ -53,22 +54,30 @@ export interface CertificationRow {
   active: boolean;
   /** The value of blueprint.yaml (a re-seed keeps `active` while it stays the same). */
   fileActive: boolean;
+  /** Exam bank questions by status (quiz questions excluded). */
   questions: Partial<Record<ContentStatus, number>>;
+  /** Chapter quiz questions by status. */
+  quizzes: Partial<Record<ContentStatus, number>>;
   chapters: { published: number; total: number };
   exam: ExamCheck;
 }
 
-/** Every certification with its question and chapter counts by status, and whether its bank builds complete exams. */
+/**
+ * Every certification with its question and chapter counts by status, and
+ * whether its bank builds complete exams. `questions` counts the exam bank
+ * only; `quizzes` the chapter quiz questions.
+ */
 export async function certificationRows(db: PrismaClient): Promise<CertificationRow[]> {
   const [certifications, questions, chapters] = await Promise.all([
     db.certification.findMany({ orderBy: { code: "asc" }, select: { id: true, code: true, title: true, active: true, fileActive: true } }),
-    db.question.groupBy({ by: ["certificationId", "status"], _count: { _all: true } }),
+    db.question.groupBy({ by: ["certificationId", "status", "usage"], _count: { _all: true } }),
     db.courseChapter.groupBy({ by: ["certificationId", "status"], _count: { _all: true } }),
   ]);
   const eligible = examStatuses();
   return Promise.all(
     certifications.map(async (c) => {
-      const own = questions.filter((q) => q.certificationId === c.id);
+      const own = questions.filter((q) => q.certificationId === c.id && q.usage === EXAM_USAGE);
+      const ownQuizzes = questions.filter((q) => q.certificationId === c.id && q.usage === QUIZ_USAGE);
       const ownChapters = chapters.filter((x) => x.certificationId === c.id);
       return {
         code: c.code,
@@ -76,6 +85,7 @@ export async function certificationRows(db: PrismaClient): Promise<Certification
         active: c.active,
         fileActive: c.fileActive,
         questions: Object.fromEntries(own.map((q) => [q.status, q._count._all])),
+        quizzes: Object.fromEntries(ownQuizzes.map((q) => [q.status, q._count._all])),
         chapters: {
           published: ownChapters.filter((x) => x.status === "published").reduce((n, x) => n + x._count._all, 0),
           total: ownChapters.reduce((n, x) => n + x._count._all, 0),
@@ -121,6 +131,10 @@ export interface QuestionBatch {
   type?: QuestionType;
   status?: ContentStatus;
   domain?: string;
+  /** exam (default): the exam bank; quiz: chapter quiz questions. */
+  usage?: QuestionUsage;
+  /** Quizzes only: the code of one chapter. */
+  chapter?: string;
   to: BatchStatus;
 }
 
@@ -133,12 +147,13 @@ export const OUT_OF_BATCH: readonly ContentStatus[] = ["retired", "needs_review"
 
 /** The questions a batch applies to: the filters of the questions page, never retired or reported ones. */
 export function batchWhere(certificationId: string, b: Omit<QuestionBatch, "certification" | "to">): Prisma.QuestionWhereInput {
-  return {
+  return withUsage(b.usage ?? EXAM_USAGE, {
     certificationId,
+    ...(b.usage === QUIZ_USAGE && b.chapter && { chapter: { code: b.chapter } }),
     ...(b.type && { type: b.type }),
     status: b.status && OUT_OF_BATCH.includes(b.status) ? { in: [] } : { ...(b.status ? { equals: b.status } : {}), notIn: [...OUT_OF_BATCH] },
     ...(b.domain && { objective: { domain: { code: b.domain, blueprint: { current: true } } } }),
-  };
+  });
 }
 
 /**
@@ -217,14 +232,15 @@ export async function setQuestionStatuses(db: PrismaClient, actorId: string, bat
       const groupCount = changedCaseStudies.length + changedSeries.length;
       if (changed.length === 0 && groupCount === 0) return { questions: 0, groups: 0 };
       // An active certification stays able to build complete exams, or nothing is changed.
-      if (certification.active && batch.to !== "published" && !(await checkExamBank(tx, certification.id)).ok) throw new PublishError("breaks_active");
+      // Quiz questions never enter an exam: no check for them.
+      if (certification.active && batch.usage !== QUIZ_USAGE && batch.to !== "published" && !(await checkExamBank(tx, certification.id)).ok) throw new PublishError("breaks_active");
       const ids = changed.map((q) => q.id).sort(compareCodeUnits);
       await audit(tx, {
         actorId,
         action: "question.status",
         details: {
           certification: batch.certification,
-          filters: { type: batch.type ?? null, status: batch.status ?? null, domain: batch.domain ?? null },
+          filters: { usage: batch.usage ?? EXAM_USAGE, chapter: batch.chapter ?? null, type: batch.type ?? null, status: batch.status ?? null, domain: batch.domain ?? null },
           to: batch.to,
           count: ids.length,
           ids,

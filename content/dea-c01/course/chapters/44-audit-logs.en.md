@@ -100,7 +100,7 @@ What CloudTrail Lake does for existing customers:
 - Retention depends on the pricing option: one-year extendable retention (up to 3,653 days) or seven-year retention (up to 2,557 days).
 - Queries are SQL (Trino `SELECT`), billed by data scanned, with joins across event data stores; results are kept seven days and can be saved to S3. A store can be federated to the Glue Data Catalog and queried with Athena.
 
-```text
+```sql
 SELECT eventSource, eventName, userIdentity.arn, COUNT(*) AS calls
 FROM a1b2c3d4-5678-90ab-cdef-EXAMPLE11111
 WHERE eventTime > '2026-11-01 00:00:00'
@@ -144,7 +144,7 @@ fields @timestamp, jobName, rowsRejected, @message
 
 **Athena** reads logs where they land in S3. For CloudTrail, create the table from the CloudTrail console, or with DDL that uses **partition projection** so that new days are queryable without `ALTER TABLE ADD PARTITION` or a crawler (excerpt):
 
-```text
+```sql
 CREATE EXTERNAL TABLE cloudtrail_logs (
   eventtime STRING, eventsource STRING, eventname STRING, awsregion STRING,
   sourceipaddress STRING, errorcode STRING, requestparameters STRING,

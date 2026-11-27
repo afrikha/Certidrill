@@ -53,5 +53,15 @@ test("a user's sign-ins are recorded with their IP and shown to the administrato
   await expect(row.locator('[data-column="signups"]')).not.toHaveText("0");
   await expect(row.locator('[data-column="activeUsers"]')).not.toHaveText("0");
   expect(Number(await admin.getByTestId("active-week").textContent())).toBeGreaterThanOrEqual(2);
+  // The insights below: the user created today is in the sign-up funnel.
+  await expect(admin.getByRole("heading", { name: "New users' journey" })).toBeVisible();
+  expect(Number(await admin.getByTestId("activity-funnel").locator('[data-step="funnelSignups"]').textContent())).toBeGreaterThanOrEqual(1);
+  await expect(admin.getByTestId("activity-retention")).toBeVisible();
+  await expect(admin.getByRole("heading", { name: "Exams by certification" })).toBeVisible();
+  await expect(admin.getByRole("heading", { name: "Course by certification" })).toBeVisible();
+  // The deployed version, at the bottom of the back-office only.
+  await expect(admin.getByTestId("app-version")).toContainText("Version dev");
+  await admin.goto("/");
+  await expect(admin.getByTestId("app-version")).toHaveCount(0);
   await admin.close();
 });
