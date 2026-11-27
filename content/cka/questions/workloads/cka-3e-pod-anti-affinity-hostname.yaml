@@ -1,0 +1,200 @@
+id: cka-3e-pod-anti-affinity-hostname
+objective: "3.5.1"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    The Deployment `cache` in namespace `shop` runs 3 replicas labelled `app=cache`. Today two of them sometimes land on the same node, and losing that node takes down two caches at once.
+
+    Add a rule to the Pod template so that the scheduler never places two `app=cache` Pods on the same node (a replica that cannot be placed must stay Pending). Use the node label `kubernetes.io/hostname`.
+body:
+  starter: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: cache
+      namespace: shop
+    spec:
+      replicas: 3
+      selector:
+        matchLabels:
+          app: cache
+      template:
+        metadata:
+          labels:
+            app: cache
+        spec:
+          containers:
+          - name: redis
+            image: redis:7.4
+answer:
+  checks:
+  - id: meta
+    label: Deployment cache in namespace shop
+    path: metadata
+    op: subset
+    value: {name: cache, namespace: shop}
+  - id: topology
+    label: Required pod anti-affinity uses topologyKey kubernetes.io/hostname
+    path: spec.template.spec.affinity.podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].topologyKey
+    op: equals
+    value: kubernetes.io/hostname
+  - id: selector
+    label: The anti-affinity term selects the app=cache Pods
+    path: spec.template.spec.affinity.podAntiAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].labelSelector
+    op: oneOf
+    value:
+    - {matchLabels: {app: cache}}
+    - {matchExpressions: [{key: app, operator: In, values: [cache]}]}
+  - id: template-label
+    label: The Pods still carry app=cache
+    path: spec.template.metadata.labels.app
+    op: equals
+    value: cache
+  solution:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: cache
+        namespace: shop
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: cache
+        template:
+          metadata:
+            labels:
+              app: cache
+          spec:
+            affinity:
+              podAntiAffinity:
+                requiredDuringSchedulingIgnoredDuringExecution:
+                - labelSelector:
+                    matchLabels:
+                      app: cache
+                  topologyKey: kubernetes.io/hostname
+            containers:
+            - name: redis
+              image: redis:7.4
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: cache
+        namespace: shop
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: cache
+        template:
+          metadata:
+            labels:
+              app: cache
+          spec:
+            containers:
+            - name: redis
+              image: redis:7.4
+            affinity:
+              podAntiAffinity:
+                requiredDuringSchedulingIgnoredDuringExecution:
+                - topologyKey: kubernetes.io/hostname
+                  labelSelector:
+                    matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                      - cache
+  negatives:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: cache
+        namespace: shop
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: cache
+        template:
+          metadata:
+            labels:
+              app: cache
+          spec:
+            affinity:
+              podAffinity:
+                requiredDuringSchedulingIgnoredDuringExecution:
+                - labelSelector:
+                    matchLabels:
+                      app: cache
+                  topologyKey: kubernetes.io/hostname
+            containers:
+            - name: redis
+              image: redis:7.4
+    why: podAffinity attracts the Pods to nodes that already run app=cache Pods; it packs the replicas together instead of separating them.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: cache
+        namespace: shop
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: cache
+        template:
+          metadata:
+            labels:
+              app: cache
+          spec:
+            affinity:
+              podAntiAffinity:
+                preferredDuringSchedulingIgnoredDuringExecution:
+                - weight: 100
+                  podAffinityTerm:
+                    labelSelector:
+                      matchLabels:
+                        app: cache
+                    topologyKey: kubernetes.io/hostname
+            containers:
+            - name: redis
+              image: redis:7.4
+    why: A preferred rule is only a scoring hint; when nodes are busy, two replicas can still share a node.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: cache
+        namespace: shop
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: cache
+        template:
+          metadata:
+            labels:
+              app: cache
+          spec:
+            affinity:
+              podAntiAffinity:
+                requiredDuringSchedulingIgnoredDuringExecution:
+                - labelSelector:
+                    matchLabels:
+                      app: cache
+                  topologyKey: topology.kubernetes.io/zone
+            containers:
+            - name: redis
+              image: redis:7.4
+    why: With the zone label as topologyKey the rule allows one cache Pod per zone, not per node, and leaves replicas Pending when there are fewer zones than replicas.
+explanation:
+  correct:
+    en: '`podAntiAffinity` with `requiredDuringSchedulingIgnoredDuringExecution` forbids placing a Pod in a topology domain that already runs a Pod matching `labelSelector`. With `topologyKey: kubernetes.io/hostname` the domain is a single node, so the 3 replicas need 3 different nodes and an extra replica stays Pending. `podAffinity` does the opposite (co-location), and the `preferred` form is only a score.'
+references:
+- title: Assigning Pods to Nodes
+  url: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/

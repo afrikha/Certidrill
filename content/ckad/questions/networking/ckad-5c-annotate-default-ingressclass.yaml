@@ -1,0 +1,117 @@
+id: ckad-5c-annotate-default-ingressclass
+objective: "5.3.2"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    A team's Helm charts create Ingresses without `spec.ingressClassName`, and no controller handles them: their ADDRESS stays empty. The cluster has a single IngressClass, `nginx` (file `ingressclass-nginx.yaml`), which is not marked as the default class.
+
+    Without changing the charts, make `nginx` the default IngressClass of the cluster, so that new Ingresses created without `ingressClassName` are assigned this class. Type the single command you would run.
+body:
+  mode: object
+  namespace: default
+  files:
+  - name: ingressclass-nginx.yaml
+    content: |
+      apiVersion: networking.k8s.io/v1
+      kind: IngressClass
+      metadata:
+        name: nginx
+      spec:
+        controller: k8s.io/ingress-nginx
+answer:
+  checks:
+  - id: kind
+    label: The object changed is an IngressClass
+    path: kind
+    op: equals
+    value: IngressClass
+  - id: name
+    label: It is IngressClass nginx
+    path: metadata.name
+    op: equals
+    value: nginx
+  - id: annotation
+    label: The annotation ingressclass.kubernetes.io/is-default-class is "true"
+    path: metadata.annotations["ingressclass.kubernetes.io/is-default-class"]
+    op: equals
+    value: "true"
+  - id: controller
+    label: The controller of the class is unchanged
+    path: spec.controller
+    op: equals
+    value: k8s.io/ingress-nginx
+  solution:
+  - command: kubectl annotate ingressclass nginx ingressclass.kubernetes.io/is-default-class=true
+    output: |
+      apiVersion: networking.k8s.io/v1
+      kind: IngressClass
+      metadata:
+        annotations:
+          ingressclass.kubernetes.io/is-default-class: "true"
+        name: nginx
+      spec:
+        controller: k8s.io/ingress-nginx
+  - command: k annotate ingressclasses/nginx ingressclass.kubernetes.io/is-default-class="true"
+    output: |
+      apiVersion: networking.k8s.io/v1
+      kind: IngressClass
+      metadata:
+        annotations:
+          ingressclass.kubernetes.io/is-default-class: "true"
+        name: nginx
+      spec:
+        controller: k8s.io/ingress-nginx
+  - command: kubectl annotate -f ingressclass-nginx.yaml ingressclass.kubernetes.io/is-default-class=true --local -o yaml
+    output: |
+      apiVersion: networking.k8s.io/v1
+      kind: IngressClass
+      metadata:
+        annotations:
+          ingressclass.kubernetes.io/is-default-class: "true"
+        name: nginx
+      spec:
+        controller: k8s.io/ingress-nginx
+  negatives:
+  - command: kubectl label ingressclass nginx ingressclass.kubernetes.io/is-default-class=true
+    why: The default class is marked with an annotation, not a label; the admission controller ignores the label.
+    output: |
+      apiVersion: networking.k8s.io/v1
+      kind: IngressClass
+      metadata:
+        labels:
+          ingressclass.kubernetes.io/is-default-class: "true"
+        name: nginx
+      spec:
+        controller: k8s.io/ingress-nginx
+  - command: kubectl annotate ingressclass nginx kubernetes.io/ingress.class=nginx
+    why: kubernetes.io/ingress.class is the deprecated annotation that an Ingress used to name its class; on an IngressClass it does not make the class the default.
+    output: |
+      apiVersion: networking.k8s.io/v1
+      kind: IngressClass
+      metadata:
+        annotations:
+          kubernetes.io/ingress.class: nginx
+        name: nginx
+      spec:
+        controller: k8s.io/ingress-nginx
+  - command: kubectl annotate ingressclass nginx ingressclass.kubernetes.io/is-default-class=yes
+    why: The annotation marks the default class only when its value is true.
+    output: |
+      apiVersion: networking.k8s.io/v1
+      kind: IngressClass
+      metadata:
+        annotations:
+          ingressclass.kubernetes.io/is-default-class: "yes"
+        name: nginx
+      spec:
+        controller: k8s.io/ingress-nginx
+explanation:
+  correct:
+    en: 'Setting the annotation `ingressclass.kubernetes.io/is-default-class` to `true` on an IngressClass makes the cluster assign that class to new Ingresses created without `ingressClassName`. `kubectl annotate ingressclass nginx ingressclass.kubernetes.io/is-default-class=true` does it without touching the Ingresses; IngressClass is cluster-scoped, so no `-n` is needed. The class is assigned only to Ingresses created afterwards, and at most one class may be marked default: with two, Ingresses without `ingressClassName` are refused.'
+references:
+- title: Ingress
+  url: https://kubernetes.io/docs/concepts/services-networking/ingress/
+- title: kubectl annotate
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_annotate/

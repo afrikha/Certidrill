@@ -1,0 +1,163 @@
+id: ckad-1c-init-populate-emptydir
+objective: "1.3.1"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    Write the manifest of a Pod named `docs` in namespace `web` that builds a static site before serving it:
+
+    - a volume named `site` of type `emptyDir`;
+    - an init container named `render`, image `registry.example.com/docs-builder:1.8`, with `command: ["build-site", "--dest", "/out"]`, that mounts `site` at `/out`;
+    - an application container named `nginx`, image `nginx:1.27`, that mounts `site` read-only at `/usr/share/nginx/html`.
+body: {}
+answer:
+  checks:
+  - id: pod
+    label: A Pod named docs in namespace web
+    path: metadata
+    op: subset
+    value: {name: docs, namespace: web}
+  - id: volume
+    label: Volume site is an emptyDir
+    path: spec.volumes[name=site].emptyDir
+    op: exists
+  - id: render-image
+    label: Init container render runs registry.example.com/docs-builder:1.8
+    path: spec.initContainers[name=render].image
+    op: equals
+    value: registry.example.com/docs-builder:1.8
+  - id: render-command
+    label: render runs build-site --dest /out
+    path: spec.initContainers[name=render].command
+    op: equals
+    value: ["build-site", "--dest", "/out"]
+  - id: render-mount
+    label: render mounts site at /out
+    path: spec.initContainers[name=render].volumeMounts[name=site].mountPath
+    op: equals
+    value: /out
+  - id: nginx-image
+    label: Container nginx runs nginx:1.27
+    path: spec.containers[name=nginx].image
+    op: equals
+    value: nginx:1.27
+  - id: nginx-mount
+    label: nginx mounts site at /usr/share/nginx/html
+    path: spec.containers[name=nginx].volumeMounts[name=site].mountPath
+    op: equals
+    value: /usr/share/nginx/html
+  - id: nginx-readonly
+    label: nginx mounts site read-only
+    path: spec.containers[name=nginx].volumeMounts[name=site].readOnly
+    op: equals
+    value: true
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: docs
+        namespace: web
+      spec:
+        volumes:
+        - name: site
+          emptyDir: {}
+        initContainers:
+        - name: render
+          image: registry.example.com/docs-builder:1.8
+          command: ["build-site", "--dest", "/out"]
+          volumeMounts:
+          - name: site
+            mountPath: /out
+        containers:
+        - name: nginx
+          image: nginx:1.27
+          volumeMounts:
+          - name: site
+            mountPath: /usr/share/nginx/html
+            readOnly: true
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: docs
+        namespace: web
+      spec:
+        volumes:
+        - name: site
+          emptyDir: {}
+        - name: html
+          emptyDir: {}
+        initContainers:
+        - name: render
+          image: registry.example.com/docs-builder:1.8
+          command: ["build-site", "--dest", "/out"]
+          volumeMounts:
+          - name: site
+            mountPath: /out
+        containers:
+        - name: nginx
+          image: nginx:1.27
+          volumeMounts:
+          - name: html
+            mountPath: /usr/share/nginx/html
+            readOnly: true
+    why: The two containers mount different emptyDir volumes, so nginx serves an empty directory instead of the rendered site.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: docs
+        namespace: web
+      spec:
+        volumes:
+        - name: site
+          emptyDir: {}
+        initContainers:
+        - name: render
+          image: registry.example.com/docs-builder:1.8
+          command: ["build-site", "--dest", "/out"]
+          volumeMounts:
+          - name: site
+            mountPath: /out
+        containers:
+        - name: nginx
+          image: nginx:1.27
+          volumeMounts:
+          - name: site
+            mountPath: /usr/share/nginx/html
+    why: Without readOnly true, nginx can write to the site directory; the task asks for a read-only mount.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: docs
+        namespace: web
+      spec:
+        volumes:
+        - name: site
+          emptyDir: {}
+        containers:
+        - name: render
+          image: registry.example.com/docs-builder:1.8
+          command: ["build-site", "--dest", "/out"]
+          volumeMounts:
+          - name: site
+            mountPath: /out
+        - name: nginx
+          image: nginx:1.27
+          volumeMounts:
+          - name: site
+            mountPath: /usr/share/nginx/html
+            readOnly: true
+    why: As a regular container, render starts at the same time as nginx (which may serve an incomplete site) and, once it exits, is restarted by the Pod's restartPolicy Always.
+explanation:
+  correct:
+    en: 'An `emptyDir` volume lives as long as the Pod and is shared by every container that mounts it, init containers included. `render` writes into `/out` and must complete before `nginx` starts; `nginx` sees the same files at `/usr/share/nginx/html`. `readOnly: true` on the volume mount stops that container from writing, while `render` keeps a read-write mount.'
+references:
+- title: Init Containers
+  url: https://kubernetes.io/docs/concepts/workloads/pods/init-containers/
+- title: Volumes
+  url: https://kubernetes.io/docs/concepts/storage/volumes/

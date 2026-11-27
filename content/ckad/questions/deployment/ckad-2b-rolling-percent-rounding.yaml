@@ -1,0 +1,190 @@
+id: ckad-2b-rolling-percent-rounding
+objective: "2.2.2"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    The editor contains Deployment `catalog` in namespace `shop` (8 replicas). The team scales it often, so its rolling update limits must be **percentages** of the replica count, not absolute numbers. With the current 8 replicas, a rolling update must:
+
+    - create exactly **2** Pods above the desired count at most (up to 10 Pods in total);
+    - take exactly **1** Pod below the desired count at most (at least 7 available Pods).
+
+    Set the two percentages, keeping a rolling update strategy.
+body:
+  starter: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: catalog
+      namespace: shop
+    spec:
+      replicas: 8
+      selector:
+        matchLabels:
+          app: catalog
+      template:
+        metadata:
+          labels:
+            app: catalog
+        spec:
+          containers:
+          - name: catalog
+            image: registry.example.com/shop/catalog:3.3
+answer:
+  checks:
+  - id: deployment
+    label: The Deployment catalog in namespace shop
+    path: metadata
+    op: subset
+    value: {name: catalog, namespace: shop}
+  - id: replicas
+    label: It keeps 8 replicas
+    path: spec.replicas
+    op: equals
+    value: 8
+  - id: rolling
+    label: The strategy is a rolling update
+    path: spec
+    op: matches
+    value: '^(?![\s\S]*"type":"Recreate")'
+  - id: surge
+    label: maxSurge is a percentage that rounds up to 2 Pods of 8 (13% to 25%)
+    path: spec.strategy.rollingUpdate.maxSurge
+    op: matches
+    value: '^(1[3-9]|2[0-5])%$'
+  - id: unavailable
+    label: maxUnavailable is a percentage that rounds down to 1 Pod of 8 (13% to 24%)
+    path: spec.strategy.rollingUpdate.maxUnavailable
+    op: matches
+    value: '^(1[3-9]|2[0-4])%$'
+  solution:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: catalog
+        namespace: shop
+      spec:
+        replicas: 8
+        strategy:
+          type: RollingUpdate
+          rollingUpdate:
+            maxSurge: 25%
+            maxUnavailable: 20%
+        selector:
+          matchLabels:
+            app: catalog
+        template:
+          metadata:
+            labels:
+              app: catalog
+          spec:
+            containers:
+            - name: catalog
+              image: registry.example.com/shop/catalog:3.3
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: catalog
+        namespace: shop
+      spec:
+        replicas: 8
+        strategy:
+          rollingUpdate:
+            maxSurge: "20%"
+            maxUnavailable: "15%"
+        selector:
+          matchLabels:
+            app: catalog
+        template:
+          metadata:
+            labels:
+              app: catalog
+          spec:
+            containers:
+            - name: catalog
+              image: registry.example.com/shop/catalog:3.3
+  negatives:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: catalog
+        namespace: shop
+      spec:
+        replicas: 8
+        strategy:
+          type: RollingUpdate
+          rollingUpdate:
+            maxSurge: 25%
+            maxUnavailable: 25%
+        selector:
+          matchLabels:
+            app: catalog
+        template:
+          metadata:
+            labels:
+              app: catalog
+          spec:
+            containers:
+            - name: catalog
+              image: registry.example.com/shop/catalog:3.3
+    why: 25 % of 8 is exactly 2, so maxUnavailable 25% lets the rollout drop to 6 available Pods, not 7.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: catalog
+        namespace: shop
+      spec:
+        replicas: 8
+        strategy:
+          type: RollingUpdate
+          rollingUpdate:
+            maxSurge: 12%
+            maxUnavailable: 12%
+        selector:
+          matchLabels:
+            app: catalog
+        template:
+          metadata:
+            labels:
+              app: catalog
+          spec:
+            containers:
+            - name: catalog
+              image: registry.example.com/shop/catalog:3.3
+    why: 12 % of 8 is 0.96. maxSurge rounds up to 1 extra Pod, not 2, and maxUnavailable rounds down to 0, not 1.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: catalog
+        namespace: shop
+      spec:
+        replicas: 8
+        strategy:
+          type: RollingUpdate
+          rollingUpdate:
+            maxSurge: 2
+            maxUnavailable: 1
+        selector:
+          matchLabels:
+            app: catalog
+        template:
+          metadata:
+            labels:
+              app: catalog
+          spec:
+            containers:
+            - name: catalog
+              image: registry.example.com/shop/catalog:3.3
+    why: Absolute numbers give the right result for 8 replicas, but they do not follow the replica count when the Deployment is scaled; the task asks for percentages.
+explanation:
+  correct:
+    en: 'A percentage is converted to a number of Pods from the desired replica count: `maxSurge` rounds **up**, `maxUnavailable` rounds **down**. With 8 replicas, any `maxSurge` from 13% (1.04, up to 2) to 25% (exactly 2) gives 2 extra Pods, and any `maxUnavailable` from 13% (1.04, down to 1) to 24% (1.92, down to 1) gives 1. The default 25% for `maxUnavailable` is exactly 2 Pods of 8, one too many.'
+references:
+- title: Deployments
+  url: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/

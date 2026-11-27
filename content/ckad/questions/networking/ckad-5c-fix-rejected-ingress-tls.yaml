@@ -1,0 +1,212 @@
+id: ckad-5c-fix-rejected-ingress-tls
+objective: "5.3.2"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    In namespace `finance`, `kubectl apply` rejects the Ingress `billing` shown in the editor. The cluster has two IngressClasses, `public` and `internal`, and both carry the annotation `ingressclass.kubernetes.io/is-default-class: "true"`; you may not change them. The TLS Secret `billing-tls` of namespace `finance` holds a certificate for `billing.example.com`.
+
+    Fix the Ingress so that it is accepted and handled by the IngressClass `public`, sends every request for `billing.example.com`, whatever its path, to Service `billing` on port 80, and terminates HTTPS for that host with the Secret `billing-tls`. Keep the name and namespace.
+body:
+  starter: |
+    apiVersion: networking.k8s.io/v1
+    kind: Ingress
+    metadata:
+      name: billing
+      namespace: finance
+    spec:
+      tls:
+      - hosts:
+        - www.billing.example.com
+        secretName: billing-tls
+      rules:
+      - host: billing.example.com
+        http:
+          paths:
+          - path: /
+            backend:
+              service:
+                name: billing
+                port:
+                  number: 80
+answer:
+  checks:
+  - id: meta
+    label: It is still Ingress billing in namespace finance
+    path: metadata
+    op: subset
+    value: {name: billing, namespace: finance}
+  - id: kind
+    label: The object is a networking.k8s.io/v1 Ingress
+    path: apiVersion
+    op: equals
+    value: networking.k8s.io/v1
+  - id: class
+    label: ingressClassName is public
+    path: spec.ingressClassName
+    op: equals
+    value: public
+  - id: route
+    label: billing.example.com, path / with pathType Prefix, goes to billing:80
+    path: spec.rules
+    op: contains
+    value:
+      host: billing.example.com
+      http:
+        paths:
+        - path: /
+          pathType: Prefix
+          backend:
+            service:
+              name: billing
+              port: {number: 80}
+  - id: tls
+    label: The tls section covers billing.example.com with the Secret billing-tls
+    path: spec.tls
+    op: contains
+    value: {hosts: [billing.example.com], secretName: billing-tls}
+  solution:
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: billing
+        namespace: finance
+      spec:
+        ingressClassName: public
+        tls:
+        - hosts:
+          - billing.example.com
+          secretName: billing-tls
+        rules:
+        - host: billing.example.com
+          http:
+            paths:
+            - path: /
+              pathType: Prefix
+              backend:
+                service:
+                  name: billing
+                  port:
+                    number: 80
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        namespace: finance
+        name: billing
+      spec:
+        rules:
+        - host: billing.example.com
+          http:
+            paths:
+            - pathType: Prefix
+              path: /
+              backend:
+                service: {name: billing, port: {number: 80}}
+        tls:
+        - secretName: billing-tls
+          hosts: [billing.example.com]
+        ingressClassName: public
+  negatives:
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: billing
+        namespace: finance
+      spec:
+        tls:
+        - hosts:
+          - billing.example.com
+          secretName: billing-tls
+        rules:
+        - host: billing.example.com
+          http:
+            paths:
+            - path: /
+              pathType: Prefix
+              backend:
+                service:
+                  name: billing
+                  port:
+                    number: 80
+    why: With two IngressClasses marked default, the admission controller refuses every new Ingress that has no ingressClassName.
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: billing
+        namespace: finance
+      spec:
+        ingressClassName: public
+        tls:
+        - hosts:
+          - billing.example.com
+          secretName: billing-tls
+        rules:
+        - host: billing.example.com
+          http:
+            paths:
+            - path: /
+              backend:
+                service:
+                  name: billing
+                  port:
+                    number: 80
+    why: Every path needs a pathType; a path without it fails validation, so the Ingress is still rejected.
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: billing
+        namespace: finance
+      spec:
+        ingressClassName: public
+        tls:
+        - hosts:
+          - billing.example.com
+          secretName: billing-tls
+        rules:
+        - host: billing.example.com
+          http:
+            paths:
+            - path: /
+              pathType: Exact
+              backend:
+                service:
+                  name: billing
+                  port:
+                    number: 80
+    why: Exact / matches only the home page; /invoices and every other path are not routed.
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: billing
+        namespace: finance
+      spec:
+        ingressClassName: public
+        tls:
+        - hosts:
+          - www.billing.example.com
+          secretName: billing-tls
+        rules:
+        - host: billing.example.com
+          http:
+            paths:
+            - path: /
+              pathType: Prefix
+              backend:
+                service:
+                  name: billing
+                  port:
+                    number: 80
+    why: The Ingress is accepted, but the tls hosts must match the rule host. HTTPS for billing.example.com does not use billing-tls.
+explanation:
+  correct:
+    en: 'The starter has three faults. When more than one IngressClass is marked default, the admission controller refuses new Ingresses without `ingressClassName`, so the field must name `public`. Every path must have a `pathType` (`Prefix` for every path), and the `hosts` of the `tls` section must explicitly match the `host` of the rule, here `billing.example.com`.'
+references:
+- title: Ingress
+  url: https://kubernetes.io/docs/concepts/services-networking/ingress/

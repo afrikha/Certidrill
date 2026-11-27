@@ -1,0 +1,62 @@
+id: cka-2d-crictl-logs-exited
+objective: "2.4.2"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    You are logged in as root on node `worker-2`. Container `redis` of Pod `cache-0` keeps restarting, and the kubelet on this node cannot reach the API server, so `kubectl` is not an option. `crictl ps -a --name redis` prints:
+
+    ```text
+    CONTAINER ID    IMAGE           CREATED          STATE    NAME   ATTEMPT
+    9c41e2b7a8d03   3a1f0b2c4d5e6   20 seconds ago   Running  redis  4
+    e7f3a90c12b64   3a1f0b2c4d5e6   2 minutes ago    Exited   redis  3
+    ```
+
+    Print the last 30 lines of the logs of the instance that exited. Type the single command you would run.
+body:
+  mode: invocation
+  tools: [crictl]
+  namespace: default
+answer:
+  checks:
+  - id: tool
+    label: Uses crictl
+    path: tool
+    op: equals
+    value: crictl
+  - id: verb
+    label: Uses crictl logs
+    path: verb
+    op: equals
+    value: logs
+  - id: container
+    label: Reads the exited container e7f3a90c12b64
+    path: args
+    op: contains
+    value: e7f3a90c12b64
+  - id: tail
+    label: Prints the last 30 lines
+    path: flags.tail
+    op: equals
+    value: 30
+  solution:
+  - command: crictl logs --tail=30 e7f3a90c12b64
+  - command: sudo crictl logs --tail 30 e7f3a90c12b64
+  - command: crictl logs e7f3a90c12b64 --tail=30
+  negatives:
+  - command: crictl logs --tail=30 9c41e2b7a8d03
+    why: 9c41e2b7a8d03 is the new, running instance (attempt 4), not the one that exited.
+  - command: crictl logs e7f3a90c12b64
+    why: Without --tail crictl prints the whole log, not the last 30 lines.
+  - command: crictl ps --tail=30 e7f3a90c12b64
+    why: crictl ps lists containers; crictl logs prints a container's output.
+explanation:
+  correct:
+    en: >-
+      `crictl logs` takes a container ID and prints that container's log from the node, which works even when the
+      API server is unreachable. Each restart creates a new container with a new ID and a higher ATTEMPT, so the exited
+      instance is `e7f3a90c12b64`. `--tail=30` limits the output to the last 30 lines.
+references:
+- title: Debugging Kubernetes nodes with crictl
+  url: https://kubernetes.io/docs/tasks/debug/debug-cluster/crictl/

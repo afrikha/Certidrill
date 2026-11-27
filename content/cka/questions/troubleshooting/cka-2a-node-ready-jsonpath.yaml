@@ -1,0 +1,53 @@
+id: cka-2a-node-ready-jsonpath
+objective: "2.1.3"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    A monitoring script needs only the status (`True`, `False` or `Unknown`) of the `Ready` condition of node `node-2`.
+
+    Print it with `kubectl get` and a JSONPath filter on `.status.conditions` that selects the condition by its type. Type the single command you would run.
+body:
+  mode: invocation
+answer:
+  checks:
+  - id: get
+    label: Uses kubectl get
+    path: verb
+    op: equals
+    value: get
+  - id: node
+    label: Reads node node-2
+    path: resource
+    op: equals
+    value: node
+  - id: name
+    label: Names node-2
+    path: names
+    op: contains
+    value: node-2
+  - id: jsonpath
+    label: Filters the conditions on type Ready and prints its status
+    path: flags.output
+    op: matches
+    value: '^jsonpath=\{\.status\.conditions\[\?\(@\.type ?== ?["'']Ready["'']\)\]\.status\}$'
+  solution:
+  - command: kubectl get node node-2 -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'
+  - command: k get nodes/node-2 -o=jsonpath="{.status.conditions[?(@.type=='Ready')].status}"
+  - command: kubectl get no node-2 --output jsonpath='{.status.conditions[?(@.type=="Ready")].status}'
+  negatives:
+  - command: kubectl get node node-2 -o jsonpath='{.status.conditions[0].status}'
+    why: The first condition is not necessarily Ready (the kubelet usually lists the pressure conditions first); the task asks for a filter on the type.
+  - command: kubectl get node node-2 -o jsonpath='{.status.conditions[?(@.type=="Ready")].reason}'
+    why: reason prints KubeletReady or a similar word, not True, False or Unknown.
+  - command: kubectl describe node node-2
+    why: describe prints the whole node description, not only the status of Ready.
+explanation:
+  correct:
+    en: '`.status.conditions` is a list; the JSONPath filter `[?(@.type=="Ready")]` picks the element whose `type` is `Ready`, and `.status` prints `True`, `False` (kubelet unhealthy) or `Unknown` (no heartbeat within `node-monitor-grace-period`, 50 s by default). An index such as `[0]` depends on the order of the list.'
+references:
+- title: JSONPath Support
+  url: https://kubernetes.io/docs/reference/kubectl/jsonpath/
+- title: Node Status
+  url: https://kubernetes.io/docs/reference/node/node-status/

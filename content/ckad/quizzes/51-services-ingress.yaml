@@ -1,0 +1,1383 @@
+chapter: 51-services-ingress
+questions:
+  # ------------------------------------------------------------------ 1
+  - id: ckad-qz-51-01
+    objective: "5.2.1"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        You apply this manifest in namespace `shop`:
+
+        ```yaml
+        apiVersion: v1
+        kind: Service
+        metadata:
+          name: cart
+        spec:
+          selector:
+            app: cart
+          ports:
+          - port: 80
+        ```
+
+        What does Kubernetes create?
+    body:
+      options:
+        - { id: a, text: "A NodePort Service whose node port is allocated from 30000-32767 and whose targetPort is 80" }
+        - { id: b, text: "A ClusterIP Service that receives a cluster IP and whose targetPort is 80" }
+        - { id: c, text: "A ClusterIP Service that receives a cluster IP but has no targetPort, so it sends no traffic yet" }
+        - { id: d, text: "A headless Service that receives no cluster IP, whose DNS name returns the Pod IPs" }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          Without `spec.type`, a Service is of type ClusterIP, the default, and gets a virtual IP reachable inside the cluster. When `targetPort` is omitted it takes the value of `port`, so traffic is sent to port 80 of the Pods labelled `app: cart`.
+      options:
+        a: { en: "NodePort is used only when `type: NodePort` (or LoadBalancer) is set; the default type is ClusterIP, which opens no port on the nodes." }
+        c: { en: "`targetPort` is never left empty: by default it is set to the same value as `port`, here 80." }
+        d: { en: "A headless Service needs `clusterIP: None` explicitly; without it the Service gets a cluster IP and load-balances." }
+    references:
+      - title: Service
+        url: https://kubernetes.io/docs/concepts/services-networking/service/
+
+  # ------------------------------------------------------------------ 2
+  - id: ckad-qz-51-02
+    objective: "5.3.1"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        An Ingress rule for host `store.example.com` has the path `/shop` with `pathType: Prefix`. The Ingress has no other path and no default backend.
+
+        Which request for `store.example.com` does this path **not** match?
+    body:
+      options:
+        - { id: a, text: "`/shop`" }
+        - { id: b, text: "`/shop/`" }
+        - { id: c, text: "`/shop/cart/items`" }
+        - { id: d, text: "`/shopping`" }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          `Prefix` compares the path element by element, splitting on `/`. `/shopping` has the single element `shopping`, which is not the element `shop`: a string prefix is not enough, so the request matches no path of the Ingress.
+      options:
+        a: { en: "The request path equals the rule path; `Prefix` matches it, element by element." }
+        b: { en: "A trailing slash does not add a different element: `Prefix` `/shop` matches `/shop/`, unlike `Exact`." }
+        c: { en: "`shop` is the first element of `/shop/cart/items`, so the `Prefix` rule matches every path below it." }
+    references:
+      - title: Ingress
+        url: https://kubernetes.io/docs/concepts/services-networking/ingress/
+
+  # ------------------------------------------------------------------ 3
+  - id: ckad-qz-51-03
+    objective: "5.2.2"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Service `ledger` in namespace `finance` listens on port 80 and forwards to port 8080 of its Pods; its EndpointSlice lists three ready Pods. An application in namespace `reports` calls `http://ledger:8080/api` and fails with a name resolution error. The cluster domain is `cluster.local`.
+
+        Which URL should the application in `reports` use?
+    body:
+      options:
+        - { id: a, text: "`http://ledger.finance:8080/api`" }
+        - { id: b, text: "`http://ledger.finance:80/api`" }
+        - { id: c, text: "`http://ledger.reports.svc.cluster.local:80/api`" }
+        - { id: d, text: "`http://finance.ledger.svc.cluster.local:80/api`" }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          The short name `ledger` resolves only from Pods of the Service's own namespace; from another namespace the name must include it: `ledger.finance` (or `ledger.finance.svc.cluster.local`). Clients connect to the Service port, 80; 8080 is the targetPort, used between the Service and the Pods.
+      options:
+        a: { en: "The name is right, but 8080 is the targetPort of the Pods; the Service itself listens on port 80." }
+        c: { en: "This name looks for a Service `ledger` in namespace `reports`, the caller's namespace, where it does not exist." }
+        d: { en: "The order is reversed: the full name is `<service>.<namespace>.svc.<cluster domain>`, so `ledger.finance.svc.cluster.local`." }
+    references:
+      - title: Debug Services
+        url: https://kubernetes.io/docs/tasks/debug/debug-application/debug-service/
+
+  # ------------------------------------------------------------------ 4
+  - id: ckad-qz-51-04
+    objective: "5.3.2"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Ingress `store` in namespace `frontend` has a rule for `store.example.com`, path `/` with `pathType: Prefix`, to Service `store` on port 80. `kubectl get ingress store -n frontend` shows the class `nginx` and an ADDRESS, but every request for `store.example.com` gets a 503 from the controller. `kubectl describe ingress store -n frontend` reports that Service `store` is not found; `kubectl get svc -A` shows Service `store` (port 80) only in namespace `backend`.
+
+        What should you do to route the requests?
+    body:
+      options:
+        - { id: a, text: "Set the backend service name to `backend/store` so that the Ingress refers to the other namespace" }
+        - { id: b, text: "Create the Ingress in namespace `backend`, next to Service `store`, and delete it from `frontend`" }
+        - { id: c, text: "Change the backend port to the targetPort of the Pods so that the controller reaches them directly" }
+        - { id: d, text: "Change the path to `pathType: Exact` so that requests for `/` match the rule of the Ingress exactly" }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          A Service backend has only a name and a port: the Service must exist in the same namespace as the Ingress. Since Service `store` lives in `backend`, the Ingress must be created in `backend` too. The class and the ADDRESS show that the controller already handles the Ingress, so the problem is the backend.
+      options:
+        a: { en: "`service.name` is a plain Service name in the Ingress namespace; there is no `namespace/name` form and no namespace field in a backend." }
+        c: { en: "The backend port is always a port of the Service, never the container port; and the Service is still not found from namespace `frontend`." }
+        d: { en: "`Exact` `/` would match only the path `/` itself and route even fewer requests; the 503 comes from the missing backend Service, not from the path." }
+    references:
+      - title: Ingress
+        url: https://kubernetes.io/docs/reference/kubernetes-api/service-resources/ingress-v1/
+
+  # ------------------------------------------------------------------ 5
+  - id: ckad-qz-51-05
+    objective: "5.2.1"
+    difficulty: 2
+    status: draft
+    type: multi
+    stem:
+      en: |
+        In namespace `shop`, Deployment `api` has the selector `matchLabels: {app.kubernetes.io/name: api}` and its container listens on port 8080. You run:
+
+        ```bash
+        kubectl expose deployment api -n shop --port=80 --target-port=8080
+        ```
+
+        Which two statements about the Service that this command creates are true?
+
+        NOTE: Each correct selection is worth one point.
+    body:
+      choose: 2
+      options:
+        - { id: a, text: "Its selector is `app.kubernetes.io/name: api`, copied from the Deployment" }
+        - { id: b, text: "Its selector is `app: api`, built from the name of the new Service" }
+        - { id: c, text: "It is a ClusterIP Service, reachable only from inside the cluster" }
+        - { id: d, text: "It also gets a node port allocated from the range 30000-32767" }
+        - { id: e, text: "Its single port is named `80-8080` after the two port numbers" }
+    answer: { optionIds: [a, c] }
+    explanation:
+      correct:
+        en: |
+          `kubectl expose` reuses the selector of the exposed resource, here the `matchLabels` of the Deployment, so the Service selects the Pods of `api`. Without `--type` it creates a ClusterIP Service, the default type, named after the Deployment because `--name` is not given.
+      options:
+        b: { en: "`kubectl create service` builds the selector `app: NAME`; `kubectl expose` copies the selector of the exposed workload instead." }
+        d: { en: "A node port is allocated only for `--type=NodePort` or `LoadBalancer`; the default ClusterIP type opens no port on the nodes." }
+        e: { en: "Naming ports after `port-targetPort` is what `kubectl create service --tcp` does; `expose` leaves a single port unnamed." }
+    references:
+      - title: kubectl expose
+        url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_expose/
+
+  # ------------------------------------------------------------------ 6
+  - id: ckad-qz-51-06
+    objective: "5.2.1"
+    difficulty: 3
+    status: draft
+    type: command
+    stem:
+      en: |-
+        In namespace `logistics`, Deployment `tracker` (manifest in `tracker.yaml`) runs Pods labelled `app=tracker` and `track=stable`. Deployment `tracker-canary`, in the same namespace, runs Pods labelled `app=tracker` and `track=canary`. Both containers listen on port 8080.
+
+        Create a Service named `tracker` of type NodePort that sends traffic only to the Pods of Deployment `tracker`, listens on port 80 and forwards to port 8080. Let Kubernetes allocate the node port.
+
+        Type the single command you would run.
+    body:
+      mode: object
+      namespace: default
+      files:
+        - name: tracker.yaml
+          content: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: tracker
+              namespace: logistics
+              labels:
+                app: tracker
+            spec:
+              replicas: 3
+              selector:
+                matchExpressions:
+                - {key: app, operator: In, values: [tracker]}
+                - {key: track, operator: In, values: [stable]}
+              template:
+                metadata:
+                  labels:
+                    app: tracker
+                    track: stable
+                spec:
+                  containers:
+                  - name: tracker
+                    image: registry.example.com/logistics/tracker:2.3
+                    ports:
+                    - containerPort: 8080
+    answer:
+      checks:
+        - id: kind
+          label: The object is a Service
+          path: kind
+          op: equals
+          value: Service
+        - id: name
+          label: It is named tracker
+          path: metadata.name
+          op: equals
+          value: tracker
+        - id: namespace
+          label: It is created in namespace logistics
+          path: metadata.namespace
+          op: equals
+          value: logistics
+        - id: type
+          label: Its type is NodePort
+          path: spec.type
+          op: equals
+          value: NodePort
+        - id: selector
+          label: It selects app=tracker and track=stable, so the canary Pods are left out
+          path: spec.selector
+          op: subset
+          value: {app: tracker, track: stable}
+        - id: port
+          label: The Service listens on port 80
+          path: spec.ports[0].port
+          op: equals
+          value: 80
+        - id: target-port
+          label: Traffic is forwarded to port 8080 of the Pods
+          path: spec.ports[0].targetPort
+          op: equals
+          value: 8080
+      solution:
+        - command: kubectl expose deployment tracker -n logistics --selector=app=tracker,track=stable --type=NodePort --port=80 --target-port=8080
+          output: |
+            apiVersion: v1
+            kind: Service
+            metadata:
+              labels:
+                app: tracker
+              name: tracker
+              namespace: logistics
+            spec:
+              ports:
+              - port: 80
+                protocol: TCP
+                targetPort: 8080
+              selector:
+                app: tracker
+                track: stable
+              type: NodePort
+            status:
+              loadBalancer: {}
+        - command: k -n logistics expose deploy/tracker --port 80 --target-port 8080 --type NodePort --selector 'track=stable,app=tracker' --dry-run=client -o yaml
+          output: |
+            apiVersion: v1
+            kind: Service
+            metadata:
+              labels:
+                app: tracker
+              name: tracker
+              namespace: logistics
+            spec:
+              ports:
+              - port: 80
+                protocol: TCP
+                targetPort: 8080
+              selector:
+                app: tracker
+                track: stable
+              type: NodePort
+            status:
+              loadBalancer: {}
+      negatives:
+        - command: kubectl create service nodeport tracker --tcp=80:8080 -n logistics
+          why: create service always selects app=NAME, here app=tracker only, which also matches the canary Pods of tracker-canary.
+          output: |
+            apiVersion: v1
+            kind: Service
+            metadata:
+              labels:
+                app: tracker
+              name: tracker
+              namespace: logistics
+            spec:
+              ports:
+              - name: 80-8080
+                port: 80
+                protocol: TCP
+                targetPort: 8080
+              selector:
+                app: tracker
+              type: NodePort
+            status:
+              loadBalancer: {}
+        - command: kubectl expose deployment tracker -n logistics --selector=app=tracker --type=NodePort --port=80 --target-port=8080
+          why: The selector app=tracker alone also matches the canary Pods; track=stable is needed to keep only the Pods of Deployment tracker.
+          output: |
+            apiVersion: v1
+            kind: Service
+            metadata:
+              labels:
+                app: tracker
+              name: tracker
+              namespace: logistics
+            spec:
+              ports:
+              - port: 80
+                protocol: TCP
+                targetPort: 8080
+              selector:
+                app: tracker
+              type: NodePort
+            status:
+              loadBalancer: {}
+        - command: kubectl expose deployment tracker -n logistics --selector=app=tracker,track=stable --port=80 --target-port=8080
+          why: Without --type the Service is a ClusterIP Service, which opens no port on the nodes.
+          output: |
+            apiVersion: v1
+            kind: Service
+            metadata:
+              labels:
+                app: tracker
+              name: tracker
+              namespace: logistics
+            spec:
+              ports:
+              - port: 80
+                protocol: TCP
+                targetPort: 8080
+              selector:
+                app: tracker
+                track: stable
+            status:
+              loadBalancer: {}
+    explanation:
+      correct:
+        en: '`kubectl expose` normally copies the selector of the Deployment, but a Service selector only supports equality labels, so a Deployment selected with `matchExpressions` cannot be exposed that way. `--selector=app=tracker,track=stable` gives the equality selector explicitly, and `kubectl expose` then no longer needs to convert the Deployment''s one. `kubectl create service` is no way out: it always selects `app: NAME`, which also matches the canary Pods.'
+    references:
+      - title: kubectl expose
+        url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_expose/
+      - title: Service
+        url: https://kubernetes.io/docs/concepts/services-networking/service/
+
+  # ------------------------------------------------------------------ 7
+  - id: ckad-qz-51-07
+    objective: "5.3.1"
+    difficulty: 3
+    status: draft
+    type: command
+    stem:
+      en: |-
+        In namespace `learn`, create an Ingress named `portal`, handled by the IngressClass `nginx`, for host `learn.example.com`:
+
+        - only the home page, the path `/` itself, goes to Service `landing` on port 80; any other path must not use this rule;
+        - every request whose path starts with the segment `/guides` (`/guides`, `/guides/k8s/intro`…) goes to Service `guides` on its port named `http`, whose number is not fixed.
+
+        Use the paths `/` and `/guides`. Type the single command you would run.
+    body:
+      mode: object
+      namespace: default
+    answer:
+      checks:
+        - id: kind
+          label: The object is an Ingress
+          path: kind
+          op: equals
+          value: Ingress
+        - id: meta
+          label: It is named portal in namespace learn
+          path: metadata
+          op: subset
+          value: {name: portal, namespace: learn}
+        - id: class
+          label: It uses the IngressClass nginx
+          path: spec.ingressClassName
+          op: equals
+          value: nginx
+        - id: home-exact
+          label: The path / of learn.example.com uses pathType Exact
+          path: spec.rules[host=learn.example.com].http.paths
+          op: contains
+          value: {path: /, pathType: Exact}
+        - id: home-backend
+          label: The path / goes to Service landing on port 80
+          path: spec.rules[host=learn.example.com].http.paths
+          op: contains
+          value: {path: /, backend: {service: {name: landing, port: {number: 80}}}}
+        - id: guides-prefix
+          label: The path /guides of learn.example.com uses pathType Prefix
+          path: spec.rules[host=learn.example.com].http.paths
+          op: contains
+          value: {path: /guides, pathType: Prefix}
+        - id: guides-backend
+          label: The path /guides goes to Service guides on its port named http
+          path: spec.rules[host=learn.example.com].http.paths
+          op: contains
+          value: {path: /guides, backend: {service: {name: guides, port: {name: http}}}}
+      solution:
+        - command: kubectl create ingress portal -n learn --class=nginx --rule="learn.example.com/=landing:80" --rule="learn.example.com/guides*=guides:http"
+          output: |
+            apiVersion: networking.k8s.io/v1
+            kind: Ingress
+            metadata:
+              name: portal
+              namespace: learn
+            spec:
+              ingressClassName: nginx
+              rules:
+              - host: learn.example.com
+                http:
+                  paths:
+                  - backend:
+                      service:
+                        name: landing
+                        port:
+                          number: 80
+                    path: /
+                    pathType: Exact
+                  - backend:
+                      service:
+                        name: guides
+                        port:
+                          name: http
+                    path: /guides
+                    pathType: Prefix
+            status:
+              loadBalancer: {}
+        - command: k create ingress portal --class nginx --rule 'learn.example.com/guides*=guides:http' --rule 'learn.example.com/=landing:80' --namespace learn --dry-run=client -o yaml
+          output: |
+            apiVersion: networking.k8s.io/v1
+            kind: Ingress
+            metadata:
+              name: portal
+              namespace: learn
+            spec:
+              ingressClassName: nginx
+              rules:
+              - host: learn.example.com
+                http:
+                  paths:
+                  - backend:
+                      service:
+                        name: guides
+                        port:
+                          name: http
+                    path: /guides
+                    pathType: Prefix
+                  - backend:
+                      service:
+                        name: landing
+                        port:
+                          number: 80
+                    path: /
+                    pathType: Exact
+            status:
+              loadBalancer: {}
+      negatives:
+        - command: kubectl create ingress portal -n learn --class=nginx --rule="learn.example.com/*=landing:80" --rule="learn.example.com/guides*=guides:http"
+          why: /* gives pathType Prefix on /, which also sends /about or /pricing to landing; only the home page may use this rule.
+          output: |
+            apiVersion: networking.k8s.io/v1
+            kind: Ingress
+            metadata:
+              name: portal
+              namespace: learn
+            spec:
+              ingressClassName: nginx
+              rules:
+              - host: learn.example.com
+                http:
+                  paths:
+                  - backend:
+                      service:
+                        name: landing
+                        port:
+                          number: 80
+                    path: /
+                    pathType: Prefix
+                  - backend:
+                      service:
+                        name: guides
+                        port:
+                          name: http
+                    path: /guides
+                    pathType: Prefix
+            status:
+              loadBalancer: {}
+        - command: kubectl create ingress portal -n learn --class=nginx --rule="learn.example.com/=landing:80" --rule="learn.example.com/guides=guides:http"
+          why: Without the trailing * the path /guides gets pathType Exact, so /guides/k8s/intro is not routed to guides.
+          output: |
+            apiVersion: networking.k8s.io/v1
+            kind: Ingress
+            metadata:
+              name: portal
+              namespace: learn
+            spec:
+              ingressClassName: nginx
+              rules:
+              - host: learn.example.com
+                http:
+                  paths:
+                  - backend:
+                      service:
+                        name: landing
+                        port:
+                          number: 80
+                    path: /
+                    pathType: Exact
+                  - backend:
+                      service:
+                        name: guides
+                        port:
+                          name: http
+                    path: /guides
+                    pathType: Exact
+            status:
+              loadBalancer: {}
+        - command: kubectl create ingress portal -n learn --class=nginx --rule="learn.example.com/=landing:80" --rule="learn.example.com/guides*=guides:8080"
+          why: The task requires the Service port named http, because its number is not fixed; a number breaks the route when the port changes.
+          output: |
+            apiVersion: networking.k8s.io/v1
+            kind: Ingress
+            metadata:
+              name: portal
+              namespace: learn
+            spec:
+              ingressClassName: nginx
+              rules:
+              - host: learn.example.com
+                http:
+                  paths:
+                  - backend:
+                      service:
+                        name: landing
+                        port:
+                          number: 80
+                    path: /
+                    pathType: Exact
+                  - backend:
+                      service:
+                        name: guides
+                        port:
+                          number: 8080
+                    path: /guides
+                    pathType: Prefix
+            status:
+              loadBalancer: {}
+        - command: kubectl create ingress portal -n learn --rule="learn.example.com/=landing:80" --rule="learn.example.com/guides*=guides:http"
+          why: Without --class the Ingress has no ingressClassName; the nginx controller handles it only if nginx is the default class.
+          output: |
+            apiVersion: networking.k8s.io/v1
+            kind: Ingress
+            metadata:
+              name: portal
+              namespace: learn
+            spec:
+              rules:
+              - host: learn.example.com
+                http:
+                  paths:
+                  - backend:
+                      service:
+                        name: landing
+                        port:
+                          number: 80
+                    path: /
+                    pathType: Exact
+                  - backend:
+                      service:
+                        name: guides
+                        port:
+                          name: http
+                    path: /guides
+                    pathType: Prefix
+            status:
+              loadBalancer: {}
+    explanation:
+      correct:
+        en: 'Each `--rule` adds a path; rules for the same host are grouped under one host rule. A path without a trailing `*` becomes `pathType: Exact`, so `learn.example.com/=landing:80` matches only `/`, while `guides*` becomes `Prefix` `/guides`, which matches `/guides` and every path below it. The part after `:` is a Service port number or name, here the name `http`; `--class=nginx` sets `spec.ingressClassName`.'
+    references:
+      - title: kubectl create ingress
+        url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_create/kubectl_create_ingress/
+      - title: Ingress
+        url: https://kubernetes.io/docs/concepts/services-networking/ingress/
+
+  # ------------------------------------------------------------------ 8
+  - id: ckad-qz-51-08
+    objective: "5.2.2"
+    difficulty: 3
+    status: draft
+    type: manifest
+    stem:
+      en: |-
+        In namespace `billing`, Service `invoices` (manifest in `invoices-svc.yaml`) is shared with other teams and **must not be changed**. `kubectl get endpointslices -n billing -l kubernetes.io/service-name=invoices` shows no endpoints, although the two Pods of Deployment `invoices` are Running and Ready. The application listens on port 8080.
+
+        The editor contains Deployment `invoices` as it exists in the cluster. Fix it so that Service `invoices` selects its Pods and forwards traffic to the port the application listens on. You will apply the file with `kubectl apply`.
+    body:
+      starter: |
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: invoices
+          namespace: billing
+          labels:
+            app: invoices
+            tier: api
+        spec:
+          replicas: 2
+          selector:
+            matchLabels:
+              app: invoices
+          template:
+            metadata:
+              labels:
+                app: invoices
+            spec:
+              containers:
+              - name: invoices
+                image: registry.example.com/billing/invoices:3.1
+                ports:
+                - containerPort: 8080
+      files:
+        - name: invoices-svc.yaml
+          content: |
+            apiVersion: v1
+            kind: Service
+            metadata:
+              name: invoices
+              namespace: billing
+            spec:
+              selector:
+                app: invoices
+                tier: api
+              ports:
+              - name: http
+                port: 80
+                targetPort: http
+    answer:
+      checks:
+        - id: deployment
+          label: The Deployment is still invoices in namespace billing
+          path: metadata
+          op: subset
+          value: {name: invoices, namespace: billing}
+        - id: kind
+          label: The object is a Deployment
+          path: kind
+          op: equals
+          value: Deployment
+        - id: selector-unchanged
+          label: The Deployment selector is unchanged (it is immutable)
+          path: spec.selector.matchLabels
+          op: equals
+          value: {app: invoices}
+        - id: pod-labels
+          label: The Pod template carries app=invoices and tier=api, the Service selector
+          path: spec.template.metadata.labels
+          op: subset
+          value: {app: invoices, tier: api}
+        - id: port-name
+          label: The container port 8080 is named http, the targetPort of the Service
+          path: spec.template.spec.containers[name=invoices].ports
+          op: contains
+          value: {name: http, containerPort: 8080}
+      solution:
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: invoices
+              namespace: billing
+              labels:
+                app: invoices
+                tier: api
+            spec:
+              replicas: 2
+              selector:
+                matchLabels:
+                  app: invoices
+              template:
+                metadata:
+                  labels:
+                    app: invoices
+                    tier: api
+                spec:
+                  containers:
+                  - name: invoices
+                    image: registry.example.com/billing/invoices:3.1
+                    ports:
+                    - name: http
+                      containerPort: 8080
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: invoices
+              namespace: billing
+            spec:
+              replicas: 2
+              selector:
+                matchLabels:
+                  app: invoices
+              template:
+                metadata:
+                  labels:
+                    tier: api
+                    app: invoices
+                spec:
+                  containers:
+                  - name: invoices
+                    image: registry.example.com/billing/invoices:3.1
+                    ports:
+                    - containerPort: 8080
+                      name: http
+                      protocol: TCP
+      negatives:
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: invoices
+              namespace: billing
+            spec:
+              replicas: 2
+              selector:
+                matchLabels:
+                  app: invoices
+                  tier: api
+              template:
+                metadata:
+                  labels:
+                    app: invoices
+                    tier: api
+                spec:
+                  containers:
+                  - name: invoices
+                    image: registry.example.com/billing/invoices:3.1
+                    ports:
+                    - name: http
+                      containerPort: 8080
+          why: The selector of an apps/v1 Deployment is immutable; kubectl apply rejects the change. Only the Pod template labels need the new label.
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: invoices
+              namespace: billing
+              labels:
+                app: invoices
+                tier: api
+            spec:
+              replicas: 2
+              selector:
+                matchLabels:
+                  app: invoices
+              template:
+                metadata:
+                  labels:
+                    app: invoices
+                    tier: api
+                spec:
+                  containers:
+                  - name: invoices
+                    image: registry.example.com/billing/invoices:3.1
+                    ports:
+                    - containerPort: 8080
+          why: The Pods are now selected, but the Service's targetPort is the name http and no container port has that name, so the Service has no port to send traffic to on these Pods.
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: invoices
+              namespace: billing
+              labels:
+                app: invoices
+                tier: api
+            spec:
+              replicas: 2
+              selector:
+                matchLabels:
+                  app: invoices
+              template:
+                metadata:
+                  labels:
+                    app: invoices
+                spec:
+                  containers:
+                  - name: invoices
+                    image: registry.example.com/billing/invoices:3.1
+                    ports:
+                    - name: http
+                      containerPort: 8080
+          why: The labels in the Deployment's metadata are not copied to the Pods. The Pods still lack tier=api, so the Service selects none of them.
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: invoices
+              namespace: billing
+            spec:
+              replicas: 2
+              selector:
+                matchLabels:
+                  app: invoices
+              template:
+                metadata:
+                  labels:
+                    app: invoices
+                    tier: api
+                spec:
+                  containers:
+                  - name: invoices
+                    image: registry.example.com/billing/invoices:3.1
+                    ports:
+                    - name: http
+                      containerPort: 80
+          why: containerPort only declares the port; the application still listens on 8080, so the named port http now points to 80, where nothing answers.
+    explanation:
+      correct:
+        en: 'The Service selects `app: invoices` and `tier: api`, but only the Deployment''s own metadata carries `tier: api`: Pods get the labels of `spec.template.metadata.labels`, so `tier: api` must be added there. The Deployment selector `app: invoices` stays as it is, because it is immutable in `apps/v1` and still matches the new template. The Service''s `targetPort: http` is a port name, so the container port 8080 must be named `http`.'
+    references:
+      - title: Deployments
+        url: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/
+      - title: Debug Services
+        url: https://kubernetes.io/docs/tasks/debug/debug-application/debug-service/
+
+  # ------------------------------------------------------------------ 9
+  - id: ckad-qz-51-09
+    objective: "5.3.2"
+    difficulty: 3
+    status: draft
+    type: manifest
+    stem:
+      en: |-
+        In namespace `shop`, Ingress `storefront` (in the editor) serves `shop.example.com` and `www.shop.example.com`. HTTP works, but over HTTPS both names receive the controller's default self-signed certificate. `secrets.txt` lists the Secrets of the namespace: `shop-cert` holds the keys `cert.pem` and `key.pem`; `shop-tls` holds `tls.crt` and `tls.key`. Both certificates are valid for the two host names.
+
+        Fix the Ingress so that HTTPS for both host names uses the certificate of the right Secret, and every request for either host, whatever its path, still reaches Service `web` on port 80. Keep the name, namespace and IngressClass.
+    body:
+      starter: |
+        apiVersion: networking.k8s.io/v1
+        kind: Ingress
+        metadata:
+          name: storefront
+          namespace: shop
+        spec:
+          ingressClassName: nginx
+          tls:
+          - hosts:
+            - shop.example.com
+            secretName: shop-cert
+          rules:
+          - http:
+              paths:
+              - path: /
+                pathType: Prefix
+                backend:
+                  service:
+                    name: web
+                    port:
+                      number: 80
+      files:
+        - name: secrets.txt
+          content: |
+            $ kubectl get secrets -n shop
+            NAME        TYPE                DATA   AGE
+            shop-cert   Opaque              2      40d
+            shop-tls    kubernetes.io/tls   2      2d
+    answer:
+      checks:
+        - id: ingress
+          label: The Ingress is still storefront in namespace shop
+          path: metadata
+          op: subset
+          value: {name: storefront, namespace: shop}
+        - id: kind
+          label: The object is an Ingress
+          path: kind
+          op: equals
+          value: Ingress
+        - id: class
+          label: It keeps the IngressClass nginx
+          path: spec.ingressClassName
+          op: equals
+          value: nginx
+        - id: tls-shop
+          label: TLS for shop.example.com uses the kubernetes.io/tls Secret shop-tls
+          path: spec.tls
+          op: contains
+          value: {secretName: shop-tls, hosts: [shop.example.com]}
+        - id: tls-www
+          label: TLS for www.shop.example.com uses the kubernetes.io/tls Secret shop-tls
+          path: spec.tls
+          op: contains
+          value: {secretName: shop-tls, hosts: [www.shop.example.com]}
+        - id: rule-shop
+          label: A rule with host shop.example.com sends every path (Prefix /) to web on port 80
+          path: spec.rules[host=shop.example.com].http.paths
+          op: contains
+          value: {path: /, pathType: Prefix, backend: {service: {name: web, port: {number: 80}}}}
+        - id: rule-www
+          label: A rule with host www.shop.example.com sends every path (Prefix /) to web on port 80
+          path: spec.rules[host=www.shop.example.com].http.paths
+          op: contains
+          value: {path: /, pathType: Prefix, backend: {service: {name: web, port: {number: 80}}}}
+      solution:
+        - manifest: |
+            apiVersion: networking.k8s.io/v1
+            kind: Ingress
+            metadata:
+              name: storefront
+              namespace: shop
+            spec:
+              ingressClassName: nginx
+              tls:
+              - hosts:
+                - shop.example.com
+                - www.shop.example.com
+                secretName: shop-tls
+              rules:
+              - host: shop.example.com
+                http:
+                  paths:
+                  - path: /
+                    pathType: Prefix
+                    backend:
+                      service:
+                        name: web
+                        port:
+                          number: 80
+              - host: www.shop.example.com
+                http:
+                  paths:
+                  - path: /
+                    pathType: Prefix
+                    backend:
+                      service:
+                        name: web
+                        port:
+                          number: 80
+        - manifest: |
+            apiVersion: networking.k8s.io/v1
+            kind: Ingress
+            metadata:
+              name: storefront
+              namespace: shop
+            spec:
+              ingressClassName: nginx
+              tls:
+              - hosts: [shop.example.com]
+                secretName: shop-tls
+              - hosts: [www.shop.example.com]
+                secretName: shop-tls
+              rules:
+              - host: www.shop.example.com
+                http:
+                  paths:
+                  - path: /
+                    pathType: Prefix
+                    backend:
+                      service:
+                        name: web
+                        port:
+                          number: 80
+              - host: shop.example.com
+                http:
+                  paths:
+                  - path: /
+                    pathType: Prefix
+                    backend:
+                      service:
+                        name: web
+                        port:
+                          number: 80
+      negatives:
+        - manifest: |
+            apiVersion: networking.k8s.io/v1
+            kind: Ingress
+            metadata:
+              name: storefront
+              namespace: shop
+            spec:
+              ingressClassName: nginx
+              tls:
+              - hosts:
+                - shop.example.com
+                - www.shop.example.com
+                secretName: shop-tls
+              rules:
+              - http:
+                  paths:
+                  - path: /
+                    pathType: Prefix
+                    backend:
+                      service:
+                        name: web
+                        port:
+                          number: 80
+          why: TLS does not apply to the default rule, the one without host. The hosts of the tls section must match the host of explicit rules.
+        - manifest: |
+            apiVersion: networking.k8s.io/v1
+            kind: Ingress
+            metadata:
+              name: storefront
+              namespace: shop
+            spec:
+              ingressClassName: nginx
+              tls:
+              - hosts:
+                - shop.example.com
+                - www.shop.example.com
+                secretName: shop-cert
+              rules:
+              - host: shop.example.com
+                http:
+                  paths:
+                  - path: /
+                    pathType: Prefix
+                    backend:
+                      service:
+                        name: web
+                        port:
+                          number: 80
+              - host: www.shop.example.com
+                http:
+                  paths:
+                  - path: /
+                    pathType: Prefix
+                    backend:
+                      service:
+                        name: web
+                        port:
+                          number: 80
+          why: shop-cert is an Opaque Secret with cert.pem and key.pem; a TLS Secret must contain the keys tls.crt and tls.key, which only shop-tls has.
+        - manifest: |
+            apiVersion: networking.k8s.io/v1
+            kind: Ingress
+            metadata:
+              name: storefront
+              namespace: shop
+            spec:
+              ingressClassName: nginx
+              tls:
+              - hosts:
+                - shop.example.com
+                secretName: shop-tls
+              rules:
+              - host: shop.example.com
+                http:
+                  paths:
+                  - path: /
+                    pathType: Prefix
+                    backend:
+                      service:
+                        name: web
+                        port:
+                          number: 80
+              - host: www.shop.example.com
+                http:
+                  paths:
+                  - path: /
+                    pathType: Prefix
+                    backend:
+                      service:
+                        name: web
+                        port:
+                          number: 80
+          why: www.shop.example.com has a rule but is missing from the tls hosts, so HTTPS for that name still gets the default certificate.
+    explanation:
+      correct:
+        en: 'Three faults combine. The Ingress points to `shop-cert`, an Opaque Secret without the `tls.crt` and `tls.key` keys a TLS Secret must hold, so `secretName` must be `shop-tls`. TLS does not work on the default rule without host, so each name needs a rule with its own `host`. And every name served over HTTPS must be listed in the `tls` hosts, in one entry or in two entries that share the Secret.'
+    references:
+      - title: Ingress
+        url: https://kubernetes.io/docs/concepts/services-networking/ingress/
+
+  # ------------------------------------------------------------------ 10
+  - id: ckad-qz-51-10
+    objective: "5.3.1"
+    difficulty: 3
+    status: draft
+    type: manifest
+    stem:
+      en: |-
+        In namespace `media`, the Pods of Deployment `encoder` are labelled `app.kubernetes.io/name: encoder`. Their container declares two named ports: `http` (8080), the HTTP API, and `metrics` (9102), which must stay private.
+
+        Write, in one file, the two objects that publish the API at `encoder.example.com`:
+
+        - a Service named `encoder` that selects these Pods and exposes only the API: one port named `web`, listening on 80, that forwards to the container port `http` referenced by name;
+        - an Ingress named `encoder`, handled by the IngressClass `nginx`, that sends every request for `encoder.example.com`, whatever its path, to the API through Service `encoder`.
+    body:
+      starter: ""
+    answer:
+      checks:
+        - id: svc-meta
+          label: A Service named encoder in namespace media
+          select: {kind: Service, name: encoder}
+          path: metadata
+          op: subset
+          value: {name: encoder, namespace: media}
+        - id: svc-selector
+          label: The Service selects app.kubernetes.io/name=encoder
+          select: {kind: Service, name: encoder}
+          path: spec.selector
+          op: subset
+          value: {"app.kubernetes.io/name": encoder}
+        - id: svc-one-port
+          label: The Service exposes a single port (metrics stays private)
+          select: {kind: Service, name: encoder}
+          path: spec.ports
+          op: length
+          value: 1
+        - id: svc-port
+          label: Service port web listens on 80
+          select: {kind: Service, name: encoder}
+          path: spec.ports[0]
+          op: subset
+          value: {name: web, port: 80}
+        - id: svc-target
+          label: Service port web forwards to the container port named http
+          select: {kind: Service, name: encoder}
+          path: spec.ports[0].targetPort
+          op: equals
+          value: http
+        - id: ing-meta
+          label: An Ingress named encoder in namespace media, the namespace of the Service
+          select: {kind: Ingress, name: encoder}
+          path: metadata
+          op: subset
+          value: {name: encoder, namespace: media}
+        - id: ing-class
+          label: The Ingress uses the IngressClass nginx
+          select: {kind: Ingress, name: encoder}
+          path: spec.ingressClassName
+          op: equals
+          value: nginx
+        - id: ing-path
+          label: The rule for encoder.example.com matches every path (Prefix /)
+          select: {kind: Ingress, name: encoder}
+          path: spec.rules[host=encoder.example.com].http.paths[path=/].pathType
+          op: equals
+          value: Prefix
+        - id: ing-service
+          label: The backend is Service encoder
+          select: {kind: Ingress, name: encoder}
+          path: spec.rules[host=encoder.example.com].http.paths[path=/].backend.service.name
+          op: equals
+          value: encoder
+        - id: ing-port
+          label: The backend uses the Service port web (or its number 80), not a container port
+          select: {kind: Ingress, name: encoder}
+          path: spec.rules[host=encoder.example.com].http.paths[path=/].backend.service.port
+          op: oneOf
+          value: [{name: web}, {number: 80}]
+      solution:
+        - manifest: |
+            apiVersion: v1
+            kind: Service
+            metadata:
+              name: encoder
+              namespace: media
+            spec:
+              selector:
+                app.kubernetes.io/name: encoder
+              ports:
+              - name: web
+                port: 80
+                targetPort: http
+            ---
+            apiVersion: networking.k8s.io/v1
+            kind: Ingress
+            metadata:
+              name: encoder
+              namespace: media
+            spec:
+              ingressClassName: nginx
+              rules:
+              - host: encoder.example.com
+                http:
+                  paths:
+                  - path: /
+                    pathType: Prefix
+                    backend:
+                      service:
+                        name: encoder
+                        port:
+                          name: web
+        - manifest: |
+            apiVersion: networking.k8s.io/v1
+            kind: Ingress
+            metadata:
+              name: encoder
+              namespace: media
+            spec:
+              ingressClassName: nginx
+              rules:
+              - host: encoder.example.com
+                http:
+                  paths:
+                  - backend:
+                      service:
+                        name: encoder
+                        port:
+                          number: 80
+                    path: /
+                    pathType: Prefix
+            ---
+            apiVersion: v1
+            kind: Service
+            metadata:
+              name: encoder
+              namespace: media
+            spec:
+              type: ClusterIP
+              selector:
+                app.kubernetes.io/name: encoder
+              ports:
+              - name: web
+                protocol: TCP
+                port: 80
+                targetPort: http
+      negatives:
+        - manifest: |
+            apiVersion: v1
+            kind: Service
+            metadata:
+              name: encoder
+              namespace: media
+            spec:
+              selector:
+                app.kubernetes.io/name: encoder
+              ports:
+              - name: web
+                port: 80
+                targetPort: http
+            ---
+            apiVersion: networking.k8s.io/v1
+            kind: Ingress
+            metadata:
+              name: encoder
+              namespace: media
+            spec:
+              ingressClassName: nginx
+              rules:
+              - host: encoder.example.com
+                http:
+                  paths:
+                  - path: /
+                    pathType: Prefix
+                    backend:
+                      service:
+                        name: encoder
+                        port:
+                          name: http
+          why: http is the name of the container port. An Ingress backend names a port of the Service, and Service encoder has only the port web.
+        - manifest: |
+            apiVersion: v1
+            kind: Service
+            metadata:
+              name: encoder
+              namespace: media
+            spec:
+              selector:
+                app.kubernetes.io/name: encoder
+              ports:
+              - name: web
+                port: 80
+                targetPort: http
+            ---
+            apiVersion: networking.k8s.io/v1
+            kind: Ingress
+            metadata:
+              name: encoder
+              namespace: media
+            spec:
+              ingressClassName: nginx
+              rules:
+              - host: encoder.example.com
+                http:
+                  paths:
+                  - path: /
+                    pathType: Prefix
+                    backend:
+                      service:
+                        name: encoder
+                        port:
+                          number: 8080
+          why: 8080 is the container port behind targetPort http; the Service listens on 80, so the controller finds no Service port 8080.
+        - manifest: |
+            apiVersion: v1
+            kind: Service
+            metadata:
+              name: encoder
+              namespace: media
+            spec:
+              selector:
+                app.kubernetes.io/name: encoder
+              ports:
+              - name: web
+                port: 80
+                targetPort: http
+              - name: metrics
+                port: 9102
+                targetPort: metrics
+            ---
+            apiVersion: networking.k8s.io/v1
+            kind: Ingress
+            metadata:
+              name: encoder
+              namespace: media
+            spec:
+              ingressClassName: nginx
+              rules:
+              - host: encoder.example.com
+                http:
+                  paths:
+                  - path: /
+                    pathType: Prefix
+                    backend:
+                      service:
+                        name: encoder
+                        port:
+                          name: web
+          why: The task asks the Service to expose only the API; the extra metrics port makes the private metrics reachable through the Service.
+        - manifest: |
+            apiVersion: v1
+            kind: Service
+            metadata:
+              name: encoder
+              namespace: media
+            spec:
+              selector:
+                app.kubernetes.io/name: encoder
+              ports:
+              - name: web
+                port: 80
+                targetPort: http
+            ---
+            apiVersion: networking.k8s.io/v1
+            kind: Ingress
+            metadata:
+              name: encoder
+            spec:
+              ingressClassName: nginx
+              rules:
+              - host: encoder.example.com
+                http:
+                  paths:
+                  - path: /
+                    pathType: Prefix
+                    backend:
+                      service:
+                        name: encoder
+                        port:
+                          name: web
+          why: Without a namespace the Ingress is created in the context namespace; its backend must be a Service of its own namespace, and Service encoder is in media.
+    explanation:
+      correct:
+        en: 'Three layers of ports meet here. The container port `http` (8080) is the Service''s `targetPort`, referenced by name; the Service port `web` (80) is what clients and the Ingress use. The Ingress backend must therefore name `web` or the number 80, never `http` or 8080, and the Ingress must be in `media`, the namespace of the Service, because a backend has no namespace field.'
+    references:
+      - title: Ingress
+        url: https://kubernetes.io/docs/reference/kubernetes-api/service-resources/ingress-v1/
+      - title: Service
+        url: https://kubernetes.io/docs/concepts/services-networking/service/

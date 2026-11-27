@@ -1,0 +1,188 @@
+id: ckad-5c-fix-ingress-routing
+objective: "5.3.2"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    In namespace `shop`, Ingress `catalog` (in the editor) does not route: `kubectl get ingress catalog -n shop` shows no ADDRESS. `ingressclasses.txt` shows the IngressClasses of the cluster, and `catalog-svc.yaml` the Service the Ingress must reach.
+
+    Fix the Ingress so that the controller of the existing IngressClass handles it and every request for `catalog.example.com` reaches Service `catalog`. Keep the host and the path.
+body:
+  starter: |
+    apiVersion: networking.k8s.io/v1
+    kind: Ingress
+    metadata:
+      name: catalog
+      namespace: shop
+    spec:
+      ingressClassName: ngnix
+      rules:
+      - host: catalog.example.com
+        http:
+          paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: catalog
+                port:
+                  number: 8080
+  files:
+  - name: ingressclasses.txt
+    content: |
+      $ kubectl get ingressclass
+      NAME    CONTROLLER             PARAMETERS   AGE
+      nginx   k8s.io/ingress-nginx   <none>       41d
+  - name: catalog-svc.yaml
+    content: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: catalog
+        namespace: shop
+      spec:
+        selector:
+          app: catalog
+        ports:
+        - name: http
+          port: 80
+          targetPort: 8080
+answer:
+  checks:
+  - id: ingress
+    label: The Ingress is still catalog in namespace shop
+    path: metadata
+    op: subset
+    value: {name: catalog, namespace: shop}
+  - id: kind
+    label: The object is an Ingress
+    path: kind
+    op: equals
+    value: Ingress
+  - id: class
+    label: ingressClassName names the existing IngressClass nginx
+    path: spec.ingressClassName
+    op: equals
+    value: nginx
+  - id: path
+    label: The rule for catalog.example.com still matches every path (Prefix /)
+    path: spec.rules[host=catalog.example.com].http.paths[0]
+    op: subset
+    value: {path: /, pathType: Prefix}
+  - id: backend-service
+    label: The backend is still Service catalog
+    path: spec.rules[host=catalog.example.com].http.paths[0].backend.service.name
+    op: equals
+    value: catalog
+  - id: backend-port
+    label: The backend uses the Service port 80 (or its name http)
+    path: spec.rules[host=catalog.example.com].http.paths[0].backend.service.port
+    op: oneOf
+    value: [{number: 80}, {name: http}]
+  solution:
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: catalog
+        namespace: shop
+      spec:
+        ingressClassName: nginx
+        rules:
+        - host: catalog.example.com
+          http:
+            paths:
+            - path: /
+              pathType: Prefix
+              backend:
+                service:
+                  name: catalog
+                  port:
+                    number: 80
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: catalog
+        namespace: shop
+      spec:
+        ingressClassName: nginx
+        rules:
+        - host: catalog.example.com
+          http:
+            paths:
+            - path: /
+              pathType: Prefix
+              backend:
+                service:
+                  name: catalog
+                  port:
+                    name: http
+  negatives:
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: catalog
+        namespace: shop
+      spec:
+        ingressClassName: nginx
+        rules:
+        - host: catalog.example.com
+          http:
+            paths:
+            - path: /
+              pathType: Prefix
+              backend:
+                service:
+                  name: catalog
+                  port:
+                    number: 8080
+    why: 8080 is the targetPort of the Pods. An Ingress backend names a Service port, and Service catalog only has port 80.
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: catalog
+        namespace: shop
+      spec:
+        ingressClassName: ngnix
+        rules:
+        - host: catalog.example.com
+          http:
+            paths:
+            - path: /
+              pathType: Prefix
+              backend:
+                service:
+                  name: catalog
+                  port:
+                    number: 80
+    why: ingressClassName still names ngnix, a class that does not exist, so no controller handles the Ingress.
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: catalog
+        namespace: shop
+      spec:
+        ingressClassName: k8s.io/ingress-nginx
+        rules:
+        - host: catalog.example.com
+          http:
+            paths:
+            - path: /
+              pathType: Prefix
+              backend:
+                service:
+                  name: catalog
+                  port:
+                    number: 80
+    why: ingressClassName takes the name of an IngressClass object (nginx), not the controller value of that class.
+explanation:
+  correct:
+    en: '`spec.ingressClassName` must be the name of an existing IngressClass (`nginx`), not its controller string; with a misspelled class no controller picks the Ingress up and no ADDRESS appears. The backend port is a port of the Service, 80 or its name `http`, not the targetPort 8080 of the Pods. `kubectl describe ingress` shows the backends and the events of the Ingress.'
+references:
+- title: Ingress
+  url: https://kubernetes.io/docs/concepts/services-networking/ingress/

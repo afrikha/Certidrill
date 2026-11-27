@@ -1,0 +1,63 @@
+id: cka-1a-patch-default-class
+objective: "1.1.1"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    `kubectl get storageclass` prints:
+
+    ```text
+    NAME       PROVISIONER       RECLAIMPOLICY   VOLUMEBINDINGMODE      ALLOWVOLUMEEXPANSION   AGE
+    standard   csi.example.com   Delete          Immediate              false                  41d
+    fast-ssd   csi.example.com   Delete          WaitForFirstConsumer   true                   2d
+    ```
+
+    The annotation that made `standard` the default class has already been set to `"false"`. New claims that name no class must now use `fast-ssd`.
+
+    Mark `fast-ssd` as the default StorageClass with a single `kubectl patch` command. Type the command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Uses kubectl patch
+    path: verb
+    op: equals
+    value: patch
+  - id: resource
+    label: Patches a StorageClass
+    path: resource
+    op: equals
+    value: storageclass
+  - id: name
+    label: Names fast-ssd
+    path: names
+    op: contains
+    value: fast-ssd
+  - id: annotation
+    label: Sets the annotation storageclass.kubernetes.io/is-default-class to "true"
+    path: flags
+    op: matches
+    value: 'annotations\W+storageclass\.kubernetes\.io(/|~1)is-default-class\W+(value\W+)?true'
+  solution:
+  - command: kubectl patch storageclass fast-ssd -p '{"metadata":{"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+  - command: |-
+      k patch sc/fast-ssd --type merge --patch='{"metadata": {"annotations": {"storageclass.kubernetes.io/is-default-class": "true"}}}'
+  negatives:
+  - command: kubectl patch storageclass fast-ssd -p '{"metadata":{"annotations":{"storageclass.beta.kubernetes.io/is-default-class":"true"}}}'
+    why: The beta annotation is the old name; the default class is set with storageclass.kubernetes.io/is-default-class.
+  - command: kubectl patch storageclass fast-ssd -p '{"metadata":{"labels":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+    why: The default flag is an annotation, not a label.
+  - command: kubectl patch storageclass standard -p '{"metadata":{"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
+    why: This makes standard the default again instead of fast-ssd.
+explanation:
+  correct:
+    en: |-
+      The default StorageClass is the one annotated `storageclass.kubernetes.io/is-default-class: "true"`; `kubectl get sc` then shows it as `fast-ssd (default)`. The value is a string, hence `"true"` in quotes inside the JSON patch. Keep a single default: if several classes are marked, a claim without `storageClassName` gets the most recently created one.
+references:
+- title: Change the default StorageClass
+  url: https://kubernetes.io/docs/tasks/administer-cluster/change-default-storage-class/
+- title: Storage Classes
+  url: https://kubernetes.io/docs/concepts/storage/storage-classes/

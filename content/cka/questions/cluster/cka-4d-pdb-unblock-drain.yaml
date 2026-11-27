@@ -1,0 +1,123 @@
+id: cka-4d-pdb-unblock-drain
+objective: "4.4.1"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    During a cluster upgrade, `kubectl drain node01 --ignore-daemonsets` never completes. It keeps printing:
+
+    ```text
+    evicting pod payments/api-6c9f7d8b5-x2x7q
+    error when evicting pods/"api-6c9f7d8b5-x2x7q" -n "payments" (will retry after 5s): Cannot evict pod as it would violate the pod's disruption budget.
+    ```
+
+    The Deployment `api` in namespace `payments` runs 3 replicas labeled `app: api`, all healthy. Its PodDisruptionBudget `api-pdb` is shown in the editor. Rewrite `api-pdb` so that one `api` Pod at a time can be evicted, and so that the budget keeps allowing exactly one voluntary disruption at a time if the Deployment is later scaled to another number of replicas.
+body:
+  starter: |
+    apiVersion: policy/v1
+    kind: PodDisruptionBudget
+    metadata:
+      name: api-pdb
+      namespace: payments
+    spec:
+      minAvailable: 3
+      selector:
+        matchLabels:
+          app: api
+answer:
+  checks:
+  - id: api
+    label: Uses policy/v1
+    path: apiVersion
+    op: equals
+    value: policy/v1
+  - id: pdb
+    label: PodDisruptionBudget api-pdb in namespace payments
+    path: metadata
+    op: subset
+    value: {name: api-pdb, namespace: payments}
+  - id: max-unavailable
+    label: maxUnavailable is 1
+    path: spec.maxUnavailable
+    op: equals
+    value: 1
+  - id: no-min-available
+    label: minAvailable is not set (only one of the two fields is allowed)
+    path: spec.minAvailable
+    op: absent
+  - id: selector
+    label: Still selects the Pods labeled app=api
+    path: spec.selector.matchLabels.app
+    op: equals
+    value: api
+  solution:
+  - manifest: |
+      apiVersion: policy/v1
+      kind: PodDisruptionBudget
+      metadata:
+        name: api-pdb
+        namespace: payments
+      spec:
+        maxUnavailable: 1
+        selector:
+          matchLabels:
+            app: api
+  negatives:
+  - manifest: |
+      apiVersion: policy/v1
+      kind: PodDisruptionBudget
+      metadata:
+        name: api-pdb
+        namespace: payments
+      spec:
+        minAvailable: 2
+        selector:
+          matchLabels:
+            app: api
+    why: minAvailable 2 unblocks the drain with 3 replicas, but with 5 replicas it would allow 3 simultaneous disruptions; maxUnavailable follows the replica count.
+  - manifest: |
+      apiVersion: policy/v1
+      kind: PodDisruptionBudget
+      metadata:
+        name: api-pdb
+        namespace: payments
+      spec:
+        minAvailable: 3
+        maxUnavailable: 1
+        selector:
+          matchLabels:
+            app: api
+    why: A PodDisruptionBudget can specify only one of minAvailable and maxUnavailable; the API rejects both.
+  - manifest: |
+      apiVersion: policy/v1
+      kind: PodDisruptionBudget
+      metadata:
+        name: api-pdb
+        namespace: payments
+      spec:
+        maxUnavailable: 0
+        selector:
+          matchLabels:
+            app: api
+    why: maxUnavailable 0 requires zero voluntary evictions, so the drain still never completes.
+  - manifest: |
+      apiVersion: policy/v1
+      kind: PodDisruptionBudget
+      metadata:
+        name: api-pdb
+        namespace: payments
+      spec:
+        maxUnavailable: 1
+        selector:
+          matchLabels:
+            app: payments
+    why: The selector no longer matches the api Pods, which lose their protection.
+explanation:
+  correct:
+    en: '`minAvailable` equal to the number of replicas (or `maxUnavailable: 0`) requires zero voluntary evictions, so a drain of a node running one of those Pods never completes. `maxUnavailable: 1` lets the Eviction API remove one healthy `api` Pod at a time and automatically follows changes in the replica count, which `minAvailable: 2` does not. Only one of the two fields can be set in a PodDisruptionBudget.'
+references:
+- title: Specifying a Disruption Budget for your Application
+  url: https://kubernetes.io/docs/tasks/run-application/configure-pdb/
+- title: Safely Drain a Node
+  url: https://kubernetes.io/docs/tasks/administer-cluster/safely-drain-node/

@@ -1,0 +1,54 @@
+id: ckad-5b-list-endpointslices
+objective: "5.2.2"
+difficulty: 1
+status: draft
+type: command
+stem:
+  en: |-
+    Service `web` in namespace `shop` does not seem to reach any Pod. List the EndpointSlices that belong to this Service, and only those, to see which Pod addresses it targets.
+
+    Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Uses kubectl get
+    path: verb
+    op: equals
+    value: get
+  - id: resource
+    label: Lists EndpointSlices
+    path: resource
+    op: equals
+    value: endpointslice
+  - id: selector
+    label: Filters on the label kubernetes.io/service-name=web
+    path: flags.selector
+    op: equals
+    value: kubernetes.io/service-name=web
+  - id: namespace
+    label: Runs in namespace shop
+    path: flags.namespace
+    op: equals
+    value: shop
+  solution:
+  - command: kubectl get endpointslices -l kubernetes.io/service-name=web -n shop
+  - command: k -n shop get endpointslice --selector=kubernetes.io/service-name=web -o wide
+  - command: kubectl get endpointslices.discovery.k8s.io -n shop -l kubernetes.io/service-name=web
+  negatives:
+  - command: kubectl get endpoints web -n shop
+    why: This reads the legacy Endpoints API, deprecated since v1.33, not the EndpointSlices the task asks for.
+  - command: kubectl get endpointslices -n shop
+    why: Without the label selector it lists the EndpointSlices of every Service in the namespace.
+  - command: kubectl get endpointslices -l kubernetes.io/service-name=web
+    why: Without -n the command searches the context namespace, default.
+explanation:
+  correct:
+    en: 'The EndpointSlice controller labels every slice with `kubernetes.io/service-name: <service>`, and slice names are generated (`web-xxxxx`), so you filter with `-l kubernetes.io/service-name=web`. An empty ENDPOINTS column means the Service selector matches no ready Pod. The Endpoints API is deprecated since v1.33 in favour of EndpointSlices.'
+references:
+- title: Debug Services
+  url: https://kubernetes.io/docs/tasks/debug/debug-application/debug-service/
+- title: Service
+  url: https://kubernetes.io/docs/concepts/services-networking/service/

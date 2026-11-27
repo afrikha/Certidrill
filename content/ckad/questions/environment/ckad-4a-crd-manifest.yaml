@@ -1,0 +1,238 @@
+id: ckad-4a-crd-manifest
+objective: "4.1.1"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    Write the CustomResourceDefinition that adds the resource `backups` to the API group `data.example.com`.
+
+    - Kind `Backup`, plural `backups`, singular `backup`, short name `bk`.
+    - Backup objects live in namespaces.
+    - One version, `v1`, served and used as the storage version.
+    - Its schema has a `spec` object with two fields: `schedule` (a string) and `retention` (an integer).
+body:
+  starter: ""
+answer:
+  checks:
+  - id: api
+    label: Uses apiextensions.k8s.io/v1
+    path: apiVersion
+    op: equals
+    value: apiextensions.k8s.io/v1
+  - id: kind
+    label: The object is a CustomResourceDefinition
+    path: kind
+    op: equals
+    value: CustomResourceDefinition
+  - id: name
+    label: It is named backups.data.example.com (plural.group)
+    path: metadata.name
+    op: equals
+    value: backups.data.example.com
+  - id: group
+    label: The group is data.example.com
+    path: spec.group
+    op: equals
+    value: data.example.com
+  - id: scope
+    label: Backup objects are namespaced
+    path: spec.scope
+    op: equals
+    value: Namespaced
+  - id: names
+    label: Kind Backup and plural backups
+    path: spec.names
+    op: subset
+    value: {kind: Backup, plural: backups}
+  - id: short
+    label: Short name bk
+    path: spec.names.shortNames
+    op: contains
+    value: bk
+  - id: served
+    label: Version v1 is served
+    path: spec.versions[name=v1].served
+    op: equals
+    value: true
+  - id: storage
+    label: Version v1 is the storage version
+    path: spec.versions[name=v1].storage
+    op: equals
+    value: true
+  - id: schedule
+    label: spec.schedule is a string
+    path: spec.versions[name=v1].schema.openAPIV3Schema.properties.spec.properties.schedule.type
+    op: equals
+    value: string
+  - id: retention
+    label: spec.retention is an integer
+    path: spec.versions[name=v1].schema.openAPIV3Schema.properties.spec.properties.retention.type
+    op: equals
+    value: integer
+  solution:
+  - manifest: |
+      apiVersion: apiextensions.k8s.io/v1
+      kind: CustomResourceDefinition
+      metadata:
+        name: backups.data.example.com
+      spec:
+        group: data.example.com
+        scope: Namespaced
+        names:
+          plural: backups
+          singular: backup
+          kind: Backup
+          shortNames:
+          - bk
+        versions:
+        - name: v1
+          served: true
+          storage: true
+          schema:
+            openAPIV3Schema:
+              type: object
+              properties:
+                spec:
+                  type: object
+                  properties:
+                    schedule:
+                      type: string
+                    retention:
+                      type: integer
+  - manifest: |
+      apiVersion: apiextensions.k8s.io/v1
+      kind: CustomResourceDefinition
+      metadata:
+        name: backups.data.example.com
+      spec:
+        group: data.example.com
+        names:
+          kind: Backup
+          listKind: BackupList
+          plural: backups
+          singular: backup
+          shortNames: [bk]
+        scope: Namespaced
+        versions:
+        - name: v1
+          schema:
+            openAPIV3Schema:
+              type: object
+              properties:
+                spec:
+                  type: object
+                  properties:
+                    retention: {type: integer}
+                    schedule: {type: string}
+          served: true
+          storage: true
+  negatives:
+  - manifest: |
+      apiVersion: apiextensions.k8s.io/v1
+      kind: CustomResourceDefinition
+      metadata:
+        name: backup.data.example.com
+      spec:
+        group: data.example.com
+        scope: Namespaced
+        names:
+          plural: backups
+          singular: backup
+          kind: Backup
+          shortNames: [bk]
+        versions:
+        - name: v1
+          served: true
+          storage: true
+          schema:
+            openAPIV3Schema:
+              type: object
+              properties:
+                spec:
+                  type: object
+                  properties:
+                    schedule: {type: string}
+                    retention: {type: integer}
+    why: The CRD name must be <plural>.<group>, backups.data.example.com; the API server rejects backup.data.example.com.
+  - manifest: |
+      apiVersion: apiextensions.k8s.io/v1
+      kind: CustomResourceDefinition
+      metadata:
+        name: backups.data.example.com
+      spec:
+        group: data.example.com
+        scope: Cluster
+        names:
+          plural: backups
+          singular: backup
+          kind: Backup
+          shortNames: [bk]
+        versions:
+        - name: v1
+          served: true
+          storage: true
+          schema:
+            openAPIV3Schema:
+              type: object
+              properties:
+                spec:
+                  type: object
+                  properties:
+                    schedule: {type: string}
+                    retention: {type: integer}
+    why: scope Cluster makes Backup objects cluster-wide; the task asks for objects that live in namespaces (Namespaced).
+  - manifest: |
+      apiVersion: apiextensions.k8s.io/v1beta1
+      kind: CustomResourceDefinition
+      metadata:
+        name: backups.data.example.com
+      spec:
+        group: data.example.com
+        scope: Namespaced
+        version: v1
+        names:
+          plural: backups
+          kind: Backup
+          shortNames: [bk]
+        validation:
+          openAPIV3Schema:
+            properties:
+              spec:
+                properties:
+                  schedule: {type: string}
+                  retention: {type: integer}
+    why: apiextensions.k8s.io/v1beta1 was removed in Kubernetes 1.22; the v1 API uses spec.versions with a schema per version.
+  - manifest: |
+      apiVersion: apiextensions.k8s.io/v1
+      kind: CustomResourceDefinition
+      metadata:
+        name: backups.data.example.com
+      spec:
+        group: data.example.com
+        scope: Namespaced
+        names:
+          plural: backups
+          singular: backup
+          kind: Backup
+          shortNames: [bk]
+        versions:
+        - name: v1
+          served: true
+          storage: true
+          schema:
+            openAPIV3Schema:
+              type: object
+              properties:
+                spec:
+                  type: object
+                  properties:
+                    schedule: {type: string}
+                    retention: {type: string}
+    why: retention is declared as a string; the task asks for an integer, so a value like 7 would be validated as the wrong type.
+explanation:
+  correct:
+    en: 'A CRD uses `apiextensions.k8s.io/v1`, its `metadata.name` must be `<plural>.<group>`, `spec.scope` is `Namespaced` or `Cluster`, and `spec.names` holds the plural, singular, kind and short names. Each entry of `spec.versions` sets `served` and `storage` (exactly one storage version) and carries its own `schema.openAPIV3Schema`. After it is created, `kubectl api-resources --api-group=data.example.com` lists `backups` with the short name `bk`.'
+references:
+- title: Extend the Kubernetes API with CustomResourceDefinitions
+  url: https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/

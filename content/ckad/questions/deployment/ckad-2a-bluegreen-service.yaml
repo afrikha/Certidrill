@@ -1,0 +1,121 @@
+id: ckad-2a-bluegreen-service
+objective: "2.1.1"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    In namespace `media`, Deployments `player-blue` and `player-green` run the two versions of the same application. Their Pods are labelled `app: player` with `color: blue` and `color: green` respectively, and listen on port 3000.
+
+    Write the manifest of a ClusterIP Service `player` in namespace `media` that exposes port 80 and forwards to port 3000 of the **blue** Pods only.
+body:
+  starter: ""
+answer:
+  checks:
+  - id: kind
+    label: The object is a Service
+    path: kind
+    op: equals
+    value: Service
+  - id: meta
+    label: It is named player in namespace media
+    path: metadata
+    op: subset
+    value: {name: player, namespace: media}
+  - id: selector
+    label: The selector requires app player and color blue
+    path: spec.selector
+    op: subset
+    value: {app: player, color: blue}
+  - id: selector-size
+    label: The selector has only those two labels
+    path: spec.selector
+    op: length
+    value: 2
+  - id: port
+    label: The Service port is 80
+    path: spec.ports[0].port
+    op: equals
+    value: 80
+  - id: target
+    label: Traffic is forwarded to container port 3000
+    path: spec.ports[0].targetPort
+    op: equals
+    value: 3000
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: player
+        namespace: media
+      spec:
+        selector:
+          app: player
+          color: blue
+        ports:
+        - port: 80
+          targetPort: 3000
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: player
+        namespace: media
+      spec:
+        type: ClusterIP
+        selector:
+          color: blue
+          app: player
+        ports:
+        - name: http
+          protocol: TCP
+          port: 80
+          targetPort: 3000
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: player
+        namespace: media
+      spec:
+        selector:
+          app: player
+        ports:
+        - port: 80
+          targetPort: 3000
+    why: Selecting app player alone sends traffic to both colors, which is a canary-like split, not blue/green.
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: player
+        namespace: media
+      spec:
+        selector:
+          app: player
+          color: blue
+        ports:
+        - port: 3000
+          targetPort: 80
+    why: port and targetPort are swapped. The Service would listen on 3000 and send to port 80, where the Pods do not listen.
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: player
+        namespace: media
+      spec:
+        selector:
+          color: blue
+        ports:
+        - port: 80
+          targetPort: 3000
+    why: color blue alone would also match the blue Pods of any other application in the namespace.
+explanation:
+  correct:
+    en: 'A Service selector is a map of labels that are ANDed: `app: player` plus `color: blue` selects only the blue Pods, so all traffic goes to the live version. `port` is what clients use (80) and `targetPort` is the container port (3000). Switching to green later is a change of `color` in the selector.'
+references:
+- title: Labels and Selectors
+  url: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/

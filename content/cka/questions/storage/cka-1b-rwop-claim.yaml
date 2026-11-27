@@ -1,0 +1,99 @@
+id: cka-1b-rwop-claim
+objective: "1.2.1"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    In namespace `payments`, the ledger database must have a 10Gi volume from the StorageClass `csi-ssd` (a CSI driver). Only one Pod in the whole cluster may ever mount it read-write: a second Pod must be refused even if it is scheduled on the same node.
+
+    Write the manifest of the PersistentVolumeClaim `ledger`.
+body:
+  starter: |
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: ledger
+      namespace: payments
+    spec:
+      storageClassName: csi-ssd
+      resources:
+        requests:
+          storage: 10Gi
+answer:
+  checks:
+  - id: meta
+    label: A PersistentVolumeClaim named ledger in namespace payments
+    path: metadata
+    op: subset
+    value: {name: ledger, namespace: payments}
+  - id: kind
+    label: The kind is PersistentVolumeClaim
+    path: kind
+    op: equals
+    value: PersistentVolumeClaim
+  - id: mode
+    label: The only access mode is ReadWriteOncePod
+    path: spec.accessModes
+    op: equals
+    value: [ReadWriteOncePod]
+  - id: class
+    label: storageClassName is csi-ssd
+    path: spec.storageClassName
+    op: equals
+    value: csi-ssd
+  - id: size
+    label: Requests 10Gi
+    path: spec.resources.requests.storage
+    op: quantity
+    value: 10Gi
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: ledger
+        namespace: payments
+      spec:
+        accessModes:
+        - ReadWriteOncePod
+        storageClassName: csi-ssd
+        resources:
+          requests:
+            storage: 10Gi
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: ledger
+        namespace: payments
+      spec:
+        accessModes:
+        - ReadWriteOnce
+        storageClassName: csi-ssd
+        resources:
+          requests:
+            storage: 10Gi
+    why: ReadWriteOnce limits the volume to one node, but several Pods on that node can still mount it.
+  - manifest: |
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: ledger
+        namespace: payments
+      spec:
+        accessModes:
+        - ReadWriteMany
+        storageClassName: csi-ssd
+        resources:
+          requests:
+            storage: 10Gi
+    why: ReadWriteMany lets Pods on many nodes write to the volume at the same time.
+explanation:
+  correct:
+    en: |-
+      `ReadWriteOncePod` (RWOP, stable since v1.29) lets a single Pod in the whole cluster mount the volume read-write; it is supported only for CSI volumes, which is the case of `csi-ssd`. `ReadWriteOnce` is enforced per node, so two Pods on the same node can still share an RWO volume.
+references:
+- title: Persistent Volumes
+  url: https://kubernetes.io/docs/concepts/storage/persistent-volumes/

@@ -1,0 +1,144 @@
+id: cka-4g-runtimeclass-scheduling-overhead
+objective: "4.7.2"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    Kata Containers is installed, with the CRI handler `kata`, only on the nodes labelled `sandbox.example.com/kata=true`. These nodes are also tainted `sandbox.example.com/kata=true:NoSchedule`.
+
+    Write the manifest of a RuntimeClass named `kata` such that Pods that use it, without any change to their own spec:
+
+    - are scheduled only on those nodes and tolerate their taint;
+    - are accounted for a fixed overhead of `250m` CPU and `160Mi` memory per Pod.
+body:
+  starter: |
+    apiVersion: node.k8s.io/v1
+    kind: RuntimeClass
+    metadata:
+      name: kata
+    handler: kata
+answer:
+  checks:
+  - id: handler
+    label: handler is kata
+    path: handler
+    op: equals
+    value: kata
+  - id: node-selector
+    label: scheduling.nodeSelector selects sandbox.example.com/kata=true
+    path: scheduling.nodeSelector["sandbox.example.com/kata"]
+    op: equals
+    value: "true"
+  - id: toleration
+    label: scheduling.tolerations tolerate the NoSchedule taint sandbox.example.com/kata
+    path: scheduling.tolerations
+    op: contains
+    value: {key: sandbox.example.com/kata, effect: NoSchedule}
+  - id: cpu
+    label: overhead.podFixed.cpu is 250m
+    path: overhead.podFixed.cpu
+    op: quantity
+    value: 250m
+  - id: memory
+    label: overhead.podFixed.memory is 160Mi
+    path: overhead.podFixed.memory
+    op: quantity
+    value: 160Mi
+  solution:
+  - manifest: |
+      apiVersion: node.k8s.io/v1
+      kind: RuntimeClass
+      metadata:
+        name: kata
+      handler: kata
+      scheduling:
+        nodeSelector:
+          sandbox.example.com/kata: "true"
+        tolerations:
+        - key: sandbox.example.com/kata
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+      overhead:
+        podFixed:
+          cpu: 250m
+          memory: 160Mi
+  - manifest: |
+      apiVersion: node.k8s.io/v1
+      kind: RuntimeClass
+      metadata:
+        name: kata
+      handler: kata
+      overhead:
+        podFixed:
+          memory: "160Mi"
+          cpu: "0.25"
+      scheduling:
+        tolerations:
+        - key: sandbox.example.com/kata
+          operator: Exists
+          effect: NoSchedule
+        nodeSelector:
+          sandbox.example.com/kata: "true"
+  negatives:
+  - manifest: |
+      apiVersion: node.k8s.io/v1
+      kind: RuntimeClass
+      metadata:
+        name: kata
+      handler: kata
+      nodeSelector:
+        sandbox.example.com/kata: "true"
+      tolerations:
+      - key: sandbox.example.com/kata
+        operator: Exists
+        effect: NoSchedule
+      overhead:
+        podFixed:
+          cpu: 250m
+          memory: 160Mi
+    why: nodeSelector and tolerations belong under scheduling; at the top level they are unknown fields and do nothing.
+  - manifest: |
+      apiVersion: node.k8s.io/v1
+      kind: RuntimeClass
+      metadata:
+        name: kata
+      handler: kata
+      scheduling:
+        nodeSelector:
+          sandbox.example.com/kata: "true"
+        tolerations:
+        - key: sandbox.example.com/kata
+          operator: Exists
+          effect: NoSchedule
+      overhead:
+        cpu: 250m
+        memory: 160Mi
+    why: The overhead resources go under overhead.podFixed.
+  - manifest: |
+      apiVersion: node.k8s.io/v1
+      kind: RuntimeClass
+      metadata:
+        name: kata
+      handler: kata
+      scheduling:
+        nodeSelector:
+          sandbox.example.com/kata: "true"
+        tolerations:
+        - key: sandbox.example.com/kata
+          operator: Exists
+          effect: NoExecute
+      overhead:
+        podFixed:
+          cpu: 250m
+          memory: 160Mi
+    why: A NoExecute toleration does not tolerate a NoSchedule taint; the Pods stay Pending.
+explanation:
+  correct:
+    en: 'A RuntimeClass can carry `scheduling.nodeSelector` and `scheduling.tolerations`, which admission merges into every Pod that uses the class, so those Pods land only on the Kata nodes and tolerate their taint. `overhead.podFixed` declares the per-Pod cost of the sandbox; admission copies it into `spec.overhead`, and the scheduler adds it to the container requests.'
+references:
+- title: Runtime Class
+  url: https://kubernetes.io/docs/concepts/containers/runtime-class/
+- title: Pod Overhead
+  url: https://kubernetes.io/docs/concepts/scheduling-eviction/pod-overhead/

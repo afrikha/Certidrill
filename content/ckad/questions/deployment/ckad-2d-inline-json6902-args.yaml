@@ -1,0 +1,121 @@
+id: ckad-2d-inline-json6902-args
+objective: "2.4.3"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    In the base `/opt/worker/base`, the Deployment `worker` (`apps/v1`) has one container whose `args` list is `["--queue=orders"]`. Write `/opt/worker/overlays/debug/kustomization.yaml`, an overlay built on `../../base` that, with an **inline JSON 6902 patch** in the kustomization itself (no extra file):
+
+    - appends the argument `--log-level=debug` at the end of the `args` of the first container of Deployment `worker`, keeping `--queue=orders`.
+body:
+  starter: |
+    apiVersion: kustomize.config.k8s.io/v1beta1
+    kind: Kustomization
+    resources:
+    - ../../base
+answer:
+  checks:
+  - id: base
+    label: Builds on the base ../../base
+    path: resources
+    op: matches
+    value: '"\.\./\.\./base/?"'
+  - id: target
+    label: The patch targets Deployment worker
+    path: patches
+    op: contains
+    value: {target: {kind: Deployment, name: worker}}
+  - id: inline
+    label: The patch is written inline (patch field)
+    path: patches[0].patch
+    op: exists
+  - id: op-add
+    label: Uses the add operation
+    path: patches[0].patch
+    op: matches
+    value: 'op"?\s*:\s*"?add\b'
+  - id: path-append
+    label: Appends to the end of /spec/template/spec/containers/0/args (index - or 1)
+    path: patches[0].patch
+    op: matches
+    value: '/spec/template/spec/containers/0/args/(-|1)($|[^0-9])'
+  - id: value
+    label: Adds the value --log-level=debug
+    path: patches[0].patch
+    op: matches
+    value: 'value"?\s*:\s*"?--log-level=debug'
+  solution:
+  - manifest: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      resources:
+      - ../../base
+      patches:
+      - target:
+          kind: Deployment
+          name: worker
+        patch: |-
+          - op: add
+            path: /spec/template/spec/containers/0/args/-
+            value: --log-level=debug
+  - manifest: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      resources:
+      - ../../base
+      patches:
+      - patch: '[{"op": "add", "path": "/spec/template/spec/containers/0/args/-", "value": "--log-level=debug"}]'
+        target:
+          group: apps
+          version: v1
+          kind: Deployment
+          name: worker
+  negatives:
+  - manifest: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      resources:
+      - ../../base
+      patches:
+      - target:
+          kind: Deployment
+          name: worker
+        patch: |-
+          - op: replace
+            path: /spec/template/spec/containers/0/args
+            value: ["--log-level=debug"]
+    why: replace on /args swaps the whole list, so --queue=orders is lost.
+  - manifest: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      resources:
+      - ../../base
+      patches:
+      - target:
+          kind: Deployment
+          name: worker
+        patch: |-
+          - op: add
+            path: /spec/template/spec/containers/0/args/0
+            value: --log-level=debug
+    why: Index 0 inserts the argument at the start of the list; "-" appends it at the end.
+  - manifest: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      resources:
+      - ../../base
+      patches:
+      - patch: |-
+          - op: add
+            path: /spec/template/spec/containers/0/args/-
+            value: --log-level=debug
+    why: An inline JSON 6902 patch always needs a target; without it Kustomize cannot tell which object to patch.
+explanation:
+  correct:
+    en: 'An inline patch goes in the `patch` field of a `patches` entry, as a YAML or JSON string. In JSON 6902, `add` on a path ending in `/-` appends to the end of a list, an index such as `/0` inserts before that position, and `replace` on the list swaps it entirely. The `target` (here `kind: Deployment`, `name: worker`) is mandatory for an inline JSON 6902 patch.'
+references:
+- title: patches
+  url: https://kubectl.docs.kubernetes.io/references/kustomize/kustomization/patches/
+- title: Declarative Management of Kubernetes Objects Using Kustomize
+  url: https://kubernetes.io/docs/tasks/manage-kubernetes-objects/kustomization/

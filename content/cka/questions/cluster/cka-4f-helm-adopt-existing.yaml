@@ -1,0 +1,146 @@
+id: cka-4f-helm-adopt-existing
+objective: "4.6.1"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    A previous manual installation of metrics-server left the ClusterRole `system:metrics-server` in the cluster. Installing the chart now fails:
+
+    ```text
+    $ helm install metrics-server metrics-server/metrics-server -n kube-system
+    Error: INSTALLATION FAILED: Unable to continue with install: ClusterRole "system:metrics-server" in namespace "" exists and cannot be imported into the current release: invalid ownership metadata; label validation error: missing key "app.kubernetes.io/managed-by": must be set to "Helm"; annotation validation error: missing key "meta.helm.sh/release-name": must be set to "metrics-server"; annotation validation error: missing key "meta.helm.sh/release-namespace": must be set to "kube-system"
+    ```
+
+    Without using `--take-ownership`, write the ClusterRole as you will `kubectl apply` it, so that the same `helm install` command can adopt it. Keep its rules unchanged.
+body:
+  starter: |
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRole
+    metadata:
+      name: system:metrics-server
+      labels:
+        k8s-app: metrics-server
+    rules:
+    - apiGroups: [""]
+      resources: ["nodes/metrics"]
+      verbs: ["get"]
+    - apiGroups: [""]
+      resources: ["pods", "nodes"]
+      verbs: ["get", "list", "watch"]
+answer:
+  checks:
+  - id: name
+    label: ClusterRole system:metrics-server
+    path: metadata.name
+    op: equals
+    value: system:metrics-server
+  - id: managed-by
+    label: Label app.kubernetes.io/managed-by is Helm
+    path: metadata.labels["app.kubernetes.io/managed-by"]
+    op: equals
+    value: Helm
+  - id: release-name
+    label: Annotation meta.helm.sh/release-name is metrics-server
+    path: metadata.annotations["meta.helm.sh/release-name"]
+    op: equals
+    value: metrics-server
+  - id: release-namespace
+    label: Annotation meta.helm.sh/release-namespace is kube-system
+    path: metadata.annotations["meta.helm.sh/release-namespace"]
+    op: equals
+    value: kube-system
+  - id: rules-metrics
+    label: Still allows get on nodes/metrics
+    path: rules
+    op: contains
+    value: {resources: [nodes/metrics], verbs: [get]}
+  - id: rules-read
+    label: Still allows get, list and watch on pods and nodes
+    path: rules
+    op: contains
+    value: {resources: [pods, nodes], verbs: [get, list, watch]}
+  solution:
+  - manifest: |
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRole
+      metadata:
+        name: system:metrics-server
+        labels:
+          k8s-app: metrics-server
+          app.kubernetes.io/managed-by: Helm
+        annotations:
+          meta.helm.sh/release-name: metrics-server
+          meta.helm.sh/release-namespace: kube-system
+      rules:
+      - apiGroups: [""]
+        resources: ["nodes/metrics"]
+        verbs: ["get"]
+      - apiGroups: [""]
+        resources: ["pods", "nodes"]
+        verbs: ["get", "list", "watch"]
+  negatives:
+  - manifest: |
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRole
+      metadata:
+        name: system:metrics-server
+        labels:
+          k8s-app: metrics-server
+          app.kubernetes.io/managed-by: Helm
+          meta.helm.sh/release-name: metrics-server
+          meta.helm.sh/release-namespace: kube-system
+      rules:
+      - apiGroups: [""]
+        resources: ["nodes/metrics"]
+        verbs: ["get"]
+      - apiGroups: [""]
+        resources: ["pods", "nodes"]
+        verbs: ["get", "list", "watch"]
+    why: Helm reads the release name and namespace from annotations, not labels.
+  - manifest: |
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRole
+      metadata:
+        name: system:metrics-server
+        labels:
+          k8s-app: metrics-server
+          app.kubernetes.io/managed-by: helm
+        annotations:
+          meta.helm.sh/release-name: metrics-server
+          meta.helm.sh/release-namespace: kube-system
+      rules:
+      - apiGroups: [""]
+        resources: ["nodes/metrics"]
+        verbs: ["get"]
+      - apiGroups: [""]
+        resources: ["pods", "nodes"]
+        verbs: ["get", "list", "watch"]
+    why: Label values are case-sensitive; the error says the label must be set to "Helm".
+  - manifest: |
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRole
+      metadata:
+        name: system:metrics-server
+        labels:
+          k8s-app: metrics-server
+          app.kubernetes.io/managed-by: Helm
+        annotations:
+          meta.helm.sh/release-name: metrics-server
+          meta.helm.sh/release-namespace: default
+      rules:
+      - apiGroups: [""]
+        resources: ["nodes/metrics"]
+        verbs: ["get"]
+      - apiGroups: [""]
+        resources: ["pods", "nodes"]
+        verbs: ["get", "list", "watch"]
+    why: The release is installed in kube-system; even for a cluster-scoped object, the annotation must name the namespace of the release.
+explanation:
+  correct:
+    en: 'Helm considers an object part of a release when it carries the label `app.kubernetes.io/managed-by: Helm` and the annotations `meta.helm.sh/release-name` and `meta.helm.sh/release-namespace` with the name and namespace of that release. An existing object without this ownership metadata blocks the install; once it is added, `helm install` adopts the object and manages it from then on. The `--take-ownership` flag of `helm install` skips this check instead.'
+references:
+- title: Troubleshooting
+  url: https://helm.sh/docs/faq/troubleshooting/
+- title: helm install
+  url: https://helm.sh/docs/helm/helm_install/

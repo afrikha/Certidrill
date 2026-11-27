@@ -1,0 +1,151 @@
+id: ckad-4h-capabilities-drop-add
+objective: "4.8.2"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    Write the manifest of a Pod `edge-proxy` in namespace `gateway` with one container `proxy` running `registry.example.com/gateway/proxy:2.3`. The proxy runs as a non-root user but must listen on port 80.
+
+    Configure the container so that it has **no** Linux capability except the one that allows binding to ports below 1024 (`CAP_NET_BIND_SERVICE`).
+body:
+  starter: |
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: edge-proxy
+      namespace: gateway
+    spec:
+      containers:
+      - name: proxy
+        image: registry.example.com/gateway/proxy:2.3
+        ports:
+        - containerPort: 80
+answer:
+  checks:
+  - id: pod
+    label: The Pod edge-proxy in namespace gateway
+    path: metadata
+    op: subset
+    value: {name: edge-proxy, namespace: gateway}
+  - id: drop-all
+    label: Container proxy drops ALL capabilities
+    path: spec.containers[name=proxy].securityContext.capabilities.drop
+    op: contains
+    value: ALL
+  - id: add
+    label: Container proxy adds NET_BIND_SERVICE
+    path: spec.containers[name=proxy].securityContext.capabilities.add
+    op: contains
+    value: NET_BIND_SERVICE
+  - id: add-only
+    label: No other capability is added
+    path: spec.containers[name=proxy].securityContext.capabilities.add
+    op: length
+    value: 1
+  - id: image
+    label: Container proxy runs registry.example.com/gateway/proxy:2.3
+    path: spec.containers[name=proxy].image
+    op: equals
+    value: registry.example.com/gateway/proxy:2.3
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: edge-proxy
+        namespace: gateway
+      spec:
+        containers:
+        - name: proxy
+          image: registry.example.com/gateway/proxy:2.3
+          ports:
+          - containerPort: 80
+          securityContext:
+            capabilities:
+              drop: ["ALL"]
+              add: ["NET_BIND_SERVICE"]
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: edge-proxy
+        namespace: gateway
+      spec:
+        containers:
+        - name: proxy
+          image: registry.example.com/gateway/proxy:2.3
+          ports:
+          - containerPort: 80
+          securityContext:
+            capabilities:
+              add:
+              - NET_BIND_SERVICE
+              drop:
+              - ALL
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: edge-proxy
+        namespace: gateway
+      spec:
+        containers:
+        - name: proxy
+          image: registry.example.com/gateway/proxy:2.3
+          securityContext:
+            capabilities:
+              drop: ["ALL"]
+              add: ["CAP_NET_BIND_SERVICE"]
+    why: Kubernetes capability names omit the CAP_ prefix; write NET_BIND_SERVICE.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: edge-proxy
+        namespace: gateway
+      spec:
+        securityContext:
+          capabilities:
+            drop: ["ALL"]
+            add: ["NET_BIND_SERVICE"]
+        containers:
+        - name: proxy
+          image: registry.example.com/gateway/proxy:2.3
+    why: capabilities is a container securityContext field; the Pod securityContext has no capabilities field.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: edge-proxy
+        namespace: gateway
+      spec:
+        containers:
+        - name: proxy
+          image: registry.example.com/gateway/proxy:2.3
+          securityContext:
+            capabilities:
+              add: ["NET_BIND_SERVICE"]
+    why: Without drop ALL the container keeps the runtime's default capability set (CHOWN, SETUID, NET_RAW...) in addition to NET_BIND_SERVICE.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: edge-proxy
+        namespace: gateway
+      spec:
+        containers:
+        - name: proxy
+          image: registry.example.com/gateway/proxy:2.3
+          securityContext:
+            capabilities:
+              drop: ["ALL"]
+              add: ["NET_BIND_SERVICE", "NET_ADMIN"]
+    why: NET_ADMIN is not needed to bind to port 80 and gives network configuration rights the task forbids.
+explanation:
+  correct:
+    en: 'Capabilities are set per container in `securityContext.capabilities`, with names without the `CAP_` prefix. `drop: ["ALL"]` removes the runtime''s default set and `add: ["NET_BIND_SERVICE"]` grants back only the right to bind ports below 1024. This is also what the Restricted Pod Security Standard expects: drop ALL, add at most NET_BIND_SERVICE.'
+references:
+- title: Configure a Security Context for a Pod or Container
+  url: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/

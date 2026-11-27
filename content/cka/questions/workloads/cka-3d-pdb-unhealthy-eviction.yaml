@@ -1,0 +1,112 @@
+id: cka-3d-pdb-unhealthy-eviction
+objective: "3.4.2"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    The Deployment `orders` in namespace `shop` has 3 replicas labelled `app=orders`. After a bad configuration change, 2 of its Pods are Running but never become Ready. `kubectl drain worker-1 --ignore-daemonsets` cannot evict the not-ready Pod on `worker-1`, because the budget below counts 1 healthy Pod for 2 desired.
+
+    Edit the PodDisruptionBudget so that Running Pods that are not Ready can always be evicted, while healthy Pods stay protected by the same `minAvailable: 2`.
+body:
+  starter: |
+    apiVersion: policy/v1
+    kind: PodDisruptionBudget
+    metadata:
+      name: orders-pdb
+      namespace: shop
+    spec:
+      minAvailable: 2
+      selector:
+        matchLabels:
+          app: orders
+answer:
+  checks:
+  - id: api
+    label: Uses apiVersion policy/v1
+    path: apiVersion
+    op: equals
+    value: policy/v1
+  - id: meta
+    label: PodDisruptionBudget orders-pdb in namespace shop
+    path: metadata
+    op: subset
+    value: {name: orders-pdb, namespace: shop}
+  - id: kind
+    label: The object is a PodDisruptionBudget
+    path: kind
+    op: equals
+    value: PodDisruptionBudget
+  - id: min
+    label: minAvailable stays 2
+    path: spec.minAvailable
+    op: equals
+    value: 2
+  - id: selector
+    label: The selector still matches app=orders
+    path: spec.selector.matchLabels.app
+    op: equals
+    value: orders
+  - id: policy
+    label: unhealthyPodEvictionPolicy is AlwaysAllow
+    path: spec.unhealthyPodEvictionPolicy
+    op: equals
+    value: AlwaysAllow
+  solution:
+  - manifest: |
+      apiVersion: policy/v1
+      kind: PodDisruptionBudget
+      metadata:
+        name: orders-pdb
+        namespace: shop
+      spec:
+        minAvailable: 2
+        unhealthyPodEvictionPolicy: AlwaysAllow
+        selector:
+          matchLabels:
+            app: orders
+  negatives:
+  - manifest: |
+      apiVersion: policy/v1
+      kind: PodDisruptionBudget
+      metadata:
+        name: orders-pdb
+        namespace: shop
+      spec:
+        minAvailable: 2
+        unhealthyPodEvictionPolicy: IfHealthyBudget
+        selector:
+          matchLabels:
+            app: orders
+    why: IfHealthyBudget is the default; a not-ready Pod is evictable only when currentHealthy is at least desiredHealthy, which is not the case here (1 for 2).
+  - manifest: |
+      apiVersion: policy/v1
+      kind: PodDisruptionBudget
+      metadata:
+        name: orders-pdb
+        namespace: shop
+      spec:
+        minAvailable: 1
+        selector:
+          matchLabels:
+            app: orders
+    why: Lowering minAvailable to 1 unblocks this drain but weakens the protection of healthy Pods, which the task says to keep at 2.
+  - manifest: |
+      apiVersion: policy/v1beta1
+      kind: PodDisruptionBudget
+      metadata:
+        name: orders-pdb
+        namespace: shop
+      spec:
+        minAvailable: 2
+        unhealthyPodEvictionPolicy: AlwaysAllow
+        selector:
+          matchLabels:
+            app: orders
+    why: policy/v1beta1 PodDisruptionBudget was removed in v1.25; use policy/v1.
+explanation:
+  correct:
+    en: '`spec.unhealthyPodEvictionPolicy` decides when Running but not-ready Pods may be evicted. The default, `IfHealthyBudget`, allows it only while the application is not disrupted (`currentHealthy` at least `desiredHealthy`). `AlwaysAllow` lets such Pods be evicted whatever the budget, so a drain is not blocked by Pods that are broken anyway, while healthy Pods keep the `minAvailable: 2` protection. The field is stable since v1.31.'
+references:
+- title: Specifying a Disruption Budget for your Application
+  url: https://kubernetes.io/docs/tasks/run-application/configure-pdb/

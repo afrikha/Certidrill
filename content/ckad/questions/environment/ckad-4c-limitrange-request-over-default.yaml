@@ -1,0 +1,149 @@
+id: ckad-4c-limitrange-request-over-default
+objective: "4.3.2"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    Namespace `ml` has the LimitRange in `limits.yaml`. A developer submitted the Pod in the editor and it was rejected.
+
+    Fix the Pod `trainer` so that it is admitted, keeps a memory request of 1Gi and gets the lowest memory limit that the namespace accepts. Set both the memory request and the memory limit explicitly.
+body:
+  files:
+  - name: limits.yaml
+    content: |
+      apiVersion: v1
+      kind: LimitRange
+      metadata:
+        name: memory-policy
+        namespace: ml
+      spec:
+        limits:
+        - type: Container
+          default:
+            memory: 512Mi
+          defaultRequest:
+            memory: 256Mi
+          max:
+            memory: 2Gi
+  starter: |
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: trainer
+      namespace: ml
+    spec:
+      containers:
+      - name: trainer
+        image: registry.example.com/trainer:0.9
+        resources:
+          requests:
+            memory: 1Gi
+answer:
+  checks:
+  - id: pod
+    label: A Pod named trainer in namespace ml
+    path: metadata
+    op: subset
+    value: {name: trainer, namespace: ml}
+  - id: image
+    label: Container trainer runs registry.example.com/trainer:0.9
+    path: spec.containers[name=trainer].image
+    op: equals
+    value: registry.example.com/trainer:0.9
+  - id: request
+    label: Memory request is 1Gi
+    path: spec.containers[name=trainer].resources.requests.memory
+    op: quantity
+    value: 1Gi
+  - id: limit
+    label: Memory limit is 1Gi, the lowest value not below the request
+    path: spec.containers[name=trainer].resources.limits.memory
+    op: quantity
+    value: 1Gi
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: trainer
+        namespace: ml
+      spec:
+        containers:
+        - name: trainer
+          image: registry.example.com/trainer:0.9
+          resources:
+            requests:
+              memory: 1Gi
+            limits:
+              memory: 1Gi
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: trainer
+        namespace: ml
+      spec:
+        containers:
+        - name: trainer
+          image: registry.example.com/trainer:0.9
+          resources:
+            limits: {memory: 1024Mi}
+            requests: {memory: 1Gi}
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: trainer
+        namespace: ml
+      spec:
+        containers:
+        - name: trainer
+          image: registry.example.com/trainer:0.9
+          resources:
+            requests:
+              memory: 1Gi
+            limits:
+              memory: 512Mi
+    why: A limit lower than the request is invalid; this is exactly what the LimitRange default of 512Mi did to the original Pod.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: trainer
+        namespace: ml
+      spec:
+        containers:
+        - name: trainer
+          image: registry.example.com/trainer:0.9
+          resources:
+            requests:
+              memory: 1Gi
+            limits:
+              memory: 4Gi
+    why: 4Gi exceeds the LimitRange max of 2Gi, so the Pod is forbidden.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: trainer
+        namespace: ml
+      spec:
+        containers:
+        - name: trainer
+          image: registry.example.com/trainer:0.9
+          resources:
+            requests:
+              memory: 1Gi
+            limits:
+              memory: 2Gi
+    why: 2Gi is admitted, but it is not the lowest accepted limit; the limit only has to be at least the 1Gi request.
+explanation:
+  correct:
+    en: 'The original Pod sets a request but no limit, so the LimitRange injects its `default` limit of 512Mi; the request (1Gi) is then above the limit and the Pod is invalid, because a LimitRange does not check that its defaults are consistent with what you set. A limit must be at least the request and at most the `max` (2Gi), so the lowest accepted limit is 1Gi.'
+references:
+- title: Limit Ranges
+  url: https://kubernetes.io/docs/concepts/policy/limit-range/
+- title: Configure Default Memory Requests and Limits for a Namespace
+  url: https://kubernetes.io/docs/tasks/administer-cluster/manage-resources/memory-default-namespace/

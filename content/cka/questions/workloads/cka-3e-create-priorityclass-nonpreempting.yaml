@@ -1,0 +1,108 @@
+id: cka-3e-create-priorityclass-nonpreempting
+objective: "3.5.2"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    Nightly reports must be scheduled ahead of ordinary Pods waiting in the queue, but must never evict running Pods to make room. Create a PriorityClass named `batch-high` with:
+
+    - value `100000`;
+    - no preemption of other Pods;
+    - the description `Nightly reports`;
+    - it must not become the default class of the cluster.
+
+    Type the single command you would run.
+body:
+  mode: object
+  namespace: default
+answer:
+  checks:
+  - id: kind
+    label: The object is a PriorityClass
+    path: kind
+    op: equals
+    value: PriorityClass
+  - id: name
+    label: It is named batch-high
+    path: metadata.name
+    op: equals
+    value: batch-high
+  - id: value
+    label: Its value is 100000
+    path: value
+    op: equals
+    value: 100000
+  - id: preemption
+    label: preemptionPolicy is Never
+    path: preemptionPolicy
+    op: equals
+    value: Never
+  - id: description
+    label: Its description is Nightly reports
+    path: description
+    op: equals
+    value: Nightly reports
+  - id: not-default
+    label: It is not the global default
+    path: globalDefault
+    op: absent
+  solution:
+  - command: kubectl create priorityclass batch-high --value=100000 --preemption-policy=Never --description="Nightly reports"
+    output: |
+      apiVersion: scheduling.k8s.io/v1
+      description: Nightly reports
+      kind: PriorityClass
+      metadata:
+        name: batch-high
+      preemptionPolicy: Never
+      value: 100000
+  - command: k create pc batch-high --value 100000 --description 'Nightly reports' --preemption-policy Never --dry-run=client -o yaml
+    output: |
+      apiVersion: scheduling.k8s.io/v1
+      description: Nightly reports
+      kind: PriorityClass
+      metadata:
+        name: batch-high
+      preemptionPolicy: Never
+      value: 100000
+  negatives:
+  - command: kubectl create priorityclass batch-high --value=100000 --description="Nightly reports"
+    why: The default preemption policy is PreemptLowerPriority, so these Pods could evict lower-priority running Pods.
+    output: |
+      apiVersion: scheduling.k8s.io/v1
+      description: Nightly reports
+      kind: PriorityClass
+      metadata:
+        name: batch-high
+      preemptionPolicy: PreemptLowerPriority
+      value: 100000
+  - command: kubectl create priorityclass batch-high --value=100000 --global-default=true --preemption-policy=Never --description="Nightly reports"
+    why: --global-default=true makes the class the priority of every Pod without a priorityClassName, which the task forbids.
+    output: |
+      apiVersion: scheduling.k8s.io/v1
+      description: Nightly reports
+      globalDefault: true
+      kind: PriorityClass
+      metadata:
+        name: batch-high
+      preemptionPolicy: Never
+      value: 100000
+  - command: kubectl create priorityclass batch-high --value=1000 --preemption-policy=Never --description="Nightly reports"
+    why: The value must be 100000; 1000 gives the reports a lower priority than required.
+    output: |
+      apiVersion: scheduling.k8s.io/v1
+      description: Nightly reports
+      kind: PriorityClass
+      metadata:
+        name: batch-high
+      preemptionPolicy: Never
+      value: 1000
+explanation:
+  correct:
+    en: 'A PriorityClass is cluster-scoped and maps a name to an integer `value` (up to 1 billion for user classes). `--preemption-policy=Never` makes it non-preempting: its Pods are placed ahead of lower-priority Pods in the scheduling queue but never evict running Pods; the default is `PreemptLowerPriority`. `globalDefault` stays false unless `--global-default=true` is given. Pods use it through `spec.priorityClassName`.'
+references:
+- title: kubectl create priorityclass
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_create/kubectl_create_priorityclass/
+- title: Pod Priority and Preemption
+  url: https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption/

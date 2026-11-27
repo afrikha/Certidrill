@@ -1,0 +1,136 @@
+id: cka-2d-kubelet-log-rotation
+objective: "2.4.2"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    On node `worker-3`, the files under `/var/log/pods/` rotate every few minutes for a verbose application, and `kubectl logs` only returns the content of the current file. The kubelet reads its configuration from `/var/lib/kubelet/config.yaml`, shown in the editor.
+
+    Correct the configuration so that each container log file is rotated at `50Mi` and at most `3` files are kept per container. Keep the other settings. Write the corrected file.
+body:
+  starter: |
+    apiVersion: kubelet.config.k8s.io/v1beta1
+    kind: KubeletConfiguration
+    authentication:
+      anonymous:
+        enabled: false
+      webhook:
+        enabled: true
+    authorization:
+      mode: Webhook
+    cgroupDriver: systemd
+    clusterDNS:
+    - 10.96.0.10
+    clusterDomain: cluster.local
+    staticPodPath: /etc/kubernetes/manifests
+    containerLogMaxSize: 10Mi
+    containerLogMaxFiles: 5
+answer:
+  checks:
+  - id: kind
+    label: The file is a KubeletConfiguration (kubelet.config.k8s.io/v1beta1)
+    path: apiVersion
+    op: equals
+    value: kubelet.config.k8s.io/v1beta1
+  - id: max-size
+    label: containerLogMaxSize is 50Mi
+    path: containerLogMaxSize
+    op: quantity
+    value: 50Mi
+  - id: max-files
+    label: containerLogMaxFiles is 3
+    path: containerLogMaxFiles
+    op: equals
+    value: 3
+  - id: cgroup
+    label: cgroupDriver stays systemd
+    path: cgroupDriver
+    op: equals
+    value: systemd
+  - id: static
+    label: staticPodPath is unchanged
+    path: staticPodPath
+    op: equals
+    value: /etc/kubernetes/manifests
+  - id: dns
+    label: clusterDNS is unchanged
+    path: clusterDNS
+    op: contains
+    value: 10.96.0.10
+  solution:
+  - manifest: |
+      apiVersion: kubelet.config.k8s.io/v1beta1
+      kind: KubeletConfiguration
+      authentication:
+        anonymous:
+          enabled: false
+        webhook:
+          enabled: true
+      authorization:
+        mode: Webhook
+      cgroupDriver: systemd
+      clusterDNS:
+      - 10.96.0.10
+      clusterDomain: cluster.local
+      staticPodPath: /etc/kubernetes/manifests
+      containerLogMaxSize: 50Mi
+      containerLogMaxFiles: 3
+  negatives:
+  - manifest: |
+      apiVersion: kubelet.config.k8s.io/v1beta1
+      kind: KubeletConfiguration
+      authentication:
+        anonymous:
+          enabled: false
+        webhook:
+          enabled: true
+      authorization:
+        mode: Webhook
+      cgroupDriver: systemd
+      clusterDNS:
+      - 10.96.0.10
+      clusterDomain: cluster.local
+      staticPodPath: /etc/kubernetes/manifests
+      containerLogMaxSize: 50M
+      containerLogMaxFiles: 3
+    why: 50M is a decimal size (50,000,000 bytes), not the 50Mi (52,428,800 bytes) asked for.
+  - manifest: |
+      apiVersion: kubelet.config.k8s.io/v1beta1
+      kind: KubeletConfiguration
+      authentication:
+        anonymous:
+          enabled: false
+        webhook:
+          enabled: true
+      authorization:
+        mode: Webhook
+      cgroupDriver: systemd
+      clusterDNS:
+      - 10.96.0.10
+      clusterDomain: cluster.local
+      staticPodPath: /etc/kubernetes/manifests
+      containerLogMaxSize: 10Mi
+      containerLogMaxFiles: 5
+      logging:
+        maxSize: 50Mi
+        maxFiles: 3
+    why: The logging section only configures the kubelet's own log output (format, verbosity) and has no such fields; container log rotation is set by containerLogMaxSize and containerLogMaxFiles, still 10Mi and 5.
+  - manifest: |
+      apiVersion: kubelet.config.k8s.io/v1beta1
+      kind: KubeletConfiguration
+      containerLogMaxSize: 50Mi
+      containerLogMaxFiles: 3
+    why: Replacing the file with only the two fields drops the cgroup driver, cluster DNS and static Pod path, and the kubelet falls back to their defaults.
+explanation:
+  correct:
+    en: >-
+      Container log rotation is a kubelet setting: `containerLogMaxSize` (default `10Mi`) is the size at which a log file
+      is rotated, and `containerLogMaxFiles` (default 5) the number of files kept per container. `kubectl logs` reads only
+      the current file, so a larger size keeps more history there. The kubelet reads the file at start: run
+      `systemctl restart kubelet` after the change.
+references:
+- title: Kubelet Configuration (v1beta1)
+  url: https://kubernetes.io/docs/reference/config-api/kubelet-config.v1beta1/
+- title: Logging Architecture
+  url: https://kubernetes.io/docs/concepts/cluster-administration/logging/

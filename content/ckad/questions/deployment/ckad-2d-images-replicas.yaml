@@ -1,0 +1,142 @@
+id: ckad-2d-images-replicas
+objective: "2.4.1"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    The directory `/opt/payments` contains `deployment.yaml` (shown in the working directory). Without editing that file and without patches, write `/opt/payments/kustomization.yaml` so that the rendered Deployment `api`:
+
+    - is in namespace `payments`;
+    - runs the image `mirror.example.com/payments/api:1.4.2` (same image, pulled from the mirror, new tag);
+    - has 4 replicas.
+
+    Use the `images` and `replicas` fields.
+body:
+  starter: |
+    apiVersion: kustomize.config.k8s.io/v1beta1
+    kind: Kustomization
+  files:
+  - name: deployment.yaml
+    content: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: api
+      spec:
+        replicas: 1
+        selector:
+          matchLabels:
+            app: api
+        template:
+          metadata:
+            labels:
+              app: api
+          spec:
+            containers:
+            - name: api
+              image: registry.example.com/payments/api:1.0.0
+answer:
+  checks:
+  - id: resources
+    label: Lists deployment.yaml in resources
+    path: resources
+    op: contains
+    value: deployment.yaml
+  - id: namespace
+    label: Sets namespace payments
+    path: namespace
+    op: equals
+    value: payments
+  - id: image-new-name
+    label: Rewrites registry.example.com/payments/api to mirror.example.com/payments/api
+    path: images[name=registry.example.com/payments/api].newName
+    op: equals
+    value: mirror.example.com/payments/api
+  - id: image-new-tag
+    label: Sets the tag 1.4.2
+    path: images[name=registry.example.com/payments/api].newTag
+    op: equals
+    value: "1.4.2"
+  - id: replicas
+    label: Sets 4 replicas on Deployment api
+    path: replicas[name=api].count
+    op: equals
+    value: 4
+  solution:
+  - manifest: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      namespace: payments
+      resources:
+      - deployment.yaml
+      images:
+      - name: registry.example.com/payments/api
+        newName: mirror.example.com/payments/api
+        newTag: "1.4.2"
+      replicas:
+      - name: api
+        count: 4
+  - manifest: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      resources:
+      - deployment.yaml
+      namespace: payments
+      replicas:
+      - count: 4
+        name: api
+      images:
+      - newTag: 1.4.2
+        newName: mirror.example.com/payments/api
+        name: registry.example.com/payments/api
+  negatives:
+  - manifest: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      namespace: payments
+      resources:
+      - deployment.yaml
+      images:
+      - name: api
+        newName: mirror.example.com/payments/api
+        newTag: "1.4.2"
+      replicas:
+      - name: api
+        count: 4
+    why: images[].name must match the image name used in the manifest (registry.example.com/payments/api), not the container name; nothing is rewritten.
+  - manifest: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      namespace: payments
+      resources:
+      - deployment.yaml
+      images:
+      - name: registry.example.com/payments/api
+        newTag: "1.4.2"
+      replicas:
+      - name: api
+        count: 4
+    why: Without newName the image keeps registry.example.com and is not pulled from the mirror.
+  - manifest: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      namespace: payments
+      resources:
+      - deployment.yaml
+      images:
+      - name: registry.example.com/payments/api
+        newName: mirror.example.com/payments/api
+        newTag: "1.4.2"
+      replicas:
+      - name: payments-api
+        count: 4
+    why: replicas[].name is the name of the Deployment, api; payments-api matches no resource.
+explanation:
+  correct:
+    en: '`images` rewrites matching images without a patch: `name` is the image name as written in the manifest (without the tag), `newName` replaces it and `newTag` replaces the tag. `replicas` sets `spec.replicas` of the Deployment, StatefulSet, ReplicaSet or ReplicationController named in `name`. `namespace` applies to every namespaced object.'
+references:
+- title: images
+  url: https://kubectl.docs.kubernetes.io/references/kustomize/kustomization/images/
+- title: replicas
+  url: https://kubectl.docs.kubernetes.io/references/kustomize/kustomization/replicas/

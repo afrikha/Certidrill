@@ -1,0 +1,73 @@
+id: ckad-2b-autoscale-cpu-value
+objective: "2.2.4"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    In namespace `shop`, create a HorizontalPodAutoscaler named `web-hpa` for Deployment `web`. It keeps between **2** and **8** replicas and targets an **average CPU usage of 250 millicores per Pod** (an absolute value, not a percentage of the request).
+
+    Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Uses kubectl autoscale
+    path: verb
+    op: equals
+    value: autoscale
+  - id: resource
+    label: Targets a Deployment
+    path: resource
+    op: equals
+    value: deployment
+  - id: name
+    label: Targets the Deployment web
+    path: names
+    op: contains
+    value: web
+  - id: min
+    label: At least 2 replicas
+    path: flags.min
+    op: equals
+    value: "2"
+  - id: max
+    label: At most 8 replicas
+    path: flags.max
+    op: equals
+    value: "8"
+  - id: cpu
+    label: Targets an average CPU value of 250m
+    path: flags.cpu
+    op: oneOf
+    value: ["250m", "250"]
+  - id: hpa-name
+    label: The autoscaler is named web-hpa
+    path: flags.name
+    op: equals
+    value: web-hpa
+  - id: namespace
+    label: Runs in namespace shop
+    path: flags.namespace
+    op: equals
+    value: shop
+  solution:
+  - command: kubectl autoscale deployment web --min=2 --max=8 --cpu=250m --name=web-hpa -n shop
+  - command: k -n shop autoscale deploy/web --name web-hpa --max 8 --min 2 --cpu 250m
+  negatives:
+  - command: kubectl autoscale deployment web --min=2 --max=8 --cpu=25% --name=web-hpa -n shop
+    why: A percentage targets average utilization of the CPU request, not an absolute 250 millicores.
+  - command: kubectl autoscale deployment web --min=2 --max=8 --cpu=250m -n shop
+    why: Without --name the HorizontalPodAutoscaler takes the name of the Deployment, web.
+  - command: kubectl autoscale deployment web --min=8 --max=2 --cpu=250m --name=web-hpa -n shop
+    why: min and max are swapped.
+explanation:
+  correct:
+    en: '`kubectl autoscale deployment web --min=2 --max=8 --cpu=250m --name=web-hpa -n shop` creates an autoscaling/v2 HorizontalPodAutoscaler. With `--cpu`, a percentage (`70%`) targets average utilization of the requested CPU, while a quantity (`250m`, or a bare `250`, read as millicores) targets an average value. `--name` overrides the default name, which is the name of the target.'
+references:
+- title: kubectl autoscale
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_autoscale/
+- title: Horizontal Pod Autoscaling
+  url: https://kubernetes.io/docs/concepts/workloads/autoscaling/horizontal-pod-autoscale/

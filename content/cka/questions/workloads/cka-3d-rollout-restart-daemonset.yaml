@@ -1,0 +1,58 @@
+id: cka-3d-rollout-restart-daemonset
+objective: "3.4.1"
+difficulty: 1
+status: draft
+type: command
+stem:
+  en: |-
+    The DaemonSet `log-agent` in namespace `logging` reads its settings from a ConfigMap at startup. The ConfigMap was just updated, so every `log-agent` Pod must be replaced.
+
+    Replace the Pods node by node through the DaemonSet's rolling update, without deleting the DaemonSet or any Pod by hand. Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: rollout
+    label: It is a kubectl rollout command
+    path: verb
+    op: equals
+    value: rollout
+  - id: restart
+    label: Uses rollout restart
+    path: subverb
+    op: equals
+    value: restart
+  - id: resource
+    label: Targets a DaemonSet
+    path: resource
+    op: equals
+    value: daemonset
+  - id: name
+    label: Names the DaemonSet log-agent
+    path: names
+    op: contains
+    value: log-agent
+  - id: namespace
+    label: Runs in namespace logging
+    path: flags.namespace
+    op: equals
+    value: logging
+  solution:
+  - command: kubectl rollout restart daemonset/log-agent -n logging
+  - command: k -n logging rollout restart ds log-agent
+  negatives:
+  - command: kubectl delete pods -l app=log-agent -n logging
+    why: Deleting the Pods by hand removes them all at once instead of following the DaemonSet's rolling update, and the task forbids it.
+  - command: kubectl rollout status daemonset/log-agent -n logging
+    why: rollout status only follows a rollout; it does not start one.
+  - command: kubectl rollout restart daemonset/log-agent
+    why: Without -n the command looks for log-agent in the context namespace, default.
+explanation:
+  correct:
+    en: '`kubectl rollout restart daemonset/log-agent -n logging` adds a restart annotation to the Pod template. The template change starts a new rollout, and the DaemonSet replaces its Pods according to its `updateStrategy` (RollingUpdate, one node at a time by default). The same command works for Deployments and StatefulSets. `rollout status` only watches progress, and deleting Pods by hand removes them all at the same time.'
+references:
+- title: Perform a Rolling Update on a DaemonSet
+  url: https://kubernetes.io/docs/tasks/manage-daemon/update-daemon-set/
+- title: kubectl rollout restart
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_rollout/kubectl_rollout_restart/

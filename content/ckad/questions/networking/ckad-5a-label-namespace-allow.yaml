@@ -1,0 +1,119 @@
+id: ckad-5a-label-namespace-allow
+objective: "5.1.1"
+difficulty: 1
+status: draft
+type: command
+stem:
+  en: |-
+    In namespace `shop`, the NetworkPolicy `allow-scrape` (file `allow-scrape.yaml`) admits ingress on port 9100 only from Pods labeled `app: prometheus` in namespaces labeled `team: monitoring`. Prometheus runs in namespace `metrics` (file `ns-metrics.yaml`) and its Pods already carry `app: prometheus`, but its scrapes time out.
+
+    Without changing the policy, make the scrapes allowed. Type the single command you would run.
+body:
+  mode: object
+  namespace: default
+  files:
+  - name: allow-scrape.yaml
+    content: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: allow-scrape
+        namespace: shop
+      spec:
+        podSelector: {}
+        policyTypes:
+        - Ingress
+        ingress:
+        - from:
+          - namespaceSelector:
+              matchLabels:
+                team: monitoring
+            podSelector:
+              matchLabels:
+                app: prometheus
+          ports:
+          - protocol: TCP
+            port: 9100
+  - name: ns-metrics.yaml
+    content: |
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        labels:
+          kubernetes.io/metadata.name: metrics
+        name: metrics
+answer:
+  checks:
+  - id: kind
+    label: The object changed is a Namespace
+    path: kind
+    op: equals
+    value: Namespace
+  - id: name
+    label: It is namespace metrics
+    path: metadata.name
+    op: equals
+    value: metrics
+  - id: label
+    label: Namespace metrics carries the label team=monitoring
+    path: metadata.labels.team
+    op: equals
+    value: monitoring
+  solution:
+  - command: kubectl label namespace metrics team=monitoring
+    output: |
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        labels:
+          kubernetes.io/metadata.name: metrics
+          team: monitoring
+        name: metrics
+  - command: k label ns/metrics team=monitoring
+    output: |
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        labels:
+          kubernetes.io/metadata.name: metrics
+          team: monitoring
+        name: metrics
+  - command: kubectl label -f ns-metrics.yaml team=monitoring --local -o yaml
+    output: |
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        labels:
+          kubernetes.io/metadata.name: metrics
+          team: monitoring
+        name: metrics
+  negatives:
+  - command: kubectl annotate namespace metrics team=monitoring
+    why: namespaceSelector matches labels, not annotations.
+    output: |
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        annotations:
+          team: monitoring
+        labels:
+          kubernetes.io/metadata.name: metrics
+        name: metrics
+  - command: kubectl label namespace metrics app=prometheus
+    why: The namespace needs the label of the namespaceSelector (team=monitoring); app=prometheus is the Pod label, already present on the Pods.
+    output: |
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        labels:
+          app: prometheus
+          kubernetes.io/metadata.name: metrics
+        name: metrics
+explanation:
+  correct:
+    en: 'In the policy, `namespaceSelector` and `podSelector` sit in the same `from` element, so a client must run in a namespace labeled `team: monitoring` **and** carry `app: prometheus`. The Pods already match; `kubectl label namespace metrics team=monitoring` makes the namespace match too. An annotation would not be seen by the selector.'
+references:
+- title: Network Policies
+  url: https://kubernetes.io/docs/concepts/services-networking/network-policies/
+- title: kubectl label
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_label/

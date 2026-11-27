@@ -1,0 +1,278 @@
+id: cka-5c-headless-statefulset-brokers
+objective: "5.3.1"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    In namespace `data`, deploy three message brokers that clients address one by one as `kafka-0.kafka.data.svc.cluster.local`, `kafka-1.kafka.data.svc.cluster.local` and `kafka-2.kafka.data.svc.cluster.local`.
+
+    Write one file with:
+
+    - a headless Service `kafka` that selects the Pods labelled `app=kafka` on port 9092, named `broker`;
+    - a StatefulSet `kafka` with 3 replicas, Pods labelled `app=kafka`, one container `kafka` running `registry.example.com/data/kafka:3.8` with container port 9092 named `broker`, governed by that Service.
+body:
+  starter: ""
+answer:
+  checks:
+  - id: svc-ns
+    label: Service kafka is in namespace data
+    select: {kind: Service, name: kafka}
+    path: metadata.namespace
+    op: equals
+    value: data
+  - id: headless
+    label: Service kafka is headless (clusterIP None)
+    select: {kind: Service, name: kafka}
+    path: spec.clusterIP
+    op: equals
+    value: None
+  - id: svc-selector
+    label: Service kafka selects app=kafka
+    select: {kind: Service, name: kafka}
+    path: spec.selector
+    op: subset
+    value: {app: kafka}
+  - id: svc-port
+    label: Service port broker is 9092
+    select: {kind: Service, name: kafka}
+    path: spec.ports[name=broker].port
+    op: equals
+    value: 9092
+  - id: sts-ns
+    label: StatefulSet kafka is in namespace data
+    select: {kind: StatefulSet, name: kafka}
+    path: metadata.namespace
+    op: equals
+    value: data
+  - id: service-name
+    label: The StatefulSet is governed by Service kafka (serviceName)
+    select: {kind: StatefulSet, name: kafka}
+    path: spec.serviceName
+    op: equals
+    value: kafka
+  - id: replicas
+    label: The StatefulSet runs 3 replicas
+    select: {kind: StatefulSet, name: kafka}
+    path: spec.replicas
+    op: equals
+    value: 3
+  - id: sts-selector
+    label: The StatefulSet selector matches app=kafka
+    select: {kind: StatefulSet, name: kafka}
+    path: spec.selector.matchLabels
+    op: subset
+    value: {app: kafka}
+  - id: pod-labels
+    label: The Pod template is labelled app=kafka
+    select: {kind: StatefulSet, name: kafka}
+    path: spec.template.metadata.labels
+    op: subset
+    value: {app: kafka}
+  - id: image
+    label: Container kafka runs registry.example.com/data/kafka:3.8
+    select: {kind: StatefulSet, name: kafka}
+    path: spec.template.spec.containers[name=kafka].image
+    op: equals
+    value: registry.example.com/data/kafka:3.8
+  - id: container-port
+    label: Container port broker is 9092
+    select: {kind: StatefulSet, name: kafka}
+    path: spec.template.spec.containers[name=kafka].ports[name=broker].containerPort
+    op: equals
+    value: 9092
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: kafka
+        namespace: data
+      spec:
+        clusterIP: None
+        selector:
+          app: kafka
+        ports:
+        - name: broker
+          port: 9092
+      ---
+      apiVersion: apps/v1
+      kind: StatefulSet
+      metadata:
+        name: kafka
+        namespace: data
+      spec:
+        serviceName: kafka
+        replicas: 3
+        selector:
+          matchLabels:
+            app: kafka
+        template:
+          metadata:
+            labels:
+              app: kafka
+          spec:
+            containers:
+            - name: kafka
+              image: registry.example.com/data/kafka:3.8
+              ports:
+              - name: broker
+                containerPort: 9092
+  - manifest: |
+      apiVersion: apps/v1
+      kind: StatefulSet
+      metadata:
+        name: kafka
+        namespace: data
+      spec:
+        replicas: 3
+        serviceName: "kafka"
+        selector:
+          matchLabels:
+            app: kafka
+        template:
+          metadata:
+            labels:
+              app: kafka
+          spec:
+            containers:
+            - name: kafka
+              image: registry.example.com/data/kafka:3.8
+              ports:
+              - containerPort: 9092
+                name: broker
+      ---
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: kafka
+        namespace: data
+        labels:
+          app: kafka
+      spec:
+        clusterIP: "None"
+        ports:
+        - port: 9092
+          targetPort: broker
+          protocol: TCP
+          name: broker
+        selector:
+          app: kafka
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: kafka
+        namespace: data
+      spec:
+        selector:
+          app: kafka
+        ports:
+        - name: broker
+          port: 9092
+      ---
+      apiVersion: apps/v1
+      kind: StatefulSet
+      metadata:
+        name: kafka
+        namespace: data
+      spec:
+        serviceName: kafka
+        replicas: 3
+        selector:
+          matchLabels:
+            app: kafka
+        template:
+          metadata:
+            labels:
+              app: kafka
+          spec:
+            containers:
+            - name: kafka
+              image: registry.example.com/data/kafka:3.8
+              ports:
+              - name: broker
+                containerPort: 9092
+    why: Without clusterIP None the Service gets a virtual IP and the per-Pod names kafka-0.kafka... are not published.
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: kafka
+        namespace: data
+      spec:
+        clusterIP: None
+        selector:
+          app: kafka
+        ports:
+        - name: broker
+          port: 9092
+      ---
+      apiVersion: apps/v1
+      kind: StatefulSet
+      metadata:
+        name: kafka
+        namespace: data
+      spec:
+        serviceName: kafka-headless
+        replicas: 3
+        selector:
+          matchLabels:
+            app: kafka
+        template:
+          metadata:
+            labels:
+              app: kafka
+          spec:
+            containers:
+            - name: kafka
+              image: registry.example.com/data/kafka:3.8
+              ports:
+              - name: broker
+                containerPort: 9092
+    why: serviceName must name the governing headless Service, kafka; the Pod names are built as <pod>.<serviceName>.<namespace>.svc.cluster.local.
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: kafka
+        namespace: data
+      spec:
+        clusterIP: None
+        selector:
+          app: kafka
+        ports:
+        - name: broker
+          port: 9092
+      ---
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: kafka
+        namespace: data
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: kafka
+        template:
+          metadata:
+            labels:
+              app: kafka
+          spec:
+            containers:
+            - name: kafka
+              image: registry.example.com/data/kafka:3.8
+              ports:
+              - name: broker
+                containerPort: 9092
+    why: Deployment Pods get random names and no stable DNS identity; ordinal names like kafka-0 come from a StatefulSet.
+explanation:
+  correct:
+    en: 'A StatefulSet names its Pods `<statefulset>-<ordinal>` and, through `serviceName`, gives each one the DNS name `<pod>.<service>.<namespace>.svc.cluster.local`; the governing Service must be headless (`clusterIP: None`) and you create it yourself. The StatefulSet selector must match the template labels, and the Service selects the same labels.'
+references:
+- title: StatefulSets
+  url: https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/
+- title: Service
+  url: https://kubernetes.io/docs/concepts/services-networking/service/

@@ -1,0 +1,191 @@
+id: ckad-5a-label-exists-udp
+objective: "5.1.1"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    In namespace `observability`, the Pods labeled `app: statsd` receive metrics on UDP port 8125.
+
+    Write a NetworkPolicy named `statsd-ingress` in namespace `observability` so that the `app: statsd` Pods accept ingress only from the Pods of namespace `observability` that carry the label key `metrics-push`, whatever its value (`"true"`, `v2`, an empty value…), and only on UDP port 8125. Egress traffic of the `app: statsd` Pods must not be affected.
+body:
+  starter: |
+    apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: statsd-ingress
+      namespace: observability
+    spec:
+answer:
+  checks:
+  - id: kind
+    label: The object is a networking.k8s.io/v1 NetworkPolicy
+    path: apiVersion
+    op: equals
+    value: networking.k8s.io/v1
+  - id: meta
+    label: It is named statsd-ingress in namespace observability
+    path: metadata
+    op: subset
+    value: {name: statsd-ingress, namespace: observability}
+  - id: target
+    label: The policy selects the app=statsd Pods
+    path: spec.podSelector.matchLabels
+    op: equals
+    value: {app: statsd}
+  - id: exists
+    label: The source Pods are selected with the Exists operator on the key metrics-push
+    path: spec.ingress[0].from[0].podSelector
+    op: equals
+    value:
+      matchExpressions:
+      - {key: metrics-push, operator: Exists}
+  - id: one-peer
+    label: The rule has exactly one source
+    path: spec.ingress[0].from
+    op: length
+    value: 1
+  - id: udp
+    label: The only allowed port is UDP 8125
+    path: spec.ingress[0].ports
+    op: equals
+    value: [{protocol: UDP, port: 8125}]
+  - id: no-egress
+    label: policyTypes does not include Egress
+    path: spec
+    op: matches
+    value: '^(?!.*"Egress")'
+  solution:
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: statsd-ingress
+        namespace: observability
+      spec:
+        podSelector:
+          matchLabels:
+            app: statsd
+        policyTypes:
+        - Ingress
+        ingress:
+        - from:
+          - podSelector:
+              matchExpressions:
+              - key: metrics-push
+                operator: Exists
+          ports:
+          - protocol: UDP
+            port: 8125
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: statsd-ingress
+        namespace: observability
+      spec:
+        podSelector:
+          matchLabels: {app: statsd}
+        ingress:
+        - ports:
+          - {port: 8125, protocol: UDP}
+          from:
+          - podSelector:
+              matchExpressions:
+              - {key: metrics-push, operator: Exists}
+  negatives:
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: statsd-ingress
+        namespace: observability
+      spec:
+        podSelector:
+          matchLabels:
+            app: statsd
+        policyTypes:
+        - Ingress
+        ingress:
+        - from:
+          - podSelector:
+              matchLabels:
+                metrics-push: ""
+          ports:
+          - protocol: UDP
+            port: 8125
+    why: 'matchLabels with an empty value matches only Pods whose metrics-push label is empty, not the Pods with metrics-push: "true" or v2.'
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: statsd-ingress
+        namespace: observability
+      spec:
+        podSelector:
+          matchLabels:
+            app: statsd
+        policyTypes:
+        - Ingress
+        ingress:
+        - from:
+          - podSelector:
+              matchExpressions:
+              - key: metrics-push
+                operator: Exists
+          ports:
+          - port: 8125
+    why: Without protocol the port entry means TCP 8125; the UDP datagrams to 8125 stay blocked.
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: statsd-ingress
+        namespace: observability
+      spec:
+        podSelector:
+          matchLabels:
+            app: statsd
+        policyTypes:
+        - Ingress
+        ingress:
+        - from:
+          - namespaceSelector:
+              matchExpressions:
+              - key: metrics-push
+                operator: Exists
+          ports:
+          - protocol: UDP
+            port: 8125
+    why: namespaceSelector tests the labels of namespaces, not of Pods; metrics-push is a Pod label.
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: statsd-ingress
+        namespace: observability
+      spec:
+        podSelector:
+          matchLabels:
+            app: statsd
+        policyTypes:
+        - Ingress
+        ingress:
+        - from:
+          - podSelector:
+              matchExpressions:
+              - key: metrics-push
+                operator: In
+                values: ["true", "v2"]
+          ports:
+          - protocol: UDP
+            port: 8125
+    why: In matches only the listed values; Pods with an empty or any other metrics-push value are refused.
+explanation:
+  correct:
+    en: 'A peer `podSelector` is a standard label selector, so it accepts `matchExpressions`; the operator `Exists` (with no `values`) matches every Pod that has the key `metrics-push`, whatever its value, which `matchLabels` cannot express. The port entry needs `protocol: UDP`, because a port without protocol means TCP. The peer has no `namespaceSelector`, so it only looks at Pods of `observability`.'
+references:
+- title: Network Policies
+  url: https://kubernetes.io/docs/concepts/services-networking/network-policies/
+- title: Labels and Selectors
+  url: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/

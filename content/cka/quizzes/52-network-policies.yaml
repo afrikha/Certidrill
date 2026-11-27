@@ -1,0 +1,1935 @@
+chapter: 52-network-policies
+questions:
+  # ------------------------------------------------------------------ 1
+  - id: cka-qz-52-01
+    objective: "5.2.1"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        A cluster uses a network plugin that does not implement NetworkPolicy. You apply a valid NetworkPolicy that selects every Pod of namespace `shop` and has `policyTypes: [Ingress]` and no rules.
+
+        What happens?
+    body:
+      options:
+        - { id: a, text: "The API server rejects the policy, because no component of the cluster can enforce it" }
+        - { id: b, text: "The policy is stored, and the Pods of `shop` keep accepting all incoming traffic" }
+        - { id: c, text: "kube-proxy enforces the policy on each node with packet filtering rules instead" }
+        - { id: d, text: "The kubelet blocks incoming traffic to the Pods of `shop` the next time they restart" }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          A NetworkPolicy is only an API object; the network plugin is the component that turns it into filtering on the Pod network. Without a plugin that implements NetworkPolicy, the object is accepted and stored like any other resource, but it has no effect: traffic to the Pods of `shop` is not restricted, and nothing reports an error.
+      options:
+        a: { en: "The API server validates the object's fields, not whether a plugin will enforce it; a valid policy is always accepted." }
+        c: { en: "kube-proxy implements Services (virtual IPs and load balancing), not NetworkPolicies." }
+        d: { en: "The kubelet does not enforce NetworkPolicies; restarting the Pods changes nothing without a supporting network plugin." }
+    references:
+      - title: Network Policies
+        url: https://kubernetes.io/docs/concepts/services-networking/network-policies/
+
+  # ------------------------------------------------------------------ 2
+  - id: cka-qz-52-02
+    objective: "5.2.2"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        Namespace `shop` has a default-deny ingress policy. During an incident you must let every Pod of `shop` accept incoming traffic from any source, including clients outside the cluster, on any port, without deleting the default-deny policy.
+
+        Which `spec` should the second NetworkPolicy of `shop` have?
+    body:
+      options:
+        - { id: a, text: "`{podSelector: {}, policyTypes: [Ingress]}`" }
+        - { id: b, text: "`{podSelector: {}, policyTypes: [Ingress], ingress: []}`" }
+        - { id: c, text: "`{podSelector: {}, ingress: [{}]}`" }
+        - { id: d, text: "`{podSelector: {}, ingress: [{from: [{namespaceSelector: {}}]}]}`" }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          `ingress: [{}]` is a list with one empty rule, and a rule with no `from` and no `ports` matches every source on every port. `policyTypes` defaults to `Ingress`, and because policies are additive, this allow-all policy opens ingress for all Pods of `shop` even though the default-deny policy stays in place.
+      options:
+        a: { en: "Without an `ingress` field the policy allows nothing: it is a second default-deny ingress policy." }
+        b: { en: "An empty list `ingress: []` contains no rule, so it also allows nothing, exactly like a missing `ingress` field." }
+        d: { en: "`namespaceSelector: {}` matches all Pods of all namespaces, but not clients outside the cluster, which the incident requires." }
+    references:
+      - title: Network Policies
+        url: https://kubernetes.io/docs/concepts/services-networking/network-policies/
+
+  # ------------------------------------------------------------------ 3
+  - id: cka-qz-52-03
+    objective: "5.2.1"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        You are writing an ingress NetworkPolicy in namespace `shop`. It must admit every Pod of namespace `monitoring`. The output of `kubectl get namespace monitoring --show-labels` lists a single label, `kubernetes.io/metadata.name=monitoring`.
+
+        Which `from` entry should you write?
+    body:
+      options:
+        - { id: a, text: "`- namespaceSelector: {matchLabels: {name: monitoring}}`" }
+        - { id: b, text: "`- podSelector: {matchLabels: {kubernetes.io/metadata.name: monitoring}}`" }
+        - { id: c, text: "`- namespace: monitoring`" }
+        - { id: d, text: "`- namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: monitoring}}`" }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          A NetworkPolicy peer cannot name a namespace: it selects namespaces by label. The control plane sets the immutable label `kubernetes.io/metadata.name` on every namespace, with the namespace name as value, so a `namespaceSelector` on that label alone selects all Pods of `monitoring`.
+      options:
+        a: { en: "`monitoring` has no label `name`; this selector matches no namespace, so nothing is admitted." }
+        b: { en: "A `podSelector` alone looks for Pods of `shop` that carry this label; the label is on the namespace, not on the Pods." }
+        c: { en: "A peer has only `podSelector`, `namespaceSelector` and `ipBlock`; `namespace` is not a field, and kubectl rejects the unknown field." }
+    references:
+      - title: Network Policies
+        url: https://kubernetes.io/docs/concepts/services-networking/network-policies/
+      - title: NetworkPolicy
+        url: https://kubernetes.io/docs/reference/kubernetes-api/networking/network-policy-v1/
+
+  # ------------------------------------------------------------------ 4
+  - id: cka-qz-52-04
+    objective: "5.2.2"
+    difficulty: 2
+    status: draft
+    type: multi
+    stem:
+      en: |
+        The only NetworkPolicy of the cluster is this one, in namespace `shop`. Namespace `monitoring` has the label `team: ops`; namespaces `shop` and `batch` have no `team` label.
+
+        ```yaml
+        spec:
+          podSelector:
+            matchLabels:
+              app: api
+          policyTypes:
+          - Ingress
+          ingress:
+          - from:
+            - namespaceSelector:
+                matchLabels:
+                  team: ops
+            - podSelector:
+                matchLabels:
+                  role: scraper
+            ports:
+            - protocol: TCP
+              port: 9090
+        ```
+
+        Which two connections to the `app: api` Pods of `shop` are allowed?
+
+        NOTE: Each correct selection is worth one point.
+    body:
+      choose: 2
+      options:
+        - { id: a, text: "From a Pod labeled `app: prometheus` in namespace `monitoring`, to TCP 9090" }
+        - { id: b, text: "From a Pod labeled `role: scraper` in namespace `batch`, to TCP 9090" }
+        - { id: c, text: "From a Pod labeled `role: scraper` in namespace `shop`, to TCP 9090" }
+        - { id: d, text: "From a Pod labeled `app: frontend` in namespace `shop`, to TCP 9090" }
+        - { id: e, text: "From a Pod labeled `role: scraper` in namespace `monitoring`, to TCP 8080" }
+    answer: { optionIds: [a, c] }
+    explanation:
+      correct:
+        en: |
+          The `from` list has two entries, which are ORed: every Pod of a namespace labeled `team: ops`, or the `role: scraper` Pods of the policy's own namespace, `shop`. Both are allowed only on the rule's port, TCP 9090. No policy restricts egress, so the source side never blocks.
+      options:
+        b: { en: "A `podSelector` entry on its own selects Pods of the policy's namespace only; a scraper in `batch` matches neither entry." }
+        d: { en: "The frontend Pod is in `shop`, but it lacks the label `role: scraper`, and `shop` has no `team: ops` label." }
+        e: { en: "The namespace entry admits this source, but the rule allows only TCP 9090; port 8080 is denied." }
+    references:
+      - title: Network Policies
+        url: https://kubernetes.io/docs/concepts/services-networking/network-policies/
+
+  # ------------------------------------------------------------------ 5
+  - id: cka-qz-52-05
+    objective: "5.2.2"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        You apply this policy in namespace `shop`, whose Pods have HTTP liveness probes:
+
+        ```yaml
+        spec:
+          podSelector: {}
+          policyTypes:
+          - Ingress
+        ```
+
+        No other NetworkPolicy exists in the cluster. Which connection to a Pod of `shop` is still allowed?
+    body:
+      options:
+        - { id: a, text: "A request from the kubelet of the Pod's node, sent for the liveness probe" }
+        - { id: b, text: "A request from a Pod of `shop`, sent through the ClusterIP of a Service of `shop`" }
+        - { id: c, text: "A request from another Pod of `shop`, sent directly to the Pod IP address" }
+        - { id: d, text: "A request from an ingress controller Pod of namespace `ingress-system`" }
+    answer: { optionId: a }
+    explanation:
+      correct:
+        en: |
+          The policy isolates every Pod of `shop` for ingress and allows nothing, but traffic from the node where a Pod runs is always allowed. The kubelet sends its probes from that node, so the liveness probes keep passing and the containers are not restarted.
+      options:
+        c: { en: "Other Pods of `shop` are not exempt: the Pods are isolated for ingress and no rule allows any source." }
+        b: { en: "Using the Service address does not change the source: the connection still reaches the Pod from a Pod of `shop`, which no rule allows." }
+        d: { en: "Pods of other namespaces are denied too; the ingress controller would need a rule that selects its namespace and Pods." }
+    references:
+      - title: Network Policies
+        url: https://kubernetes.io/docs/concepts/services-networking/network-policies/
+
+  # ------------------------------------------------------------------ 6
+  - id: cka-qz-52-06
+    objective: "5.2.2"
+    difficulty: 3
+    status: draft
+    type: command
+    stem:
+      en: |-
+        In namespace `shop`, the standalone Pod `legacy-batch` (file `legacy-batch.yaml`, no controller manages it) must call the external API `https://rates.example.com` on TCP port 443, but these connections time out. It must keep reading the `app: db` Pods on TCP port 5432. All the NetworkPolicies of the cluster are in file `shop-policies.yaml`, and no Service or other object uses the labels of `legacy-batch`.
+
+        Without changing any policy and without changing the values of the labels `app` and `role`, change the labels of `legacy-batch` so that both flows work. Type the single command you would run.
+    body:
+      mode: object
+      namespace: default
+      files:
+        - name: legacy-batch.yaml
+          content: |
+            apiVersion: v1
+            kind: Pod
+            metadata:
+              labels:
+                app: batch
+                role: reader
+                tier: backend
+              name: legacy-batch
+              namespace: shop
+            spec:
+              containers:
+              - image: registry.example.com/shop/batch:2.4
+                name: batch
+        - name: shop-policies.yaml
+          content: |
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: backend-egress
+              namespace: shop
+            spec:
+              podSelector:
+                matchLabels:
+                  tier: backend
+              policyTypes:
+              - Egress
+              egress:
+              - to:
+                - podSelector:
+                    matchLabels:
+                      app: db
+                ports:
+                - protocol: TCP
+                  port: 5432
+              - to:
+                - namespaceSelector:
+                    matchLabels:
+                      kubernetes.io/metadata.name: kube-system
+                  podSelector:
+                    matchLabels:
+                      k8s-app: kube-dns
+                ports:
+                - protocol: UDP
+                  port: 53
+                - protocol: TCP
+                  port: 53
+            ---
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: db-ingress
+              namespace: shop
+            spec:
+              podSelector:
+                matchLabels:
+                  app: db
+              policyTypes:
+              - Ingress
+              ingress:
+              - from:
+                - podSelector:
+                    matchLabels:
+                      role: reader
+                ports:
+                - protocol: TCP
+                  port: 5432
+    answer:
+      checks:
+        - id: kind
+          label: The object changed is a Pod
+          path: kind
+          op: equals
+          value: Pod
+        - id: name
+          label: It is Pod legacy-batch
+          path: metadata.name
+          op: equals
+          value: legacy-batch
+        - id: tier
+          label: The Pod no longer carries tier=backend, so backend-egress no longer selects it
+          path: metadata.labels
+          op: matches
+          value: '^(?!.*"tier":"backend")'
+        - id: role
+          label: The Pod keeps role=reader, which db-ingress admits
+          path: metadata.labels.role
+          op: equals
+          value: reader
+        - id: app
+          label: The Pod keeps app=batch
+          path: metadata.labels.app
+          op: equals
+          value: batch
+      solution:
+        - command: kubectl label pod legacy-batch -n shop tier-
+          output: |
+            apiVersion: v1
+            kind: Pod
+            metadata:
+              labels:
+                app: batch
+                role: reader
+              name: legacy-batch
+              namespace: shop
+            spec:
+              containers:
+              - image: registry.example.com/shop/batch:2.4
+                name: batch
+        - command: k -n shop label po/legacy-batch tier-
+          output: |
+            apiVersion: v1
+            kind: Pod
+            metadata:
+              labels:
+                app: batch
+                role: reader
+              name: legacy-batch
+              namespace: shop
+            spec:
+              containers:
+              - image: registry.example.com/shop/batch:2.4
+                name: batch
+        - command: kubectl label pod legacy-batch --namespace=shop tier=legacy --overwrite
+          output: |
+            apiVersion: v1
+            kind: Pod
+            metadata:
+              labels:
+                app: batch
+                role: reader
+                tier: legacy
+              name: legacy-batch
+              namespace: shop
+            spec:
+              containers:
+              - image: registry.example.com/shop/batch:2.4
+                name: batch
+      negatives:
+        - command: kubectl label pod legacy-batch -n shop access=internet
+          why: Adding a label never takes a Pod out of a policy. legacy-batch still has tier=backend, so backend-egress still isolates its egress and port 443 stays blocked.
+          output: |
+            apiVersion: v1
+            kind: Pod
+            metadata:
+              labels:
+                access: internet
+                app: batch
+                role: reader
+                tier: backend
+              name: legacy-batch
+              namespace: shop
+            spec:
+              containers:
+              - image: registry.example.com/shop/batch:2.4
+                name: batch
+        - command: kubectl label pod legacy-batch -n shop role-
+          why: role=reader is what db-ingress admits; removing it blocks the database, and tier=backend still blocks port 443.
+          output: |
+            apiVersion: v1
+            kind: Pod
+            metadata:
+              labels:
+                app: batch
+                tier: backend
+              name: legacy-batch
+              namespace: shop
+            spec:
+              containers:
+              - image: registry.example.com/shop/batch:2.4
+                name: batch
+        - command: kubectl label pod legacy-batch -n shop app-
+          why: backend-egress selects Pods by tier, not by app; the Pod stays isolated for egress, and the task forbids changing app.
+          output: |
+            apiVersion: v1
+            kind: Pod
+            metadata:
+              labels:
+                role: reader
+                tier: backend
+              name: legacy-batch
+              namespace: shop
+            spec:
+              containers:
+              - image: registry.example.com/shop/batch:2.4
+                name: batch
+    explanation:
+      correct:
+        en: |
+          `backend-egress` selects `legacy-batch` through `tier: backend` and isolates its egress, so only the database and DNS are reachable. Policies only add allows, so the Pod gets out of that policy only by losing the match: `kubectl label pod legacy-batch -n shop tier-` removes the label (changing its value with `--overwrite` works too). No egress policy then selects the Pod, so all outgoing traffic is allowed, and `role: reader` still matches the ingress side of the database in `db-ingress`.
+    references:
+      - title: Network Policies
+        url: https://kubernetes.io/docs/concepts/services-networking/network-policies/
+      - title: kubectl label
+        url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_label/
+
+  # ------------------------------------------------------------------ 7
+  - id: cka-qz-52-07
+    objective: "5.2.1"
+    difficulty: 3
+    status: draft
+    type: manifest
+    stem:
+      en: |-
+        In namespace `search`, the Pods labeled `app: search` serve queries on TCP port 9200 and replicate data between themselves on TCP port 9300. Indexer Pods labeled `app: indexer` run in several namespaces; each namespace carries a label `env` whose value is `prod`, `staging` or `dev`.
+
+        Write a NetworkPolicy named `search-ingress` in namespace `search`, with exactly two ingress rules, so that the `app: search` Pods accept ingress only:
+
+        - on TCP port 9200, from the `app: indexer` Pods of the namespaces whose `env` label is `prod` or `staging`: select both environments with a single `namespaceSelector`;
+        - on TCP port 9300, from the other `app: search` Pods of namespace `search`.
+
+        Egress traffic of the search Pods must not be affected.
+    body:
+      starter: ""
+    answer:
+      checks:
+        - id: meta
+          label: NetworkPolicy search-ingress in namespace search
+          path: metadata
+          op: subset
+          value: { name: search-ingress, namespace: search }
+        - id: kind
+          label: The object is a NetworkPolicy
+          path: kind
+          op: equals
+          value: NetworkPolicy
+        - id: target
+          label: The policy applies to the app=search Pods
+          path: spec.podSelector.matchLabels.app
+          op: equals
+          value: search
+        - id: no-egress
+          label: Egress is not isolated (no Egress in policyTypes)
+          path: spec
+          op: matches
+          value: '^(?!.*"Egress")'
+        - id: two-rules
+          label: Exactly two ingress rules, one per flow
+          path: spec.ingress
+          op: length
+          value: 2
+        - id: indexer-rule
+          label: Port 9200 from app=indexer Pods AND namespaces with env In (prod, staging), in one peer
+          path: spec.ingress
+          op: contains
+          value:
+            from:
+              - namespaceSelector:
+                  matchExpressions:
+                    - { key: env, operator: In, values: [prod, staging] }
+                podSelector:
+                  matchLabels: { app: indexer }
+            ports:
+              - port: 9200
+        - id: peer-rule
+          label: Port 9300 from the app=search Pods of namespace search
+          path: spec.ingress
+          op: contains
+          value:
+            from:
+              - podSelector:
+                  matchLabels: { app: search }
+            ports:
+              - port: 9300
+        - id: tcp
+          label: No port entry uses UDP or SCTP
+          path: spec.ingress
+          op: matches
+          value: '^(?!.*"protocol":"(UDP|SCTP)")'
+      solution:
+        - manifest: |
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: search-ingress
+              namespace: search
+            spec:
+              podSelector:
+                matchLabels:
+                  app: search
+              policyTypes:
+              - Ingress
+              ingress:
+              - from:
+                - namespaceSelector:
+                    matchExpressions:
+                    - key: env
+                      operator: In
+                      values:
+                      - prod
+                      - staging
+                  podSelector:
+                    matchLabels:
+                      app: indexer
+                ports:
+                - protocol: TCP
+                  port: 9200
+              - from:
+                - podSelector:
+                    matchLabels:
+                      app: search
+                ports:
+                - protocol: TCP
+                  port: 9300
+        - manifest: |
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              namespace: search
+              name: search-ingress
+            spec:
+              podSelector:
+                matchLabels: {app: search}
+              ingress:
+              - ports:
+                - port: 9300
+                from:
+                - namespaceSelector:
+                    matchLabels: {kubernetes.io/metadata.name: search}
+                  podSelector:
+                    matchLabels: {app: search}
+              - ports:
+                - port: 9200
+                from:
+                - podSelector:
+                    matchLabels: {app: indexer}
+                  namespaceSelector:
+                    matchExpressions:
+                    - {key: env, operator: In, values: [staging, prod]}
+      negatives:
+        - manifest: |
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: search-ingress
+              namespace: search
+            spec:
+              podSelector:
+                matchLabels:
+                  app: search
+              policyTypes:
+              - Ingress
+              ingress:
+              - from:
+                - namespaceSelector:
+                    matchExpressions:
+                    - key: env
+                      operator: In
+                      values:
+                      - prod
+                      - staging
+                - podSelector:
+                    matchLabels:
+                      app: indexer
+                ports:
+                - protocol: TCP
+                  port: 9200
+              - from:
+                - podSelector:
+                    matchLabels:
+                      app: search
+                ports:
+                - protocol: TCP
+                  port: 9300
+          why: The two selectors are separate from entries (OR); every Pod of the prod and staging namespaces reaches port 9200, and the app=indexer selector alone only looks in namespace search.
+        - manifest: |
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: search-ingress
+              namespace: search
+            spec:
+              podSelector:
+                matchLabels:
+                  app: search
+              policyTypes:
+              - Ingress
+              ingress:
+              - from:
+                - namespaceSelector:
+                    matchExpressions:
+                    - key: env
+                      operator: In
+                      values:
+                      - prod
+                      - staging
+                  podSelector:
+                    matchLabels:
+                      app: indexer
+                - podSelector:
+                    matchLabels:
+                      app: search
+                ports:
+                - protocol: TCP
+                  port: 9200
+                - protocol: TCP
+                  port: 9300
+          why: One rule with both sources and both ports lets each source use each port, so the indexers can reach the replication port 9300.
+        - manifest: |
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: search-ingress
+              namespace: search
+            spec:
+              podSelector:
+                matchLabels:
+                  app: search
+              policyTypes:
+              - Ingress
+              ingress:
+              - from:
+                - namespaceSelector:
+                    matchLabels:
+                      env: prod
+                  podSelector:
+                    matchLabels:
+                      app: indexer
+                ports:
+                - protocol: TCP
+                  port: 9200
+              - from:
+                - podSelector:
+                    matchLabels:
+                      app: search
+                ports:
+                - protocol: TCP
+                  port: 9300
+          why: matchLabels can hold one value per key; env=prod leaves out the staging indexers. Two values of one key need matchExpressions with operator In.
+        - manifest: |
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: search-ingress
+              namespace: search
+            spec:
+              podSelector:
+                matchLabels:
+                  app: search
+              policyTypes:
+              - Ingress
+              - Egress
+              ingress:
+              - from:
+                - namespaceSelector:
+                    matchExpressions:
+                    - key: env
+                      operator: In
+                      values:
+                      - prod
+                      - staging
+                  podSelector:
+                    matchLabels:
+                      app: indexer
+                ports:
+                - protocol: TCP
+                  port: 9200
+              - from:
+                - podSelector:
+                    matchLabels:
+                      app: search
+                ports:
+                - protocol: TCP
+                  port: 9300
+          why: Egress in policyTypes with no egress rule isolates the search Pods for egress and blocks all their outgoing connections.
+    explanation:
+      correct:
+        en: |
+          Each ingress rule pairs its own sources with its own ports, so two rules keep 9200 for the indexers and 9300 for the replication peers. In the first rule the `namespaceSelector` and the `podSelector` sit in the same `from` entry (AND), and `matchExpressions` with `operator: In` matches namespaces whose `env` is `prod` or `staging`, which `matchLabels` cannot express in one selector. A `podSelector` alone in the second rule selects Pods of the policy's own namespace, and leaving `Egress` out of `policyTypes` keeps outgoing traffic untouched.
+    references:
+      - title: Network Policies
+        url: https://kubernetes.io/docs/concepts/services-networking/network-policies/
+      - title: NetworkPolicy
+        url: https://kubernetes.io/docs/reference/kubernetes-api/networking/network-policy-v1/
+
+  # ------------------------------------------------------------------ 8
+  - id: cka-qz-52-08
+    objective: "5.2.1"
+    difficulty: 3
+    status: draft
+    type: manifest
+    stem:
+      en: |-
+        In namespace `jobs`, the Pods labeled `app: worker` must be limited to two outgoing flows:
+
+        - to the Pods labeled `app: cache` of namespace `shared`, on TCP port 6379 (namespace `shared` carries no custom label);
+        - to the external mail relay at the single address `203.0.113.25`, on TCP port 587.
+
+        Name resolution is already allowed by the existing policy `allow-dns` of namespace `jobs`: do not add DNS. Write a NetworkPolicy named `worker-egress` in namespace `jobs`, with one egress rule per flow. Each destination must be reachable only on its own port, and ingress traffic to the worker Pods must not be affected.
+    body:
+      starter: ""
+    answer:
+      checks:
+        - id: meta
+          label: NetworkPolicy worker-egress in namespace jobs
+          path: metadata
+          op: subset
+          value: { name: worker-egress, namespace: jobs }
+        - id: kind
+          label: The object is a NetworkPolicy
+          path: kind
+          op: equals
+          value: NetworkPolicy
+        - id: target
+          label: The policy applies to the app=worker Pods
+          path: spec.podSelector.matchLabels.app
+          op: equals
+          value: worker
+        - id: types
+          label: policyTypes is exactly [Egress], so ingress is not isolated
+          path: spec.policyTypes
+          op: equals
+          value: [Egress]
+        - id: two-rules
+          label: Exactly two egress rules, one per flow
+          path: spec.egress
+          op: length
+          value: 2
+        - id: cache-rule
+          label: Port 6379 to the app=cache Pods of namespace shared (one peer, both selectors)
+          path: spec.egress
+          op: contains
+          value:
+            to:
+              - namespaceSelector:
+                  matchLabels: { kubernetes.io/metadata.name: shared }
+                podSelector:
+                  matchLabels: { app: cache }
+            ports:
+              - port: 6379
+        - id: relay-rule
+          label: Port 587 to 203.0.113.25/32
+          path: spec.egress
+          op: contains
+          value:
+            to:
+              - ipBlock: { cidr: 203.0.113.25/32 }
+            ports:
+              - port: 587
+        - id: tcp
+          label: No port entry uses UDP or SCTP
+          path: spec.egress
+          op: matches
+          value: '^(?!.*"protocol":"(UDP|SCTP)")'
+      solution:
+        - manifest: |
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: worker-egress
+              namespace: jobs
+            spec:
+              podSelector:
+                matchLabels:
+                  app: worker
+              policyTypes:
+              - Egress
+              egress:
+              - to:
+                - namespaceSelector:
+                    matchLabels:
+                      kubernetes.io/metadata.name: shared
+                  podSelector:
+                    matchLabels:
+                      app: cache
+                ports:
+                - protocol: TCP
+                  port: 6379
+              - to:
+                - ipBlock:
+                    cidr: 203.0.113.25/32
+                ports:
+                - protocol: TCP
+                  port: 587
+        - manifest: |
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: worker-egress
+              namespace: jobs
+            spec:
+              policyTypes: [Egress]
+              podSelector:
+                matchLabels: {app: worker}
+              egress:
+              - ports:
+                - port: 587
+                to:
+                - ipBlock: {cidr: 203.0.113.25/32}
+              - ports:
+                - port: 6379
+                to:
+                - podSelector:
+                    matchLabels: {app: cache}
+                  namespaceSelector:
+                    matchLabels: {kubernetes.io/metadata.name: shared}
+      negatives:
+        - manifest: |
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: worker-egress
+              namespace: jobs
+            spec:
+              podSelector:
+                matchLabels:
+                  app: worker
+              policyTypes:
+              - Egress
+              egress:
+              - to:
+                - namespaceSelector:
+                    matchLabels:
+                      kubernetes.io/metadata.name: shared
+                  podSelector:
+                    matchLabels:
+                      app: cache
+                - ipBlock:
+                    cidr: 203.0.113.25/32
+                ports:
+                - protocol: TCP
+                  port: 6379
+                - protocol: TCP
+                  port: 587
+          why: In one rule every destination gets every port, so the cache Pods are reachable on 587 and the relay on 6379.
+        - manifest: |
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: worker-egress
+              namespace: jobs
+            spec:
+              podSelector:
+                matchLabels:
+                  app: worker
+              egress:
+              - to:
+                - namespaceSelector:
+                    matchLabels:
+                      kubernetes.io/metadata.name: shared
+                  podSelector:
+                    matchLabels:
+                      app: cache
+                ports:
+                - protocol: TCP
+                  port: 6379
+              - to:
+                - ipBlock:
+                    cidr: 203.0.113.25/32
+                ports:
+                - protocol: TCP
+                  port: 587
+          why: Without policyTypes, a policy with an egress section defaults to Ingress and Egress; with no ingress rule, the worker Pods lose all incoming traffic.
+        - manifest: |
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: worker-egress
+              namespace: jobs
+            spec:
+              podSelector:
+                matchLabels:
+                  app: worker
+              policyTypes:
+              - Egress
+              egress:
+              - to:
+                - podSelector:
+                    matchLabels:
+                      app: cache
+                ports:
+                - protocol: TCP
+                  port: 6379
+              - to:
+                - ipBlock:
+                    cidr: 203.0.113.25/32
+                ports:
+                - protocol: TCP
+                  port: 587
+          why: A podSelector alone looks for cache Pods in namespace jobs; the cache runs in shared, so that flow stays blocked.
+        - manifest: |
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: worker-egress
+              namespace: jobs
+            spec:
+              podSelector:
+                matchLabels:
+                  app: worker
+              policyTypes:
+              - Egress
+              egress:
+              - to:
+                - namespaceSelector:
+                    matchLabels:
+                      kubernetes.io/metadata.name: shared
+                  podSelector:
+                    matchLabels:
+                      app: cache
+                ports:
+                - protocol: TCP
+                  port: 6379
+              - to:
+                - ipBlock:
+                    cidr: 203.0.113.0/24
+                ports:
+                - protocol: TCP
+                  port: 587
+          why: A /24 opens port 587 to 256 addresses; a single address is written as a /32 CIDR.
+    explanation:
+      correct:
+        en: |
+          Each egress rule pairs its own destinations with its own ports, so one rule per flow keeps 6379 for the cache and 587 for the relay. The cache peer needs the `namespaceSelector` on `kubernetes.io/metadata.name: shared` and the `podSelector` in the same entry, and a single external address is the CIDR `203.0.113.25/32`. `policyTypes: [Egress]` must be explicit: without it, the egress section makes the policy default to both types and the worker Pods would become isolated for ingress. DNS keeps working because `allow-dns` adds its own allows to the union.
+    references:
+      - title: Network Policies
+        url: https://kubernetes.io/docs/concepts/services-networking/network-policies/
+      - title: NetworkPolicy
+        url: https://kubernetes.io/docs/reference/kubernetes-api/networking/network-policy-v1/
+
+  # ------------------------------------------------------------------ 9
+  - id: cka-qz-52-09
+    objective: "5.2.2"
+    difficulty: 3
+    status: draft
+    type: manifest
+    stem:
+      en: |-
+        A colleague wrote the three NetworkPolicies of namespace `billing` shown in the editor. `kubectl apply` accepts them, but they do not do what was intended:
+
+        - `default-deny`: every Pod of `billing` is isolated in both directions and nothing is allowed;
+        - `invoice-public`: the Pods labeled `app: invoice` accept connections from any source, inside or outside the cluster, only on the port they receive through Service `invoice` (`port: 443`, `targetPort: 8443`);
+        - `allow-dns`: every Pod of `billing` may send DNS queries (UDP and TCP port 53) to any destination.
+
+        Correct the file so that each policy does what is intended. Keep the three names.
+    body:
+      starter: |
+        apiVersion: networking.k8s.io/v1
+        kind: NetworkPolicy
+        metadata:
+          name: default-deny
+          namespace: billing
+        spec:
+          podSelector: {}
+        ---
+        apiVersion: networking.k8s.io/v1
+        kind: NetworkPolicy
+        metadata:
+          name: invoice-public
+          namespace: billing
+        spec:
+          podSelector:
+            matchLabels:
+              app: invoice
+          policyTypes:
+          - Ingress
+          ingress: []
+        ---
+        apiVersion: networking.k8s.io/v1
+        kind: NetworkPolicy
+        metadata:
+          name: allow-dns
+          namespace: billing
+        spec:
+          podSelector: {}
+          policyTypes:
+          - Egress
+          egress:
+          - ports:
+            - protocol: UDP
+              port: 53
+            - protocol: TCP
+              port: 53
+    answer:
+      checks:
+        - id: deny-ingress
+          label: default-deny isolates ingress
+          select: { kind: NetworkPolicy, name: default-deny }
+          path: spec.policyTypes
+          op: contains
+          value: Ingress
+        - id: deny-egress
+          label: default-deny isolates egress (Egress listed explicitly)
+          select: { kind: NetworkPolicy, name: default-deny }
+          path: spec.policyTypes
+          op: contains
+          value: Egress
+        - id: deny-all-pods
+          label: default-deny selects every Pod of billing
+          select: { kind: NetworkPolicy, name: default-deny }
+          path: spec.podSelector.matchLabels
+          op: absent
+        - id: deny-no-rule
+          label: default-deny allows nothing (no ingress or egress rule)
+          select: { kind: NetworkPolicy, name: default-deny }
+          path: spec
+          op: matches
+          value: '^(?!.*"(ingress|egress)":\[\{)'
+        - id: deny-ns
+          label: default-deny is in namespace billing
+          select: { kind: NetworkPolicy, name: default-deny }
+          path: metadata.namespace
+          op: equals
+          value: billing
+        - id: invoice-target
+          label: invoice-public applies to the app=invoice Pods of billing
+          select: { kind: NetworkPolicy, name: invoice-public }
+          path: metadata.namespace
+          op: equals
+          value: billing
+        - id: invoice-selector
+          label: invoice-public selects app=invoice
+          select: { kind: NetworkPolicy, name: invoice-public }
+          path: spec.podSelector.matchLabels.app
+          op: equals
+          value: invoice
+        - id: invoice-one-rule
+          label: invoice-public has one ingress rule
+          select: { kind: NetworkPolicy, name: invoice-public }
+          path: spec.ingress
+          op: length
+          value: 1
+        - id: invoice-any-source
+          label: The rule has no from restriction, so any source matches
+          select: { kind: NetworkPolicy, name: invoice-public }
+          path: spec.ingress[0]
+          op: matches
+          value: '^(?!.*"from":\[\{)'
+        - id: invoice-one-port
+          label: The rule has a single port entry
+          select: { kind: NetworkPolicy, name: invoice-public }
+          path: spec.ingress[0].ports
+          op: length
+          value: 1
+        - id: invoice-port
+          label: The port is the Pod port 8443 (TCP), not the Service port
+          select: { kind: NetworkPolicy, name: invoice-public }
+          path: spec.ingress[0].ports[0]
+          op: matches
+          value: '^(?!.*"protocol":"(UDP|SCTP)").*"port":8443[,}]'
+        - id: dns-kept
+          label: allow-dns still allows UDP and TCP port 53
+          select: { kind: NetworkPolicy, name: allow-dns }
+          path: spec.egress
+          op: contains
+          value:
+            ports:
+              - { protocol: UDP, port: 53 }
+              - { protocol: TCP, port: 53 }
+        - id: dns-any
+          label: allow-dns still allows any destination
+          select: { kind: NetworkPolicy, name: allow-dns }
+          path: spec.egress
+          op: matches
+          value: '^(?!.*"to":\[\{)'
+        - id: dns-type
+          label: allow-dns is an egress policy
+          select: { kind: NetworkPolicy, name: allow-dns }
+          path: spec.policyTypes
+          op: contains
+          value: Egress
+      solution:
+        - manifest: |
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: default-deny
+              namespace: billing
+            spec:
+              podSelector: {}
+              policyTypes:
+              - Ingress
+              - Egress
+            ---
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: invoice-public
+              namespace: billing
+            spec:
+              podSelector:
+                matchLabels:
+                  app: invoice
+              policyTypes:
+              - Ingress
+              ingress:
+              - ports:
+                - port: 8443
+            ---
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: allow-dns
+              namespace: billing
+            spec:
+              podSelector: {}
+              policyTypes:
+              - Egress
+              egress:
+              - ports:
+                - protocol: UDP
+                  port: 53
+                - protocol: TCP
+                  port: 53
+        - manifest: |
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: default-deny
+              namespace: billing
+            spec:
+              podSelector: {}
+              policyTypes: [Egress, Ingress]
+            ---
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: allow-dns
+              namespace: billing
+            spec:
+              podSelector: {}
+              policyTypes: [Egress]
+              egress:
+              - ports:
+                - {protocol: TCP, port: 53}
+                - {protocol: UDP, port: 53}
+            ---
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: invoice-public
+              namespace: billing
+            spec:
+              podSelector:
+                matchLabels: {app: invoice}
+              ingress:
+              - from: []
+                ports:
+                - port: 8443
+      negatives:
+        - manifest: |
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: default-deny
+              namespace: billing
+            spec:
+              podSelector: {}
+              policyTypes:
+              - Ingress
+              - Egress
+            ---
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: invoice-public
+              namespace: billing
+            spec:
+              podSelector:
+                matchLabels:
+                  app: invoice
+              policyTypes:
+              - Ingress
+              ingress:
+              - {}
+            ---
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: allow-dns
+              namespace: billing
+            spec:
+              podSelector: {}
+              policyTypes:
+              - Egress
+              egress:
+              - ports:
+                - protocol: UDP
+                  port: 53
+                - protocol: TCP
+                  port: 53
+          why: The empty rule {} matches every source on every port; the invoice Pods must accept connections on 8443 only.
+        - manifest: |
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: default-deny
+              namespace: billing
+            spec:
+              podSelector: {}
+              policyTypes:
+              - Ingress
+              - Egress
+            ---
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: invoice-public
+              namespace: billing
+            spec:
+              podSelector:
+                matchLabels:
+                  app: invoice
+              policyTypes:
+              - Ingress
+              ingress:
+              - from:
+                - namespaceSelector: {}
+                ports:
+                - port: 8443
+            ---
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: allow-dns
+              namespace: billing
+            spec:
+              podSelector: {}
+              policyTypes:
+              - Egress
+              egress:
+              - ports:
+                - protocol: UDP
+                  port: 53
+                - protocol: TCP
+                  port: 53
+          why: namespaceSelector {} matches all Pods of the cluster but no client outside it; a rule without from matches every source.
+        - manifest: |
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: default-deny
+              namespace: billing
+            spec:
+              podSelector: {}
+            ---
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: invoice-public
+              namespace: billing
+            spec:
+              podSelector:
+                matchLabels:
+                  app: invoice
+              policyTypes:
+              - Ingress
+              ingress:
+              - ports:
+                - port: 8443
+            ---
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: allow-dns
+              namespace: billing
+            spec:
+              podSelector: {}
+              policyTypes:
+              - Egress
+              egress:
+              - ports:
+                - protocol: UDP
+                  port: 53
+                - protocol: TCP
+                  port: 53
+          why: Without policyTypes, a policy with no egress section only gets Ingress; default-deny does not isolate egress, and every Pod can still connect anywhere.
+        - manifest: |
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: default-deny
+              namespace: billing
+            spec:
+              podSelector: {}
+              policyTypes:
+              - Ingress
+              - Egress
+            ---
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: invoice-public
+              namespace: billing
+            spec:
+              podSelector:
+                matchLabels:
+                  app: invoice
+              policyTypes:
+              - Ingress
+              ingress:
+              - ports:
+                - port: 443
+            ---
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: allow-dns
+              namespace: billing
+            spec:
+              podSelector: {}
+              policyTypes:
+              - Egress
+              egress:
+              - ports:
+                - protocol: UDP
+                  port: 53
+                - protocol: TCP
+                  port: 53
+          why: 443 is the Service port. The policy filters the traffic arriving on the Pod, on the target port 8443, so the clients stay blocked.
+    explanation:
+      correct:
+        en: |
+          `default-deny` has no `egress` section, so without an explicit `policyTypes` it only gets `Ingress`: listing `Ingress` and `Egress` makes it isolate both directions. In `invoice-public`, `ingress: []` contains no rule and allows nothing; one rule with `ports` and no `from` matches every source, and its port is the Pod port 8443, not the Service port 443. `allow-dns` was already right: a rule with `ports` and no `to` allows DNS to any destination, and it adds to the deny because policies are additive.
+    references:
+      - title: Network Policies
+        url: https://kubernetes.io/docs/concepts/services-networking/network-policies/
+      - title: NetworkPolicy
+        url: https://kubernetes.io/docs/reference/kubernetes-api/networking/network-policy-v1/
+
+  # ------------------------------------------------------------------ 10
+  - id: cka-qz-52-10
+    objective: "5.2.2"
+    difficulty: 3
+    status: draft
+    type: manifest
+    stem:
+      en: |-
+        Namespace `ledger` runs the Pods labeled `app: api`, reached through Service `api` (`port: 443`, `targetPort: 8443`), and the Pods labeled `app: db`, which listen on TCP port 5432. The gateway Pods labeled `app: gateway` run in namespace `edge`. Namespaces `ledger` and `edge` carry no custom label, and `edge` has no NetworkPolicy.
+
+        Lock down `ledger` with one file of four NetworkPolicies in namespace `ledger`:
+
+        - `default-deny-all`: every Pod of `ledger`, including Pods created later, is isolated for ingress and egress, and nothing is allowed;
+        - `api-ingress`: the `app: api` Pods accept connections only from the `app: gateway` Pods of `edge`, on the port the Service forwards to;
+        - `api-egress`: the `app: api` Pods may connect to the `app: db` Pods on TCP 5432, and send DNS queries over UDP and TCP port 53 to the Pods labeled `k8s-app: kube-dns` of namespace `kube-system` only (write `protocol` on each DNS port entry);
+        - `db-ingress`: the `app: db` Pods accept connections on TCP 5432 from the `app: api` Pods only.
+    body:
+      starter: ""
+    answer:
+      checks:
+        - id: deny-types
+          label: default-deny-all isolates ingress and egress
+          select: { kind: NetworkPolicy, name: default-deny-all }
+          path: spec.policyTypes
+          op: subset
+          value: [Ingress, Egress]
+        - id: deny-all-pods
+          label: default-deny-all selects every Pod of ledger
+          select: { kind: NetworkPolicy, name: default-deny-all }
+          path: spec.podSelector.matchLabels
+          op: absent
+        - id: deny-no-rule
+          label: default-deny-all allows nothing
+          select: { kind: NetworkPolicy, name: default-deny-all }
+          path: spec
+          op: matches
+          value: '^(?!.*"(ingress|egress)":\[\{)'
+        - id: deny-ns
+          label: default-deny-all is in namespace ledger
+          select: { kind: NetworkPolicy, name: default-deny-all }
+          path: metadata.namespace
+          op: equals
+          value: ledger
+        - id: api-in-target
+          label: api-ingress applies to the app=api Pods of ledger
+          select: { kind: NetworkPolicy, name: api-ingress }
+          path: metadata.namespace
+          op: equals
+          value: ledger
+        - id: api-in-rule
+          label: api-ingress allows 8443 from the app=gateway Pods of edge (one peer, both selectors)
+          select: { kind: NetworkPolicy, name: api-ingress }
+          path: spec.ingress
+          op: contains
+          value:
+            from:
+              - namespaceSelector:
+                  matchLabels: { kubernetes.io/metadata.name: edge }
+                podSelector:
+                  matchLabels: { app: gateway }
+            ports:
+              - port: 8443
+        - id: api-in-only
+          label: api-ingress has one rule with one source
+          select: { kind: NetworkPolicy, name: api-ingress }
+          path: spec.ingress[0].from
+          op: length
+          value: 1
+        - id: api-in-selector
+          label: api-ingress selects app=api
+          select: { kind: NetworkPolicy, name: api-ingress }
+          path: spec.podSelector.matchLabels.app
+          op: equals
+          value: api
+        - id: api-out-db
+          label: api-egress allows TCP 5432 to the app=db Pods of ledger
+          select: { kind: NetworkPolicy, name: api-egress }
+          path: spec.egress
+          op: contains
+          value:
+            to:
+              - podSelector:
+                  matchLabels: { app: db }
+            ports:
+              - port: 5432
+        - id: api-out-dns
+          label: api-egress allows UDP and TCP 53 to the kube-dns Pods of kube-system only
+          select: { kind: NetworkPolicy, name: api-egress }
+          path: spec.egress
+          op: contains
+          value:
+            to:
+              - namespaceSelector:
+                  matchLabels: { kubernetes.io/metadata.name: kube-system }
+                podSelector:
+                  matchLabels: { k8s-app: kube-dns }
+            ports:
+              - { protocol: UDP, port: 53 }
+              - { protocol: TCP, port: 53 }
+        - id: api-out-selector
+          label: api-egress selects app=api
+          select: { kind: NetworkPolicy, name: api-egress }
+          path: spec.podSelector.matchLabels.app
+          op: equals
+          value: api
+        - id: db-in-rule
+          label: db-ingress allows TCP 5432 from the app=api Pods of ledger
+          select: { kind: NetworkPolicy, name: db-ingress }
+          path: spec.ingress
+          op: contains
+          value:
+            from:
+              - podSelector:
+                  matchLabels: { app: api }
+            ports:
+              - port: 5432
+        - id: db-in-selector
+          label: db-ingress selects app=db
+          select: { kind: NetworkPolicy, name: db-ingress }
+          path: spec.podSelector.matchLabels.app
+          op: equals
+          value: db
+        - id: db-in-only
+          label: db-ingress has one rule with one source
+          select: { kind: NetworkPolicy, name: db-ingress }
+          path: spec.ingress[0].from
+          op: length
+          value: 1
+      solution:
+        - manifest: |
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: default-deny-all
+              namespace: ledger
+            spec:
+              podSelector: {}
+              policyTypes:
+              - Ingress
+              - Egress
+            ---
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: api-ingress
+              namespace: ledger
+            spec:
+              podSelector:
+                matchLabels:
+                  app: api
+              policyTypes:
+              - Ingress
+              ingress:
+              - from:
+                - namespaceSelector:
+                    matchLabels:
+                      kubernetes.io/metadata.name: edge
+                  podSelector:
+                    matchLabels:
+                      app: gateway
+                ports:
+                - protocol: TCP
+                  port: 8443
+            ---
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: api-egress
+              namespace: ledger
+            spec:
+              podSelector:
+                matchLabels:
+                  app: api
+              policyTypes:
+              - Egress
+              egress:
+              - to:
+                - podSelector:
+                    matchLabels:
+                      app: db
+                ports:
+                - protocol: TCP
+                  port: 5432
+              - to:
+                - namespaceSelector:
+                    matchLabels:
+                      kubernetes.io/metadata.name: kube-system
+                  podSelector:
+                    matchLabels:
+                      k8s-app: kube-dns
+                ports:
+                - protocol: UDP
+                  port: 53
+                - protocol: TCP
+                  port: 53
+            ---
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: db-ingress
+              namespace: ledger
+            spec:
+              podSelector:
+                matchLabels:
+                  app: db
+              policyTypes:
+              - Ingress
+              ingress:
+              - from:
+                - podSelector:
+                    matchLabels:
+                      app: api
+                ports:
+                - protocol: TCP
+                  port: 5432
+        - manifest: |
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: db-ingress
+              namespace: ledger
+            spec:
+              podSelector:
+                matchLabels: {app: db}
+              ingress:
+              - from:
+                - podSelector:
+                    matchLabels: {app: api}
+                ports:
+                - port: 5432
+            ---
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: api-egress
+              namespace: ledger
+            spec:
+              podSelector:
+                matchLabels: {app: api}
+              egress:
+              - to:
+                - podSelector:
+                    matchLabels: {k8s-app: kube-dns}
+                  namespaceSelector:
+                    matchLabels: {kubernetes.io/metadata.name: kube-system}
+                ports:
+                - {protocol: TCP, port: 53}
+                - {protocol: UDP, port: 53}
+              - to:
+                - podSelector:
+                    matchLabels: {app: db}
+                ports:
+                - port: 5432
+            ---
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: api-ingress
+              namespace: ledger
+            spec:
+              podSelector:
+                matchLabels: {app: api}
+              ingress:
+              - ports:
+                - port: 8443
+                from:
+                - podSelector:
+                    matchLabels: {app: gateway}
+                  namespaceSelector:
+                    matchLabels: {kubernetes.io/metadata.name: edge}
+            ---
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: default-deny-all
+              namespace: ledger
+            spec:
+              podSelector: {}
+              policyTypes: [Egress, Ingress]
+      negatives:
+        - manifest: |
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: default-deny-all
+              namespace: ledger
+            spec:
+              podSelector: {}
+              policyTypes:
+              - Ingress
+              - Egress
+            ---
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: api-ingress
+              namespace: ledger
+            spec:
+              podSelector:
+                matchLabels:
+                  app: api
+              policyTypes:
+              - Ingress
+              ingress:
+              - from:
+                - namespaceSelector:
+                    matchLabels:
+                      kubernetes.io/metadata.name: edge
+                  podSelector:
+                    matchLabels:
+                      app: gateway
+                ports:
+                - protocol: TCP
+                  port: 8443
+            ---
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: api-egress
+              namespace: ledger
+            spec:
+              podSelector:
+                matchLabels:
+                  app: api
+              policyTypes:
+              - Egress
+              egress:
+              - to:
+                - podSelector:
+                    matchLabels:
+                      app: db
+                ports:
+                - protocol: TCP
+                  port: 5432
+              - to:
+                - namespaceSelector:
+                    matchLabels:
+                      kubernetes.io/metadata.name: kube-system
+                  podSelector:
+                    matchLabels:
+                      k8s-app: kube-dns
+                ports:
+                - protocol: UDP
+                  port: 53
+                - protocol: TCP
+                  port: 53
+          why: db-ingress is missing. The api Pods may send to 5432, but default-deny-all still isolates the db Pods for ingress, so the connection needs an ingress allow on the db side too.
+        - manifest: |
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: default-deny-all
+              namespace: ledger
+            spec:
+              podSelector: {}
+              policyTypes:
+              - Ingress
+              - Egress
+            ---
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: api-ingress
+              namespace: ledger
+            spec:
+              podSelector:
+                matchLabels:
+                  app: api
+              policyTypes:
+              - Ingress
+              ingress:
+              - from:
+                - namespaceSelector:
+                    matchLabels:
+                      kubernetes.io/metadata.name: edge
+                - podSelector:
+                    matchLabels:
+                      app: gateway
+                ports:
+                - protocol: TCP
+                  port: 8443
+            ---
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: api-egress
+              namespace: ledger
+            spec:
+              podSelector:
+                matchLabels:
+                  app: api
+              policyTypes:
+              - Egress
+              egress:
+              - to:
+                - podSelector:
+                    matchLabels:
+                      app: db
+                ports:
+                - protocol: TCP
+                  port: 5432
+              - to:
+                - namespaceSelector:
+                    matchLabels:
+                      kubernetes.io/metadata.name: kube-system
+                  podSelector:
+                    matchLabels:
+                      k8s-app: kube-dns
+                ports:
+                - protocol: UDP
+                  port: 53
+                - protocol: TCP
+                  port: 53
+            ---
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: db-ingress
+              namespace: ledger
+            spec:
+              podSelector:
+                matchLabels:
+                  app: db
+              policyTypes:
+              - Ingress
+              ingress:
+              - from:
+                - podSelector:
+                    matchLabels:
+                      app: api
+                ports:
+                - protocol: TCP
+                  port: 5432
+          why: Two from entries are ORed; every Pod of edge is admitted, and the app=gateway entry alone looks for gateways in ledger.
+        - manifest: |
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: default-deny-all
+              namespace: ledger
+            spec:
+              podSelector: {}
+              policyTypes:
+              - Ingress
+              - Egress
+            ---
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: api-ingress
+              namespace: ledger
+            spec:
+              podSelector:
+                matchLabels:
+                  app: api
+              policyTypes:
+              - Ingress
+              ingress:
+              - from:
+                - namespaceSelector:
+                    matchLabels:
+                      kubernetes.io/metadata.name: edge
+                  podSelector:
+                    matchLabels:
+                      app: gateway
+                ports:
+                - protocol: TCP
+                  port: 443
+            ---
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: api-egress
+              namespace: ledger
+            spec:
+              podSelector:
+                matchLabels:
+                  app: api
+              policyTypes:
+              - Egress
+              egress:
+              - to:
+                - podSelector:
+                    matchLabels:
+                      app: db
+                ports:
+                - protocol: TCP
+                  port: 5432
+              - to:
+                - namespaceSelector:
+                    matchLabels:
+                      kubernetes.io/metadata.name: kube-system
+                  podSelector:
+                    matchLabels:
+                      k8s-app: kube-dns
+                ports:
+                - protocol: UDP
+                  port: 53
+                - protocol: TCP
+                  port: 53
+            ---
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: db-ingress
+              namespace: ledger
+            spec:
+              podSelector:
+                matchLabels:
+                  app: db
+              policyTypes:
+              - Ingress
+              ingress:
+              - from:
+                - podSelector:
+                    matchLabels:
+                      app: api
+                ports:
+                - protocol: TCP
+                  port: 5432
+          why: 443 is the Service port; the traffic reaches the api Pods on the target port 8443, which stays blocked.
+        - manifest: |
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: default-deny-all
+              namespace: ledger
+            spec:
+              podSelector: {}
+              policyTypes:
+              - Ingress
+              - Egress
+            ---
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: api-ingress
+              namespace: ledger
+            spec:
+              podSelector:
+                matchLabels:
+                  app: api
+              policyTypes:
+              - Ingress
+              ingress:
+              - from:
+                - namespaceSelector:
+                    matchLabels:
+                      kubernetes.io/metadata.name: edge
+                  podSelector:
+                    matchLabels:
+                      app: gateway
+                ports:
+                - protocol: TCP
+                  port: 8443
+            ---
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: api-egress
+              namespace: ledger
+            spec:
+              podSelector:
+                matchLabels:
+                  app: api
+              policyTypes:
+              - Egress
+              egress:
+              - to:
+                - podSelector:
+                    matchLabels:
+                      app: db
+                ports:
+                - protocol: TCP
+                  port: 5432
+              - to:
+                - podSelector:
+                    matchLabels:
+                      k8s-app: kube-dns
+                ports:
+                - protocol: UDP
+                  port: 53
+                - protocol: TCP
+                  port: 53
+            ---
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: db-ingress
+              namespace: ledger
+            spec:
+              podSelector:
+                matchLabels:
+                  app: db
+              policyTypes:
+              - Ingress
+              ingress:
+              - from:
+                - podSelector:
+                    matchLabels:
+                      app: api
+                ports:
+                - protocol: TCP
+                  port: 5432
+          why: A podSelector alone looks for kube-dns Pods in ledger, where there are none; name resolution fails.
+    explanation:
+      correct:
+        en: |
+          Under `default-deny-all`, every connection needs an allow on both sides: `api-ingress` for gateway → api, and for api → db both the egress of the api Pods (`api-egress`) and the ingress of the db Pods (`db-ingress`). The gateways need no egress rule because no policy selects the Pods of `edge`. Selectors that combine a namespace and Pods sit in one peer entry (AND), Pods of `edge` are selected through `kubernetes.io/metadata.name`, the api port is the target port 8443, and DNS must be opened explicitly once the api Pods are isolated for egress.
+    references:
+      - title: Network Policies
+        url: https://kubernetes.io/docs/concepts/services-networking/network-policies/
+      - title: NetworkPolicy
+        url: https://kubernetes.io/docs/reference/kubernetes-api/networking/network-policy-v1/

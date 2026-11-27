@@ -1,0 +1,222 @@
+id: ckad-1d-static-pv-prebind
+objective: "1.4.3"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    The cluster has a default StorageClass named `standard`, which provisions volumes dynamically. Existing archive data lives in `/srv/archive` on the node. Write two documents:
+
+    1. a PersistentVolume named `pv-archive`: `5Gi`, ReadWriteOnce, hostPath `/srv/archive`, **no** StorageClass, reserved for the claim `archive` in namespace `records` (no other claim may take it);
+    2. a PersistentVolumeClaim named `archive` in namespace `records`: ReadWriteOnce, requesting `5Gi`, that binds to `pv-archive` and must not be dynamically provisioned by `standard`.
+body: {}
+answer:
+  checks:
+  - id: pv-path
+    label: pv-archive uses hostPath /srv/archive
+    select: {kind: PersistentVolume, name: pv-archive}
+    path: spec.hostPath.path
+    op: equals
+    value: /srv/archive
+  - id: pv-size
+    label: pv-archive offers 5Gi ReadWriteOnce
+    select: {kind: PersistentVolume, name: pv-archive}
+    path: spec
+    op: subset
+    value: {capacity: {storage: 5Gi}, accessModes: [ReadWriteOnce]}
+  - id: pv-no-class
+    label: pv-archive has no StorageClass
+    select: {kind: PersistentVolume, name: pv-archive}
+    path: spec
+    op: matches
+    value: '^(?!.*"storageClassName":"[^"]).*$'
+  - id: pv-reserved
+    label: pv-archive is reserved for records/archive (claimRef)
+    select: {kind: PersistentVolume, name: pv-archive}
+    path: spec.claimRef
+    op: subset
+    value: {name: archive, namespace: records}
+  - id: pvc-ns
+    label: The claim archive is in namespace records
+    select: {kind: PersistentVolumeClaim, name: archive}
+    path: metadata.namespace
+    op: equals
+    value: records
+  - id: pvc-class
+    label: The claim sets storageClassName to the empty string
+    select: {kind: PersistentVolumeClaim, name: archive}
+    path: spec.storageClassName
+    op: equals
+    value: ""
+  - id: pvc-volume
+    label: The claim names pv-archive in volumeName
+    select: {kind: PersistentVolumeClaim, name: archive}
+    path: spec.volumeName
+    op: equals
+    value: pv-archive
+  - id: pvc-size
+    label: The claim requests 5Gi
+    select: {kind: PersistentVolumeClaim, name: archive}
+    path: spec.resources.requests.storage
+    op: quantity
+    value: 5Gi
+  - id: pvc-mode
+    label: The claim asks for ReadWriteOnce
+    select: {kind: PersistentVolumeClaim, name: archive}
+    path: spec.accessModes
+    op: contains
+    value: ReadWriteOnce
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: PersistentVolume
+      metadata:
+        name: pv-archive
+      spec:
+        storageClassName: ""
+        claimRef:
+          name: archive
+          namespace: records
+        capacity:
+          storage: 5Gi
+        accessModes:
+        - ReadWriteOnce
+        hostPath:
+          path: /srv/archive
+      ---
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: archive
+        namespace: records
+      spec:
+        storageClassName: ""
+        volumeName: pv-archive
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 5Gi
+  - manifest: |
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: archive
+        namespace: records
+      spec:
+        storageClassName: ''
+        volumeName: pv-archive
+        accessModes: [ReadWriteOnce]
+        resources:
+          requests:
+            storage: 5Gi
+      ---
+      apiVersion: v1
+      kind: PersistentVolume
+      metadata:
+        name: pv-archive
+      spec:
+        capacity:
+          storage: 5Gi
+        accessModes: [ReadWriteOnce]
+        hostPath:
+          path: /srv/archive
+        claimRef:
+          namespace: records
+          name: archive
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: PersistentVolume
+      metadata:
+        name: pv-archive
+      spec:
+        storageClassName: ""
+        claimRef:
+          name: archive
+          namespace: records
+        capacity:
+          storage: 5Gi
+        accessModes:
+        - ReadWriteOnce
+        hostPath:
+          path: /srv/archive
+      ---
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: archive
+        namespace: records
+      spec:
+        volumeName: pv-archive
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 5Gi
+    why: Without storageClassName the admission plugin sets the default class standard on the claim, which then cannot bind to a class-less volume.
+  - manifest: |
+      apiVersion: v1
+      kind: PersistentVolume
+      metadata:
+        name: pv-archive
+      spec:
+        storageClassName: standard
+        claimRef:
+          name: archive
+          namespace: records
+        capacity:
+          storage: 5Gi
+        accessModes:
+        - ReadWriteOnce
+        hostPath:
+          path: /srv/archive
+      ---
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: archive
+        namespace: records
+      spec:
+        storageClassName: ""
+        volumeName: pv-archive
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 5Gi
+    why: The volume declares class standard while the claim asks for no class; the classes must match, so they never bind.
+  - manifest: |
+      apiVersion: v1
+      kind: PersistentVolume
+      metadata:
+        name: pv-archive
+      spec:
+        storageClassName: ""
+        capacity:
+          storage: 5Gi
+        accessModes:
+        - ReadWriteOnce
+        hostPath:
+          path: /srv/archive
+      ---
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: archive
+        namespace: records
+      spec:
+        storageClassName: ""
+        volumeName: pv-archive
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 5Gi
+    why: Without claimRef the volume is not reserved; another class-less claim could bind to it first.
+explanation:
+  correct:
+    en: '`volumeName` on the claim pre-binds it to `pv-archive`, and `claimRef` on the volume reserves it for `records/archive`. The claim must set `storageClassName: ""` explicitly: an empty string means "no class", while an omitted field lets the DefaultStorageClass admission plugin set `standard`. The volume must have no class too (empty or omitted).'
+references:
+- title: Persistent Volumes
+  url: https://kubernetes.io/docs/concepts/storage/persistent-volumes/

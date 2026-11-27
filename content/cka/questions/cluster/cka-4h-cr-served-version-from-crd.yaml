@@ -1,0 +1,182 @@
+id: cka-4h-cr-served-version-from-crd
+objective: "4.8.2"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    The file `tenantquotas-crd.yaml` is a trimmed copy of `kubectl get crd tenantquotas.tenancy.example.com -o yaml`. Read it, then write a custom object that the API server accepts:
+
+    - name `team-orange`, for the tenant `orange`;
+    - it covers the namespaces `orange-dev` and `orange-prod`;
+    - it limits the tenant to 20 CPUs and 64Gi of memory.
+
+    Write the manifest of the custom resource.
+body:
+  starter: ""
+  files:
+  - name: tenantquotas-crd.yaml
+    content: |
+      apiVersion: apiextensions.k8s.io/v1
+      kind: CustomResourceDefinition
+      metadata:
+        name: tenantquotas.tenancy.example.com
+      spec:
+        group: tenancy.example.com
+        scope: Cluster
+        names:
+          plural: tenantquotas
+          singular: tenantquota
+          kind: TenantQuota
+          shortNames: [tq]
+        versions:
+        - name: v1alpha1
+          served: false
+          storage: false
+          schema:
+            openAPIV3Schema:
+              type: object
+              x-kubernetes-preserve-unknown-fields: true
+        - name: v1beta1
+          served: true
+          storage: true
+          schema:
+            openAPIV3Schema:
+              type: object
+              properties:
+                spec:
+                  type: object
+                  required: [tenant, namespaces, hard]
+                  properties:
+                    tenant:
+                      type: string
+                    namespaces:
+                      type: array
+                      maxItems: 5
+                      items:
+                        type: string
+                    hard:
+                      type: object
+                      required: [cpu, memory]
+                      properties:
+                        cpu:
+                          type: string
+                        memory:
+                          type: string
+answer:
+  checks:
+  - id: api
+    label: apiVersion is tenancy.example.com/v1beta1, the served version
+    path: apiVersion
+    op: equals
+    value: tenancy.example.com/v1beta1
+  - id: kind
+    label: kind is TenantQuota
+    path: kind
+    op: equals
+    value: TenantQuota
+  - id: name
+    label: Named team-orange
+    path: metadata.name
+    op: equals
+    value: team-orange
+  - id: tenant
+    label: spec.tenant is orange
+    path: spec.tenant
+    op: equals
+    value: orange
+  - id: namespaces
+    label: spec.namespaces lists orange-dev and orange-prod
+    path: spec.namespaces
+    op: subset
+    value: [orange-dev, orange-prod]
+  - id: cpu
+    label: spec.hard.cpu is 20
+    path: spec.hard.cpu
+    op: quantity
+    value: "20"
+  - id: memory
+    label: spec.hard.memory is 64Gi
+    path: spec.hard.memory
+    op: quantity
+    value: 64Gi
+  - id: cpu-string
+    label: spec.hard.cpu is a string, as the schema requires
+    path: spec.hard
+    op: matches
+    value: '"cpu":"'
+  solution:
+  - manifest: |
+      apiVersion: tenancy.example.com/v1beta1
+      kind: TenantQuota
+      metadata:
+        name: team-orange
+      spec:
+        tenant: orange
+        namespaces:
+        - orange-dev
+        - orange-prod
+        hard:
+          cpu: "20"
+          memory: 64Gi
+  - manifest: |
+      apiVersion: tenancy.example.com/v1beta1
+      kind: TenantQuota
+      metadata:
+        name: team-orange
+      spec:
+        hard:
+          memory: "64Gi"
+          cpu: '20'
+        namespaces: ["orange-prod", "orange-dev"]
+        tenant: orange
+  negatives:
+  - manifest: |
+      apiVersion: tenancy.example.com/v1alpha1
+      kind: TenantQuota
+      metadata:
+        name: team-orange
+      spec:
+        tenant: orange
+        namespaces:
+        - orange-dev
+        - orange-prod
+        hard:
+          cpu: "20"
+          memory: 64Gi
+    why: v1alpha1 has served false, so the API server does not expose it and the request fails; only v1beta1 is served.
+  - manifest: |
+      apiVersion: tenancy.example.com/v1beta1
+      kind: TenantQuota
+      metadata:
+        name: team-orange
+      spec:
+        tenant: orange
+        namespaces:
+        - orange-dev
+        - orange-prod
+        hard:
+          cpu: 20
+          memory: 64Gi
+    why: Unquoted 20 is an integer, but the schema declares hard.cpu as a string, so validation rejects the object.
+  - manifest: |
+      apiVersion: tenancy.example.com/v1beta1
+      kind: TenantQuota
+      metadata:
+        name: team-orange
+      spec:
+        tenant: orange
+        namespaces:
+        - orange-dev
+        - orange-prod
+        cpu: "20"
+        memory: 64Gi
+    why: cpu and memory belong under spec.hard, which is required; at spec level they are pruned and the object is rejected.
+explanation:
+  correct:
+    en: 'Read the CRD: `spec.scope: Cluster` means no namespace, `names.kind` gives `TenantQuota`, and the only version with `served: true` is `v1beta1`, so `apiVersion: tenancy.example.com/v1beta1`. The v1beta1 schema requires `tenant`, `namespaces` and `hard`, and `hard.cpu` and `hard.memory` are strings, so the CPU count must be quoted (`"20"`). `kubectl explain tenantquotas.spec --recursive` shows the same schema on a live cluster.'
+references:
+- title: Versions in CustomResourceDefinitions
+  url: https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definition-versioning/
+- title: Extend the Kubernetes API with CustomResourceDefinitions
+  url: https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/

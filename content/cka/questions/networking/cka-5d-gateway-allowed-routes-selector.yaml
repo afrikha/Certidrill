@@ -1,0 +1,251 @@
+id: cka-5d-gateway-allowed-routes-selector
+objective: "5.4.1"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    The Gateway `shared` in namespace `infra` (manifest in the editor) is used by several teams. Today the HTTPRoutes that the teams create in their own namespaces stay unattached.
+
+    Change the manifest so that:
+
+    - listener `web` accepts routes from every namespace that carries the label `gateway-access=true`, and only routes of kind `HTTPRoute`;
+    - listener `ops` keeps its current behaviour (routes of namespace `infra` only);
+    - the class and the listeners' ports and hostnames do not change.
+body:
+  starter: |
+    apiVersion: gateway.networking.k8s.io/v1
+    kind: Gateway
+    metadata:
+      name: shared
+      namespace: infra
+    spec:
+      gatewayClassName: edge
+      listeners:
+      - name: web
+        protocol: HTTP
+        port: 80
+        hostname: "*.apps.example.com"
+      - name: ops
+        protocol: HTTP
+        port: 8080
+        hostname: ops.example.com
+answer:
+  checks:
+  - id: gateway
+    label: Still Gateway shared in namespace infra with class edge
+    path: metadata
+    op: subset
+    value: {name: shared, namespace: infra}
+  - id: class
+    label: The GatewayClass is still edge
+    path: spec.gatewayClassName
+    op: equals
+    value: edge
+  - id: web-listener
+    label: Listener web is unchanged (HTTP, port 80, *.apps.example.com)
+    path: spec.listeners[name=web]
+    op: subset
+    value: {protocol: HTTP, port: 80, hostname: "*.apps.example.com"}
+  - id: from-selector
+    label: Listener web takes namespaces from a selector
+    path: spec.listeners[name=web].allowedRoutes.namespaces.from
+    op: equals
+    value: Selector
+  - id: selector
+    label: The selector requires the namespace label gateway-access=true
+    path: spec.listeners[name=web].allowedRoutes.namespaces.selector
+    op: matches
+    value: '"gateway-access"(:"true"|,"operator":"In","values":\["true"\])'
+  - id: kinds
+    label: Listener web allows only the kind HTTPRoute
+    path: spec.listeners[name=web].allowedRoutes.kinds
+    op: length
+    value: 1
+  - id: kind-httproute
+    label: The allowed kind is HTTPRoute
+    path: spec.listeners[name=web].allowedRoutes.kinds
+    op: contains
+    value: {kind: HTTPRoute}
+  - id: ops-listener
+    label: Listener ops is unchanged (HTTP, port 8080, ops.example.com)
+    path: spec.listeners[name=ops]
+    op: subset
+    value: {protocol: HTTP, port: 8080, hostname: ops.example.com}
+  - id: ops-not-opened
+    label: Listener ops does not take routes from a selector or from all namespaces
+    path: spec.listeners[name=ops]
+    op: matches
+    value: '^(?!.*"from":"(All|Selector)").*$'
+  solution:
+  - manifest: |
+      apiVersion: gateway.networking.k8s.io/v1
+      kind: Gateway
+      metadata:
+        name: shared
+        namespace: infra
+      spec:
+        gatewayClassName: edge
+        listeners:
+        - name: web
+          protocol: HTTP
+          port: 80
+          hostname: "*.apps.example.com"
+          allowedRoutes:
+            namespaces:
+              from: Selector
+              selector:
+                matchLabels:
+                  gateway-access: "true"
+            kinds:
+            - kind: HTTPRoute
+        - name: ops
+          protocol: HTTP
+          port: 8080
+          hostname: ops.example.com
+  - manifest: |
+      apiVersion: gateway.networking.k8s.io/v1
+      kind: Gateway
+      metadata:
+        name: shared
+        namespace: infra
+      spec:
+        gatewayClassName: edge
+        listeners:
+        - name: web
+          protocol: HTTP
+          port: 80
+          hostname: "*.apps.example.com"
+          allowedRoutes:
+            kinds:
+            - group: gateway.networking.k8s.io
+              kind: HTTPRoute
+            namespaces:
+              from: Selector
+              selector:
+                matchExpressions:
+                - key: gateway-access
+                  operator: In
+                  values: ["true"]
+        - name: ops
+          protocol: HTTP
+          port: 8080
+          hostname: ops.example.com
+          allowedRoutes:
+            namespaces:
+              from: Same
+  negatives:
+  - manifest: |
+      apiVersion: gateway.networking.k8s.io/v1
+      kind: Gateway
+      metadata:
+        name: shared
+        namespace: infra
+      spec:
+        gatewayClassName: edge
+        listeners:
+        - name: web
+          protocol: HTTP
+          port: 80
+          hostname: "*.apps.example.com"
+          allowedRoutes:
+            namespaces:
+              selector:
+                matchLabels:
+                  gateway-access: "true"
+            kinds:
+            - kind: HTTPRoute
+        - name: ops
+          protocol: HTTP
+          port: 8080
+          hostname: ops.example.com
+    why: Without from Selector, from keeps its default Same and the selector is ignored, so team routes still cannot attach.
+  - manifest: |
+      apiVersion: gateway.networking.k8s.io/v1
+      kind: Gateway
+      metadata:
+        name: shared
+        namespace: infra
+      spec:
+        gatewayClassName: edge
+        listeners:
+        - name: web
+          protocol: HTTP
+          port: 80
+          hostname: "*.apps.example.com"
+          allowedRoutes:
+            namespaces:
+              from: All
+            kinds:
+            - kind: HTTPRoute
+        - name: ops
+          protocol: HTTP
+          port: 8080
+          hostname: ops.example.com
+    why: from All also accepts routes from namespaces without the gateway-access label.
+  - manifest: |
+      apiVersion: gateway.networking.k8s.io/v1
+      kind: Gateway
+      metadata:
+        name: shared
+        namespace: infra
+      spec:
+        gatewayClassName: edge
+        listeners:
+        - name: web
+          protocol: HTTP
+          port: 80
+          hostname: "*.apps.example.com"
+          allowedRoutes:
+            namespaces:
+              from: Selector
+              selector:
+                matchLabels:
+                  kubernetes.io/metadata.name: gateway-access
+            kinds:
+            - kind: HTTPRoute
+        - name: ops
+          protocol: HTTP
+          port: 8080
+          hostname: ops.example.com
+    why: This selects only a namespace named gateway-access; the task asks for every namespace labelled gateway-access=true.
+  - manifest: |
+      apiVersion: gateway.networking.k8s.io/v1
+      kind: Gateway
+      metadata:
+        name: shared
+        namespace: infra
+      spec:
+        gatewayClassName: edge
+        listeners:
+        - name: web
+          protocol: HTTP
+          port: 80
+          hostname: "*.apps.example.com"
+          allowedRoutes:
+            namespaces:
+              from: Selector
+              selector:
+                matchLabels:
+                  gateway-access: "true"
+            kinds:
+            - kind: HTTPRoute
+        - name: ops
+          protocol: HTTP
+          port: 8080
+          hostname: ops.example.com
+          allowedRoutes:
+            namespaces:
+              from: Selector
+              selector:
+                matchLabels:
+                  gateway-access: "true"
+    why: The ops listener must keep accepting routes of namespace infra only; it is now opened to the team namespaces too.
+explanation:
+  correct:
+    en: 'Attachment is controlled per listener by `allowedRoutes`. `namespaces.from` defaults to `Same`; to accept routes from labelled namespaces set `from: Selector` and a label `selector` (ignored with any other `from` value). `kinds` restricts the route kinds (here `HTTPRoute`, group `gateway.networking.k8s.io` by default); when it is empty, the kinds are derived from the listener protocol. The routes must also name this Gateway and its namespace in `parentRefs`, and their namespaces need the label `gateway-access=true`.'
+references:
+- title: Cross-Namespace routing
+  url: https://gateway-api.sigs.k8s.io/guides/multiple-ns/
+- title: Gateway API
+  url: https://kubernetes.io/docs/concepts/services-networking/gateway/

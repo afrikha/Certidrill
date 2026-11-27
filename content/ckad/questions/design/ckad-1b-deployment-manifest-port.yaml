@@ -1,0 +1,177 @@
+id: ckad-1b-deployment-manifest-port
+objective: "1.2.1"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    Write the manifest of a Deployment named `inventory` in namespace `warehouse`:
+
+    - 3 replicas;
+    - Pods labelled `app: inventory`, and the Deployment selects its Pods by that label;
+    - one container named `api` running `registry.example.com/warehouse/inventory:2.0` that declares container port 8080.
+
+    Tip: `kubectl create deployment ... --dry-run=client -o yaml` prints a starting point.
+body:
+  starter: ""
+answer:
+  checks:
+  - id: api
+    label: An apps/v1 Deployment
+    path: apiVersion
+    op: equals
+    value: apps/v1
+  - id: kind
+    label: The object is a Deployment
+    path: kind
+    op: equals
+    value: Deployment
+  - id: deployment
+    label: Named inventory in namespace warehouse
+    path: metadata
+    op: subset
+    value: {name: inventory, namespace: warehouse}
+  - id: replicas
+    label: It runs 3 replicas
+    path: spec.replicas
+    op: equals
+    value: 3
+  - id: selector
+    label: The selector matches app=inventory
+    path: spec.selector.matchLabels
+    op: equals
+    value: {app: inventory}
+  - id: labels
+    label: The Pod template has the label app=inventory
+    path: spec.template.metadata.labels.app
+    op: equals
+    value: inventory
+  - id: image
+    label: Container api runs registry.example.com/warehouse/inventory:2.0
+    path: spec.template.spec.containers[name=api].image
+    op: equals
+    value: registry.example.com/warehouse/inventory:2.0
+  - id: port
+    label: Container api declares port 8080
+    path: spec.template.spec.containers[name=api].ports
+    op: contains
+    value: {containerPort: 8080}
+  solution:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: inventory
+        namespace: warehouse
+        labels:
+          app: inventory
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: inventory
+        template:
+          metadata:
+            labels:
+              app: inventory
+          spec:
+            containers:
+            - name: api
+              image: registry.example.com/warehouse/inventory:2.0
+              ports:
+              - containerPort: 8080
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: inventory
+        namespace: warehouse
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: inventory
+        template:
+          metadata:
+            labels:
+              app: inventory
+          spec:
+            containers:
+            - image: registry.example.com/warehouse/inventory:2.0
+              name: api
+              ports:
+              - containerPort: 8080
+                protocol: TCP
+                name: http
+  negatives:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: inventory
+        namespace: warehouse
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: inventory-api
+        template:
+          metadata:
+            labels:
+              app: inventory
+          spec:
+            containers:
+            - name: api
+              image: registry.example.com/warehouse/inventory:2.0
+              ports:
+              - containerPort: 8080
+    why: The selector does not match the template labels, so the API server rejects the Deployment.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: inventory
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: inventory
+        template:
+          metadata:
+            labels:
+              app: inventory
+          spec:
+            containers:
+            - name: api
+              image: registry.example.com/warehouse/inventory:2.0
+              ports:
+              - containerPort: 8080
+    why: Without metadata.namespace, kubectl apply puts the Deployment in the context namespace, not in warehouse.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: inventory
+        namespace: warehouse
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: inventory
+        template:
+          metadata:
+            labels:
+              app: inventory
+          spec:
+            containers:
+            - name: api
+              image: registry.example.com/warehouse/inventory:2.0
+              ports:
+              - port: 8080
+    why: A container port is declared with containerPort; port is a Service field.
+explanation:
+  correct:
+    en: 'A Deployment needs `spec.selector.matchLabels` that match `spec.template.metadata.labels`, otherwise it is rejected. `replicas` sits in the Deployment spec, the container in `spec.template.spec.containers`, and the port as `ports: - containerPort: 8080`. `kubectl create deployment inventory --image=... --replicas=3 --port=8080 -n warehouse --dry-run=client -o yaml` produces most of this file; only the container name needs editing.'
+references:
+- title: Deployments
+  url: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/

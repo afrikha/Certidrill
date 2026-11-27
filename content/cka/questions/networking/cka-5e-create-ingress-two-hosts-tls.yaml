@@ -1,0 +1,264 @@
+id: cka-5e-create-ingress-two-hosts-tls
+objective: "5.5.1"
+difficulty: 3
+status: draft
+type: command
+stem:
+  en: |-
+    In namespace `web`, the TLS Secret `example-wildcard` holds a certificate for `*.example.com`. Service `storefront` exposes port 80; Service `api` exposes port 80, named `http`, which targets the container port 8080.
+
+    Create an Ingress named `portal`, handled by the IngressClass `edge`, that:
+
+    - sends every request for `shop.example.com`, whatever its path, to Service `storefront` on port 80;
+    - sends requests for `api.example.com` whose path is `/v2` or below `/v2/` to Service `api` on its port `http`;
+    - terminates HTTPS for both hosts with the Secret `example-wildcard`.
+
+    Type the single command you would run.
+body:
+  mode: object
+  namespace: default
+answer:
+  checks:
+  - id: kind
+    label: The object is an Ingress
+    path: kind
+    op: equals
+    value: Ingress
+  - id: name
+    label: It is named portal in namespace web
+    path: metadata
+    op: subset
+    value: {name: portal, namespace: web}
+  - id: class
+    label: It uses the IngressClass edge
+    path: spec.ingressClassName
+    op: equals
+    value: edge
+  - id: shop-path
+    label: shop.example.com matches every path (Prefix /)
+    path: spec.rules[host=shop.example.com].http.paths[0]
+    op: subset
+    value: {path: /, pathType: Prefix}
+  - id: shop-backend
+    label: shop.example.com goes to storefront port 80
+    path: spec.rules[host=shop.example.com].http.paths[0].backend.service
+    op: subset
+    value: {name: storefront, port: {number: 80}}
+  - id: api-path
+    label: api.example.com matches the prefix /v2
+    path: spec.rules[host=api.example.com].http.paths[0]
+    op: subset
+    value: {path: /v2, pathType: Prefix}
+  - id: api-backend
+    label: api.example.com goes to Service api
+    path: spec.rules[host=api.example.com].http.paths[0].backend.service.name
+    op: equals
+    value: api
+  - id: api-port
+    label: The api backend uses the Service port http (80)
+    path: spec.rules[host=api.example.com].http.paths[0].backend.service.port
+    op: oneOf
+    value: [{name: http}, {number: 80}]
+  - id: tls-shop
+    label: TLS covers shop.example.com with example-wildcard
+    path: spec.tls
+    op: contains
+    value: {hosts: [shop.example.com], secretName: example-wildcard}
+  - id: tls-api
+    label: TLS covers api.example.com with example-wildcard
+    path: spec.tls
+    op: contains
+    value: {hosts: [api.example.com], secretName: example-wildcard}
+  solution:
+  - command: kubectl create ingress portal -n web --class=edge --rule="shop.example.com/*=storefront:80,tls=example-wildcard" --rule="api.example.com/v2*=api:http,tls=example-wildcard"
+    output: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: portal
+        namespace: web
+      spec:
+        ingressClassName: edge
+        rules:
+        - host: shop.example.com
+          http:
+            paths:
+            - backend:
+                service:
+                  name: storefront
+                  port:
+                    number: 80
+              path: /
+              pathType: Prefix
+        - host: api.example.com
+          http:
+            paths:
+            - backend:
+                service:
+                  name: api
+                  port:
+                    name: http
+              path: /v2
+              pathType: Prefix
+        tls:
+        - hosts:
+          - shop.example.com
+          - api.example.com
+          secretName: example-wildcard
+      status:
+        loadBalancer: {}
+  - command: k create ingress portal --class edge --rule 'api.example.com/v2*=api:80,tls=example-wildcard' --rule 'shop.example.com/*=storefront:80,tls=example-wildcard' --namespace web --dry-run=client -o yaml
+    output: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: portal
+        namespace: web
+      spec:
+        ingressClassName: edge
+        rules:
+        - host: api.example.com
+          http:
+            paths:
+            - backend:
+                service:
+                  name: api
+                  port:
+                    number: 80
+              path: /v2
+              pathType: Prefix
+        - host: shop.example.com
+          http:
+            paths:
+            - backend:
+                service:
+                  name: storefront
+                  port:
+                    number: 80
+              path: /
+              pathType: Prefix
+        tls:
+        - hosts:
+          - api.example.com
+          - shop.example.com
+          secretName: example-wildcard
+      status:
+        loadBalancer: {}
+  negatives:
+  - command: kubectl create ingress portal -n web --class=edge --rule="shop.example.com/*=storefront:80,tls=example-wildcard" --rule="api.example.com/v2=api:http"
+    why: Without * the api path is Exact, so /v2/orders does not match, and without tls= on that rule api.example.com is left out of spec.tls.
+    output: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: portal
+        namespace: web
+      spec:
+        ingressClassName: edge
+        rules:
+        - host: shop.example.com
+          http:
+            paths:
+            - backend:
+                service:
+                  name: storefront
+                  port:
+                    number: 80
+              path: /
+              pathType: Prefix
+        - host: api.example.com
+          http:
+            paths:
+            - backend:
+                service:
+                  name: api
+                  port:
+                    name: http
+              path: /v2
+              pathType: Exact
+        tls:
+        - hosts:
+          - shop.example.com
+          secretName: example-wildcard
+      status:
+        loadBalancer: {}
+  - command: kubectl create ingress portal -n web --class=edge --rule="shop.example.com/*=storefront:80,tls=example-wildcard" --rule="api.example.com/v2*=api:8080,tls=example-wildcard"
+    why: 8080 is the container port; an Ingress backend names a port of the Service (80, named http).
+    output: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: portal
+        namespace: web
+      spec:
+        ingressClassName: edge
+        rules:
+        - host: shop.example.com
+          http:
+            paths:
+            - backend:
+                service:
+                  name: storefront
+                  port:
+                    number: 80
+              path: /
+              pathType: Prefix
+        - host: api.example.com
+          http:
+            paths:
+            - backend:
+                service:
+                  name: api
+                  port:
+                    number: 8080
+              path: /v2
+              pathType: Prefix
+        tls:
+        - hosts:
+          - shop.example.com
+          - api.example.com
+          secretName: example-wildcard
+      status:
+        loadBalancer: {}
+  - command: kubectl create ingress portal -n web --class=edge --rule="*.example.com/*=storefront:80,tls=example-wildcard" --rule="*.example.com/v2*=api:http,tls=example-wildcard"
+    why: A wildcard host merges both paths into one *.example.com rule, so every subdomain is served, and the TLS entry covers *.example.com instead of the two names.
+    output: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: portal
+        namespace: web
+      spec:
+        ingressClassName: edge
+        rules:
+        - host: '*.example.com'
+          http:
+            paths:
+            - backend:
+                service:
+                  name: storefront
+                  port:
+                    number: 80
+              path: /
+              pathType: Prefix
+            - backend:
+                service:
+                  name: api
+                  port:
+                    name: http
+              path: /v2
+              pathType: Prefix
+        tls:
+        - hosts:
+          - '*.example.com'
+          secretName: example-wildcard
+      status:
+        loadBalancer: {}
+explanation:
+  correct:
+    en: 'Repeat `--rule` once per host: a path ending in `*` becomes `pathType: Prefix` (`/v2*` gives `/v2`, which matches `/v2` and `/v2/...` element by element), a numeric port becomes `port.number` and a name `port.name`. Each rule carrying `tls=example-wildcard` adds its host to `spec.tls`, and kubectl groups the hosts that share a Secret in one entry. The hosts in `spec.tls` must match the rule hosts; TLS is terminated at the Ingress on port 443.'
+references:
+- title: kubectl create ingress
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_create/kubectl_create_ingress/
+- title: Ingress
+  url: https://kubernetes.io/docs/concepts/services-networking/ingress/

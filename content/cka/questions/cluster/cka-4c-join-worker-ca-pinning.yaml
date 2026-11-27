@@ -1,0 +1,65 @@
+id: cka-4c-join-worker-ca-pinning
+objective: "4.3.2"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    Node `node04` is prepared (containerd running, kubeadm and kubelet 1.37.1 installed). Join it to the cluster as a worker node:
+
+    - API server endpoint: `192.168.10.11:6443`;
+    - bootstrap token: `7f3k9q.m2x8c4v6b1n5z0wa`;
+    - the node must verify the cluster CA with the hash `sha256:5c2e1f0a9b8d7c6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a1b0c9d8e7f6a5b4c3d2e`.
+
+    Type the single command you would run on `node04`.
+body:
+  mode: invocation
+  tools: [kubeadm, kubectl, systemctl]
+  namespace: default
+answer:
+  checks:
+  - id: tool
+    label: Uses kubeadm
+    path: tool
+    op: equals
+    value: kubeadm
+  - id: verb
+    label: Runs kubeadm join
+    path: verb
+    op: equals
+    value: join
+  - id: endpoint
+    label: Joins through 192.168.10.11:6443
+    path: args
+    op: contains
+    value: 192.168.10.11:6443
+  - id: token
+    label: Uses the bootstrap token 7f3k9q.m2x8c4v6b1n5z0wa
+    path: flags.token
+    op: equals
+    value: 7f3k9q.m2x8c4v6b1n5z0wa
+  - id: ca-hash
+    label: Pins the CA with --discovery-token-ca-cert-hash sha256:5c2e…3d2e
+    path: flags.discovery-token-ca-cert-hash
+    op: equals
+    value: sha256:5c2e1f0a9b8d7c6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a1b0c9d8e7f6a5b4c3d2e
+  - id: worker
+    label: Joins as a worker (no --control-plane)
+    path: flags.control-plane
+    op: absent
+  solution:
+  - command: kubeadm join 192.168.10.11:6443 --token 7f3k9q.m2x8c4v6b1n5z0wa --discovery-token-ca-cert-hash sha256:5c2e1f0a9b8d7c6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a1b0c9d8e7f6a5b4c3d2e
+  - command: sudo kubeadm join --token=7f3k9q.m2x8c4v6b1n5z0wa --discovery-token-ca-cert-hash=sha256:5c2e1f0a9b8d7c6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a1b0c9d8e7f6a5b4c3d2e 192.168.10.11:6443
+  negatives:
+  - command: kubeadm join 192.168.10.11:6443 --token 7f3k9q.m2x8c4v6b1n5z0wa --discovery-token-unsafe-skip-ca-verification
+    why: This skips the CA verification the task requires; another host could impersonate the control plane.
+  - command: kubeadm join 192.168.10.11:6443 --token 7f3k9q.m2x8c4v6b1n5z0wa --discovery-token-ca-cert-hash 5c2e1f0a9b8d7c6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a1b0c9d8e7f6a5b4c3d2e
+    why: The hash must have the form <type>:<value>, here sha256:<hex>.
+  - command: kubeadm join 192.168.10.11:6443 --token 7f3k9q.m2x8c4v6b1n5z0wa --discovery-token-ca-cert-hash sha256:5c2e1f0a9b8d7c6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a1b0c9d8e7f6a5b4c3d2e --control-plane
+    why: --control-plane would try to create a new control plane instance on node04 instead of joining a worker.
+explanation:
+  correct:
+    en: '`kubeadm join <endpoint> --token <token> --discovery-token-ca-cert-hash sha256:<hash>` joins a worker: `--token` is used both for discovery and for the TLS bootstrap, and the hash pins the public key of the cluster CA (computed from `/etc/kubernetes/pki/ca.crt` on a control plane node, or printed by `kubeadm token create --print-join-command`). `--discovery-token-unsafe-skip-ca-verification` removes that protection.'
+references:
+- title: kubeadm join
+  url: https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-join/

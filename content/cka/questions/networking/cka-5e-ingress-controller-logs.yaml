@@ -1,0 +1,61 @@
+id: cka-5e-ingress-controller-logs
+objective: "5.5.2"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    The Ingress `orders` in namespace `shop` sets `ingressClassName: edge`. `kubectl get ingressclass edge` shows the controller `example.com/edge-ingress`, which runs as the Deployment `edge-ingress-controller` in namespace `edge-system`. The Ingress still has no ADDRESS after several minutes.
+
+    Display the last 100 lines of the controller's logs to find out why it did not take the Ingress. Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Uses kubectl logs
+    path: verb
+    op: equals
+    value: logs
+  - id: resource
+    label: Reads the logs through the Deployment
+    path: resource
+    op: equals
+    value: deployment
+  - id: name
+    label: Targets the Deployment edge-ingress-controller
+    path: names
+    op: contains
+    value: edge-ingress-controller
+  - id: namespace
+    label: Looks in the controller namespace edge-system
+    path: flags.namespace
+    op: equals
+    value: edge-system
+  - id: tail
+    label: Prints only the last 100 lines
+    path: flags.tail
+    op: equals
+    value: "100"
+  solution:
+  - command: kubectl logs deploy/edge-ingress-controller -n edge-system --tail=100
+  - command: k -n edge-system logs deployment/edge-ingress-controller --tail 100
+  - command: kubectl logs deployments/edge-ingress-controller --namespace=edge-system --tail=100 --timestamps
+  negatives:
+  - command: kubectl logs deploy/edge-ingress-controller -n shop --tail=100
+    why: The controller runs in edge-system, not in the namespace of the Ingress.
+  - command: kubectl logs deploy/edge-ingress-controller --tail=100
+    why: Without -n the command looks for the Deployment in the context namespace, default.
+  - command: kubectl describe ingress orders -n shop
+    why: describe shows the rules and events of the Ingress, but the reason a controller ignores an Ingress is in the controller's own logs.
+  - command: kubectl logs deploy/edge-ingress-controller -n edge-system --since=100s
+    why: --since=100s returns the lines of the last 100 seconds, not the last 100 lines.
+explanation:
+  correct:
+    en: 'An Ingress is only data: the controller that serves its class watches it, programs the proxy and writes `status.loadBalancer`, which `kubectl get ingress` shows as ADDRESS. `kubectl logs deploy/edge-ingress-controller -n edge-system --tail=100` reads one Pod of that Deployment (add `--all-pods=true` for every replica) and prints its last 100 lines, where a controller typically reports that it ignores the Ingress (other class) or cannot find a Service or Secret. Other checks: the class name, the Service endpoints and the Secret.'
+references:
+- title: Ingress
+  url: https://kubernetes.io/docs/concepts/services-networking/ingress/
+- title: kubectl logs
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_logs/

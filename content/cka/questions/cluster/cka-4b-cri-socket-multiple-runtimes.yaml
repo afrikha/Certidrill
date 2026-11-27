@@ -1,0 +1,124 @@
+id: cka-4b-cri-socket-multiple-runtimes
+objective: "4.2.1"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    Both containerd and CRI-O are installed on node `cp1`. `kubeadm init --config /root/kubeadm-config.yaml` stops because kubeadm finds several CRI endpoints on the host (`unix:///var/run/containerd/containerd.sock` and `unix:///var/run/crio/crio.sock`) and cannot choose one.
+
+    Fix `/root/kubeadm-config.yaml` (below) so that kubeadm and the kubelet of `cp1` use containerd. Keep the other settings.
+body:
+  starter: |
+    apiVersion: kubeadm.k8s.io/v1beta4
+    kind: InitConfiguration
+    nodeRegistration:
+      name: cp1
+    localAPIEndpoint:
+      advertiseAddress: 192.168.10.11
+    ---
+    apiVersion: kubeadm.k8s.io/v1beta4
+    kind: ClusterConfiguration
+    kubernetesVersion: v1.37.1
+    networking:
+      podSubnet: 10.244.0.0/16
+answer:
+  checks:
+  - id: init-kind
+    label: The InitConfiguration uses kubeadm.k8s.io/v1beta4
+    select: {kind: InitConfiguration}
+    path: apiVersion
+    op: equals
+    value: kubeadm.k8s.io/v1beta4
+  - id: cri-socket
+    label: nodeRegistration.criSocket is the containerd socket
+    select: {kind: InitConfiguration}
+    path: nodeRegistration.criSocket
+    op: oneOf
+    value: [unix:///var/run/containerd/containerd.sock, unix:///run/containerd/containerd.sock]
+  - id: node-name
+    label: The node is still registered as cp1
+    select: {kind: InitConfiguration}
+    path: nodeRegistration.name
+    op: equals
+    value: cp1
+  - id: version
+    label: The ClusterConfiguration still targets v1.37.1
+    select: {kind: ClusterConfiguration}
+    path: kubernetesVersion
+    op: equals
+    value: v1.37.1
+  - id: pod-subnet
+    label: The Pod subnet is still 10.244.0.0/16
+    select: {kind: ClusterConfiguration}
+    path: networking.podSubnet
+    op: equals
+    value: 10.244.0.0/16
+  solution:
+  - manifest: |
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: InitConfiguration
+      nodeRegistration:
+        name: cp1
+        criSocket: unix:///var/run/containerd/containerd.sock
+      localAPIEndpoint:
+        advertiseAddress: 192.168.10.11
+      ---
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: ClusterConfiguration
+      kubernetesVersion: v1.37.1
+      networking:
+        podSubnet: 10.244.0.0/16
+  - manifest: |
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: ClusterConfiguration
+      kubernetesVersion: v1.37.1
+      networking:
+        podSubnet: 10.244.0.0/16
+      ---
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: InitConfiguration
+      localAPIEndpoint:
+        advertiseAddress: 192.168.10.11
+      nodeRegistration:
+        criSocket: unix:///run/containerd/containerd.sock
+        name: cp1
+  negatives:
+  - manifest: |
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: InitConfiguration
+      nodeRegistration:
+        name: cp1
+      localAPIEndpoint:
+        advertiseAddress: 192.168.10.11
+      ---
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: ClusterConfiguration
+      kubernetesVersion: v1.37.1
+      criSocket: unix:///var/run/containerd/containerd.sock
+      networking:
+        podSubnet: 10.244.0.0/16
+    why: criSocket is a node registration setting of the InitConfiguration (or JoinConfiguration), not a ClusterConfiguration field.
+  - manifest: |
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: InitConfiguration
+      nodeRegistration:
+        name: cp1
+        criSocket: unix:///var/run/crio/crio.sock
+      localAPIEndpoint:
+        advertiseAddress: 192.168.10.11
+      ---
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: ClusterConfiguration
+      kubernetesVersion: v1.37.1
+      networking:
+        podSubnet: 10.244.0.0/16
+    why: This selects the CRI-O socket, not containerd.
+explanation:
+  correct:
+    en: 'When several container runtimes are found, kubeadm needs `nodeRegistration.criSocket` in the `InitConfiguration` (or `JoinConfiguration` on joining nodes), or the `--cri-socket` flag. On Linux the default containerd socket is `/run/containerd/containerd.sock`, written as a URL: `unix:///run/containerd/containerd.sock` (the kubeadm examples use the `unix:///var/run/...` spelling, which is also accepted here). kubeadm also annotates the Node object with this socket. `ClusterConfiguration` holds cluster-wide settings only.'
+references:
+- title: kubeadm Configuration (v1beta4)
+  url: https://kubernetes.io/docs/reference/config-api/kubeadm-config.v1beta4/
+- title: Container Runtimes
+  url: https://kubernetes.io/docs/setup/production-environment/container-runtimes/

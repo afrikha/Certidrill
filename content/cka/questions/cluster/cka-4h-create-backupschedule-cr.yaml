@@ -1,0 +1,157 @@
+id: cka-4h-create-backupschedule-cr
+objective: "4.8.1"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    A backup operator installed the CRD in `backupschedules-crd.yaml`. Create the custom object it reads:
+
+    - name `nightly-orders` in namespace `orders`;
+    - it backs up the PersistentVolumeClaim `orders-data`;
+    - it runs every day at 01:30 (cron `30 1 * * *`) and keeps backups for 14 days.
+
+    Write the manifest of the custom resource.
+body:
+  starter: ""
+  files:
+  - name: backupschedules-crd.yaml
+    content: |
+      apiVersion: apiextensions.k8s.io/v1
+      kind: CustomResourceDefinition
+      metadata:
+        name: backupschedules.ops.example.com
+      spec:
+        group: ops.example.com
+        scope: Namespaced
+        names:
+          plural: backupschedules
+          singular: backupschedule
+          kind: BackupSchedule
+          shortNames: [bks]
+        versions:
+        - name: v1
+          served: true
+          storage: true
+          schema:
+            openAPIV3Schema:
+              type: object
+              properties:
+                spec:
+                  type: object
+                  required: [schedule, target]
+                  properties:
+                    schedule:
+                      type: string
+                    retentionDays:
+                      type: integer
+                      minimum: 1
+                      maximum: 90
+                      default: 7
+                    suspend:
+                      type: boolean
+                      default: false
+                    target:
+                      type: object
+                      required: [pvcName]
+                      properties:
+                        pvcName:
+                          type: string
+answer:
+  checks:
+  - id: api
+    label: apiVersion is ops.example.com/v1
+    path: apiVersion
+    op: equals
+    value: ops.example.com/v1
+  - id: kind
+    label: kind is BackupSchedule
+    path: kind
+    op: equals
+    value: BackupSchedule
+  - id: meta
+    label: Named nightly-orders in namespace orders
+    path: metadata
+    op: subset
+    value: {name: nightly-orders, namespace: orders}
+  - id: schedule
+    label: spec.schedule is 30 1 * * *
+    path: spec.schedule
+    op: equals
+    value: "30 1 * * *"
+  - id: retention
+    label: spec.retentionDays is 14
+    path: spec.retentionDays
+    op: equals
+    value: 14
+  - id: target
+    label: spec.target.pvcName is orders-data
+    path: spec.target.pvcName
+    op: equals
+    value: orders-data
+  solution:
+  - manifest: |
+      apiVersion: ops.example.com/v1
+      kind: BackupSchedule
+      metadata:
+        name: nightly-orders
+        namespace: orders
+      spec:
+        schedule: "30 1 * * *"
+        retentionDays: 14
+        target:
+          pvcName: orders-data
+  - manifest: |
+      apiVersion: ops.example.com/v1
+      kind: BackupSchedule
+      metadata:
+        namespace: orders
+        name: nightly-orders
+      spec:
+        target:
+          pvcName: orders-data
+        schedule: 30 1 * * *
+        retentionDays: 14
+        suspend: false
+  negatives:
+  - manifest: |
+      apiVersion: ops.example.com/v1
+      kind: backupschedules
+      metadata:
+        name: nightly-orders
+        namespace: orders
+      spec:
+        schedule: "30 1 * * *"
+        retentionDays: 14
+        target:
+          pvcName: orders-data
+    why: kind takes spec.names.kind, BackupSchedule; backupschedules is the plural used in URLs and kubectl get.
+  - manifest: |
+      apiVersion: ops.example.com/v1
+      kind: BackupSchedule
+      metadata:
+        name: nightly-orders
+        namespace: orders
+      spec:
+        schedule: "30 1 * * *"
+        retentionDays: 14
+        pvcName: orders-data
+    why: pvcName belongs under spec.target; at this level it is pruned and the required target field is missing, so the object is rejected.
+  - manifest: |
+      apiVersion: v1
+      kind: BackupSchedule
+      metadata:
+        name: nightly-orders
+        namespace: orders
+      spec:
+        schedule: "30 1 * * *"
+        retentionDays: 14
+        target:
+          pvcName: orders-data
+    why: A custom resource's apiVersion is <group>/<version>, ops.example.com/v1; v1 alone is the core group, which has no BackupSchedule kind.
+explanation:
+  correct:
+    en: 'A custom object uses `apiVersion: <spec.group>/<version>` (`ops.example.com/v1`), `kind: <spec.names.kind>` (`BackupSchedule`) and, because the scope is `Namespaced`, a namespace. Its fields follow the version''s schema: `schedule` and `target.pvcName` are required, `retentionDays` is an integer between 1 and 90 (default 7). Apply it with `kubectl apply -f`, then check it with `kubectl get bks -n orders`.'
+references:
+- title: Extend the Kubernetes API with CustomResourceDefinitions
+  url: https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/

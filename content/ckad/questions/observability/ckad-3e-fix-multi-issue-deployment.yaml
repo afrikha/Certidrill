@@ -1,0 +1,255 @@
+id: ckad-3e-fix-multi-issue-deployment
+objective: "3.5.3"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    The manifest below for Deployment `ledger` in namespace `finance` has three problems, found one after the other:
+
+    1. `kubectl apply -f ledger.yaml` is rejected:
+
+       ```text
+       The Deployment "ledger" is invalid: spec.template.spec.containers[0].resources.requests: Invalid value: "2": must be less than or equal to cpu limit
+       ```
+
+    2. With the resources corrected, the Pods go to `ErrImagePull`: the registry has the tag `2.0` of `registry.example.com/ledger`, not `2.O`.
+    3. With the image corrected, the container is restarted every minute after liveness probe failures: the application serves its health check at `/healthz` on port 8080.
+
+    Write the corrected Deployment. The container must request `500m` CPU with a CPU limit of `1`, and keep 3 replicas and its liveness probe.
+body:
+  starter: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: ledger
+      namespace: finance
+    spec:
+      replicas: 3
+      selector:
+        matchLabels:
+          app: ledger
+      template:
+        metadata:
+          labels:
+            app: ledger
+        spec:
+          containers:
+          - name: ledger
+            image: registry.example.com/ledger:2.O
+            ports:
+            - containerPort: 8080
+            resources:
+              requests:
+                cpu: "2"
+              limits:
+                cpu: "1"
+            livenessProbe:
+              httpGet:
+                path: /healtz
+                port: 8080
+answer:
+  checks:
+  - id: deployment
+    label: Deployment ledger in namespace finance
+    path: metadata
+    op: subset
+    value: {name: ledger, namespace: finance}
+  - id: replicas
+    label: Still 3 replicas
+    path: spec.replicas
+    op: equals
+    value: 3
+  - id: image
+    label: Image is registry.example.com/ledger:2.0
+    path: spec.template.spec.containers[name=ledger].image
+    op: equals
+    value: registry.example.com/ledger:2.0
+  - id: cpu-request
+    label: CPU request is 500m
+    path: spec.template.spec.containers[name=ledger].resources.requests.cpu
+    op: quantity
+    value: 500m
+  - id: cpu-limit
+    label: CPU limit is 1
+    path: spec.template.spec.containers[name=ledger].resources.limits.cpu
+    op: quantity
+    value: 1
+  - id: liveness-path
+    label: Liveness probe checks /healthz
+    path: spec.template.spec.containers[name=ledger].livenessProbe.httpGet.path
+    op: equals
+    value: /healthz
+  - id: liveness-port
+    label: Liveness probe uses port 8080
+    path: spec.template.spec.containers[name=ledger].livenessProbe.httpGet.port
+    op: equals
+    value: 8080
+  - id: selector
+    label: Selector and template labels still match (app=ledger)
+    path: spec.template.metadata.labels.app
+    op: equals
+    value: ledger
+  solution:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: ledger
+        namespace: finance
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: ledger
+        template:
+          metadata:
+            labels:
+              app: ledger
+          spec:
+            containers:
+            - name: ledger
+              image: registry.example.com/ledger:2.0
+              ports:
+              - containerPort: 8080
+              resources:
+                requests:
+                  cpu: 500m
+                limits:
+                  cpu: "1"
+              livenessProbe:
+                httpGet:
+                  path: /healthz
+                  port: 8080
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: ledger
+        namespace: finance
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: ledger
+        template:
+          metadata:
+            labels:
+              app: ledger
+          spec:
+            containers:
+            - name: ledger
+              image: registry.example.com/ledger:2.0
+              ports:
+              - containerPort: 8080
+              resources:
+                limits:
+                  cpu: 1000m
+                requests:
+                  cpu: "0.5"
+              livenessProbe:
+                httpGet:
+                  path: /healthz
+                  port: 8080
+  negatives:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: ledger
+        namespace: finance
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: ledger
+        template:
+          metadata:
+            labels:
+              app: ledger
+          spec:
+            containers:
+            - name: ledger
+              image: registry.example.com/ledger:2.0
+              ports:
+              - containerPort: 8080
+              resources:
+                requests:
+                  cpu: "2"
+                limits:
+                  cpu: "2"
+              livenessProbe:
+                httpGet:
+                  path: /healthz
+                  port: 8080
+    why: Raising the limit to 2 makes the manifest valid but does not give the requested 500m request and limit of 1.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: ledger
+        namespace: finance
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: ledger
+        template:
+          metadata:
+            labels:
+              app: ledger
+          spec:
+            containers:
+            - name: ledger
+              image: registry.example.com/ledger:2.0
+              ports:
+              - containerPort: 8080
+              resources:
+                requests:
+                  cpu: 500m
+                limits:
+                  cpu: "1"
+              livenessProbe:
+                httpGet:
+                  path: /healtz
+                  port: 8080
+    why: The liveness probe still requests /healtz, which returns an error, so the kubelet keeps restarting the container.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: ledger
+        namespace: finance
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: ledger
+        template:
+          metadata:
+            labels:
+              app: ledger
+          spec:
+            containers:
+            - name: ledger
+              image: registry.example.com/ledger:2.O
+              ports:
+              - containerPort: 8080
+              resources:
+                requests:
+                  cpu: 500m
+                limits:
+                  cpu: "1"
+              livenessProbe:
+                httpGet:
+                  path: /healthz
+                  port: 8080
+    why: The tag 2.O (letter O) does not exist, so the image pull keeps failing.
+explanation:
+  correct:
+    en: 'Three independent fixes: a request may not exceed its limit, so the API rejects `requests.cpu: 2` with `limits.cpu: 1` (`500m` and `1` are valid); the tag must be `2.0`, not `2.O`, or the pull fails; and a liveness probe on a path that returns an error makes the kubelet restart the container again and again, so it must check `/healthz`. Read each symptom: rejected at apply (validation), ErrImagePull (image), restarts with liveness failures (probe).'
+references:
+- title: Limit Ranges
+  url: https://kubernetes.io/docs/concepts/policy/limit-range/
+- title: Configure Liveness, Readiness and Startup Probes
+  url: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/

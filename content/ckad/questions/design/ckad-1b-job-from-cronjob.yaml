@@ -1,0 +1,56 @@
+id: ckad-1b-job-from-cronjob
+objective: "1.2.4"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    The CronJob `report` in namespace `finance` runs every night. The team needs its result now: start one run immediately, as a Job named `report-manual-1` created from the CronJob's job template. The context namespace is `default`.
+
+    Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Uses kubectl create
+    path: verb
+    op: equals
+    value: create
+  - id: job
+    label: Creates a Job
+    path: subverb
+    op: equals
+    value: job
+  - id: name
+    label: Names the Job report-manual-1
+    path: names
+    op: equals
+    value: [report-manual-1]
+  - id: from
+    label: Copies the job template of CronJob report
+    path: flags.from
+    op: matches
+    value: '^(cronjob|cronjobs|cj)(\.batch)?/report$'
+  - id: namespace
+    label: Runs in namespace finance
+    path: flags.namespace
+    op: equals
+    value: finance
+  solution:
+  - command: kubectl create job report-manual-1 --from=cronjob/report -n finance
+  - command: k -n finance create job report-manual-1 --from cj/report
+  negatives:
+  - command: kubectl create job report-manual-1 --from=cronjob/report
+    why: Without -n kubectl looks for the CronJob report in the context namespace, default.
+  - command: kubectl create job --from=cronjob/report -n finance
+    why: The Job name is a required argument.
+  - command: kubectl create job report-manual-1 --image=registry.example.com/finance/report:3.1 -n finance
+    why: This builds a new Job from an image, without the command, environment and volumes of the CronJob's template.
+explanation:
+  correct:
+    en: '`kubectl create job NAME --from=cronjob/CRONJOB` creates a Job from the `jobTemplate` of an existing CronJob, which is how you trigger a run outside the schedule. `--from` only supports CronJobs, and the CronJob is looked up in the namespace given by `-n`.'
+references:
+- title: kubectl create job
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_create/kubectl_create_job/

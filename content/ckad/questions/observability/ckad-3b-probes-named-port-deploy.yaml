@@ -1,0 +1,287 @@
+id: ckad-3b-probes-named-port-deploy
+objective: "3.2.1"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    Write the manifest of a Deployment named `orders` in namespace `payments` with 2 replicas and the Pod label `app=orders`. The Pods have two containers:
+
+    - `app`, image `registry.example.com/orders:4.1`, container port 8080 named `http`;
+    - `log-shipper`, image `registry.example.com/log-shipper:1.3`, with no probe at all.
+
+    Add three probes to the `app` container only, each referring to the port by its name `http`:
+
+    - startup: HTTP GET on `/startup`;
+    - readiness: HTTP GET on `/ready` that sends the header `X-Probe: kubelet`;
+    - liveness: a TCP connection to the port.
+body:
+  starter: ""
+answer:
+  checks:
+  - id: deployment
+    label: An apps/v1 Deployment
+    path: apiVersion
+    op: equals
+    value: apps/v1
+  - id: metadata
+    label: Named orders in namespace payments
+    path: metadata
+    op: subset
+    value: {name: orders, namespace: payments}
+  - id: replicas
+    label: Runs 2 replicas
+    path: spec.replicas
+    op: equals
+    value: 2
+  - id: selector
+    label: Selector and Pod template use app=orders
+    path: spec
+    op: subset
+    value: {selector: {matchLabels: {app: orders}}, template: {metadata: {labels: {app: orders}}}}
+  - id: images
+    label: Containers app and log-shipper run the given images
+    path: spec.template.spec.containers
+    op: subset
+    value: [{name: app, image: "registry.example.com/orders:4.1"}, {name: log-shipper, image: "registry.example.com/log-shipper:1.3"}]
+  - id: named-port
+    label: Container app declares port 8080 named http
+    path: spec.template.spec.containers[name=app].ports[name=http].containerPort
+    op: equals
+    value: 8080
+  - id: startup
+    label: The startup probe is an HTTP GET on /startup, port http
+    path: spec.template.spec.containers[name=app].startupProbe.httpGet
+    op: subset
+    value: {path: /startup, port: http}
+  - id: readiness
+    label: The readiness probe is an HTTP GET on /ready, port http
+    path: spec.template.spec.containers[name=app].readinessProbe.httpGet
+    op: subset
+    value: {path: /ready, port: http}
+  - id: readiness-header
+    label: The readiness probe sends the header X-Probe kubelet
+    path: spec.template.spec.containers[name=app].readinessProbe.httpGet.httpHeaders
+    op: contains
+    value: {name: X-Probe, value: kubelet}
+  - id: liveness
+    label: The liveness probe opens a TCP connection to port http
+    path: spec.template.spec.containers[name=app].livenessProbe.tcpSocket.port
+    op: equals
+    value: http
+  - id: sidecar-no-liveness
+    label: Container log-shipper has no liveness probe
+    path: spec.template.spec.containers[name=log-shipper].livenessProbe
+    op: absent
+  - id: sidecar-no-readiness
+    label: Container log-shipper has no readiness probe
+    path: spec.template.spec.containers[name=log-shipper].readinessProbe
+    op: absent
+  - id: sidecar-no-startup
+    label: Container log-shipper has no startup probe
+    path: spec.template.spec.containers[name=log-shipper].startupProbe
+    op: absent
+  solution:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: orders
+        namespace: payments
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: orders
+        template:
+          metadata:
+            labels:
+              app: orders
+          spec:
+            containers:
+            - name: app
+              image: registry.example.com/orders:4.1
+              ports:
+              - name: http
+                containerPort: 8080
+              startupProbe:
+                httpGet:
+                  path: /startup
+                  port: http
+              readinessProbe:
+                httpGet:
+                  path: /ready
+                  port: http
+                  httpHeaders:
+                  - name: X-Probe
+                    value: kubelet
+              livenessProbe:
+                tcpSocket:
+                  port: http
+            - name: log-shipper
+              image: registry.example.com/log-shipper:1.3
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: orders
+        namespace: payments
+        labels:
+          app: orders
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: orders
+        template:
+          metadata:
+            labels:
+              app: orders
+          spec:
+            containers:
+            - name: log-shipper
+              image: registry.example.com/log-shipper:1.3
+            - name: app
+              image: registry.example.com/orders:4.1
+              ports:
+              - containerPort: 8080
+                name: http
+                protocol: TCP
+              livenessProbe:
+                tcpSocket:
+                  port: http
+              readinessProbe:
+                httpGet:
+                  httpHeaders:
+                  - name: X-Probe
+                    value: kubelet
+                  path: /ready
+                  port: http
+                  scheme: HTTP
+              startupProbe:
+                httpGet:
+                  path: /startup
+                  port: http
+  negatives:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: orders
+        namespace: payments
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: orders
+        template:
+          metadata:
+            labels:
+              app: orders
+          spec:
+            containers:
+            - name: app
+              image: registry.example.com/orders:4.1
+              ports:
+              - name: http
+                containerPort: 8080
+              startupProbe:
+                httpGet:
+                  path: /startup
+                  port: http
+              readinessProbe:
+                httpGet:
+                  path: /ready
+                  port: http
+                  httpHeaders:
+                    X-Probe: kubelet
+              livenessProbe:
+                tcpSocket:
+                  port: http
+            - name: log-shipper
+              image: registry.example.com/log-shipper:1.3
+    why: httpHeaders is a list of name/value objects, not a map; the API server rejects this manifest.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: orders
+        namespace: payments
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: orders
+        template:
+          metadata:
+            labels:
+              app: orders
+          spec:
+            containers:
+            - name: app
+              image: registry.example.com/orders:4.1
+              ports:
+              - name: http
+                containerPort: 8080
+            - name: log-shipper
+              image: registry.example.com/log-shipper:1.3
+              startupProbe:
+                httpGet:
+                  path: /startup
+                  port: http
+              readinessProbe:
+                httpGet:
+                  path: /ready
+                  port: http
+                  httpHeaders:
+                  - name: X-Probe
+                    value: kubelet
+              livenessProbe:
+                tcpSocket:
+                  port: http
+    why: The probes are on log-shipper, which declares no port named http, instead of on app.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: orders
+        namespace: payments
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: orders
+        template:
+          metadata:
+            labels:
+              app: orders
+          spec:
+            containers:
+            - name: app
+              image: registry.example.com/orders:4.1
+              ports:
+              - name: http
+                containerPort: 8080
+              startupProbe:
+                tcpSocket:
+                  port: http
+              readinessProbe:
+                httpGet:
+                  path: /ready
+                  port: http
+                  httpHeaders:
+                  - name: X-Probe
+                    value: kubelet
+              livenessProbe:
+                httpGet:
+                  path: /startup
+                  port: http
+            - name: log-shipper
+              image: registry.example.com/log-shipper:1.3
+    why: The startup and liveness handlers are swapped; the startup probe must call /startup and liveness must be a TCP check.
+explanation:
+  correct:
+    en: 'Each container has its own `startupProbe`, `readinessProbe` and `livenessProbe`, so the probes go under container `app` and `log-shipper` gets none. HTTP and TCP probes may use a named container port (`port: http`). `httpGet.httpHeaders` is a list of `name`/`value` pairs. While the startup probe has not succeeded, the kubelet does not run the liveness and readiness probes.'
+references:
+- title: Configure Liveness, Readiness and Startup Probes
+  url: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/

@@ -1,0 +1,54 @@
+id: cka-5d-describe-httproute-status
+objective: "5.4.2"
+difficulty: 1
+status: draft
+type: command
+stem:
+  en: |-
+    You applied the HTTPRoute `store` in namespace `shop`. Requests for its hostname return 404, and the Gateway `public` of namespace `infra` shows `attachedRoutes: 0` for its listeners.
+
+    Display, in human-readable form, the route's spec, its status for each parent (conditions `Accepted` and `ResolvedRefs` with their reasons) and its events. Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Uses kubectl describe
+    path: verb
+    op: equals
+    value: describe
+  - id: resource
+    label: Describes an HTTPRoute
+    path: resource
+    op: equals
+    value: httproute
+  - id: name
+    label: Describes the route store
+    path: names
+    op: contains
+    value: store
+  - id: namespace
+    label: Looks in namespace shop
+    path: flags.namespace
+    op: equals
+    value: shop
+  solution:
+  - command: kubectl describe httproute store -n shop
+  - command: k describe httproutes.gateway.networking.k8s.io/store --namespace=shop
+  - command: kubectl -n shop describe httproute/store
+  negatives:
+  - command: kubectl describe gateway public -n infra
+    why: The Gateway shows how many routes each listener has attached, but the reason a given route was refused is in the route's own parent status.
+  - command: kubectl describe httproute store
+    why: Without -n the command looks for store in the context namespace, default.
+  - command: kubectl get httproute store -n shop
+    why: The table only shows the hostnames and age of the route, not its conditions or events.
+explanation:
+  correct:
+    en: 'Each controller writes one `status.parents[]` entry per Gateway the route targets, with the conditions `Accepted` (the route is valid and attached; False when, for example, the listener `allowedRoutes` refuses its namespace or kind) and `ResolvedRefs` (every backendRef points to an existing, permitted object). `kubectl describe httproute store -n shop` prints them, with their reasons and messages, and the events. A route that no Gateway accepted has no effect, hence the 404; a route whose parentRef names no known Gateway gets no status at all.'
+references:
+- title: HTTPRoute
+  url: https://gateway-api.sigs.k8s.io/api-types/httproute/
+- title: Troubleshooting and Status
+  url: https://gateway-api.sigs.k8s.io/concepts/troubleshooting/

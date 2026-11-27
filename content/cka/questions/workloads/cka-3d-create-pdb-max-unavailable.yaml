@@ -1,0 +1,136 @@
+id: cka-3d-create-pdb-max-unavailable
+objective: "3.4.2"
+difficulty: 1
+status: draft
+type: command
+stem:
+  en: |-
+    The Pods of Deployment `web` in namespace `shop` carry the label `app=web`. The Deployment is scaled between 4 and 12 replicas during the day.
+
+    Create a PodDisruptionBudget named `web-pdb` that lets voluntary disruptions such as `kubectl drain` take down at most 1 of these Pods at a time, whatever the replica count. Type the single command you would run.
+body:
+  mode: object
+  namespace: default
+answer:
+  checks:
+  - id: kind
+    label: The object is a PodDisruptionBudget
+    path: kind
+    op: equals
+    value: PodDisruptionBudget
+  - id: meta
+    label: It is named web-pdb in namespace shop
+    path: metadata
+    op: subset
+    value: {name: web-pdb, namespace: shop}
+  - id: selector
+    label: It selects the Pods labelled app=web
+    path: spec.selector.matchLabels
+    op: equals
+    value: {app: web}
+  - id: max-unavailable
+    label: maxUnavailable is 1
+    path: spec.maxUnavailable
+    op: equals
+    value: 1
+  - id: no-min
+    label: minAvailable is not set
+    path: spec.minAvailable
+    op: absent
+  solution:
+  - command: kubectl create poddisruptionbudget web-pdb --selector=app=web --max-unavailable=1 -n shop
+    output: |
+      apiVersion: policy/v1
+      kind: PodDisruptionBudget
+      metadata:
+        name: web-pdb
+        namespace: shop
+      spec:
+        maxUnavailable: 1
+        selector:
+          matchLabels:
+            app: web
+      status:
+        currentHealthy: 0
+        desiredHealthy: 0
+        disruptionsAllowed: 0
+        expectedPods: 0
+  - command: k -n shop create pdb web-pdb --max-unavailable 1 --selector app=web --dry-run=client -o yaml
+    output: |
+      apiVersion: policy/v1
+      kind: PodDisruptionBudget
+      metadata:
+        name: web-pdb
+        namespace: shop
+      spec:
+        maxUnavailable: 1
+        selector:
+          matchLabels:
+            app: web
+      status:
+        currentHealthy: 0
+        desiredHealthy: 0
+        disruptionsAllowed: 0
+        expectedPods: 0
+  negatives:
+  - command: kubectl create pdb web-pdb --selector=app=web --min-available=1 -n shop
+    why: minAvailable 1 keeps only one Pod up; with 12 replicas a drain could evict 11 Pods at once.
+    output: |
+      apiVersion: policy/v1
+      kind: PodDisruptionBudget
+      metadata:
+        name: web-pdb
+        namespace: shop
+      spec:
+        minAvailable: 1
+        selector:
+          matchLabels:
+            app: web
+      status:
+        currentHealthy: 0
+        desiredHealthy: 0
+        disruptionsAllowed: 0
+        expectedPods: 0
+  - command: kubectl create pdb web-pdb --selector=app=web --max-unavailable=1
+    why: Without -n the budget is created in the context namespace, default, and protects nothing in shop.
+    output: |
+      apiVersion: policy/v1
+      kind: PodDisruptionBudget
+      metadata:
+        name: web-pdb
+      spec:
+        maxUnavailable: 1
+        selector:
+          matchLabels:
+            app: web
+      status:
+        currentHealthy: 0
+        desiredHealthy: 0
+        disruptionsAllowed: 0
+        expectedPods: 0
+  - command: kubectl create pdb web-pdb --selector=deployment=web --max-unavailable=1 -n shop
+    why: The selector is a Pod label selector; the Pods carry app=web, not deployment=web, so the budget matches no Pod.
+    output: |
+      apiVersion: policy/v1
+      kind: PodDisruptionBudget
+      metadata:
+        name: web-pdb
+        namespace: shop
+      spec:
+        maxUnavailable: 1
+        selector:
+          matchLabels:
+            deployment: web
+      status:
+        currentHealthy: 0
+        desiredHealthy: 0
+        disruptionsAllowed: 0
+        expectedPods: 0
+explanation:
+  correct:
+    en: '`kubectl create poddisruptionbudget` (short name `pdb`) takes a Pod label selector and either `--min-available` or `--max-unavailable`, as a number or a percentage. `maxUnavailable: 1` allows one voluntary eviction at a time at any scale, and the documentation recommends it because it follows replica changes; `minAvailable: 1` would let a drain evict all but one Pod. PDBs limit voluntary disruptions only (eviction API, drain), not node failures.'
+references:
+- title: kubectl create poddisruptionbudget
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_create/kubectl_create_poddisruptionbudget/
+- title: Specifying a Disruption Budget for your Application
+  url: https://kubernetes.io/docs/tasks/run-application/configure-pdb/

@@ -1,0 +1,252 @@
+id: cka-2d-native-sidecar-stream
+objective: "2.4.2"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    The application of Deployment `billing` in namespace `finance` writes its log to the file `/var/log/billing/billing.log` instead of stdout, so `kubectl logs` shows nothing.
+
+    Correct the Deployment so that `kubectl logs deploy/billing -c log-streamer -n finance` shows the application log:
+
+    - add an `emptyDir` volume named `logs`, mounted at `/var/log/billing` in container `app`;
+    - add a native sidecar container named `log-streamer`, image `busybox:1.37`, that mounts `logs` at `/var/log/billing` and runs `tail -n+1 -F /var/log/billing/billing.log`.
+
+    Write the corrected manifest.
+body:
+  starter: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: billing
+      namespace: finance
+    spec:
+      replicas: 2
+      selector:
+        matchLabels:
+          app: billing
+      template:
+        metadata:
+          labels:
+            app: billing
+        spec:
+          containers:
+          - name: app
+            image: registry.example.com/finance/billing:4.3
+answer:
+  checks:
+  - id: deployment
+    label: The Deployment billing in namespace finance
+    path: metadata
+    op: subset
+    value: {name: billing, namespace: finance}
+  - id: volume
+    label: An emptyDir volume named logs
+    path: spec.template.spec.volumes[name=logs].emptyDir
+    op: exists
+  - id: app-mount
+    label: Container app mounts logs at /var/log/billing
+    path: spec.template.spec.containers[name=app].volumeMounts
+    op: contains
+    value: {name: logs, mountPath: /var/log/billing}
+  - id: sidecar-native
+    label: log-streamer is an init container with restartPolicy Always (native sidecar)
+    path: spec.template.spec.initContainers[name=log-streamer].restartPolicy
+    op: equals
+    value: Always
+  - id: sidecar-image
+    label: log-streamer runs busybox:1.37
+    path: spec.template.spec.initContainers[name=log-streamer].image
+    op: equals
+    value: busybox:1.37
+  - id: sidecar-mount
+    label: log-streamer mounts logs at /var/log/billing
+    path: spec.template.spec.initContainers[name=log-streamer].volumeMounts
+    op: contains
+    value: {name: logs, mountPath: /var/log/billing}
+  - id: sidecar-tail
+    label: log-streamer follows /var/log/billing/billing.log with tail
+    path: spec.template.spec.initContainers[name=log-streamer]
+    op: matches
+    value: 'tail.*-F.*/var/log/billing/billing\.log'
+  - id: app-image
+    label: Container app still runs billing:4.3
+    path: spec.template.spec.containers[name=app].image
+    op: equals
+    value: registry.example.com/finance/billing:4.3
+  solution:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: billing
+        namespace: finance
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: billing
+        template:
+          metadata:
+            labels:
+              app: billing
+          spec:
+            initContainers:
+            - name: log-streamer
+              image: busybox:1.37
+              restartPolicy: Always
+              args: [/bin/sh, -c, 'tail -n+1 -F /var/log/billing/billing.log']
+              volumeMounts:
+              - name: logs
+                mountPath: /var/log/billing
+            containers:
+            - name: app
+              image: registry.example.com/finance/billing:4.3
+              volumeMounts:
+              - name: logs
+                mountPath: /var/log/billing
+            volumes:
+            - name: logs
+              emptyDir: {}
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: billing
+        namespace: finance
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: billing
+        template:
+          metadata:
+            labels:
+              app: billing
+          spec:
+            volumes:
+            - name: logs
+              emptyDir: {}
+            containers:
+            - name: app
+              image: registry.example.com/finance/billing:4.3
+              volumeMounts:
+              - mountPath: /var/log/billing
+                name: logs
+            initContainers:
+            - name: log-streamer
+              image: busybox:1.37
+              command: ["tail", "-n+1", "-F", "/var/log/billing/billing.log"]
+              restartPolicy: Always
+              volumeMounts:
+              - mountPath: /var/log/billing
+                name: logs
+  negatives:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: billing
+        namespace: finance
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: billing
+        template:
+          metadata:
+            labels:
+              app: billing
+          spec:
+            initContainers:
+            - name: log-streamer
+              image: busybox:1.37
+              args: [/bin/sh, -c, 'tail -n+1 -F /var/log/billing/billing.log']
+              volumeMounts:
+              - name: logs
+                mountPath: /var/log/billing
+            containers:
+            - name: app
+              image: registry.example.com/finance/billing:4.3
+              volumeMounts:
+              - name: logs
+                mountPath: /var/log/billing
+            volumes:
+            - name: logs
+              emptyDir: {}
+    why: Without restartPolicy Always this is a regular init container; tail -F never exits, so the app container never starts.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: billing
+        namespace: finance
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: billing
+        template:
+          metadata:
+            labels:
+              app: billing
+          spec:
+            initContainers:
+            - name: log-streamer
+              image: busybox:1.37
+              restartPolicy: Always
+              args: [/bin/sh, -c, 'tail -n+1 -F /var/log/billing/billing.log']
+              volumeMounts:
+              - name: logs
+                mountPath: /var/log/billing
+            containers:
+            - name: app
+              image: registry.example.com/finance/billing:4.3
+            volumes:
+            - name: logs
+              emptyDir: {}
+    why: The app container does not mount the volume, so it writes billing.log in its own filesystem and the sidecar sees an empty directory.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: billing
+        namespace: finance
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: billing
+        template:
+          metadata:
+            labels:
+              app: billing
+          spec:
+            containers:
+            - name: app
+              image: registry.example.com/finance/billing:4.3
+              volumeMounts:
+              - name: logs
+                mountPath: /var/log/billing
+            - name: log-streamer
+              image: busybox:1.37
+              args: [/bin/sh, -c, 'tail -n+1 -F /var/log/billing/billing.log']
+              volumeMounts:
+              - name: logs
+                mountPath: /var/log/billing
+            volumes:
+            - name: logs
+              emptyDir: {}
+    why: A second regular container is not the native sidecar asked for; it is not started before the app and is not handled as a sidecar during the Pod lifecycle.
+explanation:
+  correct:
+    en: >-
+      A streaming sidecar shares the log directory through an `emptyDir` volume mounted by both containers and prints
+      the file to its own stdout, where the kubelet collects it for `kubectl logs -c log-streamer`. A native sidecar
+      is declared in `initContainers` with `restartPolicy: Always` (stable since v1.33): it keeps running for the Pod's
+      lifetime instead of blocking the start of the app, as a plain init container running `tail -F` would.
+references:
+- title: Sidecar Containers
+  url: https://kubernetes.io/docs/concepts/workloads/pods/sidecar-containers/
+- title: Logging Architecture
+  url: https://kubernetes.io/docs/concepts/cluster-administration/logging/

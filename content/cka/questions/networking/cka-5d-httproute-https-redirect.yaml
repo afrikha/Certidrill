@@ -1,0 +1,186 @@
+id: cka-5d-httproute-https-redirect
+objective: "5.4.2"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    The Gateway `public` in namespace `infra` has the listeners `http` (port 80) and `https` (port 443), both for `shop.example.com`, and accepts routes from all namespaces. The HTTPRoute `shop` of namespace `shop` already serves the site on the `https` listener.
+
+    In namespace `shop`, write an HTTPRoute named `shop-redirect`, attached only to the `http` listener, that answers every request for `shop.example.com` with a permanent redirect (status 301) to the same host and path over HTTPS.
+body:
+  starter: |
+    apiVersion: gateway.networking.k8s.io/v1
+    kind: HTTPRoute
+    metadata:
+      name: shop-redirect
+      namespace: shop
+    spec:
+answer:
+  checks:
+  - id: route
+    label: An HTTPRoute named shop-redirect in namespace shop
+    path: metadata
+    op: subset
+    value: {name: shop-redirect, namespace: shop}
+  - id: parent
+    label: It attaches only to listener http of Gateway public in infra
+    path: spec.parentRefs
+    op: contains
+    value: {name: public, namespace: infra, sectionName: http}
+  - id: one-parent
+    label: It has no other parent
+    path: spec.parentRefs
+    op: length
+    value: 1
+  - id: hostname
+    label: It serves shop.example.com
+    path: spec.hostnames
+    op: contains
+    value: shop.example.com
+  - id: redirect
+    label: A rule redirects to scheme https with status 301
+    path: spec.rules
+    op: contains
+    value:
+      filters:
+      - type: RequestRedirect
+        requestRedirect: {scheme: https, statusCode: 301}
+  - id: same-host
+    label: The redirect keeps the host and path (no hostname or path override)
+    path: spec.rules
+    op: matches
+    value: '^(?!.*"requestRedirect":\{[^}]*"(hostname|path)").*$'
+  solution:
+  - manifest: |
+      apiVersion: gateway.networking.k8s.io/v1
+      kind: HTTPRoute
+      metadata:
+        name: shop-redirect
+        namespace: shop
+      spec:
+        parentRefs:
+        - name: public
+          namespace: infra
+          sectionName: http
+        hostnames:
+        - shop.example.com
+        rules:
+        - filters:
+          - type: RequestRedirect
+            requestRedirect:
+              scheme: https
+              statusCode: 301
+  - manifest: |
+      apiVersion: gateway.networking.k8s.io/v1
+      kind: HTTPRoute
+      metadata:
+        name: shop-redirect
+        namespace: shop
+      spec:
+        hostnames: ["shop.example.com"]
+        parentRefs:
+        - kind: Gateway
+          name: public
+          namespace: infra
+          sectionName: http
+        rules:
+        - matches:
+          - path:
+              type: PathPrefix
+              value: /
+          filters:
+          - requestRedirect:
+              statusCode: 301
+              scheme: https
+              port: 443
+            type: RequestRedirect
+  negatives:
+  - manifest: |
+      apiVersion: gateway.networking.k8s.io/v1
+      kind: HTTPRoute
+      metadata:
+        name: shop-redirect
+        namespace: shop
+      spec:
+        parentRefs:
+        - name: public
+          namespace: infra
+          sectionName: http
+        hostnames:
+        - shop.example.com
+        rules:
+        - filters:
+          - type: RequestRedirect
+            requestRedirect:
+              scheme: https
+    why: Without statusCode the redirect uses the default 302 (temporary), not 301.
+  - manifest: |
+      apiVersion: gateway.networking.k8s.io/v1
+      kind: HTTPRoute
+      metadata:
+        name: shop-redirect
+        namespace: shop
+      spec:
+        parentRefs:
+        - name: public
+          namespace: infra
+        hostnames:
+        - shop.example.com
+        rules:
+        - filters:
+          - type: RequestRedirect
+            requestRedirect:
+              scheme: https
+              statusCode: 301
+    why: Without sectionName the route also attaches to the https listener, so HTTPS requests are redirected to HTTPS again in a loop.
+  - manifest: |
+      apiVersion: gateway.networking.k8s.io/v1
+      kind: HTTPRoute
+      metadata:
+        name: shop-redirect
+        namespace: shop
+      spec:
+        parentRefs:
+        - name: public
+          namespace: infra
+          sectionName: http
+        hostnames:
+        - shop.example.com
+        rules:
+        - filters:
+          - type: URLRewrite
+            urlRewrite:
+              hostname: shop.example.com
+    why: URLRewrite changes the request forwarded to a backend; it does not answer the client with a redirect to HTTPS.
+  - manifest: |
+      apiVersion: gateway.networking.k8s.io/v1
+      kind: HTTPRoute
+      metadata:
+        name: shop-redirect
+        namespace: shop
+      spec:
+        parentRefs:
+        - name: public
+          namespace: infra
+          sectionName: http
+        hostnames:
+        - shop.example.com
+        rules:
+        - filters:
+          - type: RequestRedirect
+            requestRedirect:
+              scheme: https
+              statusCode: 301
+              path:
+                type: ReplaceFullPath
+                replaceFullPath: /
+    why: ReplaceFullPath sends every client to the home page instead of keeping the requested path.
+explanation:
+  correct:
+    en: 'Attach the redirect route to the `http` listener only (`sectionName: http`), otherwise HTTPS requests are redirected again. A `RequestRedirect` filter builds the `Location` header: `scheme: https` changes only the scheme (the port becomes the well-known port of the scheme unless `port` is set), and `statusCode` defaults to 302, so 301 must be written. A rule without `matches` matches every path, and a rule with a redirect needs no `backendRefs`.'
+references:
+- title: HTTP path redirects and rewrites
+  url: https://gateway-api.sigs.k8s.io/guides/http-redirect-rewrite/
+- title: HTTPRoute
+  url: https://gateway-api.sigs.k8s.io/api-types/httproute/

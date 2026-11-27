@@ -1,0 +1,151 @@
+id: cka-5c-fix-named-target-port
+objective: "5.3.2"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    Requests to Service `catalog` of namespace `shop` on port 80 fail. The three Pods of Deployment `catalog` (file `catalog-deploy.yaml`) are Running and Ready and carry the labels the Service selects, yet the EndpointSlice of the Service lists no usable port for them.
+
+    Correct the Service manifest `catalog-svc.yaml` (in the editor) so that port 80 reaches the application port of the Pods. Do not change the Deployment.
+body:
+  starter: |
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: catalog
+      namespace: shop
+    spec:
+      selector:
+        app: catalog
+      ports:
+      - name: web
+        port: 80
+        targetPort: http
+  files:
+  - name: catalog-deploy.yaml
+    content: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: catalog
+        namespace: shop
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: catalog
+        template:
+          metadata:
+            labels:
+              app: catalog
+          spec:
+            containers:
+            - name: catalog
+              image: registry.example.com/shop/catalog:5.0
+              ports:
+              - name: http-api
+                containerPort: 8080
+              - name: metrics
+                containerPort: 9090
+answer:
+  checks:
+  - id: svc
+    label: Still Service catalog in namespace shop
+    path: metadata
+    op: subset
+    value: {name: catalog, namespace: shop}
+  - id: selector
+    label: The selector still matches app=catalog
+    path: spec.selector
+    op: subset
+    value: {app: catalog}
+  - id: port
+    label: The Service still listens on port 80
+    path: spec.ports[0].port
+    op: equals
+    value: 80
+  - id: target-port
+    label: Port 80 targets the container port http-api (8080)
+    path: spec.ports[0].targetPort
+    op: oneOf
+    value: [http-api, 8080]
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: catalog
+        namespace: shop
+      spec:
+        selector:
+          app: catalog
+        ports:
+        - name: web
+          port: 80
+          targetPort: http-api
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: catalog
+        namespace: shop
+      spec:
+        selector:
+          app: catalog
+        ports:
+        - name: web
+          protocol: TCP
+          port: 80
+          targetPort: 8080
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: catalog
+        namespace: shop
+      spec:
+        selector:
+          app: catalog
+        ports:
+        - name: http
+          port: 80
+          targetPort: http
+    why: Renaming the Service port changes nothing; targetPort http still names a container port that does not exist (the container port is http-api).
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: catalog
+        namespace: shop
+      spec:
+        selector:
+          app: catalog
+        ports:
+        - name: web
+          port: 80
+          targetPort: metrics
+    why: metrics (9090) is the metrics port, not the application port 8080.
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: catalog
+        namespace: shop
+      spec:
+        selector:
+          app: catalog
+        ports:
+        - name: web
+          port: 8080
+          targetPort: http-api
+    why: The target is right but the Service now listens on 8080, so clients calling port 80 still fail.
+explanation:
+  correct:
+    en: 'A string `targetPort` is looked up among the `ports[].name` of each selected Pod; `http` matches nothing in the Pods, whose port is named `http-api`, so the Pods get no usable endpoint port even though they are selected and ready. Use `targetPort: http-api` (or the number 8080). The Service port name (`web`) is only the name of the Service port and has nothing to do with container ports.'
+references:
+- title: Service
+  url: https://kubernetes.io/docs/concepts/services-networking/service/
+- title: Debug Services
+  url: https://kubernetes.io/docs/tasks/debug/debug-application/debug-service/

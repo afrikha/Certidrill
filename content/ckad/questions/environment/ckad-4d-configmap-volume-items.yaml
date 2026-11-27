@@ -1,0 +1,233 @@
+id: ckad-4d-configmap-volume-items
+objective: "4.4.2"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    ConfigMap `proxy-conf` in namespace `web` has two keys: `nginx.conf` and `tuning.conf`.
+
+    Write the manifest of a Deployment named `proxy` in namespace `web` with 2 replicas, Pod label `app: proxy` and one container named `nginx` running `nginx:1.27`:
+
+    - a volume named `conf` comes from ConfigMap `proxy-conf`;
+    - only the key `nginx.conf` is projected, as a file named `default.conf` (`tuning.conf` must not appear);
+    - the volume is mounted read-only at `/etc/nginx/conf.d`, so the file is `/etc/nginx/conf.d/default.conf`.
+body:
+  starter: ""
+answer:
+  checks:
+  - id: kind
+    label: The object is a Deployment
+    path: kind
+    op: equals
+    value: Deployment
+  - id: meta
+    label: It is named proxy in namespace web
+    path: metadata
+    op: subset
+    value: {name: proxy, namespace: web}
+  - id: replicas
+    label: It runs 2 replicas
+    path: spec.replicas
+    op: equals
+    value: 2
+  - id: selector
+    label: The selector matches app=proxy
+    path: spec.selector.matchLabels.app
+    op: equals
+    value: proxy
+  - id: labels
+    label: The Pod template carries app=proxy
+    path: spec.template.metadata.labels.app
+    op: equals
+    value: proxy
+  - id: image
+    label: Container nginx runs nginx:1.27
+    path: spec.template.spec.containers[name=nginx].image
+    op: equals
+    value: nginx:1.27
+  - id: source
+    label: Volume conf comes from ConfigMap proxy-conf
+    path: spec.template.spec.volumes[name=conf].configMap.name
+    op: equals
+    value: proxy-conf
+  - id: item
+    label: Key nginx.conf is projected as default.conf
+    path: spec.template.spec.volumes[name=conf].configMap.items
+    op: contains
+    value: {key: nginx.conf, path: default.conf}
+  - id: only-item
+    label: Only one key is projected
+    path: spec.template.spec.volumes[name=conf].configMap.items
+    op: length
+    value: 1
+  - id: mount
+    label: Volume conf is mounted at /etc/nginx/conf.d
+    path: spec.template.spec.containers[name=nginx].volumeMounts[name=conf].mountPath
+    op: equals
+    value: /etc/nginx/conf.d
+  - id: read-only
+    label: The mount is read-only
+    path: spec.template.spec.containers[name=nginx].volumeMounts[name=conf].readOnly
+    op: equals
+    value: true
+  solution:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: proxy
+        namespace: web
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: proxy
+        template:
+          metadata:
+            labels:
+              app: proxy
+          spec:
+            containers:
+            - name: nginx
+              image: nginx:1.27
+              volumeMounts:
+              - name: conf
+                mountPath: /etc/nginx/conf.d
+                readOnly: true
+            volumes:
+            - name: conf
+              configMap:
+                name: proxy-conf
+                items:
+                - key: nginx.conf
+                  path: default.conf
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        namespace: web
+        name: proxy
+        labels:
+          app: proxy
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: proxy
+        template:
+          metadata:
+            labels:
+              app: proxy
+          spec:
+            volumes:
+            - configMap:
+                items:
+                - path: default.conf
+                  key: nginx.conf
+                name: proxy-conf
+              name: conf
+            containers:
+            - image: nginx:1.27
+              name: nginx
+              volumeMounts:
+              - mountPath: /etc/nginx/conf.d
+                name: conf
+                readOnly: true
+  negatives:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: proxy
+        namespace: web
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: proxy
+        template:
+          metadata:
+            labels:
+              app: proxy
+          spec:
+            containers:
+            - name: nginx
+              image: nginx:1.27
+              volumeMounts:
+              - name: conf
+                mountPath: /etc/nginx/conf.d
+                readOnly: true
+            volumes:
+            - name: conf
+              configMap:
+                name: proxy-conf
+    why: Without items every key is projected under its own name, so the files are nginx.conf and tuning.conf, not default.conf.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: proxy
+        namespace: web
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: proxy
+        template:
+          metadata:
+            labels:
+              app: proxy
+          spec:
+            containers:
+            - name: nginx
+              image: nginx:1.27
+              volumeMounts:
+              - name: conf
+                mountPath: /etc/nginx/conf.d
+                readOnly: true
+            volumes:
+            - name: conf
+              configMap:
+                name: proxy-conf
+                items:
+                - key: default.conf
+                  path: nginx.conf
+    why: key and path are swapped; key must name the ConfigMap key (nginx.conf) and path the file name (default.conf).
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: proxy
+        namespace: web
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: proxy
+        template:
+          metadata:
+            labels:
+              app: proxy
+          spec:
+            containers:
+            - name: nginx
+              image: nginx:1.27
+              volumeMounts:
+              - name: conf
+                mountPath: /etc/nginx/conf.d/default.conf
+                readOnly: true
+            volumes:
+            - name: conf
+              configMap:
+                name: proxy-conf
+                items:
+                - key: nginx.conf
+                  path: default.conf
+    why: Without subPath the volume is a directory; mounted at .../default.conf it creates /etc/nginx/conf.d/default.conf/default.conf.
+explanation:
+  correct:
+    en: 'In a `configMap` volume, `items` selects keys: each entry maps a `key` of the ConfigMap to a file `path` inside the mount, and only the listed keys are projected. The volume is a directory mounted at `mountPath`, so `/etc/nginx/conf.d` plus `path: default.conf` gives `/etc/nginx/conf.d/default.conf`; anything the image had in that directory is hidden. `readOnly: true` goes on the `volumeMount`.'
+references:
+- title: Configure a Pod to Use a ConfigMap
+  url: https://kubernetes.io/docs/tasks/configure-pod-container/configure-pod-configmap/

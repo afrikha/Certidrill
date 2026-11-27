@@ -1,0 +1,103 @@
+id: ckad-3d-termination-message-fallback
+objective: "3.4.2"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    Pod `importer` in namespace `etl` keeps restarting. Its single container `importer` (image `registry.example.com/importer:1.8`) writes a short exit reason to `/tmp/exit-reason` only for some failures; otherwise it just exits with an error.
+
+    Write the Pod manifest so that, after each failure, `.status.containerStatuses[0].lastState.terminated.message` contains:
+
+    - the content of `/tmp/exit-reason` when the application wrote it;
+    - otherwise, the last lines of the container's log output.
+body:
+  starter: |
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: importer
+      namespace: etl
+    spec:
+      containers:
+      - name: importer
+        image: registry.example.com/importer:1.8
+answer:
+  checks:
+  - id: pod
+    label: A Pod named importer in namespace etl
+    path: metadata
+    op: subset
+    value: {name: importer, namespace: etl}
+  - id: image
+    label: Container importer runs registry.example.com/importer:1.8
+    path: spec.containers[name=importer].image
+    op: equals
+    value: registry.example.com/importer:1.8
+  - id: path
+    label: Termination message is read from /tmp/exit-reason
+    path: spec.containers[name=importer].terminationMessagePath
+    op: equals
+    value: /tmp/exit-reason
+  - id: policy
+    label: Falls back to the logs on error
+    path: spec.containers[name=importer].terminationMessagePolicy
+    op: equals
+    value: FallbackToLogsOnError
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: importer
+        namespace: etl
+      spec:
+        containers:
+        - name: importer
+          image: registry.example.com/importer:1.8
+          terminationMessagePath: /tmp/exit-reason
+          terminationMessagePolicy: FallbackToLogsOnError
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: importer
+        namespace: etl
+      spec:
+        containers:
+        - name: importer
+          image: registry.example.com/importer:1.8
+          terminationMessagePath: /tmp/exit-reason
+    why: The default policy File only reads the file; when it is empty the message stays empty.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: importer
+        namespace: etl
+      spec:
+        containers:
+        - name: importer
+          image: registry.example.com/importer:1.8
+          terminationMessagePolicy: FallbackToLogsOnError
+    why: The path stays /dev/termination-log, so the reason written to /tmp/exit-reason is never read.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: importer
+        namespace: etl
+      spec:
+        containers:
+        - name: importer
+          image: registry.example.com/importer:1.8
+          terminationMessagePath: /dev/stdout
+          terminationMessagePolicy: FallbackToLogsOnError
+    why: The termination message path must be the file the application writes, /tmp/exit-reason.
+explanation:
+  correct:
+    en: '`terminationMessagePath` (default `/dev/termination-log`) names the file the kubelet reads when the container ends. With `terminationMessagePolicy: FallbackToLogsOnError`, if that file is empty and the container exited with an error, the kubelet uses the end of the log output instead (at most 2048 bytes or 80 lines). The message appears in `lastState.terminated.message` of the container status, which ties each restart to its cause.'
+references:
+- title: Determine the Reason for Pod Failure
+  url: https://kubernetes.io/docs/tasks/debug/debug-application/determine-reason-pod-failure/

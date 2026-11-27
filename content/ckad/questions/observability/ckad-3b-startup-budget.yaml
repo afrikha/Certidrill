@@ -1,0 +1,176 @@
+id: ckad-3b-startup-budget
+objective: "3.2.2"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    The ledger application needs up to 4 minutes to start, then answers `GET /healthz` on port 8080. Write the manifest of a Pod named `ledger` in namespace `payments` with one container named `ledger` running `registry.example.com/ledger:7.2`:
+
+    - a startup probe on `GET /healthz` port 8080, checking every 10 seconds, that gives the application exactly 240 seconds to start before the kubelet kills the container;
+    - once the startup probe has succeeded, a liveness probe on the same endpoint, checking every 10 seconds, that restarts the container after 3 consecutive failures.
+body:
+  starter: |
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: ledger
+      namespace: payments
+    spec:
+      containers:
+      - name: ledger
+        image: registry.example.com/ledger:7.2
+answer:
+  checks:
+  - id: pod
+    label: A Pod named ledger in namespace payments
+    path: metadata
+    op: subset
+    value: {name: ledger, namespace: payments}
+  - id: image
+    label: Container ledger runs registry.example.com/ledger:7.2
+    path: spec.containers[name=ledger].image
+    op: equals
+    value: registry.example.com/ledger:7.2
+  - id: startup-http
+    label: The startup probe is an HTTP GET on /healthz port 8080
+    path: spec.containers[name=ledger].startupProbe.httpGet
+    op: subset
+    value: {path: /healthz, port: 8080}
+  - id: startup-period
+    label: The startup probe runs every 10 seconds
+    path: spec.containers[name=ledger].startupProbe.periodSeconds
+    op: equals
+    value: 10
+  - id: startup-budget
+    label: The startup probe allows 24 failures (24 x 10 s = 240 s)
+    path: spec.containers[name=ledger].startupProbe.failureThreshold
+    op: equals
+    value: 24
+  - id: liveness-http
+    label: The liveness probe is an HTTP GET on /healthz port 8080
+    path: spec.containers[name=ledger].livenessProbe.httpGet
+    op: subset
+    value: {path: /healthz, port: 8080}
+  - id: liveness-period
+    label: The liveness probe runs every 10 seconds
+    path: spec.containers[name=ledger].livenessProbe.periodSeconds
+    op: equals
+    value: 10
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: ledger
+        namespace: payments
+      spec:
+        containers:
+        - name: ledger
+          image: registry.example.com/ledger:7.2
+          ports:
+          - containerPort: 8080
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            periodSeconds: 10
+            failureThreshold: 24
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            periodSeconds: 10
+            failureThreshold: 3
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: ledger
+        namespace: payments
+      spec:
+        containers:
+        - name: ledger
+          image: registry.example.com/ledger:7.2
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            failureThreshold: 24
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            periodSeconds: 10
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: ledger
+        namespace: payments
+      spec:
+        containers:
+        - name: ledger
+          image: registry.example.com/ledger:7.2
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            periodSeconds: 10
+            failureThreshold: 4
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            periodSeconds: 10
+            failureThreshold: 3
+    why: 4 x 10 s gives only 40 seconds; the startup budget is failureThreshold x periodSeconds, so 240 s needs 24.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: ledger
+        namespace: payments
+      spec:
+        containers:
+        - name: ledger
+          image: registry.example.com/ledger:7.2
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            periodSeconds: 10
+            timeoutSeconds: 240
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            periodSeconds: 10
+            failureThreshold: 3
+    why: timeoutSeconds is the time allowed for one attempt, not the start budget; with the default failureThreshold of 3, three quick failures (connection refused while the application starts) kill the container after about 30 seconds.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: ledger
+        namespace: payments
+      spec:
+        containers:
+        - name: ledger
+          image: registry.example.com/ledger:7.2
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 240
+            periodSeconds: 10
+            failureThreshold: 3
+    why: There is no startup probe; a fixed initialDelaySeconds of 240 also delays detection when the application starts faster.
+explanation:
+  correct:
+    en: 'A startup probe gives the application `failureThreshold x periodSeconds` seconds to start: 24 x 10 = 240 s. Until it succeeds, the kubelet does not run the liveness and readiness probes; if it never succeeds, the container is killed and handled according to `restartPolicy`. After the first success, the liveness probe takes over with its own settings (failureThreshold defaults to 3).'
+references:
+- title: Configure Liveness, Readiness and Startup Probes
+  url: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/

@@ -1,0 +1,223 @@
+id: ckad-2d-overlay-namespace-patch
+objective: "2.4.3"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    The base `/opt/shop/base` contains the Deployment `web` (`apps/v1`, no namespace set) with one container named `web`. Create the overlay `/opt/shop/overlays/prod` with two files, written in the editor as two YAML documents separated by `---`:
+
+    1. `kustomization.yaml`: built on `../../base`, puts every object in namespace `shop-prod` and applies the patch file `web-patch.yaml` through the `patches` field;
+    2. `web-patch.yaml`: a strategic merge patch that adds the environment variable `APP_ENV=production` to container `web` and sets its CPU limit to `500m`.
+body:
+  starter: |
+    apiVersion: kustomize.config.k8s.io/v1beta1
+    kind: Kustomization
+    ---
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: web
+answer:
+  checks:
+  - id: base
+    label: The kustomization builds on ../../base
+    select: {kind: Kustomization}
+    path: resources
+    op: matches
+    value: '"\.\./\.\./base/?"'
+  - id: namespace
+    label: The kustomization sets namespace shop-prod
+    select: {kind: Kustomization}
+    path: namespace
+    op: equals
+    value: shop-prod
+  - id: patch-file
+    label: The kustomization applies web-patch.yaml in patches
+    select: {kind: Kustomization}
+    path: patches
+    op: contains
+    value: {path: web-patch.yaml}
+  - id: patch-not-resource
+    label: web-patch.yaml is not listed as a resource
+    select: {kind: Kustomization}
+    path: resources
+    op: matches
+    value: '^(?!.*web-patch\.yaml)'
+  - id: patch-api
+    label: The patch is an apps/v1 Deployment
+    select: {kind: Deployment, name: web}
+    path: apiVersion
+    op: equals
+    value: apps/v1
+  - id: env
+    label: The patch adds APP_ENV=production to container web
+    select: {kind: Deployment, name: web}
+    path: spec.template.spec.containers[name=web].env
+    op: contains
+    value: {name: APP_ENV, value: production}
+  - id: cpu
+    label: The patch sets the CPU limit of container web to 500m
+    select: {kind: Deployment, name: web}
+    path: spec.template.spec.containers[name=web].resources.limits.cpu
+    op: quantity
+    value: 500m
+  solution:
+  - manifest: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      namespace: shop-prod
+      resources:
+      - ../../base
+      patches:
+      - path: web-patch.yaml
+      ---
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: web
+      spec:
+        template:
+          spec:
+            containers:
+            - name: web
+              env:
+              - name: APP_ENV
+                value: production
+              resources:
+                limits:
+                  cpu: 500m
+  - manifest: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      resources:
+      - ../../base/
+      namespace: shop-prod
+      patches:
+      - path: web-patch.yaml
+        target:
+          kind: Deployment
+          name: web
+      ---
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: web
+      spec:
+        template:
+          spec:
+            containers:
+            - name: web
+              resources:
+                limits:
+                  cpu: "0.5"
+              env:
+              - name: APP_ENV
+                value: "production"
+  negatives:
+  - manifest: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      namespace: shop-prod
+      resources:
+      - ../../base
+      - web-patch.yaml
+      ---
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: web
+      spec:
+        template:
+          spec:
+            containers:
+            - name: web
+              env:
+              - name: APP_ENV
+                value: production
+              resources:
+                limits:
+                  cpu: 500m
+    why: Listed in resources, the partial Deployment is a second object with the same name as the base one, and the build fails; a patch goes in patches.
+  - manifest: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      namespace: shop-prod
+      resources:
+      - ../../base
+      patches:
+      - path: web-patch.yaml
+      ---
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: web
+      spec:
+        template:
+          spec:
+            containers:
+            - name: web
+              env:
+              - name: APP_ENV
+                value: production
+              resources:
+                limits:
+                  cpu: "500"
+    why: cpu "500" means 500 CPUs; 500 millicores is 500m (or 0.5).
+  - manifest: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      resources:
+      - ../../base
+      patches:
+      - path: web-patch.yaml
+      ---
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: web
+      spec:
+        template:
+          spec:
+            containers:
+            - name: web
+              env:
+              - name: APP_ENV
+                value: production
+              resources:
+                limits:
+                  cpu: 500m
+    why: Without the namespace field the kustomization leaves the Deployment without a namespace, so it is applied to the context namespace instead of shop-prod.
+  - manifest: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      namespace: shop-prod
+      resources:
+      - ../../base
+      patches:
+      - path: web-patch.yaml
+      ---
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: web
+      spec:
+        template:
+          spec:
+            containers:
+            - name: web
+              envFrom:
+              - configMapRef:
+                  name: APP_ENV
+              resources:
+                limits:
+                  cpu: 500m
+    why: envFrom imports the keys of a ConfigMap; a single variable with a literal value goes in env.
+explanation:
+  correct:
+    en: 'The overlay lists the base in `resources`, sets `namespace: shop-prod` for every object and applies `web-patch.yaml` through `patches`. The strategic merge patch is a partial Deployment identified by `apiVersion`, `kind` and `metadata.name`; its container entry carries `name: web` so that `env` and `resources.limits.cpu: 500m` merge into the existing container. A patch file listed in `resources` would instead be read as a second, conflicting Deployment.'
+references:
+- title: Declarative Management of Kubernetes Objects Using Kustomize
+  url: https://kubernetes.io/docs/tasks/manage-kubernetes-objects/kustomization/
+- title: Update API Objects in Place Using kubectl patch
+  url: https://kubernetes.io/docs/tasks/manage-kubernetes-objects/update-api-object-kubectl-patch/

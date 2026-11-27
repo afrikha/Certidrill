@@ -1,0 +1,227 @@
+id: cka-4d-etcd-manifest-hostpath
+objective: "4.4.2"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    On the control plane node `cp1`, an etcd snapshot has just been restored with `etcdutl` into `/var/lib/etcd-from-backup`. The editor shows `/etc/kubernetes/manifests/etcd.yaml` (the `image` line and the probes are left out).
+
+    Edit the manifest the way the Kubernetes documentation describes, so that the kubelet restarts etcd on the restored data:
+
+    - the container keeps `--data-dir=/var/lib/etcd` and keeps mounting its data at `/var/lib/etcd`;
+    - only the directory of the node that backs the data volume changes;
+    - the certificates volume is not modified.
+body:
+  starter: |
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: etcd
+      namespace: kube-system
+      labels:
+        component: etcd
+        tier: control-plane
+    spec:
+      hostNetwork: true
+      priorityClassName: system-node-critical
+      containers:
+      - name: etcd
+        command:
+        - etcd
+        - --advertise-client-urls=https://192.168.10.11:2379
+        - --cert-file=/etc/kubernetes/pki/etcd/server.crt
+        - --client-cert-auth=true
+        - --data-dir=/var/lib/etcd
+        - --initial-advertise-peer-urls=https://192.168.10.11:2380
+        - --initial-cluster=cp1=https://192.168.10.11:2380
+        - --key-file=/etc/kubernetes/pki/etcd/server.key
+        - --listen-client-urls=https://127.0.0.1:2379,https://192.168.10.11:2379
+        - --listen-peer-urls=https://192.168.10.11:2380
+        - --name=cp1
+        - --peer-cert-file=/etc/kubernetes/pki/etcd/peer.crt
+        - --peer-client-cert-auth=true
+        - --peer-key-file=/etc/kubernetes/pki/etcd/peer.key
+        - --peer-trusted-ca-file=/etc/kubernetes/pki/etcd/ca.crt
+        - --trusted-ca-file=/etc/kubernetes/pki/etcd/ca.crt
+        volumeMounts:
+        - mountPath: /var/lib/etcd
+          name: etcd-data
+        - mountPath: /etc/kubernetes/pki/etcd
+          name: etcd-certs
+      volumes:
+      - hostPath:
+          path: /etc/kubernetes/pki/etcd
+          type: DirectoryOrCreate
+        name: etcd-certs
+      - hostPath:
+          path: /var/lib/etcd
+          type: DirectoryOrCreate
+        name: etcd-data
+answer:
+  checks:
+  - id: pod
+    label: Static Pod etcd in namespace kube-system
+    path: metadata
+    op: subset
+    value: {name: etcd, namespace: kube-system}
+  - id: host-path
+    label: The etcd-data volume uses the host directory /var/lib/etcd-from-backup
+    path: spec.volumes[name=etcd-data].hostPath.path
+    op: equals
+    value: /var/lib/etcd-from-backup
+  - id: mount-path
+    label: The container still mounts etcd-data at /var/lib/etcd
+    path: spec.containers[name=etcd].volumeMounts[name=etcd-data].mountPath
+    op: equals
+    value: /var/lib/etcd
+  - id: data-dir-flag
+    label: etcd still runs with --data-dir=/var/lib/etcd
+    path: spec.containers[name=etcd].command
+    op: contains
+    value: --data-dir=/var/lib/etcd
+  - id: certs
+    label: The etcd-certs volume still uses /etc/kubernetes/pki/etcd
+    path: spec.volumes[name=etcd-certs].hostPath.path
+    op: equals
+    value: /etc/kubernetes/pki/etcd
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: etcd
+        namespace: kube-system
+        labels:
+          component: etcd
+          tier: control-plane
+      spec:
+        hostNetwork: true
+        priorityClassName: system-node-critical
+        containers:
+        - name: etcd
+          command:
+          - etcd
+          - --advertise-client-urls=https://192.168.10.11:2379
+          - --cert-file=/etc/kubernetes/pki/etcd/server.crt
+          - --client-cert-auth=true
+          - --data-dir=/var/lib/etcd
+          - --initial-advertise-peer-urls=https://192.168.10.11:2380
+          - --initial-cluster=cp1=https://192.168.10.11:2380
+          - --key-file=/etc/kubernetes/pki/etcd/server.key
+          - --listen-client-urls=https://127.0.0.1:2379,https://192.168.10.11:2379
+          - --listen-peer-urls=https://192.168.10.11:2380
+          - --name=cp1
+          - --peer-cert-file=/etc/kubernetes/pki/etcd/peer.crt
+          - --peer-client-cert-auth=true
+          - --peer-key-file=/etc/kubernetes/pki/etcd/peer.key
+          - --peer-trusted-ca-file=/etc/kubernetes/pki/etcd/ca.crt
+          - --trusted-ca-file=/etc/kubernetes/pki/etcd/ca.crt
+          volumeMounts:
+          - mountPath: /var/lib/etcd
+            name: etcd-data
+          - mountPath: /etc/kubernetes/pki/etcd
+            name: etcd-certs
+        volumes:
+        - hostPath:
+            path: /etc/kubernetes/pki/etcd
+            type: DirectoryOrCreate
+          name: etcd-certs
+        - hostPath:
+            path: /var/lib/etcd-from-backup
+            type: DirectoryOrCreate
+          name: etcd-data
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: etcd
+        namespace: kube-system
+      spec:
+        hostNetwork: true
+        containers:
+        - name: etcd
+          command:
+          - etcd
+          - --data-dir=/var/lib/etcd-from-backup
+          - --name=cp1
+          volumeMounts:
+          - mountPath: /var/lib/etcd
+            name: etcd-data
+          - mountPath: /etc/kubernetes/pki/etcd
+            name: etcd-certs
+        volumes:
+        - hostPath:
+            path: /etc/kubernetes/pki/etcd
+            type: DirectoryOrCreate
+          name: etcd-certs
+        - hostPath:
+            path: /var/lib/etcd
+            type: DirectoryOrCreate
+          name: etcd-data
+    why: Changing only --data-dir makes etcd write to a directory inside the container that no volume backs; the restored data on the node is never used.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: etcd
+        namespace: kube-system
+      spec:
+        hostNetwork: true
+        containers:
+        - name: etcd
+          command:
+          - etcd
+          - --data-dir=/var/lib/etcd
+          - --name=cp1
+          volumeMounts:
+          - mountPath: /var/lib/etcd-from-backup
+            name: etcd-data
+          - mountPath: /etc/kubernetes/pki/etcd
+            name: etcd-certs
+        volumes:
+        - hostPath:
+            path: /etc/kubernetes/pki/etcd
+            type: DirectoryOrCreate
+          name: etcd-certs
+        - hostPath:
+            path: /var/lib/etcd
+            type: DirectoryOrCreate
+          name: etcd-data
+    why: The mount path is the path inside the container; the volume still comes from /var/lib/etcd on the node, and etcd no longer finds its data dir on a volume.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: etcd
+        namespace: kube-system
+      spec:
+        hostNetwork: true
+        containers:
+        - name: etcd
+          command:
+          - etcd
+          - --data-dir=/var/lib/etcd
+          - --name=cp1
+          volumeMounts:
+          - mountPath: /var/lib/etcd
+            name: etcd-data
+          - mountPath: /etc/kubernetes/pki/etcd
+            name: etcd-certs
+        volumes:
+        - hostPath:
+            path: /var/lib/etcd-from-backup
+            type: DirectoryOrCreate
+          name: etcd-certs
+        - hostPath:
+            path: /var/lib/etcd
+            type: DirectoryOrCreate
+          name: etcd-data
+    why: The wrong volume was changed; etcd-certs now points to the data directory and etcd-data still to the old data.
+explanation:
+  correct:
+    en: 'The documented procedure for a restore into a new directory is to change `volumes.hostPath.path` of the volume named `etcd-data` in `/etc/kubernetes/manifests/etcd.yaml`. The container keeps `--data-dir=/var/lib/etcd` and the mount at `/var/lib/etcd`, which now show the restored data. The kubelet watches the manifests directory and recreates the static Pod when the file changes; `kubectl` cannot edit a static Pod.'
+references:
+- title: Operating etcd clusters for Kubernetes
+  url: https://kubernetes.io/docs/tasks/administer-cluster/configure-upgrade-etcd/

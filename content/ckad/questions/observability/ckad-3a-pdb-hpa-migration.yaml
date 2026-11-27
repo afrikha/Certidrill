@@ -1,0 +1,271 @@
+id: ckad-3a-pdb-hpa-migration
+objective: "3.1.2"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    The file in the editor holds a PodDisruptionBudget and a HorizontalPodAutoscaler for Deployment `web` in namespace `shop`. Both use apiVersions that a v1.37 cluster no longer serves.
+
+    Migrate each object to the GA apiVersion that replaced its beta version, keeping the same names, namespace and behaviour: at least 2 Pods labelled `app=web` available during voluntary disruptions, and 2 to 10 replicas of `web` scaled on an average CPU utilization of 70 %. Rewrite any field that does not exist in the new version.
+body:
+  starter: |
+    apiVersion: policy/v1beta1
+    kind: PodDisruptionBudget
+    metadata:
+      name: web-pdb
+      namespace: shop
+    spec:
+      minAvailable: 2
+      selector:
+        matchLabels:
+          app: web
+    ---
+    apiVersion: autoscaling/v2beta1
+    kind: HorizontalPodAutoscaler
+    metadata:
+      name: web
+      namespace: shop
+    spec:
+      scaleTargetRef:
+        apiVersion: apps/v1
+        kind: Deployment
+        name: web
+      minReplicas: 2
+      maxReplicas: 10
+      metrics:
+      - type: Resource
+        resource:
+          name: cpu
+          targetAverageUtilization: 70
+answer:
+  checks:
+  - id: pdb-version
+    label: The PodDisruptionBudget uses policy/v1
+    select: {kind: PodDisruptionBudget, name: web-pdb}
+    path: apiVersion
+    op: equals
+    value: policy/v1
+  - id: pdb-namespace
+    label: The PodDisruptionBudget is in namespace shop
+    select: {kind: PodDisruptionBudget, name: web-pdb}
+    path: metadata.namespace
+    op: equals
+    value: shop
+  - id: pdb-min
+    label: The PodDisruptionBudget keeps minAvailable 2
+    select: {kind: PodDisruptionBudget, name: web-pdb}
+    path: spec.minAvailable
+    op: equals
+    value: 2
+  - id: pdb-selector
+    label: The PodDisruptionBudget selects app=web
+    select: {kind: PodDisruptionBudget, name: web-pdb}
+    path: spec.selector.matchLabels.app
+    op: equals
+    value: web
+  - id: hpa-version
+    label: The HorizontalPodAutoscaler uses autoscaling/v2
+    select: {kind: HorizontalPodAutoscaler, name: web}
+    path: apiVersion
+    op: equals
+    value: autoscaling/v2
+  - id: hpa-namespace
+    label: The HorizontalPodAutoscaler is in namespace shop
+    select: {kind: HorizontalPodAutoscaler, name: web}
+    path: metadata.namespace
+    op: equals
+    value: shop
+  - id: hpa-target
+    label: The HorizontalPodAutoscaler scales Deployment web
+    select: {kind: HorizontalPodAutoscaler, name: web}
+    path: spec.scaleTargetRef
+    op: subset
+    value: {apiVersion: apps/v1, kind: Deployment, name: web}
+  - id: hpa-range
+    label: The HorizontalPodAutoscaler keeps 2 to 10 replicas
+    select: {kind: HorizontalPodAutoscaler, name: web}
+    path: spec
+    op: subset
+    value: {minReplicas: 2, maxReplicas: 10}
+  - id: hpa-metric
+    label: The CPU metric uses target.type Utilization
+    select: {kind: HorizontalPodAutoscaler, name: web}
+    path: spec.metrics[type=Resource].resource
+    op: subset
+    value: {name: cpu, target: {type: Utilization}}
+  - id: hpa-utilization
+    label: The CPU target is target.averageUtilization 70
+    select: {kind: HorizontalPodAutoscaler, name: web}
+    path: spec.metrics[type=Resource].resource.target.averageUtilization
+    op: equals
+    value: 70
+  - id: hpa-old-field
+    label: The removed field targetAverageUtilization is gone
+    select: {kind: HorizontalPodAutoscaler, name: web}
+    path: spec.metrics[type=Resource].resource.targetAverageUtilization
+    op: absent
+  solution:
+  - manifest: |
+      apiVersion: policy/v1
+      kind: PodDisruptionBudget
+      metadata:
+        name: web-pdb
+        namespace: shop
+      spec:
+        minAvailable: 2
+        selector:
+          matchLabels:
+            app: web
+      ---
+      apiVersion: autoscaling/v2
+      kind: HorizontalPodAutoscaler
+      metadata:
+        name: web
+        namespace: shop
+      spec:
+        scaleTargetRef:
+          apiVersion: apps/v1
+          kind: Deployment
+          name: web
+        minReplicas: 2
+        maxReplicas: 10
+        metrics:
+        - type: Resource
+          resource:
+            name: cpu
+            target:
+              type: Utilization
+              averageUtilization: 70
+  - manifest: |
+      apiVersion: autoscaling/v2
+      kind: HorizontalPodAutoscaler
+      metadata:
+        name: web
+        namespace: shop
+      spec:
+        maxReplicas: 10
+        minReplicas: 2
+        metrics:
+        - resource:
+            name: cpu
+            target:
+              averageUtilization: 70
+              type: Utilization
+          type: Resource
+        scaleTargetRef:
+          apiVersion: apps/v1
+          kind: Deployment
+          name: web
+      ---
+      apiVersion: policy/v1
+      kind: PodDisruptionBudget
+      metadata:
+        name: web-pdb
+        namespace: shop
+      spec:
+        minAvailable: 2
+        selector:
+          matchLabels:
+            app: web
+  negatives:
+  - manifest: |
+      apiVersion: policy/v1
+      kind: PodDisruptionBudget
+      metadata:
+        name: web-pdb
+        namespace: shop
+      spec:
+        minAvailable: 2
+        selector:
+          matchLabels:
+            app: web
+      ---
+      apiVersion: autoscaling/v2
+      kind: HorizontalPodAutoscaler
+      metadata:
+        name: web
+        namespace: shop
+      spec:
+        scaleTargetRef:
+          apiVersion: apps/v1
+          kind: Deployment
+          name: web
+        minReplicas: 2
+        maxReplicas: 10
+        metrics:
+        - type: Resource
+          resource:
+            name: cpu
+            targetAverageUtilization: 70
+    why: Only the apiVersion was changed. autoscaling/v2 has no targetAverageUtilization; it uses target.type Utilization with target.averageUtilization.
+  - manifest: |
+      apiVersion: policy/v1beta1
+      kind: PodDisruptionBudget
+      metadata:
+        name: web-pdb
+        namespace: shop
+      spec:
+        minAvailable: 2
+        selector:
+          matchLabels:
+            app: web
+      ---
+      apiVersion: autoscaling/v2
+      kind: HorizontalPodAutoscaler
+      metadata:
+        name: web
+        namespace: shop
+      spec:
+        scaleTargetRef:
+          apiVersion: apps/v1
+          kind: Deployment
+          name: web
+        minReplicas: 2
+        maxReplicas: 10
+        metrics:
+        - type: Resource
+          resource:
+            name: cpu
+            target:
+              type: Utilization
+              averageUtilization: 70
+    why: policy/v1beta1 PodDisruptionBudget has not been served since v1.25; the PDB still fails to apply.
+  - manifest: |
+      apiVersion: policy/v1
+      kind: PodDisruptionBudget
+      metadata:
+        name: web-pdb
+        namespace: shop
+      spec:
+        minAvailable: 2
+        selector:
+          matchLabels:
+            app: web
+      ---
+      apiVersion: autoscaling/v2beta2
+      kind: HorizontalPodAutoscaler
+      metadata:
+        name: web
+        namespace: shop
+      spec:
+        scaleTargetRef:
+          apiVersion: apps/v1
+          kind: Deployment
+          name: web
+        minReplicas: 2
+        maxReplicas: 10
+        metrics:
+        - type: Resource
+          resource:
+            name: cpu
+            target:
+              type: Utilization
+              averageUtilization: 70
+    why: autoscaling/v2beta2 is a beta version too, removed in v1.26; the GA version is autoscaling/v2.
+explanation:
+  correct:
+    en: 'PodDisruptionBudget `policy/v1beta1` and HPA `autoscaling/v2beta1` stopped being served in v1.25 (`autoscaling/v2beta2` in v1.26); their GA replacements are `policy/v1` and `autoscaling/v2`. In `autoscaling/v2`, `targetAverageUtilization` is replaced by `target.type: Utilization` with `target.averageUtilization`. In `policy/v1` an empty selector `{}` selects every Pod of the namespace, so keeping the explicit `app: web` selector matters.'
+references:
+- title: Deprecated API Migration Guide
+  url: https://kubernetes.io/docs/reference/using-api/deprecation-guide/

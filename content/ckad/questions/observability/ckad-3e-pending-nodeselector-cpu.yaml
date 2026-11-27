@@ -1,0 +1,160 @@
+id: ckad-3e-pending-nodeselector-cpu
+objective: "3.5.1"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    Pod `indexer` in namespace `search` stays `Pending`. You collected this:
+
+    ```text
+    $ kubectl get nodes -L disk-type
+    NAME       STATUS   ROLES    AGE   VERSION   DISK-TYPE
+    worker-1   Ready    <none>   40d   v1.37.0   ssd
+    worker-2   Ready    <none>   40d   v1.37.0   ssd
+    worker-3   Ready    <none>   40d   v1.37.0   hdd
+
+    $ kubectl describe pod indexer -n search
+    ...
+    Node-Selectors:  disktype=ssd
+    Events:
+      Type     Reason            From               Message
+      Warning  FailedScheduling  default-scheduler  0/3 nodes are available: 3 node(s) didn't match Pod's node affinity/selector.
+    ```
+
+    Each node has 4 CPUs allocatable. Fix the manifest below so that the Pod is scheduled: it must still run only on SSD nodes, and its CPU request must be what the application really needs, `500m`, instead of `6`.
+body:
+  starter: |
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: indexer
+      namespace: search
+    spec:
+      nodeSelector:
+        disktype: ssd
+      containers:
+      - name: indexer
+        image: registry.example.com/indexer:7.3
+        resources:
+          requests:
+            cpu: "6"
+            memory: 1Gi
+answer:
+  checks:
+  - id: pod
+    label: A Pod named indexer in namespace search
+    path: metadata
+    op: subset
+    value: {name: indexer, namespace: search}
+  - id: selector
+    label: nodeSelector is disk-type=ssd only
+    path: spec.nodeSelector
+    op: equals
+    value: {disk-type: ssd}
+  - id: cpu
+    label: CPU request is 500m
+    path: spec.containers[name=indexer].resources.requests.cpu
+    op: quantity
+    value: 500m
+  - id: memory
+    label: Memory request stays 1Gi
+    path: spec.containers[name=indexer].resources.requests.memory
+    op: quantity
+    value: 1Gi
+  - id: image
+    label: Image is unchanged
+    path: spec.containers[name=indexer].image
+    op: equals
+    value: registry.example.com/indexer:7.3
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: indexer
+        namespace: search
+      spec:
+        nodeSelector:
+          disk-type: ssd
+        containers:
+        - name: indexer
+          image: registry.example.com/indexer:7.3
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: indexer
+        namespace: search
+      spec:
+        containers:
+        - name: indexer
+          image: registry.example.com/indexer:7.3
+          resources:
+            requests:
+              cpu: "0.5"
+              memory: 1Gi
+        nodeSelector:
+          disk-type: ssd
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: indexer
+        namespace: search
+      spec:
+        nodeSelector:
+          disktype: ssd
+        containers:
+        - name: indexer
+          image: registry.example.com/indexer:7.3
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+    why: The nodes are labelled disk-type, not disktype; the selector still matches no node.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: indexer
+        namespace: search
+      spec:
+        nodeSelector:
+          disk-type: ssd
+        containers:
+        - name: indexer
+          image: registry.example.com/indexer:7.3
+          resources:
+            requests:
+              cpu: "6"
+              memory: 1Gi
+    why: Once the selector matches, the request of 6 CPUs still fits on no node (4 allocatable) and the Pod stays Pending with Insufficient cpu.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: indexer
+        namespace: search
+      spec:
+        containers:
+        - name: indexer
+          image: registry.example.com/indexer:7.3
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+    why: Without a nodeSelector the Pod can land on worker-3, an HDD node.
+explanation:
+  correct:
+    en: 'The scheduler only places a Pod on nodes that carry every label of its `nodeSelector`. The nodes are labelled `disk-type=ssd`, so `disktype: ssd` matches none of them. The request of 6 CPUs is the second blocker: it exceeds the 4 allocatable CPUs of every node, so after fixing the label the event would become Insufficient cpu. Fixing both lets the Pod schedule on worker-1 or worker-2.'
+references:
+- title: Assigning Pods to Nodes
+  url: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/
+- title: Resource Management for Pods and Containers
+  url: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/

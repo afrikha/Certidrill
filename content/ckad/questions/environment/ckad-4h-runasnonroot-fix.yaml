@@ -1,0 +1,129 @@
+id: ckad-4h-runasnonroot-fix
+objective: "4.8.1"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    Pod `queue-worker` in namespace `jobs` stays in `CreateContainerConfigError`. `kubectl describe` shows the event: `container's runAsUser breaks non-root policy`. Its manifest is pre-filled in the editor.
+
+    Fix the manifest:
+
+    - keep `runAsNonRoot: true` at Pod level and `allowPrivilegeEscalation: false` on the container;
+    - in the **container** securityContext of `worker`, run the process as user ID `1001` and group ID `1001`.
+body:
+  starter: |
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: queue-worker
+      namespace: jobs
+    spec:
+      securityContext:
+        runAsNonRoot: true
+      containers:
+      - name: worker
+        image: registry.example.com/jobs/worker:4.0
+        securityContext:
+          runAsUser: 0
+          allowPrivilegeEscalation: false
+answer:
+  checks:
+  - id: pod
+    label: The Pod queue-worker in namespace jobs
+    path: metadata
+    op: subset
+    value: {name: queue-worker, namespace: jobs}
+  - id: non-root
+    label: runAsNonRoot is still true at Pod level
+    path: spec.securityContext.runAsNonRoot
+    op: equals
+    value: true
+  - id: user
+    label: Container worker runs as user 1001
+    path: spec.containers[name=worker].securityContext.runAsUser
+    op: equals
+    value: 1001
+  - id: group
+    label: Container worker runs with group 1001
+    path: spec.containers[name=worker].securityContext.runAsGroup
+    op: equals
+    value: 1001
+  - id: no-escalation
+    label: allowPrivilegeEscalation is still false
+    path: spec.containers[name=worker].securityContext.allowPrivilegeEscalation
+    op: equals
+    value: false
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: queue-worker
+        namespace: jobs
+      spec:
+        securityContext:
+          runAsNonRoot: true
+        containers:
+        - name: worker
+          image: registry.example.com/jobs/worker:4.0
+          securityContext:
+            runAsUser: 1001
+            runAsGroup: 1001
+            allowPrivilegeEscalation: false
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: queue-worker
+        namespace: jobs
+      spec:
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1001
+          runAsGroup: 1001
+        containers:
+        - name: worker
+          image: registry.example.com/jobs/worker:4.0
+          securityContext:
+            runAsUser: 0
+            allowPrivilegeEscalation: false
+    why: The container-level runAsUser 0 overrides the Pod-level value, so the kubelet still refuses to start the container.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: queue-worker
+        namespace: jobs
+      spec:
+        containers:
+        - name: worker
+          image: registry.example.com/jobs/worker:4.0
+          securityContext:
+            runAsUser: 1001
+            runAsGroup: 1001
+            allowPrivilegeEscalation: false
+    why: Removing runAsNonRoot makes the Pod start but drops the guard the task asks to keep.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: queue-worker
+        namespace: jobs
+      spec:
+        securityContext:
+          runAsNonRoot: true
+        containers:
+        - name: worker
+          image: registry.example.com/jobs/worker:4.0
+          securityContext:
+            runAsUser: 1001
+            allowPrivilegeEscalation: false
+    why: Without runAsGroup the primary group of the process is 0 (root), not 1001.
+explanation:
+  correct:
+    en: '`runAsNonRoot: true` makes the kubelet refuse to start a container whose effective user is 0; container settings override Pod settings, so the container-level `runAsUser: 0` triggered the error. Setting `runAsUser: 1001` and `runAsGroup: 1001` in the container securityContext satisfies the check; without runAsGroup the primary group is root (0).'
+references:
+- title: Configure a Security Context for a Pod or Container
+  url: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/

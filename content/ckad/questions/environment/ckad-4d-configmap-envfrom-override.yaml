@@ -1,0 +1,127 @@
+id: ckad-4d-configmap-envfrom-override
+objective: "4.4.2"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    ConfigMap `web-config` in namespace `shop` holds the keys `APP_MODE` (`production`), `CACHE_TTL` and `LOG_LEVEL`.
+
+    Write the manifest of a Pod named `web` in namespace `shop` with one container named `web` running `nginx:1.27`:
+
+    - every key of `web-config` becomes an environment variable of the same name, without listing the keys one by one;
+    - in this Pod only, `APP_MODE` must be `debug` (do not change the ConfigMap).
+body:
+  starter: |
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: web
+      namespace: shop
+    spec:
+      containers:
+      - name: web
+        image: nginx:1.27
+answer:
+  checks:
+  - id: pod
+    label: A Pod named web in namespace shop
+    path: metadata
+    op: subset
+    value: {name: web, namespace: shop}
+  - id: image
+    label: Container web runs nginx:1.27
+    path: spec.containers[name=web].image
+    op: equals
+    value: nginx:1.27
+  - id: envfrom
+    label: Container web imports every key of ConfigMap web-config
+    path: spec.containers[name=web].envFrom
+    op: contains
+    value: {configMapRef: {name: web-config}}
+  - id: override
+    label: APP_MODE is set to debug in the container env
+    path: spec.containers[name=web].env[name=APP_MODE].value
+    op: equals
+    value: debug
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: web
+        namespace: shop
+      spec:
+        containers:
+        - name: web
+          image: nginx:1.27
+          envFrom:
+          - configMapRef:
+              name: web-config
+          env:
+          - name: APP_MODE
+            value: debug
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: web
+        namespace: shop
+      spec:
+        containers:
+        - name: web
+          image: nginx:1.27
+          envFrom:
+          - configMapRef:
+              name: web-config
+    why: APP_MODE then keeps the ConfigMap value, production.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: web
+        namespace: shop
+      spec:
+        containers:
+        - name: web
+          image: nginx:1.27
+          envFrom:
+          - secretRef:
+              name: web-config
+          env:
+          - name: APP_MODE
+            value: debug
+    why: secretRef looks for a Secret named web-config; the data is in a ConfigMap.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: web
+        namespace: shop
+      spec:
+        containers:
+        - name: web
+          image: nginx:1.27
+          env:
+          - name: APP_MODE
+            value: debug
+          - name: CACHE_TTL
+            valueFrom:
+              configMapKeyRef:
+                name: web-config
+                key: CACHE_TTL
+          - name: LOG_LEVEL
+            valueFrom:
+              configMapKeyRef:
+                name: web-config
+                key: LOG_LEVEL
+    why: The task asks to import every key without listing them; keys added to the ConfigMap later would be missed.
+explanation:
+  correct:
+    en: '`envFrom` with `configMapRef` turns every key of the ConfigMap into an environment variable of the same name. A variable defined in `env` with the same name wins over `envFrom`, so `env: [{name: APP_MODE, value: debug}]` overrides the ConfigMap value for this container only. `secretRef` would read a Secret, not a ConfigMap.'
+references:
+- title: Configure a Pod to Use a ConfigMap
+  url: https://kubernetes.io/docs/tasks/configure-pod-container/configure-pod-configmap/
+- title: Pod
+  url: https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/pod-v1/

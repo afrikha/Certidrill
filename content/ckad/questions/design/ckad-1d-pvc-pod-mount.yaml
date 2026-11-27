@@ -1,0 +1,195 @@
+id: ckad-1d-pvc-pod-mount
+objective: "1.4.2"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    In namespace `cms`, write two documents:
+
+    1. a PersistentVolumeClaim named `uploads` that requests `10Gi` from the StorageClass `nfs-client`, mountable read-write by many nodes at once;
+    2. a Pod named `cms` with one container named `cms` (`registry.example.com/cms:7.1`) that mounts the claim, through a volume named `uploads`, at `/var/www/uploads`.
+body: {}
+answer:
+  checks:
+  - id: pvc
+    label: A PersistentVolumeClaim uploads in namespace cms
+    select: {kind: PersistentVolumeClaim, name: uploads}
+    path: metadata.namespace
+    op: equals
+    value: cms
+  - id: class
+    label: The claim uses StorageClass nfs-client
+    select: {kind: PersistentVolumeClaim, name: uploads}
+    path: spec.storageClassName
+    op: equals
+    value: nfs-client
+  - id: mode
+    label: The claim asks for ReadWriteMany
+    select: {kind: PersistentVolumeClaim, name: uploads}
+    path: spec.accessModes
+    op: contains
+    value: ReadWriteMany
+  - id: size
+    label: The claim requests 10Gi
+    select: {kind: PersistentVolumeClaim, name: uploads}
+    path: spec.resources.requests.storage
+    op: quantity
+    value: 10Gi
+  - id: pod
+    label: A Pod cms in namespace cms
+    select: {kind: Pod, name: cms}
+    path: metadata.namespace
+    op: equals
+    value: cms
+  - id: image
+    label: Container cms runs registry.example.com/cms:7.1
+    select: {kind: Pod, name: cms}
+    path: spec.containers[name=cms].image
+    op: equals
+    value: registry.example.com/cms:7.1
+  - id: claim
+    label: Volume uploads references claim uploads
+    select: {kind: Pod, name: cms}
+    path: spec.volumes[name=uploads].persistentVolumeClaim.claimName
+    op: equals
+    value: uploads
+  - id: mount
+    label: cms mounts uploads at /var/www/uploads
+    select: {kind: Pod, name: cms}
+    path: spec.containers[name=cms].volumeMounts[name=uploads].mountPath
+    op: equals
+    value: /var/www/uploads
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: uploads
+        namespace: cms
+      spec:
+        storageClassName: nfs-client
+        accessModes:
+        - ReadWriteMany
+        resources:
+          requests:
+            storage: 10Gi
+      ---
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: cms
+        namespace: cms
+      spec:
+        containers:
+        - name: cms
+          image: registry.example.com/cms:7.1
+          volumeMounts:
+          - name: uploads
+            mountPath: /var/www/uploads
+        volumes:
+        - name: uploads
+          persistentVolumeClaim:
+            claimName: uploads
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: uploads
+        namespace: cms
+      spec:
+        storageClassName: nfs-client
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 10Gi
+      ---
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: cms
+        namespace: cms
+      spec:
+        containers:
+        - name: cms
+          image: registry.example.com/cms:7.1
+          volumeMounts:
+          - name: uploads
+            mountPath: /var/www/uploads
+        volumes:
+        - name: uploads
+          persistentVolumeClaim:
+            claimName: uploads
+    why: ReadWriteOnce allows read-write mounts from a single node only; many nodes need ReadWriteMany.
+  - manifest: |
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: uploads
+        namespace: cms
+      spec:
+        storageClassName: nfs-client
+        accessModes:
+        - ReadWriteMany
+        resources:
+          requests:
+            storage: 10Gi
+      ---
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: cms
+        namespace: cms
+      spec:
+        containers:
+        - name: cms
+          image: registry.example.com/cms:7.1
+          volumeMounts:
+          - name: uploads
+            mountPath: /var/www/uploads
+        volumes:
+        - name: uploads
+          persistentVolumeClaim:
+            name: uploads
+    why: The field is persistentVolumeClaim.claimName; name is unknown and the volume references no claim.
+  - manifest: |
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: uploads
+        namespace: cms
+      spec:
+        storageClass: nfs-client
+        accessModes:
+        - ReadWriteMany
+        resources:
+          requests:
+            storage: 10G
+      ---
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: cms
+        namespace: cms
+      spec:
+        containers:
+        - name: cms
+          image: registry.example.com/cms:7.1
+          volumeMounts:
+          - name: uploads
+            mountPath: /var/www/uploads
+        volumes:
+        - name: uploads
+          persistentVolumeClaim:
+            claimName: uploads
+    why: The field is storageClassName (storageClass is unknown, so the default class would be used), and 10G is not 10Gi.
+explanation:
+  correct:
+    en: 'The claim sets `storageClassName: nfs-client`, `accessModes: [ReadWriteMany]` (RWX: read-write by many nodes) and `resources.requests.storage: 10Gi`. The Pod declares a volume of type `persistentVolumeClaim` with `claimName: uploads`, in the same namespace, and the container mounts that volume by name with `mountPath`.'
+references:
+- title: Persistent Volumes
+  url: https://kubernetes.io/docs/concepts/storage/persistent-volumes/
+- title: Configure a Pod to Use a PersistentVolume for Storage
+  url: https://kubernetes.io/docs/tasks/configure-pod-container/configure-persistent-volume-storage/

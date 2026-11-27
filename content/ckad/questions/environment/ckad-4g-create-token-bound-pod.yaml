@@ -1,0 +1,74 @@
+id: ckad-4g-create-token-bound-pod
+objective: "4.7.2"
+difficulty: 3
+status: draft
+type: command
+stem:
+  en: |-
+    In namespace `media`, Pod `uploader` hands a token to an external storage gateway that only accepts tokens issued for the audience `https://storage.example.com`.
+
+    Request a token for the ServiceAccount `uploader-sa` that:
+
+    - is issued for the audience `https://storage.example.com`;
+    - is valid for 30 minutes;
+    - stops being valid as soon as Pod `uploader` is deleted.
+
+    Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Uses kubectl create token
+    path: subverb
+    op: equals
+    value: token
+  - id: name
+    label: The token is for ServiceAccount uploader-sa
+    path: names
+    op: contains
+    value: uploader-sa
+  - id: audience
+    label: Audience is https://storage.example.com
+    path: flags.audience
+    op: equals
+    value: https://storage.example.com
+  - id: duration
+    label: Lifetime is 30 minutes
+    path: flags.duration
+    op: oneOf
+    value: ["30m", "1800s", "30m0s", "0.5h"]
+  - id: kind
+    label: The token is bound to a Pod
+    path: flags.bound-object-kind
+    op: equals
+    value: Pod
+  - id: object
+    label: The token is bound to Pod uploader
+    path: flags.bound-object-name
+    op: equals
+    value: uploader
+  - id: namespace
+    label: Runs in namespace media
+    path: flags.namespace
+    op: equals
+    value: media
+  solution:
+  - command: kubectl create token uploader-sa -n media --audience=https://storage.example.com --duration=30m --bound-object-kind=Pod --bound-object-name=uploader
+  - command: k create token uploader-sa --bound-object-kind Pod --bound-object-name uploader --audience https://storage.example.com --duration 1800s -n media
+  negatives:
+  - command: kubectl create token uploader -n media --audience=https://storage.example.com --duration=30m --bound-object-kind=Pod --bound-object-name=uploader-sa
+    why: The positional argument is the ServiceAccount and --bound-object-name is the Pod; here they are swapped.
+  - command: kubectl create token uploader-sa -n media --audience=https://storage.example.com --duration=30m
+    why: Without --bound-object-kind and --bound-object-name the token stays valid until it expires, even after the Pod is deleted.
+  - command: kubectl create token uploader-sa -n media --audience=https://storage.example.com --duration=30m --bound-object-kind=pod --bound-object-name=uploader
+    why: --bound-object-kind is case-sensitive; kubectl only accepts Node, Pod or Secret.
+  - command: kubectl create token uploader-sa -n media --duration=30m --bound-object-kind=Pod --bound-object-name=uploader
+    why: Without --audience the token is issued for the API server audience, and the gateway rejects it.
+explanation:
+  correct:
+    en: '`kubectl create token uploader-sa` requests a token for the ServiceAccount; `--audience` sets the `aud` claim the gateway checks; `--duration=30m` sets the lifetime; `--bound-object-kind=Pod --bound-object-name=uploader` binds the token to the Pod so that it becomes invalid when the Pod is deleted (kubectl looks up the UID of the Pod unless `--bound-object-uid` is given). Supported bound kinds are Node, Pod and Secret, with that exact case.'
+references:
+- title: kubectl create token
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_create/kubectl_create_token/

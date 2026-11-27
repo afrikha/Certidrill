@@ -1,0 +1,64 @@
+id: ckad-1c-exec-localhost-sidecar
+objective: "1.3.2"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    In namespace `shop`, Pod `catalog` has two containers, listed in this order: `metrics-exporter`, a helper that serves Prometheus metrics on port 9102 at `/metrics`, and `app`, whose image includes `wget`. The `metrics-exporter` image contains no shell and no `wget`.
+
+    From inside the `app` container, fetch the exporter's metrics over the Pod's shared network namespace with `wget -qO- <url>`. Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Uses kubectl exec
+    path: verb
+    op: equals
+    value: exec
+  - id: pod
+    label: Targets Pod catalog
+    path: names
+    op: contains
+    value: catalog
+  - id: container
+    label: Runs in container app
+    path: flags.container
+    op: equals
+    value: app
+  - id: namespace
+    label: Runs in namespace shop
+    path: flags.namespace
+    op: equals
+    value: shop
+  - id: wget
+    label: Runs wget after --
+    path: rest[0]
+    op: equals
+    value: wget
+  - id: url
+    label: Fetches /metrics on localhost port 9102
+    path: rest
+    op: matches
+    value: "(localhost|127\\.0\\.0\\.1):9102/metrics"
+  solution:
+  - command: kubectl exec catalog -n shop -c app -- wget -qO- http://localhost:9102/metrics
+  - command: k -n shop exec -c app pod/catalog -- wget -qO- http://127.0.0.1:9102/metrics
+  - command: kubectl exec -n shop catalog --container=app -- wget -qO- localhost:9102/metrics
+  negatives:
+  - command: kubectl exec catalog -n shop -c metrics-exporter -- wget -qO- http://localhost:9102/metrics
+    why: The exporter image has no wget; the command must run in app.
+  - command: kubectl exec catalog -n shop -c app -- wget -qO- http://metrics-exporter:9102/metrics
+    why: Container names are not DNS names; containers of the same Pod reach each other on localhost.
+  - command: kubectl exec catalog -n shop -- wget -qO- http://localhost:9102/metrics
+    why: Without -c, kubectl uses the default container, the first one (metrics-exporter), which has no wget.
+explanation:
+  correct:
+    en: 'All containers of a Pod share one network namespace: same IP address, same port space, and they reach each other on `localhost`. `kubectl exec catalog -n shop -c app -- wget -qO- http://localhost:9102/metrics` runs `wget` in `app` and reaches the helper on port 9102. Everything after `--` is the command run in the container.'
+references:
+- title: Pods
+  url: https://kubernetes.io/docs/concepts/workloads/pods/
+- title: Get a Shell to a Running Container
+  url: https://kubernetes.io/docs/tasks/debug/debug-application/get-shell-running-container/

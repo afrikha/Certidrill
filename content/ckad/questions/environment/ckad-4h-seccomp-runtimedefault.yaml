@@ -1,0 +1,102 @@
+id: ckad-4h-seccomp-runtimedefault
+objective: "4.8.2"
+difficulty: 1
+status: draft
+type: manifest
+stem:
+  en: |-
+    The nodes of the cluster run containers `Unconfined` when no seccomp profile is set. Write the manifest of a Pod `ledger` in namespace `finance` with one container `ledger` running `registry.example.com/finance/ledger:7.1`.
+
+    Every container of the Pod must use the container runtime's default seccomp profile: set it once, at **Pod** level.
+body:
+  starter: |
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: ledger
+      namespace: finance
+    spec:
+      containers:
+      - name: ledger
+        image: registry.example.com/finance/ledger:7.1
+answer:
+  checks:
+  - id: pod
+    label: The Pod ledger in namespace finance
+    path: metadata
+    op: subset
+    value: {name: ledger, namespace: finance}
+  - id: seccomp
+    label: Pod-level seccomp profile type is RuntimeDefault
+    path: spec.securityContext.seccompProfile.type
+    op: equals
+    value: RuntimeDefault
+  - id: image
+    label: Container ledger runs registry.example.com/finance/ledger:7.1
+    path: spec.containers[name=ledger].image
+    op: equals
+    value: registry.example.com/finance/ledger:7.1
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: ledger
+        namespace: finance
+      spec:
+        securityContext:
+          seccompProfile:
+            type: RuntimeDefault
+        containers:
+        - name: ledger
+          image: registry.example.com/finance/ledger:7.1
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: ledger
+        namespace: finance
+        annotations:
+          seccomp.security.alpha.kubernetes.io/pod: runtime/default
+      spec:
+        containers:
+        - name: ledger
+          image: registry.example.com/finance/ledger:7.1
+    why: The seccomp annotations are no longer supported; current Kubernetes only reads securityContext.seccompProfile.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: ledger
+        namespace: finance
+      spec:
+        securityContext:
+          seccompProfile:
+            type: Unconfined
+        containers:
+        - name: ledger
+          image: registry.example.com/finance/ledger:7.1
+    why: Unconfined disables seccomp filtering, which is the current behaviour the task wants to replace.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: ledger
+        namespace: finance
+      spec:
+        securityContext:
+          seccompProfile:
+            type: Localhost
+        containers:
+        - name: ledger
+          image: registry.example.com/finance/ledger:7.1
+    why: Localhost loads a profile file from the node and requires localhostProfile; the runtime default profile is type RuntimeDefault.
+explanation:
+  correct:
+    en: '`spec.securityContext.seccompProfile.type: RuntimeDefault` applies the container runtime''s default seccomp profile to every container of the Pod; a container can override it in its own securityContext. The other types are `Unconfined` (no filtering) and `Localhost` (a profile file on the node, named with `localhostProfile`). The old seccomp annotations are not supported any more.'
+references:
+- title: Restrict a Container's Syscalls with seccomp
+  url: https://kubernetes.io/docs/tutorials/security/seccomp/
+- title: Configure a Security Context for a Pod or Container
+  url: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/

@@ -1,0 +1,152 @@
+id: cka-5f-kubelet-resolvconf-loop
+objective: "5.6.2"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    After an operating system upgrade of the nodes, the CoreDNS Pods are in `CrashLoopBackOff` and their logs end with:
+
+    ```text
+    [FATAL] plugin/loop: Loop (127.0.0.1:41672 -> :53) detected for zone ".", see https://coredns.io/plugins/loop#troubleshooting.
+    ```
+
+    On the nodes, `systemd-resolved` now manages `/etc/resolv.conf`, which contains only `nameserver 127.0.0.53`; the real upstream servers are listed in `/run/systemd/resolve/resolv.conf`. The Corefile uses `forward . /etc/resolv.conf` and must not change.
+
+    Correct the kubelet configuration file `/var/lib/kubelet/config.yaml` (in the editor) so that Pods that inherit the node resolver, such as CoreDNS, receive the real upstream servers. Keep the cluster DNS settings.
+body:
+  starter: |
+    apiVersion: kubelet.config.k8s.io/v1beta1
+    kind: KubeletConfiguration
+    authentication:
+      anonymous:
+        enabled: false
+      webhook:
+        enabled: true
+      x509:
+        clientCAFile: /etc/kubernetes/pki/ca.crt
+    authorization:
+      mode: Webhook
+    cgroupDriver: systemd
+    clusterDNS:
+    - 10.96.0.10
+    clusterDomain: cluster.local
+    resolvConf: /etc/resolv.conf
+    staticPodPath: /etc/kubernetes/manifests
+answer:
+  checks:
+  - id: kind
+    label: The file is still a KubeletConfiguration
+    path: kind
+    op: equals
+    value: KubeletConfiguration
+  - id: api
+    label: It uses apiVersion kubelet.config.k8s.io/v1beta1
+    path: apiVersion
+    op: equals
+    value: kubelet.config.k8s.io/v1beta1
+  - id: resolv-conf
+    label: resolvConf points to /run/systemd/resolve/resolv.conf
+    path: resolvConf
+    op: equals
+    value: /run/systemd/resolve/resolv.conf
+  - id: cluster-dns
+    label: clusterDNS is still 10.96.0.10
+    path: clusterDNS
+    op: contains
+    value: 10.96.0.10
+  - id: cluster-domain
+    label: clusterDomain is still cluster.local
+    path: clusterDomain
+    op: equals
+    value: cluster.local
+  - id: static-pods
+    label: staticPodPath is still /etc/kubernetes/manifests
+    path: staticPodPath
+    op: equals
+    value: /etc/kubernetes/manifests
+  solution:
+  - manifest: |
+      apiVersion: kubelet.config.k8s.io/v1beta1
+      kind: KubeletConfiguration
+      authentication:
+        anonymous:
+          enabled: false
+        webhook:
+          enabled: true
+        x509:
+          clientCAFile: /etc/kubernetes/pki/ca.crt
+      authorization:
+        mode: Webhook
+      cgroupDriver: systemd
+      clusterDNS:
+      - 10.96.0.10
+      clusterDomain: cluster.local
+      resolvConf: /run/systemd/resolve/resolv.conf
+      staticPodPath: /etc/kubernetes/manifests
+  negatives:
+  - manifest: |
+      apiVersion: kubelet.config.k8s.io/v1beta1
+      kind: KubeletConfiguration
+      authentication:
+        anonymous:
+          enabled: false
+        webhook:
+          enabled: true
+        x509:
+          clientCAFile: /etc/kubernetes/pki/ca.crt
+      authorization:
+        mode: Webhook
+      cgroupDriver: systemd
+      clusterDNS:
+      - 10.96.0.10
+      clusterDomain: cluster.local
+      resolvConf: ""
+      staticPodPath: /etc/kubernetes/manifests
+    why: An empty resolvConf disables DNS lookups based on the node file, so CoreDNS gets no upstream servers at all.
+  - manifest: |
+      apiVersion: kubelet.config.k8s.io/v1beta1
+      kind: KubeletConfiguration
+      authentication:
+        anonymous:
+          enabled: false
+        webhook:
+          enabled: true
+        x509:
+          clientCAFile: /etc/kubernetes/pki/ca.crt
+      authorization:
+        mode: Webhook
+      cgroupDriver: systemd
+      clusterDNS:
+      - 127.0.0.53
+      clusterDomain: cluster.local
+      resolvConf: /etc/resolv.conf
+      staticPodPath: /etc/kubernetes/manifests
+    why: clusterDNS is the nameserver given to ClusterFirst Pods and must stay the kube-dns Service IP; CoreDNS (dnsPolicy Default) still reads the loopback stub from /etc/resolv.conf.
+  - manifest: |
+      apiVersion: kubelet.config.k8s.io/v1beta1
+      kind: KubeletConfiguration
+      authentication:
+        anonymous:
+          enabled: false
+        webhook:
+          enabled: true
+        x509:
+          clientCAFile: /etc/kubernetes/pki/ca.crt
+      authorization:
+        mode: Webhook
+      cgroupDriver: systemd
+      clusterDNS:
+      - 10.96.0.10
+      clusterDomain: cluster.local
+      resolvConf: /run/systemd/resolved.conf
+      staticPodPath: /etc/kubernetes/manifests
+    why: That path is not the resolver file written by systemd-resolved; the file with the real upstream servers is /run/systemd/resolve/resolv.conf.
+explanation:
+  correct:
+    en: 'CoreDNS runs with `dnsPolicy: Default`, so the kubelet gives it the file named by `resolvConf` (default `/etc/resolv.conf`). With systemd-resolved that file only lists the local stub `127.0.0.53`, CoreDNS forwards to itself and the `loop` plugin stops it. Set `resolvConf: /run/systemd/resolve/resolv.conf`, then `systemctl restart kubelet` on each node and restart the CoreDNS Pods so they get the new file. `clusterDNS` (the kube-dns Service IP for ClusterFirst Pods) must not change.'
+references:
+- title: Debugging DNS Resolution
+  url: https://kubernetes.io/docs/tasks/administer-cluster/dns-debugging-resolution/
+- title: loop
+  url: https://coredns.io/plugins/loop/

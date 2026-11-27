@@ -1,0 +1,148 @@
+id: ckad-3a-deployment-apps-v1
+objective: "3.1.2"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    The manifest in the editor comes from an old repository, and `kubectl apply` on a v1.37 cluster fails with `no matches for kind "Deployment" in version "extensions/v1beta1"`.
+
+    Rewrite it for the API version the cluster serves. Keep the name, namespace, replica count, Pod labels and container. Add the selector the current API requires, as `spec.selector.matchLabels`, matching the existing Pod template labels.
+body:
+  starter: |
+    apiVersion: extensions/v1beta1
+    kind: Deployment
+    metadata:
+      name: legacy-api
+      namespace: payments
+    spec:
+      replicas: 2
+      template:
+        metadata:
+          labels:
+            app: legacy-api
+        spec:
+          containers:
+          - name: api
+            image: registry.example.com/legacy-api:3.2
+answer:
+  checks:
+  - id: api-version
+    label: Uses apiVersion apps/v1
+    path: apiVersion
+    op: equals
+    value: apps/v1
+  - id: kind
+    label: The object is a Deployment
+    path: kind
+    op: equals
+    value: Deployment
+  - id: metadata
+    label: Named legacy-api in namespace payments
+    path: metadata
+    op: subset
+    value: {name: legacy-api, namespace: payments}
+  - id: replicas
+    label: Keeps 2 replicas
+    path: spec.replicas
+    op: equals
+    value: 2
+  - id: selector
+    label: The selector matches app=legacy-api
+    path: spec.selector.matchLabels.app
+    op: equals
+    value: legacy-api
+  - id: template-labels
+    label: The Pod template keeps the label app=legacy-api
+    path: spec.template.metadata.labels.app
+    op: equals
+    value: legacy-api
+  - id: image
+    label: Container api runs registry.example.com/legacy-api:3.2
+    path: spec.template.spec.containers[name=api].image
+    op: equals
+    value: registry.example.com/legacy-api:3.2
+  solution:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: legacy-api
+        namespace: payments
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: legacy-api
+        template:
+          metadata:
+            labels:
+              app: legacy-api
+          spec:
+            containers:
+            - name: api
+              image: registry.example.com/legacy-api:3.2
+  negatives:
+  - manifest: |
+      apiVersion: apps/v1beta2
+      kind: Deployment
+      metadata:
+        name: legacy-api
+        namespace: payments
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: legacy-api
+        template:
+          metadata:
+            labels:
+              app: legacy-api
+          spec:
+            containers:
+            - name: api
+              image: registry.example.com/legacy-api:3.2
+    why: apps/v1beta2 was removed in v1.16 together with extensions/v1beta1 and apps/v1beta1; only apps/v1 is served.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: legacy-api
+        namespace: payments
+      spec:
+        replicas: 2
+        template:
+          metadata:
+            labels:
+              app: legacy-api
+          spec:
+            containers:
+            - name: api
+              image: registry.example.com/legacy-api:3.2
+    why: In apps/v1 spec.selector is required; the API server rejects a Deployment without it.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: legacy-api
+        namespace: payments
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: api
+        template:
+          metadata:
+            labels:
+              app: legacy-api
+          spec:
+            containers:
+            - name: api
+              image: registry.example.com/legacy-api:3.2
+    why: The selector app=api does not match the template label app=legacy-api; the API server rejects the Deployment.
+explanation:
+  correct:
+    en: 'Deployments in `extensions/v1beta1`, `apps/v1beta1` and `apps/v1beta2` have not been served since v1.16; the current version is `apps/v1`. In `apps/v1`, `spec.selector` is required, immutable after creation, and must match the Pod template labels, so the migration guide recommends reusing the existing template labels as the selector.'
+references:
+- title: Deprecated API Migration Guide
+  url: https://kubernetes.io/docs/reference/using-api/deprecation-guide/

@@ -1,0 +1,57 @@
+id: ckad-1c-logs-previous-sidecar
+objective: "1.3.3"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    In namespace `shop`, Pod `api` runs two containers: `app` and an ambassador container named `proxy`. `kubectl get pod api -n shop` shows 4 restarts, all of them for `proxy`, which is running again now.
+
+    Print the logs that `proxy` wrote before its last crash. Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Uses kubectl logs
+    path: verb
+    op: equals
+    value: logs
+  - id: pod
+    label: Targets Pod api
+    path: names
+    op: contains
+    value: api
+  - id: container
+    label: Selects container proxy
+    path: flags.container
+    op: equals
+    value: proxy
+  - id: previous
+    label: Reads the previous (crashed) instance
+    path: flags.previous
+    op: equals
+    value: true
+  - id: namespace
+    label: Runs in namespace shop
+    path: flags.namespace
+    op: equals
+    value: shop
+  solution:
+  - command: kubectl logs api -c proxy -p -n shop
+  - command: k -n shop logs --previous pod/api --container proxy
+  - command: kubectl logs -p -c proxy api --namespace=shop
+  negatives:
+  - command: kubectl logs api -c proxy -n shop
+    why: Without -p (--previous) kubectl prints the logs of the current, restarted instance, not those written before the crash.
+  - command: kubectl logs api -p -n shop
+    why: Without -c, kubectl reads the default container (app here, the first one), which did not crash.
+  - command: kubectl logs api --all-containers -n shop
+    why: --all-containers prints the current logs of every container, not the previous instance of proxy.
+explanation:
+  correct:
+    en: '`kubectl logs api -c proxy -p -n shop` combines `-c` (`--container`), to pick one container of a multi-container Pod, with `-p` (`--previous`), which prints the logs of the previous instance of that container if it exists. Without `-p` you only see what the restarted container has written since it came back.'
+references:
+- title: kubectl logs
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_logs/

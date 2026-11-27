@@ -1,0 +1,65 @@
+id: cka-1b-patch-reclaim-retain
+objective: "1.2.2"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    `kubectl get pv` prints:
+
+    ```text
+    NAME                                       CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS   CLAIM                STORAGECLASS   AGE
+    pvc-4b8e2f1a-93c7-4d51-a0e2-7f6c1d9b3e40   20Gi       RWO            Delete           Bound    payments/orders-db   fast-ssd       12d
+    pvc-9d3a7c55-1e2b-4f86-b7d4-2a5e8c0f6b11   5Gi        RWO            Delete           Bound    shop/cache           fast-ssd       3d
+    ```
+
+    The team is about to delete the claim `orders-db` in namespace `payments`. Its volume and data must survive. Change the volume's reclaim policy with a single non-interactive command. Type the command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Uses kubectl patch
+    path: verb
+    op: equals
+    value: patch
+  - id: resource
+    label: Patches a PersistentVolume
+    path: resource
+    op: equals
+    value: persistentvolume
+  - id: name
+    label: Names the volume bound to payments/orders-db
+    path: names
+    op: contains
+    value: pvc-4b8e2f1a-93c7-4d51-a0e2-7f6c1d9b3e40
+  - id: policy
+    label: Sets spec.persistentVolumeReclaimPolicy to Retain
+    path: flags
+    op: matches
+    value: 'persistentVolumeReclaimPolicy\W+(value\W+)?Retain'
+  solution:
+  - command: |-
+      kubectl patch pv pvc-4b8e2f1a-93c7-4d51-a0e2-7f6c1d9b3e40 -p '{"spec":{"persistentVolumeReclaimPolicy":"Retain"}}'
+  - command: |-
+      k patch persistentvolume/pvc-4b8e2f1a-93c7-4d51-a0e2-7f6c1d9b3e40 --type merge --patch '{"spec":{"persistentVolumeReclaimPolicy":"Retain"}}'
+  - command: |-
+      kubectl patch pv pvc-4b8e2f1a-93c7-4d51-a0e2-7f6c1d9b3e40 --type=json -p '[{"op":"replace","path":"/spec/persistentVolumeReclaimPolicy","value":"Retain"}]'
+  negatives:
+  - command: |-
+      kubectl patch storageclass fast-ssd -p '{"reclaimPolicy":"Retain"}'
+    why: The class policy applies to new volumes only (and cannot be changed on an existing class); the bound PV keeps Delete.
+  - command: |-
+      kubectl patch pvc orders-db -n payments -p '{"spec":{"persistentVolumeReclaimPolicy":"Retain"}}'
+    why: The reclaim policy is a field of the PersistentVolume, not of the claim.
+  - command: |-
+      kubectl patch pv pvc-9d3a7c55-1e2b-4f86-b7d4-2a5e8c0f6b11 -p '{"spec":{"persistentVolumeReclaimPolicy":"Retain"}}'
+    why: This is the volume of shop/cache; the CLAIM column shows that orders-db uses pvc-4b8e2f1a-….
+explanation:
+  correct:
+    en: |-
+      A dynamically provisioned volume inherits its class policy, `Delete` by default: deleting the claim would delete the PV and the backend disk. Patch the **PV** found in the `CLAIM` column: `kubectl patch pv pvc-4b8e2f1a-… -p '{"spec":{"persistentVolumeReclaimPolicy":"Retain"}}'`. After the claim is deleted, the PV becomes `Released` and keeps its data.
+references:
+- title: Change the Reclaim Policy of a PersistentVolume
+  url: https://kubernetes.io/docs/tasks/administer-cluster/change-pv-reclaim-policy/

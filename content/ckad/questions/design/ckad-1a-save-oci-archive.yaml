@@ -1,0 +1,59 @@
+id: ckad-1a-save-oci-archive
+objective: "1.1.2"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    Only Podman is installed on this host. The image `registry.example.com/shop/api:2.1` is in the local image store.
+
+    Save it to the file `/tmp/api-2.1.tar` as an archive in the OCI image format (not the default docker-archive format), so that it can be copied to an air-gapped host.
+
+    Type the single command you would run.
+body:
+  mode: invocation
+  tools: [podman, docker]
+  namespace: default
+answer:
+  checks:
+  - id: tool
+    label: Uses podman, the tool installed on the host
+    path: tool
+    op: equals
+    value: podman
+  - id: verb
+    label: It is a save command (podman save or podman image save)
+    path: verb
+    op: oneOf
+    value: [save, image]
+  - id: image
+    label: Saves registry.example.com/shop/api:2.1
+    path: args
+    op: matches
+    value: '^\[("save",)?"registry\.example\.com/shop/api:2\.1"\]$'
+  - id: output
+    label: Writes the archive to /tmp/api-2.1.tar
+    path: flags
+    op: matches
+    value: '"output":"/tmp/api-2\.1\.tar"'
+  - id: format
+    label: Uses the oci-archive format
+    path: flags.format
+    op: equals
+    value: oci-archive
+  solution:
+  - command: podman save --format oci-archive -o /tmp/api-2.1.tar registry.example.com/shop/api:2.1
+  - command: podman image save --output=/tmp/api-2.1.tar --format=oci-archive registry.example.com/shop/api:2.1
+  negatives:
+  - command: podman save -o /tmp/api-2.1.tar registry.example.com/shop/api:2.1
+    why: Without --format, podman save writes a docker-archive, not an OCI archive.
+  - command: podman save --format oci-dir -o /tmp/api-2.1.tar registry.example.com/shop/api:2.1
+    why: oci-dir writes an OCI layout directory, not a tar archive.
+  - command: podman save --format oci-archive registry.example.com/shop/api:2.1
+    why: Without -o/--output the archive is written to standard output, not to /tmp/api-2.1.tar.
+explanation:
+  correct:
+    en: '`podman save` (alias `podman image save`) writes an image to an archive; `-o`/`--output` names the file instead of writing to standard output. `--format oci-archive` selects the OCI image format; the default is `docker-archive`, and `oci-dir` produces a directory. The archive is restored with `podman load -i`.'
+references:
+- title: podman-save
+  url: https://docs.podman.io/en/latest/markdown/podman-save.1.html

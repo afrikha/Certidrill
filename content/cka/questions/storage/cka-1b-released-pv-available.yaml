@@ -1,0 +1,66 @@
+id: cka-1b-released-pv-available
+objective: "1.2.2"
+difficulty: 3
+status: draft
+type: command
+stem:
+  en: |-
+    `kubectl get pv pv-reports` prints:
+
+    ```text
+    NAME         CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS     CLAIM             STORAGECLASS   AGE
+    pv-reports   50Gi       RWX            Retain           Released   finance/reports   manual         90d
+    ```
+
+    The claim `reports` was deleted. You checked the data on the volume and it must be reused by a new claim. Make `pv-reports` `Available` again by removing its reference to the deleted claim, with a single non-interactive command. Type the command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Uses kubectl patch
+    path: verb
+    op: equals
+    value: patch
+  - id: resource
+    label: Patches a PersistentVolume
+    path: resource
+    op: equals
+    value: persistentvolume
+  - id: name
+    label: Names pv-reports
+    path: names
+    op: contains
+    value: pv-reports
+  - id: claimref
+    label: Removes spec.claimRef (JSON patch remove, or claimRef set to null)
+    path: flags
+    op: matches
+    value: '^(?=.*"type":"json")(?=.*(\\"op\\":\s*\\"remove\\",\s*\\"path\\":\s*\\"/spec/claimRef\\"|\\"path\\":\s*\\"/spec/claimRef\\",\s*\\"op\\":\s*\\"remove\\"))|claimRef\\":\s*null'
+  solution:
+  - command: |-
+      kubectl patch pv pv-reports --type json -p '[{"op":"remove","path":"/spec/claimRef"}]'
+  - command: |-
+      k patch persistentvolume/pv-reports --type=merge -p '{"spec":{"claimRef":null}}'
+  - command: |-
+      kubectl patch pv pv-reports -p '{"spec":{"claimRef":null}}'
+  negatives:
+  - command: |-
+      kubectl patch pv pv-reports -p '[{"op":"remove","path":"/spec/claimRef"}]'
+    why: Without --type json kubectl reads the patch as a strategic merge patch, and a JSON patch list is rejected.
+  - command: |-
+      kubectl patch pv pv-reports -p '{"spec":{"persistentVolumeReclaimPolicy":"Recycle"}}'
+    why: Recycle is deprecated, scrubs the data that must be reused, and does not release this volume now.
+  - command: |-
+      kubectl delete pv pv-reports
+    why: Deleting the PV removes the object (the backend data stays); the task asks to make the existing PV available.
+explanation:
+  correct:
+    en: |-
+      A `Retain` volume stays `Released` after its claim is deleted because `spec.claimRef` still points to the old claim (name, namespace and uid). Removing that reference makes it `Available`: `kubectl patch pv pv-reports --type json -p '[{"op":"remove","path":"/spec/claimRef"}]'`, or a merge patch that sets `claimRef` to `null`. A new claim can then bind to it, for example with `volumeName: pv-reports`.
+references:
+- title: Persistent Volumes
+  url: https://kubernetes.io/docs/concepts/storage/persistent-volumes/
+- title: kubectl patch
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_patch/

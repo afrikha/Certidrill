@@ -1,0 +1,196 @@
+id: ckad-1d-generic-ephemeral-scratch
+objective: "1.4.2"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    In namespace `media`, the Deployment `transcoder` runs 3 replicas (label and selector `app: transcoder`) of one container named `ffmpeg` (`registry.example.com/media/transcoder:6.1`). Each Pod needs its **own** 20Gi scratch volume, mounted at `/scratch`:
+
+    - provisioned from the StorageClass `fast-local`, with access mode ReadWriteOnce;
+    - created automatically for each new Pod and deleted with that Pod, with no claim to create or clean up by hand.
+
+    Write the manifest of the Deployment, with the volume declared in the Pod template as a volume named `scratch`.
+body:
+  starter: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: transcoder
+      namespace: media
+    spec:
+      replicas: 3
+      selector:
+        matchLabels:
+          app: transcoder
+      template:
+        metadata:
+          labels:
+            app: transcoder
+        spec:
+          containers:
+          - name: ffmpeg
+            image: registry.example.com/media/transcoder:6.1
+answer:
+  checks:
+  - id: deployment
+    label: A Deployment named transcoder in namespace media
+    path: metadata
+    op: subset
+    value: {name: transcoder, namespace: media}
+  - id: replicas
+    label: It runs 3 replicas
+    path: spec.replicas
+    op: equals
+    value: 3
+  - id: image
+    label: Container ffmpeg runs registry.example.com/media/transcoder:6.1
+    path: spec.template.spec.containers[name=ffmpeg].image
+    op: equals
+    value: registry.example.com/media/transcoder:6.1
+  - id: class
+    label: The volume scratch is a generic ephemeral volume from class fast-local
+    path: spec.template.spec.volumes[name=scratch].ephemeral.volumeClaimTemplate.spec.storageClassName
+    op: equals
+    value: fast-local
+  - id: access
+    label: The claim template requests ReadWriteOnce
+    path: spec.template.spec.volumes[name=scratch].ephemeral.volumeClaimTemplate.spec.accessModes
+    op: contains
+    value: ReadWriteOnce
+  - id: size
+    label: The claim template requests 20Gi
+    path: spec.template.spec.volumes[name=scratch].ephemeral.volumeClaimTemplate.spec.resources.requests.storage
+    op: quantity
+    value: 20Gi
+  - id: mount
+    label: Container ffmpeg mounts scratch at /scratch
+    path: spec.template.spec.containers[name=ffmpeg].volumeMounts[name=scratch].mountPath
+    op: equals
+    value: /scratch
+  solution:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: transcoder
+        namespace: media
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: transcoder
+        template:
+          metadata:
+            labels:
+              app: transcoder
+          spec:
+            containers:
+            - name: ffmpeg
+              image: registry.example.com/media/transcoder:6.1
+              volumeMounts:
+              - name: scratch
+                mountPath: /scratch
+            volumes:
+            - name: scratch
+              ephemeral:
+                volumeClaimTemplate:
+                  spec:
+                    storageClassName: fast-local
+                    accessModes: ["ReadWriteOnce"]
+                    resources:
+                      requests:
+                        storage: 20Gi
+  negatives:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: transcoder
+        namespace: media
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: transcoder
+        volumeClaimTemplates:
+        - metadata:
+            name: scratch
+          spec:
+            storageClassName: fast-local
+            accessModes: ["ReadWriteOnce"]
+            resources:
+              requests:
+                storage: 20Gi
+        template:
+          metadata:
+            labels:
+              app: transcoder
+          spec:
+            containers:
+            - name: ffmpeg
+              image: registry.example.com/media/transcoder:6.1
+              volumeMounts:
+              - name: scratch
+                mountPath: /scratch
+    why: volumeClaimTemplates is a StatefulSet field; a Deployment rejects it, and StatefulSet claims are kept after their Pod is deleted.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: transcoder
+        namespace: media
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: transcoder
+        template:
+          metadata:
+            labels:
+              app: transcoder
+          spec:
+            containers:
+            - name: ffmpeg
+              image: registry.example.com/media/transcoder:6.1
+              volumeMounts:
+              - name: scratch
+                mountPath: /scratch
+            volumes:
+            - name: scratch
+              persistentVolumeClaim:
+                claimName: scratch
+    why: All 3 replicas would share one existing claim (ReadWriteOnce, so one node only) that must be created by hand and is not deleted with the Pods.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: transcoder
+        namespace: media
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: transcoder
+        template:
+          metadata:
+            labels:
+              app: transcoder
+          spec:
+            containers:
+            - name: ffmpeg
+              image: registry.example.com/media/transcoder:6.1
+              volumeMounts:
+              - name: scratch
+                mountPath: /scratch
+            volumes:
+            - name: scratch
+              emptyDir:
+                sizeLimit: 20Gi
+    why: An emptyDir uses the node's local disk; it is not provisioned from the StorageClass fast-local.
+explanation:
+  correct:
+    en: 'A generic ephemeral volume (`ephemeral.volumeClaimTemplate`) holds a PersistentVolumeClaim spec inside the Pod template. For each Pod, the ephemeral volume controller creates a claim named `<pod name>-scratch` in the Pod''s namespace, owned by the Pod, and the garbage collector deletes it with the Pod. The claim spec uses the usual fields: `storageClassName`, `accessModes` and `resources.requests.storage`. A Deployment has no `volumeClaimTemplates`, and a single PVC in `persistentVolumeClaim` would be shared by every replica.'
+references:
+- title: Ephemeral Volumes
+  url: https://kubernetes.io/docs/concepts/storage/ephemeral-volumes/

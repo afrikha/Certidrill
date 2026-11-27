@@ -1,0 +1,54 @@
+id: ckad-3d-logs-previous-crash
+objective: "3.4.1"
+difficulty: 1
+status: draft
+type: command
+stem:
+  en: |-
+    Pod `report-gen` in namespace `analytics` has a single container, which is in `CrashLoopBackOff` after 6 restarts. Display the logs of the container instance that crashed last, not those of the instance currently starting.
+
+    Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Uses kubectl logs
+    path: verb
+    op: equals
+    value: logs
+  - id: name
+    label: Targets Pod report-gen
+    path: names
+    op: contains
+    value: report-gen
+  - id: previous
+    label: Reads the previous container instance
+    path: flags.previous
+    op: equals
+    value: true
+  - id: namespace
+    label: Runs in namespace analytics
+    path: flags.namespace
+    op: equals
+    value: analytics
+  solution:
+  - command: kubectl logs report-gen --previous -n analytics
+  - command: k logs -p report-gen -n analytics
+  - command: kubectl logs pod/report-gen --namespace=analytics --previous=true
+  negatives:
+  - command: kubectl logs report-gen -n analytics
+    why: Without --previous kubectl prints the logs of the current instance, which has just restarted.
+  - command: kubectl logs report-gen -f -n analytics
+    why: -f streams the current instance; it does not show the crashed one.
+  - command: kubectl describe pod report-gen -n analytics
+    why: describe shows the last state and exit code, not the log output of the crashed instance.
+explanation:
+  correct:
+    en: 'When a container restarts, the kubelet keeps one terminated instance with its logs; `kubectl logs --previous` (`-p`) prints them. That is where the error that caused the crash usually is, while the current instance may have written nothing yet.'
+references:
+- title: kubectl logs
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_logs/
+- title: Logging Architecture
+  url: https://kubernetes.io/docs/concepts/cluster-administration/logging/

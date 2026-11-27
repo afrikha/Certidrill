@@ -1,0 +1,159 @@
+id: ckad-2b-progress-deadline-history
+objective: "2.2.2"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    The editor contains Deployment `ingest` in namespace `data`. Change it so that:
+
+    - the Deployment reports its rollout as failed (`ProgressDeadlineExceeded`) when it has made no progress for **5 minutes**;
+    - only the **3** most recent old ReplicaSets are kept for rollbacks.
+
+    Keep the existing `minReadySeconds`.
+body:
+  starter: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: ingest
+      namespace: data
+    spec:
+      replicas: 3
+      minReadySeconds: 30
+      selector:
+        matchLabels:
+          app: ingest
+      template:
+        metadata:
+          labels:
+            app: ingest
+        spec:
+          containers:
+          - name: ingest
+            image: registry.example.com/data/ingest:4.2
+answer:
+  checks:
+  - id: meta
+    label: Deployment ingest in namespace data
+    path: metadata
+    op: subset
+    value: {name: ingest, namespace: data}
+  - id: deadline
+    label: progressDeadlineSeconds is 300 on the Deployment spec
+    path: spec.progressDeadlineSeconds
+    op: equals
+    value: 300
+  - id: history
+    label: revisionHistoryLimit is 3
+    path: spec.revisionHistoryLimit
+    op: equals
+    value: 3
+  - id: min-ready
+    label: minReadySeconds is still 30
+    path: spec.minReadySeconds
+    op: equals
+    value: 30
+  - id: no-pod-deadline
+    label: No activeDeadlineSeconds in the Pod template (it would kill the Pods)
+    path: spec.template.spec.activeDeadlineSeconds
+    op: absent
+  solution:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: ingest
+        namespace: data
+      spec:
+        replicas: 3
+        minReadySeconds: 30
+        progressDeadlineSeconds: 300
+        revisionHistoryLimit: 3
+        selector:
+          matchLabels:
+            app: ingest
+        template:
+          metadata:
+            labels:
+              app: ingest
+          spec:
+            containers:
+            - name: ingest
+              image: registry.example.com/data/ingest:4.2
+  negatives:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: ingest
+        namespace: data
+      spec:
+        replicas: 3
+        minReadySeconds: 30
+        revisionHistoryLimit: 3
+        selector:
+          matchLabels:
+            app: ingest
+        template:
+          metadata:
+            labels:
+              app: ingest
+          spec:
+            activeDeadlineSeconds: 300
+            containers:
+            - name: ingest
+              image: registry.example.com/data/ingest:4.2
+    why: activeDeadlineSeconds is a Pod (and Job) field that terminates the Pod after 300 seconds; it says nothing about rollout progress.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: ingest
+        namespace: data
+      spec:
+        replicas: 3
+        minReadySeconds: 30
+        progressDeadlineSeconds: 5
+        revisionHistoryLimit: 3
+        selector:
+          matchLabels:
+            app: ingest
+        template:
+          metadata:
+            labels:
+              app: ingest
+          spec:
+            containers:
+            - name: ingest
+              image: registry.example.com/data/ingest:4.2
+    why: The field is in seconds, and it must be greater than minReadySeconds (30); 5 is rejected.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: ingest
+        namespace: data
+      spec:
+        replicas: 3
+        minReadySeconds: 30
+        progressDeadlineSeconds: 300
+        revisionHistoryLimit: 0
+        selector:
+          matchLabels:
+            app: ingest
+        template:
+          metadata:
+            labels:
+              app: ingest
+          spec:
+            containers:
+            - name: ingest
+              image: registry.example.com/data/ingest:4.2
+    why: revisionHistoryLimit 0 deletes every old ReplicaSet, so the rollout can no longer be undone.
+explanation:
+  correct:
+    en: '`progressDeadlineSeconds: 300` makes the controller set the `Progressing` condition to `False` with reason `ProgressDeadlineExceeded` after 5 minutes without progress (default 600); it must be greater than `minReadySeconds`. Kubernetes only reports the condition, it does not roll back by itself. `revisionHistoryLimit: 3` keeps 3 old ReplicaSets (default 10); 0 would make `rollout undo` impossible.'
+references:
+- title: Deployments
+  url: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/

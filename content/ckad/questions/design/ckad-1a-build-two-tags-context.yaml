@@ -1,0 +1,60 @@
+id: ckad-1a-build-two-tags-context
+objective: "1.1.1"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    You are in `/home/candidate/repo`. Only Docker is installed on this host.
+
+    The folder `services/billing` contains a `Dockerfile` and every file that its `COPY` instructions read, with paths relative to that folder. Build the image with `services/billing` as the build context and give it both tags `registry.example.com/finance/billing:1.5` and `registry.example.com/finance/billing:latest` in the same build.
+
+    Type the single command you would run.
+body:
+  mode: invocation
+  tools: [docker, podman]
+  namespace: default
+answer:
+  checks:
+  - id: tool
+    label: Uses docker, the tool installed on the host
+    path: tool
+    op: equals
+    value: docker
+  - id: verb
+    label: It is a build command
+    path: verb
+    op: equals
+    value: build
+  - id: tag-version
+    label: Tags the image registry.example.com/finance/billing:1.5
+    path: flags
+    op: matches
+    value: '"tag":(\[("[^"]*",)*)?"registry\.example\.com/finance/billing:1\.5"'
+  - id: tag-latest
+    label: Tags the image registry.example.com/finance/billing:latest
+    path: flags
+    op: matches
+    value: '"tag":(\[("[^"]*",)*)?"registry\.example\.com/finance/billing:latest"'
+  - id: context
+    label: Uses services/billing as the build context
+    path: args
+    op: matches
+    value: '^\["((\./)?services/billing|/home/candidate/repo/services/billing)/?"\]$'
+  solution:
+  - command: docker build -t registry.example.com/finance/billing:1.5 -t registry.example.com/finance/billing:latest services/billing
+  - command: docker build --tag registry.example.com/finance/billing:latest --tag registry.example.com/finance/billing:1.5 ./services/billing/
+  - command: docker build -t registry.example.com/finance/billing:1.5 --tag=registry.example.com/finance/billing:latest -f services/billing/Dockerfile services/billing
+  negatives:
+  - command: docker build -t registry.example.com/finance/billing:1.5 services/billing
+    why: Only one tag is applied; the latest tag would need a second docker tag command.
+  - command: docker build -t registry.example.com/finance/billing:1.5 -t registry.example.com/finance/billing:latest -f services/billing/Dockerfile .
+    why: The context is the repository root, so the COPY paths, relative to services/billing, do not resolve.
+  - command: docker build -t registry.example.com/finance/billing:1.5,registry.example.com/finance/billing:latest services/billing
+    why: -t takes one name per flag; a comma-separated list is not two tags.
+explanation:
+  correct:
+    en: '`-t` (`--tag`) can be repeated to give one build several names. The positional argument `services/billing` is the build context, and the builder finds `services/billing/Dockerfile` there by default, so `-f` is optional. With `.` as the context, `COPY` sources are resolved from the repository root and the build fails.'
+references:
+- title: docker buildx build
+  url: https://docs.docker.com/reference/cli/docker/buildx/build/

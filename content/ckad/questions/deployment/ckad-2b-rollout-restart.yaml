@@ -1,0 +1,58 @@
+id: ckad-2b-rollout-restart
+objective: "2.2.3"
+difficulty: 1
+status: draft
+type: command
+stem:
+  en: |-
+    The ConfigMap that Deployment `web` in namespace `shop` reads as environment variables has been updated. The Pods only read it at startup.
+
+    Replace all the Pods of `web` with a rolling restart, without downtime and without changing the manifest.
+
+    Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: It is a rollout command
+    path: verb
+    op: equals
+    value: rollout
+  - id: subverb
+    label: Uses kubectl rollout restart
+    path: subverb
+    op: equals
+    value: restart
+  - id: resource
+    label: Targets a Deployment
+    path: resource
+    op: equals
+    value: deployment
+  - id: name
+    label: Names the Deployment web
+    path: names
+    op: contains
+    value: web
+  - id: namespace
+    label: Runs in namespace shop
+    path: flags.namespace
+    op: equals
+    value: shop
+  solution:
+  - command: kubectl rollout restart deployment/web -n shop
+  - command: k -n shop rollout restart deploy web
+  negatives:
+  - command: kubectl delete pods -l app=web -n shop
+    why: Deleting all the Pods at once leaves no Pod to serve traffic until the replacements are ready.
+  - command: kubectl scale deployment web --replicas=0 -n shop
+    why: Scaling to 0 stops the application, and the Pods only come back after a second command.
+  - command: kubectl rollout restart deployment/web
+    why: Without -n the command looks for web in the context namespace, default.
+explanation:
+  correct:
+    en: '`kubectl rollout restart deployment/web -n shop` adds a `kubectl.kubernetes.io/restartedAt` annotation to the Pod template. That template change starts a normal rolling update, which follows the Deployment''s `maxSurge` and `maxUnavailable` settings, so Pods are replaced gradually.'
+references:
+- title: Deployments
+  url: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/

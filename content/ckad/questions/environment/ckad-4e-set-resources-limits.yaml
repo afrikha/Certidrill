@@ -1,0 +1,200 @@
+id: ckad-4e-set-resources-limits
+objective: "4.5.1"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    The Deployment `api` in namespace `payments` (manifest in `api.yaml`) runs one container, `api`, with no resources.
+
+    Limit that container to 1 CPU and 2Gi of memory. Do not set requests yourself.
+
+    Type the single command you would run.
+body:
+  mode: object
+  namespace: payments
+  files:
+  - name: api.yaml
+    content: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: api
+        namespace: payments
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: api
+        template:
+          metadata:
+            labels:
+              app: api
+          spec:
+            containers:
+            - name: api
+              image: registry.example.com/payments/api:4.0
+answer:
+  checks:
+  - id: name
+    label: The object is the Deployment api
+    path: metadata.name
+    op: equals
+    value: api
+  - id: lim-cpu
+    label: api is limited to 1 CPU
+    path: spec.template.spec.containers[name=api].resources.limits.cpu
+    op: quantity
+    value: "1"
+  - id: lim-mem
+    label: api is limited to 2Gi of memory
+    path: spec.template.spec.containers[name=api].resources.limits.memory
+    op: quantity
+    value: 2Gi
+  - id: no-req
+    label: No requests are set by the command
+    path: spec.template.spec.containers[name=api].resources.requests
+    op: absent
+  solution:
+  - command: kubectl set resources deployment api --limits=cpu=1,memory=2Gi
+    output: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: api
+        namespace: payments
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: api
+        strategy: {}
+        template:
+          metadata:
+            labels:
+              app: api
+          spec:
+            containers:
+            - image: registry.example.com/payments/api:4.0
+              name: api
+              resources:
+                limits:
+                  cpu: "1"
+                  memory: 2Gi
+      status: {}
+  - command: k set resources deploy/api -c=api --limits=memory=2048Mi,cpu=1000m -n payments
+    output: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: api
+        namespace: payments
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: api
+        strategy: {}
+        template:
+          metadata:
+            labels:
+              app: api
+          spec:
+            containers:
+            - image: registry.example.com/payments/api:4.0
+              name: api
+              resources:
+                limits:
+                  cpu: "1"
+                  memory: 2Gi
+      status: {}
+  negatives:
+  - command: kubectl set resources deployment api --limits=cpu=1,memory=2G
+    why: 2G is 2,000,000,000 bytes, about 1.86Gi, not 2Gi.
+    output: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: api
+        namespace: payments
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: api
+        strategy: {}
+        template:
+          metadata:
+            labels:
+              app: api
+          spec:
+            containers:
+            - image: registry.example.com/payments/api:4.0
+              name: api
+              resources:
+                limits:
+                  cpu: "1"
+                  memory: 2G
+      status: {}
+  - command: kubectl set resources deployment api --requests=cpu=1,memory=2Gi
+    why: --requests sets requests, which reserve capacity for scheduling; they do not cap what the container can use.
+    output: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: api
+        namespace: payments
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: api
+        strategy: {}
+        template:
+          metadata:
+            labels:
+              app: api
+          spec:
+            containers:
+            - image: registry.example.com/payments/api:4.0
+              name: api
+              resources:
+                requests:
+                  cpu: "1"
+                  memory: 2Gi
+      status: {}
+  - command: kubectl set resources deployment api --limits=cpu=1m,memory=2Gi
+    why: 1m is one millicpu (0.001 CPU), not 1 CPU.
+    output: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: api
+        namespace: payments
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: api
+        strategy: {}
+        template:
+          metadata:
+            labels:
+              app: api
+          spec:
+            containers:
+            - image: registry.example.com/payments/api:4.0
+              name: api
+              resources:
+                limits:
+                  cpu: 1m
+                  memory: 2Gi
+      status: {}
+explanation:
+  correct:
+    en: '`kubectl set resources deployment api --limits=cpu=1,memory=2Gi` sets the limits of all containers of the template. CPU is counted in cores (`1` = `1000m`), memory in bytes with binary (`Gi`, `Mi`) or decimal (`G`, `M`) suffixes. When only a limit is set and no admission mechanism (such as a LimitRange) applies a default request, Kubernetes copies the limit as the request.'
+references:
+- title: kubectl set resources
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_set/kubectl_set_resources/
+- title: Resource Management for Pods and Containers
+  url: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/

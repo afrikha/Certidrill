@@ -1,0 +1,176 @@
+id: cka-2e-service-selector-labels
+objective: "2.5.1"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    In namespace `shop`, Service `storefront` has no endpoints: `kubectl get endpointslices -n shop -l kubernetes.io/service-name=storefront` shows `<none>` in the ENDPOINTS column, although the Pods of Deployment `storefront` are `Running` and `1/1` ready. The namespace also runs Deployment `storefront-worker`, whose Pods must not receive this traffic. The Pod template labels of both Deployments are in `deployments.yaml`.
+
+    Correct the Service so that it sends traffic to the Pods of Deployment `storefront` and only to them. Keep its ports. Write the corrected manifest.
+body:
+  starter: |
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: storefront
+      namespace: shop
+    spec:
+      selector:
+        app: storefront
+        tier: frontend
+      ports:
+      - name: http
+        port: 80
+        targetPort: 8080
+  files:
+  - name: deployments.yaml
+    content: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: storefront
+        namespace: shop
+        labels:
+          app: storefront
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: storefront
+            tier: web
+        template:
+          metadata:
+            labels:
+              app: storefront
+              tier: web
+          spec:
+            containers:
+            - name: web
+              image: registry.example.com/shop/storefront:2.8
+              ports:
+              - containerPort: 8080
+      ---
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: storefront-worker
+        namespace: shop
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: storefront
+            tier: worker
+        template:
+          metadata:
+            labels:
+              app: storefront
+              tier: worker
+          spec:
+            containers:
+            - name: worker
+              image: registry.example.com/shop/storefront-worker:2.8
+answer:
+  checks:
+  - id: service
+    label: The Service storefront in namespace shop
+    path: metadata
+    op: subset
+    value: {name: storefront, namespace: shop}
+  - id: app
+    label: The selector keeps app=storefront
+    path: spec.selector.app
+    op: equals
+    value: storefront
+  - id: tier
+    label: The selector requires tier=web, the label of the storefront Pods only
+    path: spec.selector.tier
+    op: equals
+    value: web
+  - id: only
+    label: The selector has no other key
+    path: spec.selector
+    op: length
+    value: 2
+  - id: port
+    label: Port 80 still targets container port 8080
+    path: spec.ports[port=80].targetPort
+    op: equals
+    value: 8080
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: storefront
+        namespace: shop
+      spec:
+        selector:
+          app: storefront
+          tier: web
+        ports:
+        - name: http
+          port: 80
+          targetPort: 8080
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: storefront
+        namespace: shop
+      spec:
+        selector:
+          app: storefront
+        ports:
+        - name: http
+          port: 80
+          targetPort: 8080
+    why: app=storefront alone also matches the storefront-worker Pods, which would receive web traffic.
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: storefront
+        namespace: shop
+        labels:
+          app: storefront
+          tier: web
+      spec:
+        selector:
+          app: storefront
+          tier: frontend
+        ports:
+        - name: http
+          port: 80
+          targetPort: 8080
+    why: Labels on the Service itself select nothing; spec.selector still asks for tier=frontend, which no Pod carries.
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: storefront
+        namespace: shop
+      spec:
+        selector:
+          app: storefront
+          tier: web
+          version: v2
+        ports:
+        - name: http
+          port: 80
+          targetPort: 8080
+    why: Every key of the selector must match; no storefront Pod has a version label, so the Service still has no endpoints.
+explanation:
+  correct:
+    en: >-
+      A Service selects Pods whose labels contain every key and value of `spec.selector`. No Pod carries
+      `tier: frontend`, so the EndpointSlice is empty; the storefront Pods are labelled `app: storefront, tier: web`, and
+      `app: storefront` alone would also select `storefront-worker`. Compare with `kubectl get pods -n shop --show-labels`
+      and match the Pod template labels, not the labels of the Service or of the Deployment object.
+references:
+- title: Debug Services
+  url: https://kubernetes.io/docs/tasks/debug/debug-application/debug-service/
+- title: Service
+  url: https://kubernetes.io/docs/concepts/services-networking/service/

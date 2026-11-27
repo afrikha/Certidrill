@@ -1,0 +1,231 @@
+id: ckad-4b-role-binding-sa
+objective: "4.2.2"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    The ServiceAccount `reporter` exists in namespace `analytics`. Write one file with two documents:
+
+    - a Role `job-reader` in namespace `analytics` that allows only `get`, `list` and `watch` on Jobs and CronJobs, and only `get` on the logs of Pods;
+    - a RoleBinding `reporter-job-reader` in namespace `analytics` that grants this Role to the ServiceAccount `reporter`.
+body:
+  starter: ""
+answer:
+  checks:
+  - id: role-ns
+    label: Role job-reader is in namespace analytics
+    select: {kind: Role, name: job-reader}
+    path: metadata.namespace
+    op: equals
+    value: analytics
+  - id: jobs
+    label: Allows get, list and watch on jobs in the batch group
+    select: {kind: Role, name: job-reader}
+    path: rules
+    op: contains
+    value: {apiGroups: [batch], resources: [jobs], verbs: [get, list, watch]}
+  - id: cronjobs
+    label: Allows get, list and watch on cronjobs in the batch group
+    select: {kind: Role, name: job-reader}
+    path: rules
+    op: contains
+    value: {apiGroups: [batch], resources: [cronjobs], verbs: [get, list, watch]}
+  - id: logs
+    label: Allows get on pods/log in the core group
+    select: {kind: Role, name: job-reader}
+    path: rules
+    op: contains
+    value: {apiGroups: [""], resources: [pods/log], verbs: [get]}
+  - id: rb-ns
+    label: RoleBinding reporter-job-reader is in namespace analytics
+    select: {kind: RoleBinding, name: reporter-job-reader}
+    path: metadata.namespace
+    op: equals
+    value: analytics
+  - id: roleref
+    label: The binding references the Role job-reader
+    select: {kind: RoleBinding, name: reporter-job-reader}
+    path: roleRef
+    op: subset
+    value: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: job-reader}
+  - id: subject
+    label: The subject is ServiceAccount reporter of namespace analytics
+    select: {kind: RoleBinding, name: reporter-job-reader}
+    path: subjects
+    op: contains
+    value: {kind: ServiceAccount, name: reporter, namespace: analytics}
+  solution:
+  - manifest: |
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: Role
+      metadata:
+        name: job-reader
+        namespace: analytics
+      rules:
+      - apiGroups: ["batch"]
+        resources: ["jobs", "cronjobs"]
+        verbs: ["get", "list", "watch"]
+      - apiGroups: [""]
+        resources: ["pods/log"]
+        verbs: ["get"]
+      ---
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: RoleBinding
+      metadata:
+        name: reporter-job-reader
+        namespace: analytics
+      subjects:
+      - kind: ServiceAccount
+        name: reporter
+        namespace: analytics
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: Role
+        name: job-reader
+  - manifest: |
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: RoleBinding
+      metadata:
+        name: reporter-job-reader
+        namespace: analytics
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: Role
+        name: job-reader
+      subjects:
+      - kind: ServiceAccount
+        name: reporter
+        namespace: analytics
+      ---
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: Role
+      metadata:
+        name: job-reader
+        namespace: analytics
+      rules:
+      - apiGroups: [batch]
+        resources: [jobs]
+        verbs: [get, list, watch]
+      - apiGroups: [batch]
+        resources: [cronjobs]
+        verbs: [list, get, watch]
+      - apiGroups: [""]
+        resources: [pods/log]
+        verbs: [get]
+  negatives:
+  - manifest: |
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: Role
+      metadata:
+        name: job-reader
+        namespace: analytics
+      rules:
+      - apiGroups: [""]
+        resources: ["jobs", "cronjobs", "pods/log"]
+        verbs: ["get", "list", "watch"]
+      ---
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: RoleBinding
+      metadata:
+        name: reporter-job-reader
+        namespace: analytics
+      subjects:
+      - kind: ServiceAccount
+        name: reporter
+        namespace: analytics
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: Role
+        name: job-reader
+    why: Jobs and CronJobs belong to the batch group, not the core group "", so this rule matches nothing for them.
+  - manifest: |
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: Role
+      metadata:
+        name: job-reader
+        namespace: analytics
+      rules:
+      - apiGroups: ["batch"]
+        resources: ["jobs", "cronjobs"]
+        verbs: ["get", "list", "watch"]
+      - apiGroups: [""]
+        resources: ["pods/log"]
+        verbs: ["get"]
+      ---
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: RoleBinding
+      metadata:
+        name: reporter-job-reader
+        namespace: analytics
+      subjects:
+      - kind: User
+        name: reporter
+        apiGroup: rbac.authorization.k8s.io
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: Role
+        name: job-reader
+    why: kind User binds a user named reporter; Pods running as the ServiceAccount authenticate as system:serviceaccount:analytics:reporter.
+  - manifest: |
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: Role
+      metadata:
+        name: job-reader
+        namespace: analytics
+      rules:
+      - apiGroups: ["batch"]
+        resources: ["jobs", "cronjobs"]
+        verbs: ["get", "list", "watch"]
+      - apiGroups: [""]
+        resources: ["pods/log"]
+        verbs: ["get"]
+      ---
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: RoleBinding
+      metadata:
+        name: reporter-job-reader
+        namespace: analytics
+      subjects:
+      - kind: ServiceAccount
+        name: reporter
+        namespace: analytics
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: job-reader
+    why: roleRef points to a ClusterRole named job-reader, which does not exist; the Role is a namespaced Role.
+  - manifest: |
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: Role
+      metadata:
+        name: job-reader
+        namespace: analytics
+      rules:
+      - apiGroups: ["batch"]
+        resources: ["*"]
+        verbs: ["*"]
+      - apiGroups: [""]
+        resources: ["pods/log"]
+        verbs: ["get"]
+      ---
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: RoleBinding
+      metadata:
+        name: reporter-job-reader
+        namespace: analytics
+      subjects:
+      - kind: ServiceAccount
+        name: reporter
+        namespace: analytics
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: Role
+        name: job-reader
+    why: Wildcards grant every verb, including create and delete, on every batch resource; the task allows only get, list and watch.
+explanation:
+  correct:
+    en: 'Jobs and CronJobs are in the `batch` API group and pod logs are the `pods/log` subresource of the core group `""`. The RoleBinding, in the same namespace, references the Role with `roleRef` (kind `Role`, immutable after creation) and lists the subject as `kind: ServiceAccount` with its `name` and `namespace`. Check the result with `kubectl auth can-i list cronjobs --as=system:serviceaccount:analytics:reporter -n analytics`.'
+references:
+- title: Using RBAC Authorization
+  url: https://kubernetes.io/docs/reference/access-authn-authz/rbac/

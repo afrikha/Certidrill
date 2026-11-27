@@ -1,0 +1,57 @@
+id: cka-1c-events-statefulset-claim
+objective: "1.3.2"
+difficulty: 3
+status: draft
+type: command
+stem:
+  en: |-
+    In namespace `shop`, the StatefulSet `cache` has a single claim template named `store`. Its first Pod, `cache-0`, stays `Pending`, and you suspect its claim.
+
+    List only the events whose object is the claim that `cache-0` uses (an event list, not a description of the claim). Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Lists events (kubectl get events or kubectl events)
+    path: verb
+    op: oneOf
+    value: [get, events]
+  - id: events
+    label: The listed resource is events
+    path: args
+    op: matches
+    value: '^\[("(ev|events?)")?\]$'
+  - id: namespace
+    label: Runs in namespace shop
+    path: flags.namespace
+    op: equals
+    value: shop
+  - id: claim
+    label: Filters on the claim store-cache-0
+    path: flags
+    op: matches
+    value: '(involvedObject\.name=store-cache-0|"for":"(pvc|persistentvolumeclaims?)/store-cache-0")'
+  solution:
+  - command: kubectl get events -n shop --field-selector involvedObject.name=store-cache-0
+  - command: k -n shop get ev --field-selector=involvedObject.kind=PersistentVolumeClaim,involvedObject.name=store-cache-0
+  - command: kubectl events -n shop --for pvc/store-cache-0
+  negatives:
+  - command: kubectl get events -n shop --field-selector involvedObject.name=cache-0
+    why: cache-0 is the Pod; the claim created from template store is named store-cache-0.
+  - command: kubectl get events -n shop --field-selector involvedObject.name=cache-store-0
+    why: StatefulSet claims are named <template>-<statefulset>-<ordinal>, so store-cache-0.
+  - command: kubectl get events --field-selector involvedObject.name=store-cache-0
+    why: Events are namespaced; without -n shop the command searches the context namespace.
+  - command: kubectl events -n shop --for pod/cache-0
+    why: This lists the events of the Pod, not those of its claim.
+explanation:
+  correct:
+    en: |-
+      A StatefulSet claim is named `<template>-<statefulset>-<ordinal>`: `store-cache-0`. `kubectl get events -n shop --field-selector involvedObject.name=store-cache-0`, or `kubectl events -n shop --for pvc/store-cache-0`, shows why it is `Pending`: waiting for the first consumer, no matching PV, a missing class, or a provisioning error. `kubectl describe pvc store-cache-0 -n shop` shows the same events at the end of the description.
+references:
+- title: kubectl events
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_events/
+- title: StatefulSets
+  url: https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/

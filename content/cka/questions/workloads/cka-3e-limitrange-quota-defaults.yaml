@@ -1,0 +1,258 @@
+id: cka-3e-limitrange-quota-defaults
+objective: "3.5.3"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    Namespace `dev` is shared by several teams. Write two objects in namespace `dev`:
+
+    1. A ResourceQuota named `dev-quota` that caps the namespace at 4 CPU and 8Gi of memory in total requests, 8 CPU and 16Gi in total limits, and 20 Pods. Use the `requests.*` and `limits.*` resource names.
+    2. A LimitRange named `dev-limits` so that Pods whose containers declare no resources are **not** rejected by this quota: each such container gets a request of 100m CPU and 128Mi of memory and a limit of 500m CPU and 512Mi of memory. No container may have a limit above 2 CPU or 2Gi of memory.
+body:
+  starter: ""
+answer:
+  checks:
+  - id: quota-ns
+    label: ResourceQuota dev-quota is in namespace dev
+    select: {kind: ResourceQuota, name: dev-quota}
+    path: metadata.namespace
+    op: equals
+    value: dev
+  - id: quota-req-cpu
+    label: Requests are capped at 4 CPU
+    select: {kind: ResourceQuota, name: dev-quota}
+    path: spec.hard["requests.cpu"]
+    op: quantity
+    value: "4"
+  - id: quota-req-mem
+    label: Requests are capped at 8Gi of memory
+    select: {kind: ResourceQuota, name: dev-quota}
+    path: spec.hard["requests.memory"]
+    op: quantity
+    value: 8Gi
+  - id: quota-lim-cpu
+    label: Limits are capped at 8 CPU
+    select: {kind: ResourceQuota, name: dev-quota}
+    path: spec.hard["limits.cpu"]
+    op: quantity
+    value: "8"
+  - id: quota-lim-mem
+    label: Limits are capped at 16Gi of memory
+    select: {kind: ResourceQuota, name: dev-quota}
+    path: spec.hard["limits.memory"]
+    op: quantity
+    value: 16Gi
+  - id: quota-pods
+    label: At most 20 Pods
+    select: {kind: ResourceQuota, name: dev-quota}
+    path: spec.hard.pods
+    op: quantity
+    value: "20"
+  - id: lr-ns
+    label: LimitRange dev-limits is in namespace dev
+    select: {kind: LimitRange, name: dev-limits}
+    path: metadata.namespace
+    op: equals
+    value: dev
+  - id: default-req-cpu
+    label: Default CPU request is 100m
+    select: {kind: LimitRange, name: dev-limits}
+    path: spec.limits[type=Container].defaultRequest.cpu
+    op: quantity
+    value: 100m
+  - id: default-req-mem
+    label: Default memory request is 128Mi
+    select: {kind: LimitRange, name: dev-limits}
+    path: spec.limits[type=Container].defaultRequest.memory
+    op: quantity
+    value: 128Mi
+  - id: default-lim-cpu
+    label: Default CPU limit is 500m
+    select: {kind: LimitRange, name: dev-limits}
+    path: spec.limits[type=Container].default.cpu
+    op: quantity
+    value: 500m
+  - id: default-lim-mem
+    label: Default memory limit is 512Mi
+    select: {kind: LimitRange, name: dev-limits}
+    path: spec.limits[type=Container].default.memory
+    op: quantity
+    value: 512Mi
+  - id: max-cpu
+    label: Maximum CPU per container is 2
+    select: {kind: LimitRange, name: dev-limits}
+    path: spec.limits[type=Container].max.cpu
+    op: quantity
+    value: "2"
+  - id: max-mem
+    label: Maximum memory per container is 2Gi
+    select: {kind: LimitRange, name: dev-limits}
+    path: spec.limits[type=Container].max.memory
+    op: quantity
+    value: 2Gi
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: ResourceQuota
+      metadata:
+        name: dev-quota
+        namespace: dev
+      spec:
+        hard:
+          requests.cpu: "4"
+          requests.memory: 8Gi
+          limits.cpu: "8"
+          limits.memory: 16Gi
+          pods: "20"
+      ---
+      apiVersion: v1
+      kind: LimitRange
+      metadata:
+        name: dev-limits
+        namespace: dev
+      spec:
+        limits:
+        - type: Container
+          defaultRequest:
+            cpu: 100m
+            memory: 128Mi
+          default:
+            cpu: 500m
+            memory: 512Mi
+          max:
+            cpu: "2"
+            memory: 2Gi
+  - manifest: |
+      apiVersion: v1
+      kind: LimitRange
+      metadata:
+        name: dev-limits
+        namespace: dev
+      spec:
+        limits:
+        - default:
+            cpu: "0.5"
+            memory: 512Mi
+          defaultRequest:
+            cpu: "0.1"
+            memory: 128Mi
+          max:
+            cpu: 2000m
+            memory: 2048Mi
+          type: Container
+      ---
+      apiVersion: v1
+      kind: ResourceQuota
+      metadata:
+        name: dev-quota
+        namespace: dev
+      spec:
+        hard:
+          limits.cpu: 8
+          limits.memory: 16Gi
+          pods: 20
+          requests.cpu: 4
+          requests.memory: 8Gi
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: ResourceQuota
+      metadata:
+        name: dev-quota
+        namespace: dev
+      spec:
+        hard:
+          requests.cpu: "4"
+          requests.memory: 8Gi
+          limits.cpu: "8"
+          limits.memory: 16Gi
+          pods: "20"
+      ---
+      apiVersion: v1
+      kind: LimitRange
+      metadata:
+        name: dev-limits
+        namespace: dev
+      spec:
+        limits:
+        - type: Container
+          default:
+            cpu: 100m
+            memory: 128Mi
+          defaultRequest:
+            cpu: 500m
+            memory: 512Mi
+          max:
+            cpu: "2"
+            memory: 2Gi
+    why: default and defaultRequest are swapped; default sets the limit and defaultRequest the request, and a default request above the default limit is invalid.
+  - manifest: |
+      apiVersion: v1
+      kind: ResourceQuota
+      metadata:
+        name: dev-quota
+        namespace: dev
+      spec:
+        hard:
+          requests.cpu: "4"
+          requests.memory: 8Gi
+          limits.cpu: "8"
+          limits.memory: 16Gi
+          pods: "20"
+      ---
+      apiVersion: v1
+      kind: LimitRange
+      metadata:
+        name: dev-limits
+        namespace: dev
+      spec:
+        limits:
+        - type: Container
+          defaultRequest:
+            cpu: 100m
+            memory: 128Mi
+          max:
+            cpu: "2"
+            memory: 2Gi
+    why: Without default, containers get no limit; the quota tracks limits.cpu and limits.memory, so such Pods are still rejected.
+  - manifest: |
+      apiVersion: v1
+      kind: ResourceQuota
+      metadata:
+        name: dev-quota
+        namespace: dev
+      spec:
+        hard:
+          requests.cpu: "4"
+          requests.memory: 8Gi
+          limits.cpu: "8"
+          limits.memory: 16Gi
+          pods: "20"
+      ---
+      apiVersion: v1
+      kind: LimitRange
+      metadata:
+        name: dev-limits
+        namespace: dev
+      spec:
+        limits:
+        - type: Pod
+          defaultRequest:
+            cpu: 100m
+            memory: 128Mi
+          default:
+            cpu: 500m
+            memory: 512Mi
+          max:
+            cpu: "2"
+            memory: 2Gi
+    why: Defaults are injected per container; an item of type Pod only enforces min and max on the Pod's totals and cannot carry default or defaultRequest.
+explanation:
+  correct:
+    en: 'A ResourceQuota on `requests.*` and `limits.*` makes every new Pod declare those values, or it is rejected. A LimitRange item of `type: Container` fills the gaps at admission: `defaultRequest` sets the missing requests, `default` the missing limits, and `max` rejects containers whose limit is higher. Together they let teams submit Pods without resources while the namespace stays within its totals. Both apply only to Pods created after them.'
+references:
+- title: Limit Ranges
+  url: https://kubernetes.io/docs/concepts/policy/limit-range/
+- title: Resource Quotas
+  url: https://kubernetes.io/docs/concepts/policy/resource-quotas/

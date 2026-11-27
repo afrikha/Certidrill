@@ -1,0 +1,171 @@
+id: cka-1c-fix-nodename-wffc
+objective: "1.3.2"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    The Pod `indexer` in namespace `search` (manifest in the editor) must run on `worker-1`, where its local volume is. Its claim `index-data` uses the StorageClass `local-storage` (`WaitForFirstConsumer`) and stays `Pending`:
+
+    ```text
+    Normal  WaitForFirstConsumer  persistentvolume-controller  waiting for first consumer to be created before binding
+    ```
+
+    Correct the Pod manifest so that the claim binds and the Pod still runs on `worker-1`.
+body:
+  starter: |
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: indexer
+      namespace: search
+    spec:
+      nodeName: worker-1
+      containers:
+      - name: indexer
+        image: registry.example.com/indexer:5.0
+        volumeMounts:
+        - name: index
+          mountPath: /var/lib/index
+      volumes:
+      - name: index
+        persistentVolumeClaim:
+          claimName: index-data
+answer:
+  checks:
+  - id: meta
+    label: The Pod indexer in namespace search
+    path: metadata
+    op: subset
+    value: {name: indexer, namespace: search}
+  - id: no-nodename
+    label: nodeName is removed, so the scheduler places the Pod
+    path: spec.nodeName
+    op: absent
+  - id: hostname
+    label: The Pod is constrained to kubernetes.io/hostname worker-1 (nodeSelector or node affinity)
+    path: spec
+    op: matches
+    value: 'kubernetes\.io/hostname.*worker-1'
+  - id: claim
+    label: Volume index still uses the claim index-data
+    path: spec.volumes[name=index].persistentVolumeClaim.claimName
+    op: equals
+    value: index-data
+  - id: mount
+    label: The container still mounts index at /var/lib/index
+    path: spec.containers[name=indexer].volumeMounts[name=index].mountPath
+    op: equals
+    value: /var/lib/index
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: indexer
+        namespace: search
+      spec:
+        nodeSelector:
+          kubernetes.io/hostname: worker-1
+        containers:
+        - name: indexer
+          image: registry.example.com/indexer:5.0
+          volumeMounts:
+          - name: index
+            mountPath: /var/lib/index
+        volumes:
+        - name: index
+          persistentVolumeClaim:
+            claimName: index-data
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: indexer
+        namespace: search
+      spec:
+        affinity:
+          nodeAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              nodeSelectorTerms:
+              - matchExpressions:
+                - key: kubernetes.io/hostname
+                  operator: In
+                  values: ["worker-1"]
+        containers:
+        - name: indexer
+          image: registry.example.com/indexer:5.0
+          volumeMounts:
+          - name: index
+            mountPath: /var/lib/index
+        volumes:
+        - name: index
+          persistentVolumeClaim:
+            claimName: index-data
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: indexer
+        namespace: search
+      spec:
+        nodeName: worker-1
+        nodeSelector:
+          kubernetes.io/hostname: worker-1
+        containers:
+        - name: indexer
+          image: registry.example.com/indexer:5.0
+          volumeMounts:
+          - name: index
+            mountPath: /var/lib/index
+        volumes:
+        - name: index
+          persistentVolumeClaim:
+            claimName: index-data
+    why: As long as nodeName is set, the scheduler is bypassed and the claim keeps waiting for its first consumer.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: indexer
+        namespace: search
+      spec:
+        containers:
+        - name: indexer
+          image: registry.example.com/indexer:5.0
+          volumeMounts:
+          - name: index
+            mountPath: /var/lib/index
+        volumes:
+        - name: index
+          persistentVolumeClaim:
+            claimName: index-data
+    why: Without any node constraint the Pod is no longer guaranteed to run on worker-1.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: indexer
+        namespace: search
+      spec:
+        nodeSelector:
+          hostname: worker-1
+        containers:
+        - name: indexer
+          image: registry.example.com/indexer:5.0
+          volumeMounts:
+          - name: index
+            mountPath: /var/lib/index
+        volumes:
+        - name: index
+          persistentVolumeClaim:
+            claimName: index-data
+    why: The node label is kubernetes.io/hostname; no node carries a bare hostname label, so the Pod would stay Pending.
+explanation:
+  correct:
+    en: |-
+      With `WaitForFirstConsumer`, the claim binds when the scheduler places a Pod that uses it. `nodeName` bypasses the scheduler, so the claim stays `Pending`. Replace it with `nodeSelector: {kubernetes.io/hostname: worker-1}` (or a required node affinity on that label): the Pod goes through the scheduler and still lands on `worker-1`. A Pod's `nodeName` cannot be changed in place, so delete the Pod and apply the corrected manifest.
+references:
+- title: Storage Classes
+  url: https://kubernetes.io/docs/concepts/storage/storage-classes/

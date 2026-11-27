@@ -1,0 +1,182 @@
+id: cka-3c-scaledown-stabilization
+objective: "3.3.2"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    The replica count of Deployment `web` in namespace `shop` flaps: its HorizontalPodAutoscaler `web` removes Pods as soon as the load dips, then adds them back.
+
+    Add a `behavior` to the HPA below so that a scale-down uses the highest recommendation of the last 10 minutes and removes at most 2 Pods per minute. Leave scale-up at its defaults.
+body:
+  starter: |
+    apiVersion: autoscaling/v2
+    kind: HorizontalPodAutoscaler
+    metadata:
+      name: web
+      namespace: shop
+    spec:
+      scaleTargetRef:
+        apiVersion: apps/v1
+        kind: Deployment
+        name: web
+      minReplicas: 2
+      maxReplicas: 20
+      metrics:
+      - type: Resource
+        resource:
+          name: cpu
+          target:
+            type: Utilization
+            averageUtilization: 70
+answer:
+  checks:
+  - id: meta
+    label: The HorizontalPodAutoscaler web in namespace shop
+    path: metadata
+    op: subset
+    value: {name: web, namespace: shop}
+  - id: window
+    label: Scale-down stabilization window is 600 seconds
+    path: spec.behavior.scaleDown.stabilizationWindowSeconds
+    op: equals
+    value: 600
+  - id: policy
+    label: Scale-down policy removes at most 2 Pods per 60 seconds
+    path: spec.behavior.scaleDown.policies
+    op: contains
+    value: {type: Pods, value: 2, periodSeconds: 60}
+  - id: one-policy
+    label: It is the only scale-down policy
+    path: spec.behavior.scaleDown.policies
+    op: length
+    value: 1
+  - id: scale-up
+    label: Scale-up keeps its defaults (no scaleUp block)
+    path: spec.behavior.scaleUp
+    op: absent
+  - id: cpu
+    label: The CPU target is still 70%
+    path: spec.metrics[0].resource.target.averageUtilization
+    op: equals
+    value: 70
+  solution:
+  - manifest: |
+      apiVersion: autoscaling/v2
+      kind: HorizontalPodAutoscaler
+      metadata:
+        name: web
+        namespace: shop
+      spec:
+        scaleTargetRef:
+          apiVersion: apps/v1
+          kind: Deployment
+          name: web
+        minReplicas: 2
+        maxReplicas: 20
+        metrics:
+        - type: Resource
+          resource:
+            name: cpu
+            target:
+              type: Utilization
+              averageUtilization: 70
+        behavior:
+          scaleDown:
+            stabilizationWindowSeconds: 600
+            policies:
+            - type: Pods
+              value: 2
+              periodSeconds: 60
+  negatives:
+  - manifest: |
+      apiVersion: autoscaling/v2
+      kind: HorizontalPodAutoscaler
+      metadata:
+        name: web
+        namespace: shop
+      spec:
+        scaleTargetRef:
+          apiVersion: apps/v1
+          kind: Deployment
+          name: web
+        minReplicas: 2
+        maxReplicas: 20
+        metrics:
+        - type: Resource
+          resource:
+            name: cpu
+            target:
+              type: Utilization
+              averageUtilization: 70
+        behavior:
+          scaleUp:
+            stabilizationWindowSeconds: 600
+          scaleDown:
+            policies:
+            - type: Pods
+              value: 2
+              periodSeconds: 60
+    why: The window is set on scaleUp, which would delay scale-ups; scale-down keeps its default 300-second window.
+  - manifest: |
+      apiVersion: autoscaling/v2
+      kind: HorizontalPodAutoscaler
+      metadata:
+        name: web
+        namespace: shop
+      spec:
+        scaleTargetRef:
+          apiVersion: apps/v1
+          kind: Deployment
+          name: web
+        minReplicas: 2
+        maxReplicas: 20
+        metrics:
+        - type: Resource
+          resource:
+            name: cpu
+            target:
+              type: Utilization
+              averageUtilization: 70
+        behavior:
+          scaleDown:
+            stabilizationWindowSeconds: 10
+            policies:
+            - type: Pods
+              value: 2
+              periodSeconds: 1
+    why: Both fields are in seconds; this is a 10-second window and 2 Pods per second.
+  - manifest: |
+      apiVersion: autoscaling/v2
+      kind: HorizontalPodAutoscaler
+      metadata:
+        name: web
+        namespace: shop
+      spec:
+        scaleTargetRef:
+          apiVersion: apps/v1
+          kind: Deployment
+          name: web
+        minReplicas: 2
+        maxReplicas: 20
+        metrics:
+        - type: Resource
+          resource:
+            name: cpu
+            target:
+              type: Utilization
+              averageUtilization: 70
+        behavior:
+          scaleDown:
+            stabilizationWindowSeconds: 600
+            policies:
+            - type: Percent
+              value: 2
+              periodSeconds: 60
+    why: Percent 2 limits the change to 2 % of the current replicas, not 2 Pods.
+explanation:
+  correct:
+    en: '`behavior.scaleDown.stabilizationWindowSeconds: 600` makes the HPA pick the highest desired replica count computed during the last 10 minutes before removing Pods (the default is 300 seconds). A policy `type: Pods`, `value: 2`, `periodSeconds: 60` caps removals at 2 Pods per minute. `scaleUp` is left out so it keeps its defaults: no window, 100 % or 4 Pods per 15 seconds.'
+references:
+- title: Horizontal Pod Autoscaling
+  url: https://kubernetes.io/docs/concepts/workloads/autoscaling/horizontal-pod-autoscale/

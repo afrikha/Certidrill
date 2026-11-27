@@ -1,0 +1,246 @@
+id: cka-3b-fix-missing-configmap-key
+objective: "3.2.2"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    The new Pods of Deployment `billing` in namespace `payments` stay in `CreateContainerConfigError`. `kubectl describe pod` shows the event:
+
+    ```text
+    Warning  Failed  kubelet  Error: couldn't find key db-host in ConfigMap payments/billing-config
+    ```
+
+    The ConfigMap `billing-config` is in `billing-config.yaml` and must not be changed. Fix the Deployment so that the container starts with `DB_HOST` and `DB_PORT` set from the ConfigMap. Both variables must stay required.
+body:
+  starter: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: billing
+      namespace: payments
+    spec:
+      replicas: 2
+      selector:
+        matchLabels:
+          app: billing
+      template:
+        metadata:
+          labels:
+            app: billing
+        spec:
+          containers:
+          - name: billing
+            image: registry.example.com/payments/billing:1.9
+            env:
+            - name: DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: billing-config
+                  key: db-host
+            - name: DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: billing-config
+                  key: DB_PORT
+  files:
+  - name: billing-config.yaml
+    content: |
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: billing-config
+        namespace: payments
+      data:
+        DB_HOST: postgres.payments.svc.cluster.local
+        DB_PORT: "5432"
+answer:
+  checks:
+  - id: host-cm
+    label: DB_HOST reads ConfigMap billing-config
+    path: spec.template.spec.containers[name=billing].env[name=DB_HOST].valueFrom.configMapKeyRef.name
+    op: equals
+    value: billing-config
+  - id: host-key
+    label: DB_HOST reads the existing key DB_HOST
+    path: spec.template.spec.containers[name=billing].env[name=DB_HOST].valueFrom.configMapKeyRef.key
+    op: equals
+    value: DB_HOST
+  - id: host-required
+    label: DB_HOST is not marked optional
+    path: spec.template.spec.containers[name=billing].env[name=DB_HOST].valueFrom.configMapKeyRef
+    op: matches
+    value: '^(?!.*"optional":true)'
+  - id: port-key
+    label: DB_PORT still reads key DB_PORT of billing-config
+    path: spec.template.spec.containers[name=billing].env[name=DB_PORT].valueFrom.configMapKeyRef
+    op: subset
+    value: {name: billing-config, key: DB_PORT}
+  - id: port-required
+    label: DB_PORT is not marked optional
+    path: spec.template.spec.containers[name=billing].env[name=DB_PORT].valueFrom.configMapKeyRef
+    op: matches
+    value: '^(?!.*"optional":true)'
+  solution:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: billing
+        namespace: payments
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: billing
+        template:
+          metadata:
+            labels:
+              app: billing
+          spec:
+            containers:
+            - name: billing
+              image: registry.example.com/payments/billing:1.9
+              env:
+              - name: DB_HOST
+                valueFrom:
+                  configMapKeyRef:
+                    name: billing-config
+                    key: DB_HOST
+              - name: DB_PORT
+                valueFrom:
+                  configMapKeyRef:
+                    name: billing-config
+                    key: DB_PORT
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: billing
+        namespace: payments
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: billing
+        template:
+          metadata:
+            labels:
+              app: billing
+          spec:
+            containers:
+            - name: billing
+              image: registry.example.com/payments/billing:1.9
+              env:
+              - name: DB_HOST
+                valueFrom:
+                  configMapKeyRef:
+                    key: DB_HOST
+                    name: billing-config
+                    optional: false
+              - name: DB_PORT
+                valueFrom:
+                  configMapKeyRef:
+                    key: DB_PORT
+                    name: billing-config
+  negatives:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: billing
+        namespace: payments
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: billing
+        template:
+          metadata:
+            labels:
+              app: billing
+          spec:
+            containers:
+            - name: billing
+              image: registry.example.com/payments/billing:1.9
+              env:
+              - name: DB_HOST
+                valueFrom:
+                  configMapKeyRef:
+                    name: billing-config
+                    key: db-host
+                    optional: true
+              - name: DB_PORT
+                valueFrom:
+                  configMapKeyRef:
+                    name: billing-config
+                    key: DB_PORT
+    why: optional true lets the container start, but DB_HOST is then simply not set; the variable must stay required and read the existing key.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: billing
+        namespace: payments
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: billing
+        template:
+          metadata:
+            labels:
+              app: billing
+          spec:
+            containers:
+            - name: billing
+              image: registry.example.com/payments/billing:1.9
+              env:
+              - name: db-host
+                valueFrom:
+                  configMapKeyRef:
+                    name: billing-config
+                    key: DB_HOST
+              - name: DB_PORT
+                valueFrom:
+                  configMapKeyRef:
+                    name: billing-config
+                    key: DB_PORT
+    why: The variable name was changed instead of the key; the application expects DB_HOST.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: billing
+        namespace: payments
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: billing
+        template:
+          metadata:
+            labels:
+              app: billing
+          spec:
+            containers:
+            - name: billing
+              image: registry.example.com/payments/billing:1.9
+              env:
+              - name: DB_HOST
+                valueFrom:
+                  secretKeyRef:
+                    name: billing-config
+                    key: DB_HOST
+              - name: DB_PORT
+                valueFrom:
+                  configMapKeyRef:
+                    name: billing-config
+                    key: DB_PORT
+    why: billing-config is a ConfigMap; a secretKeyRef looks for a Secret of that name and the container still cannot start.
+explanation:
+  correct:
+    en: 'The kubelet resolves `configMapKeyRef` when it creates the container; a key that does not exist in the ConfigMap keeps it in `CreateContainerConfigError`. ConfigMap keys are case-sensitive: the key is `DB_HOST`, not `db-host`. `optional: true` would hide the error by leaving the variable unset, which the task forbids.'
+references:
+- title: Configure a Pod to Use a ConfigMap
+  url: https://kubernetes.io/docs/tasks/configure-pod-container/configure-pod-configmap/

@@ -1,0 +1,291 @@
+id: cka-5d-httproute-header-match-modifier
+objective: "5.4.2"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    In namespace `api`, the Gateway `internal` accepts routes of its own namespace. Write an HTTPRoute named `orders` in namespace `api`, attached to Gateway `internal`, for the hostname `api.example.com`:
+
+    - requests whose path starts with `/v2` **and** that carry the header `x-channel: beta` go to Service `orders-beta` on port 80; for these requests the Gateway must set the request header `x-routed-by` to `beta`, replacing any value sent by the client;
+    - all other requests whose path starts with `/v2` go to Service `orders` on port 80.
+
+    Use one rule per backend.
+body:
+  starter: |
+    apiVersion: gateway.networking.k8s.io/v1
+    kind: HTTPRoute
+    metadata:
+      name: orders
+      namespace: api
+    spec:
+      parentRefs:
+      - name: internal
+      hostnames:
+      - api.example.com
+      rules: []
+answer:
+  checks:
+  - id: route
+    label: An HTTPRoute named orders in namespace api
+    path: metadata
+    op: subset
+    value: {name: orders, namespace: api}
+  - id: parent
+    label: It attaches to Gateway internal
+    path: spec.parentRefs
+    op: contains
+    value: {name: internal}
+  - id: hostname
+    label: It serves api.example.com
+    path: spec.hostnames
+    op: contains
+    value: api.example.com
+  - id: beta-match
+    label: One match requires both the path /v2 and the header x-channel=beta, and sends to orders-beta:80
+    path: spec.rules
+    op: contains
+    value:
+      matches:
+      - path: {value: /v2}
+        headers:
+        - {name: x-channel, value: beta}
+      backendRefs:
+      - {name: orders-beta, port: 80}
+  - id: beta-filter
+    label: The orders-beta rule sets (not adds) the request header x-routed-by to beta
+    path: spec.rules
+    op: contains
+    value:
+      backendRefs:
+      - {name: orders-beta}
+      filters:
+      - type: RequestHeaderModifier
+        requestHeaderModifier:
+          set:
+          - {name: x-routed-by, value: beta}
+  - id: default-rule
+    label: Another rule sends /v2 to orders:80
+    path: spec.rules
+    op: contains
+    value:
+      matches:
+      - path: {value: /v2}
+      backendRefs:
+      - {name: orders, port: 80}
+  solution:
+  - manifest: |
+      apiVersion: gateway.networking.k8s.io/v1
+      kind: HTTPRoute
+      metadata:
+        name: orders
+        namespace: api
+      spec:
+        parentRefs:
+        - name: internal
+        hostnames:
+        - api.example.com
+        rules:
+        - matches:
+          - path:
+              type: PathPrefix
+              value: /v2
+            headers:
+            - name: x-channel
+              value: beta
+          filters:
+          - type: RequestHeaderModifier
+            requestHeaderModifier:
+              set:
+              - name: x-routed-by
+                value: beta
+          backendRefs:
+          - name: orders-beta
+            port: 80
+        - matches:
+          - path:
+              type: PathPrefix
+              value: /v2
+          backendRefs:
+          - name: orders
+            port: 80
+  - manifest: |
+      apiVersion: gateway.networking.k8s.io/v1
+      kind: HTTPRoute
+      metadata:
+        name: orders
+        namespace: api
+      spec:
+        parentRefs:
+        - name: internal
+          namespace: api
+        hostnames:
+        - api.example.com
+        rules:
+        - matches:
+          - path:
+              value: /v2
+          backendRefs:
+          - name: orders
+            port: 80
+        - matches:
+          - headers:
+            - type: Exact
+              name: x-channel
+              value: beta
+            path:
+              value: /v2
+          backendRefs:
+          - name: orders-beta
+            port: 80
+          filters:
+          - requestHeaderModifier:
+              set:
+              - name: x-routed-by
+                value: beta
+            type: RequestHeaderModifier
+  negatives:
+  - manifest: |
+      apiVersion: gateway.networking.k8s.io/v1
+      kind: HTTPRoute
+      metadata:
+        name: orders
+        namespace: api
+      spec:
+        parentRefs:
+        - name: internal
+        hostnames:
+        - api.example.com
+        rules:
+        - matches:
+          - path:
+              value: /v2
+          - headers:
+            - name: x-channel
+              value: beta
+          filters:
+          - type: RequestHeaderModifier
+            requestHeaderModifier:
+              set:
+              - name: x-routed-by
+                value: beta
+          backendRefs:
+          - name: orders-beta
+            port: 80
+        - matches:
+          - path:
+              value: /v2
+          backendRefs:
+          - name: orders
+            port: 80
+    why: Two entries in matches are ORed, so every /v2 request (and any request with the header) goes to orders-beta; path and header must be in the same match to be ANDed.
+  - manifest: |
+      apiVersion: gateway.networking.k8s.io/v1
+      kind: HTTPRoute
+      metadata:
+        name: orders
+        namespace: api
+      spec:
+        parentRefs:
+        - name: internal
+        hostnames:
+        - api.example.com
+        rules:
+        - matches:
+          - path:
+              value: /v2
+            headers:
+            - name: x-channel
+              value: beta
+          filters:
+          - type: RequestHeaderModifier
+            requestHeaderModifier:
+              add:
+              - name: x-routed-by
+                value: beta
+          backendRefs:
+          - name: orders-beta
+            port: 80
+        - matches:
+          - path:
+              value: /v2
+          backendRefs:
+          - name: orders
+            port: 80
+    why: add appends a value and keeps the one the client sent; set replaces it.
+  - manifest: |
+      apiVersion: gateway.networking.k8s.io/v1
+      kind: HTTPRoute
+      metadata:
+        name: orders
+        namespace: api
+      spec:
+        parentRefs:
+        - name: internal
+        hostnames:
+        - api.example.com
+        rules:
+        - matches:
+          - path:
+              value: /v2
+            headers:
+            - name: x-channel
+              value: beta
+          filters:
+          - type: ResponseHeaderModifier
+            responseHeaderModifier:
+              set:
+              - name: x-routed-by
+                value: beta
+          backendRefs:
+          - name: orders-beta
+            port: 80
+        - matches:
+          - path:
+              value: /v2
+          backendRefs:
+          - name: orders
+            port: 80
+    why: ResponseHeaderModifier changes the response returned to the client, not the request sent to orders-beta.
+  - manifest: |
+      apiVersion: gateway.networking.k8s.io/v1
+      kind: HTTPRoute
+      metadata:
+        name: orders
+        namespace: api
+      spec:
+        parentRefs:
+        - name: internal
+        hostnames:
+        - api.example.com
+        rules:
+        - matches:
+          - path:
+              value: /v2
+            queryParams:
+            - name: x-channel
+              value: beta
+          filters:
+          - type: RequestHeaderModifier
+            requestHeaderModifier:
+              set:
+              - name: x-routed-by
+                value: beta
+          backendRefs:
+          - name: orders-beta
+            port: 80
+        - matches:
+          - path:
+              value: /v2
+          backendRefs:
+          - name: orders
+            port: 80
+    why: queryParams matches ?x-channel=beta in the URL, not the HTTP header x-channel.
+explanation:
+  correct:
+    en: 'Inside a rule, the entries of `matches` are ORed and the fields of one match (`path`, `headers`, `queryParams`, `method`) are ANDed, so path and header go in the same match; header matches are `Exact` by default. When several rules match, the one with more header matches wins over a match with the same path, so the order of the two rules does not matter. `RequestHeaderModifier` changes the request sent to the backend: `set` overwrites, `add` appends, `remove` deletes.'
+references:
+- title: HTTPRoute
+  url: https://gateway-api.sigs.k8s.io/api-types/httproute/
+- title: HTTP Header Modifiers
+  url: https://gateway-api.sigs.k8s.io/guides/http-header-modifier/

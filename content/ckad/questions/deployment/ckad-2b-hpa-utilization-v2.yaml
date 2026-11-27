@@ -1,0 +1,132 @@
+id: ckad-2b-hpa-utilization-v2
+objective: "2.2.4"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    Write the manifest of a HorizontalPodAutoscaler `orders` in namespace `payments`, using the `autoscaling/v2` API. It scales Deployment `orders` between **3** and **12** replicas to keep the average CPU utilization of its Pods at **60 %** of their CPU requests.
+body:
+  starter: ""
+answer:
+  checks:
+  - id: api
+    label: Uses autoscaling/v2
+    path: apiVersion
+    op: equals
+    value: autoscaling/v2
+  - id: kind
+    label: The object is a HorizontalPodAutoscaler
+    path: kind
+    op: equals
+    value: HorizontalPodAutoscaler
+  - id: meta
+    label: It is named orders in namespace payments
+    path: metadata
+    op: subset
+    value: {name: orders, namespace: payments}
+  - id: target
+    label: It scales the apps/v1 Deployment orders
+    path: spec.scaleTargetRef
+    op: subset
+    value: {apiVersion: apps/v1, kind: Deployment, name: orders}
+  - id: min
+    label: minReplicas is 3
+    path: spec.minReplicas
+    op: equals
+    value: 3
+  - id: max
+    label: maxReplicas is 12
+    path: spec.maxReplicas
+    op: equals
+    value: 12
+  - id: metric
+    label: A Resource metric targets 60 % average CPU utilization
+    path: spec.metrics
+    op: contains
+    value: {type: Resource, resource: {name: cpu, target: {type: Utilization, averageUtilization: 60}}}
+  solution:
+  - manifest: |
+      apiVersion: autoscaling/v2
+      kind: HorizontalPodAutoscaler
+      metadata:
+        name: orders
+        namespace: payments
+      spec:
+        scaleTargetRef:
+          apiVersion: apps/v1
+          kind: Deployment
+          name: orders
+        minReplicas: 3
+        maxReplicas: 12
+        metrics:
+        - type: Resource
+          resource:
+            name: cpu
+            target:
+              type: Utilization
+              averageUtilization: 60
+  negatives:
+  - manifest: |
+      apiVersion: autoscaling/v2beta2
+      kind: HorizontalPodAutoscaler
+      metadata:
+        name: orders
+        namespace: payments
+      spec:
+        scaleTargetRef:
+          apiVersion: apps/v1
+          kind: Deployment
+          name: orders
+        minReplicas: 3
+        maxReplicas: 12
+        metrics:
+        - type: Resource
+          resource:
+            name: cpu
+            target:
+              type: Utilization
+              averageUtilization: 60
+    why: autoscaling/v2beta2 was removed in Kubernetes 1.26; the API server rejects it.
+  - manifest: |
+      apiVersion: autoscaling/v2
+      kind: HorizontalPodAutoscaler
+      metadata:
+        name: orders
+        namespace: payments
+      spec:
+        scaleTargetRef:
+          apiVersion: apps/v1
+          kind: Deployment
+          name: orders
+        minReplicas: 3
+        maxReplicas: 12
+        metrics:
+        - type: Resource
+          resource:
+            name: cpu
+            target:
+              type: AverageValue
+              averageValue: "60"
+    why: AverageValue targets an absolute quantity (here 60 CPUs per Pod), not a percentage of the request.
+  - manifest: |
+      apiVersion: autoscaling/v2
+      kind: HorizontalPodAutoscaler
+      metadata:
+        name: orders
+        namespace: payments
+      spec:
+        scaleTargetRef:
+          apiVersion: apps/v1
+          kind: Deployment
+          name: orders
+        minReplicas: 3
+        maxReplicas: 12
+        targetCPUUtilizationPercentage: 60
+    why: targetCPUUtilizationPercentage is the autoscaling/v1 field; autoscaling/v2 uses the metrics list.
+explanation:
+  correct:
+    en: 'In `autoscaling/v2`, `scaleTargetRef` names the Deployment, `minReplicas` and `maxReplicas` bound the replica count, and each entry of `metrics` defines a target: a `Resource` metric `cpu` with `target.type: Utilization` and `averageUtilization: 60` keeps CPU usage at 60 % of the Pods'' requests. The Pods must declare CPU requests, otherwise utilization is not defined and the HPA takes no action for that metric.'
+references:
+- title: Horizontal Pod Autoscaling
+  url: https://kubernetes.io/docs/concepts/workloads/autoscaling/horizontal-pod-autoscale/

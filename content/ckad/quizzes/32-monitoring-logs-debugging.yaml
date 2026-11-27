@@ -1,0 +1,874 @@
+chapter: 32-monitoring-logs-debugging
+questions:
+  # ------------------------------------------------------------------ 1
+  - id: ckad-qz-32-01
+    objective: "3.3.1"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        On a new cluster, `kubectl top pod -n shop` fails with `error: Metrics API not available`. The Pods of namespace `shop` are running normally.
+
+        What must be added to the cluster for the command to work?
+    body:
+      options:
+        - { id: a, text: { en: "kube-state-metrics, which exposes metrics about the state of Kubernetes objects." } }
+        - { id: b, text: { en: "metrics-server, which collects the CPU and memory usage of nodes and Pods from the kubelets." } }
+        - { id: c, text: { en: "Resource requests on every container of namespace `shop`, so that usage can be measured." } }
+        - { id: d, text: { en: "The `--containers` flag, so that kubectl reads the usage of each container from its runtime." } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          `kubectl top` reads the Metrics API (`metrics.k8s.io`), and metrics-server is the cluster add-on that implements it: it collects CPU and memory usage from the kubelets and exposes it through the API server. It is not part of a bare cluster, so until it is deployed `kubectl top` has nothing to query.
+      options:
+        a: { en: "kube-state-metrics exposes the state of objects (replicas, conditions, phases) for a monitoring system; it does not serve the Metrics API that `kubectl top` queries." }
+        c: { en: "`kubectl top` shows actual usage, not requests; requests are not needed for usage to be measured, and they do not provide the missing API." }
+        d: { en: "`--containers` only splits the output into one line per container; the data still comes from the Metrics API, which is missing." }
+    references:
+      - title: Resource metrics pipeline
+        url: https://kubernetes.io/docs/tasks/debug/debug-cluster/resource-metrics-pipeline/
+
+  # ------------------------------------------------------------------ 2
+  - id: ckad-qz-32-02
+    objective: "3.4.1"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        You run `kubectl logs -n shop -l app=web` to read the logs of the three Pods of the web application. Each Pod has logged several thousand lines, but the command prints only a few lines per Pod.
+
+        Why?
+    body:
+      options:
+        - { id: a, text: { en: "With a label selector, `--tail` defaults to 10, so only the last 10 lines of each Pod are printed." } }
+        - { id: b, text: { en: "With a label selector, `--since` defaults to 10m, so only the lines of the last 10 minutes are printed." } }
+        - { id: c, text: { en: "With a label selector, kubectl reads only the previous instance of each container, which logged little." } }
+        - { id: d, text: { en: "With a label selector, the kubelet keeps only the lines written since the last log rotation of each Pod." } }
+    answer: { optionId: a }
+    explanation:
+      correct:
+        en: |
+          `--tail` defaults to `-1` (all lines) when you name one Pod, but to 10 lines per Pod when a selector is given. To read the full logs of every Pod that matches, add `--tail=-1`, or read the Pods one by one.
+      options:
+        b: { en: "`--since` has no default value: without it, kubectl returns all available logs, with or without a selector." }
+        c: { en: "The previous instance is read only with `-p` (`--previous`); a selector does not turn it on." }
+        d: { en: "Log rotation is a kubelet setting that does not depend on how kubectl selects the Pods; the same Pods named one by one would show all their lines." }
+    references:
+      - title: kubectl logs
+        url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_logs/
+
+  # ------------------------------------------------------------------ 3
+  - id: ckad-qz-32-03
+    objective: "3.5.1"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        The Pods of Deployment `exporter` in namespace `reports` alternate between the `Completed` and `CrashLoopBackOff` statuses. `kubectl describe` on one Pod shows:
+
+        ```text
+            Last State:     Terminated
+              Reason:       Completed
+              Exit Code:    0
+            Restart Count:  7
+        ```
+
+        `kubectl logs --previous` ends with `export finished: 1200 rows written`. What is the cause, and what is the fix?
+    body:
+      options:
+        - { id: a, text: { en: "The container uses more memory than its limit and is killed; raise `resources.limits.memory`." } }
+        - { id: b, text: { en: "The liveness probe fails and the kubelet restarts the container; fix the probe or add a startup probe." } }
+        - { id: c, text: { en: "The main process finishes and exits, and a Deployment always restarts it; run the task as a Job instead." } }
+        - { id: d, text: { en: "The kubelet cannot pull the image and backs off; correct the image name or add `imagePullSecrets`." } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          Reason `Completed` with exit code 0 means the process did its work and ended normally. A Deployment only allows `restartPolicy: Always`, so the kubelet restarts the container after every exit, with a growing back-off delay that shows as `CrashLoopBackOff`. A one-shot export belongs in a Job (or a CronJob if it repeats); a Deployment needs a long-running process.
+      options:
+        a: { en: "A container killed for exceeding its memory limit shows `Reason: OOMKilled` and exit code 137, not `Completed` with exit code 0." }
+        b: { en: "A liveness failure shows `Liveness probe failed` events and a kill by the kubelet; here the process ended on its own with exit code 0 after logging a successful result." }
+        d: { en: "An image pull failure shows `ErrImagePull` or `ImagePullBackOff` and the container never runs; here it ran and wrote logs." }
+    references:
+      - title: Pod Lifecycle
+        url: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/
+      - title: Deployments
+        url: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/
+
+  # ------------------------------------------------------------------ 4
+  - id: ckad-qz-32-04
+    objective: "3.3.2"
+    difficulty: 2
+    status: draft
+    type: multi
+    stem:
+      en: |
+        Several Pods of namespace `shop` misbehave. You need to list only the events of type `Warning` of the whole namespace, sorted by time with the oldest first.
+
+        Which two commands meet the requirement? (Choose two.)
+    body:
+      choose: 2
+      options:
+        - { id: a, text: "`kubectl events -n shop --types=Warning`" }
+        - { id: b, text: "`kubectl get events -n shop --field-selector type=Warning`" }
+        - { id: c, text: "`kubectl get events -n shop --sort-by=.metadata.creationTimestamp`" }
+        - { id: d, text: "`kubectl get events -n shop --field-selector type=Warning --sort-by=.metadata.creationTimestamp`" }
+        - { id: e, text: "`kubectl describe pods -n shop`" }
+    answer: { optionIds: [a, d] }
+    explanation:
+      correct:
+        en: |
+          `kubectl events` lists recent events in time order, and `--types=Warning` keeps only the warnings. `kubectl get events` filters on the event field `type` with `--field-selector`, but it does not order the list by time: `--sort-by=.metadata.creationTimestamp` adds that ordering.
+      options:
+        b: { en: "The filter is right, but `kubectl get events` returns the events in the order the API lists them, not by time." }
+        c: { en: "The list is sorted by time, but nothing filters it: the `Normal` events of the namespace are included." }
+        e: { en: "`describe` prints each Pod's details with its own events of every type, Pod after Pod; it is neither filtered on `Warning` nor one time-ordered list." }
+    references:
+      - title: kubectl events
+        url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_events/
+      - title: Command line tool (kubectl)
+        url: https://kubernetes.io/docs/reference/kubectl/
+
+  # ------------------------------------------------------------------ 5
+  - id: ckad-qz-32-05
+    objective: "3.5.2"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Service `web` in namespace `shop` listens on port 80 and forwards to port 8080 of its Pods. From your workstation, you need to open `http://localhost:9090/` and reach the application by naming Service `web`, without creating any object in the cluster.
+
+        Which command should you run?
+    body:
+      options:
+        - { id: a, text: "`kubectl port-forward -n shop svc/web 80:9090`" }
+        - { id: b, text: "`kubectl proxy --port=9090`" }
+        - { id: c, text: "`kubectl expose deployment web -n shop --port=9090 --target-port=8080`" }
+        - { id: d, text: "`kubectl port-forward -n shop svc/web 9090:80`" }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          `kubectl port-forward` takes `LOCAL_PORT:REMOTE_PORT`: `9090:80` listens on local port 9090 and forwards to Service port 80, which kubectl maps to the target port (8080) of one Pod selected by the Service. Nothing is created in the cluster, and the session ends when you stop the command or the selected Pod terminates.
+      options:
+        a: { en: "The ports are reversed: this listens on local port 80 and asks for Service port 9090, which Service `web` does not have." }
+        b: { en: "`kubectl proxy` serves the Kubernetes API on local port 9090; `http://localhost:9090/` would reach the API server, not the application." }
+        c: { en: "`expose` creates a new Service in the cluster, which the requirement forbids, and a ClusterIP Service is not reachable from `localhost` on your workstation." }
+    references:
+      - title: kubectl port-forward
+        url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_port-forward/
+
+  # ------------------------------------------------------------------ 6
+  - id: ckad-qz-32-06
+    objective: "3.4.2"
+    difficulty: 3
+    status: draft
+    type: command
+    stem:
+      en: |-
+        In namespace `shop`, Pod `cart-7d4b9` shows 5 restarts in `kubectl get pods`. `kubectl describe pod cart-7d4b9 -n shop` shows:
+
+        ```text
+        Containers:
+          cart:
+            State:          Running
+            Restart Count:  0
+          cache-warmer:
+            State:          Waiting
+              Reason:       CrashLoopBackOff
+            Last State:     Terminated
+              Reason:       Error
+              Exit Code:    1
+            Restart Count:  5
+        ```
+
+        Display the last 30 log lines written by the instance of the restarting container that crashed most recently.
+
+        Type the single command you would run.
+    body:
+      mode: invocation
+      namespace: default
+    answer:
+      checks:
+        - id: verb
+          label: Uses kubectl logs
+          path: verb
+          op: equals
+          value: logs
+        - id: pod
+          label: Reads Pod cart-7d4b9
+          path: names
+          op: contains
+          value: cart-7d4b9
+        - id: container
+          label: Reads container cache-warmer, the one that restarts
+          path: flags.container
+          op: equals
+          value: cache-warmer
+        - id: previous
+          label: Reads the previous (crashed) instance
+          path: flags.previous
+          op: equals
+          value: true
+        - id: tail
+          label: Prints the last 30 lines
+          path: flags.tail
+          op: equals
+          value: 30
+        - id: namespace
+          label: Runs in namespace shop
+          path: flags.namespace
+          op: equals
+          value: shop
+      solution:
+        - command: kubectl logs cart-7d4b9 -n shop -c cache-warmer -p --tail=30
+        - command: k logs -n shop pod/cart-7d4b9 --container=cache-warmer --previous --tail 30
+        - command: kubectl logs --previous=true --tail=30 -c cache-warmer cart-7d4b9 --namespace shop
+      negatives:
+        - command: kubectl logs cart-7d4b9 -n shop -p --tail=30
+          why: Without -c, kubectl reads the default container, cart, which never restarted, so it has no previous instance.
+        - command: kubectl logs cart-7d4b9 -n shop -c cache-warmer --tail=30
+          why: Without --previous, kubectl reads the current instance of cache-warmer, not the one that crashed.
+        - command: kubectl logs cart-7d4b9 -n shop --all-containers -p --tail=30
+          why: --all-containers also targets cart, which has no previous instance; the task wants the restarting container only.
+    explanation:
+      correct:
+        en: '`describe` relates the 5 restarts to container `cache-warmer` (`Restart Count: 5`, `Last State: Terminated`), while `cart` never restarted. After a restart, `kubectl logs` shows the new instance, so the crash is read with `-p` (`--previous`) and `-c cache-warmer`, since without `-c` kubectl picks the default container. `--tail=30` keeps the last 30 lines.'
+    references:
+      - title: kubectl logs
+        url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_logs/
+
+  # ------------------------------------------------------------------ 7
+  - id: ckad-qz-32-07
+    objective: "3.3.2"
+    difficulty: 3
+    status: draft
+    type: command
+    stem:
+      en: |-
+        In namespace `shop`, print the Pods that have the label `tier=backend` as a table with exactly two columns, in this order:
+
+        - `NAME`: the name of the Pod;
+        - `RESTARTS`: the restart count of the Pod's first container.
+
+        The rows must be ordered by that restart count, lowest first.
+
+        Type the single command you would run.
+    body:
+      mode: invocation
+      namespace: default
+    answer:
+      checks:
+        - id: verb
+          label: Uses kubectl get
+          path: verb
+          op: equals
+          value: get
+        - id: resource
+          label: Lists Pods
+          path: resource
+          op: equals
+          value: pod
+        - id: namespace
+          label: Runs in namespace shop
+          path: flags.namespace
+          op: equals
+          value: shop
+        - id: selector
+          label: Keeps only the Pods with label tier=backend
+          path: flags.selector
+          op: oneOf
+          value: [tier=backend, tier==backend]
+        - id: columns
+          label: Custom columns NAME (Pod name) then RESTARTS (restartCount of the first container)
+          path: flags.output
+          op: matches
+          value: '^custom-columns=NAME:\{?\.?metadata\.name\}?,RESTARTS:\{?\.?status\.containerStatuses\[0\]\.restartCount\}?$'
+        - id: sort
+          label: Sorts with a JSONPath to the restartCount of the first container
+          path: flags.sort-by
+          op: matches
+          value: '^\{?\.?status\.containerStatuses\[0\]\.restartCount\}?$'
+      solution:
+        - command: kubectl get pods -n shop -l tier=backend -o 'custom-columns=NAME:.metadata.name,RESTARTS:.status.containerStatuses[0].restartCount' --sort-by='.status.containerStatuses[0].restartCount'
+        - command: k get po --namespace=shop --selector=tier=backend --sort-by='{.status.containerStatuses[0].restartCount}' -o 'custom-columns=NAME:metadata.name,RESTARTS:status.containerStatuses[0].restartCount'
+        - command: kubectl get pod -l tier==backend -n shop --output=custom-columns="NAME:.metadata.name,RESTARTS:.status.containerStatuses[0].restartCount" --sort-by=".status.containerStatuses[0].restartCount"
+      negatives:
+        - command: kubectl get pods -n shop -l tier=backend -o 'custom-columns=NAME:.metadata.name,RESTARTS:.status.containerStatuses[0].restartCount' --sort-by=RESTARTS
+          why: --sort-by on kubectl get takes a JSONPath into the objects, not a column header; RESTARTS is read as the field .RESTARTS, which Pods do not have.
+        - command: kubectl get pods -n shop -l tier=backend --sort-by='.status.containerStatuses[0].restartCount'
+          why: The sort is right, but the default table has the READY, STATUS, RESTARTS and AGE columns, not exactly NAME and RESTARTS.
+        - command: kubectl get pods -n shop -o 'custom-columns=NAME:.metadata.name,RESTARTS:.status.containerStatuses[0].restartCount' --sort-by='.status.containerStatuses[0].restartCount'
+          why: Without -l tier=backend, the table lists every Pod of namespace shop.
+    explanation:
+      correct:
+        en: '`-o custom-columns=NAME:.metadata.name,RESTARTS:.status.containerStatuses[0].restartCount` builds the two columns, `-l tier=backend` filters the Pods, and `--sort-by` takes a JSONPath to the same field, sorting in ascending order. Quote the expressions so that the shell leaves the brackets alone. Unlike `kubectl top`, whose `--sort-by` accepts only `cpu` or `memory`, `kubectl get` sorts on a field path, never on a column name.'
+    references:
+      - title: Command line tool (kubectl)
+        url: https://kubernetes.io/docs/reference/kubectl/
+
+  # ------------------------------------------------------------------ 8
+  - id: ckad-qz-32-08
+    objective: "3.5.2"
+    difficulty: 3
+    status: draft
+    type: command
+    stem:
+      en: |-
+        Pod `ledger` in namespace `payments` has a single container, `ledger`, which exits right after it starts (`CrashLoopBackOff`), so `kubectl exec` cannot reach it. Pod `ledger` must not be modified or deleted.
+
+        Create a copy of the Pod named `ledger-debug` in which container `ledger` keeps its image but runs `sh` instead of its usual command, and attach to that shell with stdin and a TTY.
+
+        Type the single command you would run.
+    body:
+      mode: invocation
+      namespace: default
+    answer:
+      checks:
+        - id: verb
+          label: Uses kubectl debug
+          path: verb
+          op: equals
+          value: debug
+        - id: pod
+          label: Copies Pod ledger
+          path: names
+          op: contains
+          value: ledger
+        - id: copy
+          label: The copy is named ledger-debug
+          path: flags.copy-to
+          op: equals
+          value: ledger-debug
+        - id: container
+          label: Changes the existing container ledger instead of adding one
+          path: flags.container
+          op: equals
+          value: ledger
+        - id: command
+          label: The container runs sh
+          path: rest[0]
+          op: oneOf
+          value: [sh, /bin/sh]
+        - id: image
+          label: Container ledger keeps its image (no --image)
+          path: flags.image
+          op: absent
+        - id: set-image
+          label: No image is replaced (no --set-image)
+          path: flags.set-image
+          op: absent
+        - id: replace
+          label: The original Pod is kept (no --replace)
+          path: flags.replace
+          op: absent
+        - id: stdin
+          label: Keeps stdin open (-i)
+          path: flags.stdin
+          op: equals
+          value: true
+        - id: tty
+          label: Allocates a TTY (-t)
+          path: flags.tty
+          op: equals
+          value: true
+        - id: namespace
+          label: Runs in namespace payments
+          path: flags.namespace
+          op: equals
+          value: payments
+      solution:
+        - command: kubectl debug ledger -n payments -it --copy-to=ledger-debug --container=ledger -- sh
+        - command: k debug pod/ledger --namespace=payments --copy-to ledger-debug -c ledger --stdin --tty -- /bin/sh
+        - command: kubectl debug -ti ledger -c ledger --copy-to=ledger-debug -n payments -- sh
+      negatives:
+        - command: kubectl debug ledger -n payments -it --image=busybox:1.36 --copy-to=ledger-debug -- sh
+          why: Without --container, kubectl debug adds a new busybox container to the copy; container ledger keeps its crashing command.
+        - command: kubectl debug ledger -n payments -it --copy-to=ledger-debug --container=ledger --image=busybox:1.36 -- sh
+          why: With --container naming an existing container, --image replaces its image, so the shell runs in busybox instead of the ledger image.
+        - command: kubectl debug ledger -n payments -it --image=busybox:1.36 --target=ledger -- sh
+          why: This adds an ephemeral container to Pod ledger itself, which modifies it, and container ledger keeps crashing.
+        - command: kubectl debug ledger -n payments -it --copy-to=ledger-debug --container=ledger --replace -- sh
+          why: --replace deletes the original Pod ledger after creating the copy.
+    explanation:
+      correct:
+        en: '`kubectl debug ledger --copy-to=ledger-debug --container=ledger -it -- sh` creates a new Pod from the spec of `ledger` in which the command of container `ledger` is replaced by `sh`, with the original image, and attaches to it. `--container` must name the existing container, otherwise a new container is added; `--image` would replace that container''s image, and `--replace` would delete the original Pod. Delete `ledger-debug` when you are done.'
+    references:
+      - title: Debug Running Pods
+        url: https://kubernetes.io/docs/tasks/debug/debug-application/debug-running-pod/
+      - title: kubectl debug
+        url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_debug/
+
+  # ------------------------------------------------------------------ 9
+  - id: ckad-qz-32-09
+    objective: "3.5.1"
+    difficulty: 3
+    status: draft
+    type: manifest
+    stem:
+      en: |-
+        Pod `reports` in namespace `analytics` stays `Pending`. You collected this:
+
+        ```text
+        $ kubectl describe pod reports -n analytics
+        ...
+          Warning  FailedScheduling  default-scheduler  0/3 nodes are available: pod has unbound immediate PersistentVolumeClaims.
+
+        $ kubectl get pvc -n analytics
+        NAME           STATUS    VOLUME   CAPACITY   ACCESS MODES   STORAGECLASS   AGE
+        reports-data   Pending                                      fast-ssd       12m
+
+        $ kubectl describe pvc reports-data -n analytics
+        ...
+          Warning  ProvisioningFailed  persistentvolume-controller  storageclass.storage.k8s.io "fast-ssd" not found
+
+        $ kubectl get storageclass
+        NAME                 PROVISIONER           RECLAIMPOLICY   VOLUMEBINDINGMODE   AGE
+        standard (default)   hdd.csi.example.com   Delete          Immediate           200d
+        premium-ssd          ssd.csi.example.com   Delete          Immediate           200d
+        ```
+
+        Both provisioners create volumes that support only the `ReadWriteOnce` access mode, and no PersistentVolume exists in advance. The editor contains the current claim, which you will delete and recreate.
+
+        Write the claim to recreate: same name and namespace, `20Gi`, dynamically provisioned on SSD storage, mounted read-write by the single Pod `reports`.
+    body:
+      starter: |
+        apiVersion: v1
+        kind: PersistentVolumeClaim
+        metadata:
+          name: reports-data
+          namespace: analytics
+        spec:
+          storageClassName: fast-ssd
+          accessModes:
+          - ReadWriteMany
+          resources:
+            requests:
+              storage: 20Gi
+    answer:
+      checks:
+        - id: claim
+          label: PersistentVolumeClaim reports-data in namespace analytics
+          select: { kind: PersistentVolumeClaim }
+          path: metadata
+          op: subset
+          value: { name: reports-data, namespace: analytics }
+        - id: class
+          label: StorageClass is premium-ssd (the SSD class that exists)
+          select: { kind: PersistentVolumeClaim }
+          path: spec.storageClassName
+          op: equals
+          value: premium-ssd
+        - id: access
+          label: Access mode is ReadWriteOnce only
+          select: { kind: PersistentVolumeClaim }
+          path: spec.accessModes
+          op: equals
+          value: [ReadWriteOnce]
+        - id: size
+          label: Requests 20Gi
+          select: { kind: PersistentVolumeClaim }
+          path: spec.resources.requests.storage
+          op: quantity
+          value: 20Gi
+      solution:
+        - manifest: |
+            apiVersion: v1
+            kind: PersistentVolumeClaim
+            metadata:
+              name: reports-data
+              namespace: analytics
+            spec:
+              storageClassName: premium-ssd
+              accessModes:
+              - ReadWriteOnce
+              resources:
+                requests:
+                  storage: 20Gi
+        - manifest: |
+            apiVersion: v1
+            kind: PersistentVolumeClaim
+            metadata:
+              namespace: analytics
+              name: reports-data
+            spec:
+              accessModes: [ReadWriteOnce]
+              resources: { requests: { storage: 20480Mi } }
+              storageClassName: "premium-ssd"
+      negatives:
+        - manifest: |
+            apiVersion: v1
+            kind: PersistentVolumeClaim
+            metadata:
+              name: reports-data
+              namespace: analytics
+            spec:
+              accessModes:
+              - ReadWriteOnce
+              resources:
+                requests:
+                  storage: 20Gi
+          why: Without storageClassName, the default class standard is written into the claim, so the volume is provisioned on HDD storage.
+        - manifest: |
+            apiVersion: v1
+            kind: PersistentVolumeClaim
+            metadata:
+              name: reports-data
+              namespace: analytics
+            spec:
+              storageClassName: ""
+              accessModes:
+              - ReadWriteOnce
+              resources:
+                requests:
+                  storage: 20Gi
+          why: storageClassName "" disables dynamic provisioning; the claim waits for a PersistentVolume without a class, and none exists.
+        - manifest: |
+            apiVersion: v1
+            kind: PersistentVolumeClaim
+            metadata:
+              name: reports-data
+              namespace: analytics
+            spec:
+              storageClassName: premium-ssd
+              accessModes:
+              - ReadWriteMany
+              resources:
+                requests:
+                  storage: 20Gi
+          why: The class is fixed, but premium-ssd cannot provide ReadWriteMany volumes, so provisioning fails and the claim stays Pending.
+    explanation:
+      correct:
+        en: 'A Pod whose claim is unbound stays `Pending`, so follow the chain: the scheduler event points to the claim, the claim''s event names a StorageClass that does not exist, and `kubectl get storageclass` shows the SSD class, `premium-ssd`. The claim also asks for `ReadWriteMany`, which the provisioner cannot offer; one Pod only needs `ReadWriteOnce`. Omitting the class would give the default HDD class `standard`, and `""` turns dynamic provisioning off.'
+    references:
+      - title: Persistent Volumes
+        url: https://kubernetes.io/docs/concepts/storage/persistent-volumes/
+
+  # ------------------------------------------------------------------ 10
+  - id: ckad-qz-32-10
+    objective: "3.5.3"
+    difficulty: 3
+    status: draft
+    type: manifest
+    stem:
+      en: |-
+        After a change, the new Pods of Deployment `invoicer` in namespace `billing` never start. You collected this:
+
+        ```text
+        $ kubectl get pods -n billing -l app=invoicer
+        NAME                        READY   STATUS                       RESTARTS   AGE
+        invoicer-6d9f7c8b5d-k2xlp   0/1     CreateContainerConfigError   0          3m
+
+        $ kubectl describe pod invoicer-6d9f7c8b5d-k2xlp -n billing
+        ...
+          Warning  Failed  kubelet  Error: couldn't find key smtp_host in ConfigMap billing/invoicer-config
+
+        $ kubectl get configmap invoicer-config -n billing -o jsonpath='{.data}'
+        {"SMTP_HOST":"mail.example.com","SMTP_PORT":"587"}
+
+        $ kubectl get secrets -n billing
+        NAME            TYPE     DATA   AGE
+        invoicer-smtp   Opaque   2      40d
+
+        $ kubectl get secret invoicer-smtp -n billing -o jsonpath='{.data}'
+        {"password":"czNjcjN0","username":"aW52b2ljZXI="}
+        ```
+
+        The editor contains the Deployment. Fix it so that its Pods start with all four variables set from these objects. Keep every variable defined one by one with `valueFrom`, keep the image, and do not create or rename any ConfigMap or Secret.
+    body:
+      starter: |
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: invoicer
+          namespace: billing
+        spec:
+          replicas: 2
+          selector:
+            matchLabels:
+              app: invoicer
+          template:
+            metadata:
+              labels:
+                app: invoicer
+            spec:
+              containers:
+              - name: invoicer
+                image: registry.example.com/billing/invoicer:3.4
+                env:
+                - name: SMTP_HOST
+                  valueFrom:
+                    configMapKeyRef:
+                      name: invoicer-config
+                      key: smtp_host
+                - name: SMTP_PORT
+                  valueFrom:
+                    configMapKeyRef:
+                      name: invoicer-config
+                      key: SMTP_PORT
+                - name: SMTP_USER
+                  valueFrom:
+                    secretKeyRef:
+                      name: invoicer-smtp-secret
+                      key: user
+                - name: SMTP_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: invoicer-smtp-secret
+                      key: password
+    answer:
+      checks:
+        - id: deployment
+          label: Deployment invoicer in namespace billing
+          path: metadata
+          op: subset
+          value: { name: invoicer, namespace: billing }
+        - id: kind
+          label: The fix is made in the Deployment (the owner), not in a Pod
+          path: kind
+          op: equals
+          value: Deployment
+        - id: image
+          label: Image unchanged
+          path: spec.template.spec.containers[name=invoicer].image
+          op: equals
+          value: registry.example.com/billing/invoicer:3.4
+        - id: host
+          label: SMTP_HOST reads key SMTP_HOST of ConfigMap invoicer-config
+          path: spec.template.spec.containers[name=invoicer].env[name=SMTP_HOST].valueFrom.configMapKeyRef
+          op: subset
+          value: { name: invoicer-config, key: SMTP_HOST }
+        - id: port
+          label: SMTP_PORT still reads key SMTP_PORT of ConfigMap invoicer-config
+          path: spec.template.spec.containers[name=invoicer].env[name=SMTP_PORT].valueFrom.configMapKeyRef
+          op: subset
+          value: { name: invoicer-config, key: SMTP_PORT }
+        - id: user
+          label: SMTP_USER reads key username of Secret invoicer-smtp
+          path: spec.template.spec.containers[name=invoicer].env[name=SMTP_USER].valueFrom.secretKeyRef
+          op: subset
+          value: { name: invoicer-smtp, key: username }
+        - id: password
+          label: SMTP_PASSWORD reads key password of Secret invoicer-smtp
+          path: spec.template.spec.containers[name=invoicer].env[name=SMTP_PASSWORD].valueFrom.secretKeyRef
+          op: subset
+          value: { name: invoicer-smtp, key: password }
+        - id: not-optional
+          label: No reference is marked optional (that would hide the error with an empty variable)
+          path: spec.template.spec.containers[name=invoicer].env
+          op: matches
+          value: '^(?!.*"optional":true)'
+        - id: labels
+          label: Template labels still match the selector (app=invoicer)
+          path: spec.template.metadata.labels.app
+          op: equals
+          value: invoicer
+      solution:
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: invoicer
+              namespace: billing
+            spec:
+              replicas: 2
+              selector:
+                matchLabels:
+                  app: invoicer
+              template:
+                metadata:
+                  labels:
+                    app: invoicer
+                spec:
+                  containers:
+                  - name: invoicer
+                    image: registry.example.com/billing/invoicer:3.4
+                    env:
+                    - name: SMTP_HOST
+                      valueFrom:
+                        configMapKeyRef:
+                          name: invoicer-config
+                          key: SMTP_HOST
+                    - name: SMTP_PORT
+                      valueFrom:
+                        configMapKeyRef:
+                          name: invoicer-config
+                          key: SMTP_PORT
+                    - name: SMTP_USER
+                      valueFrom:
+                        secretKeyRef:
+                          name: invoicer-smtp
+                          key: username
+                    - name: SMTP_PASSWORD
+                      valueFrom:
+                        secretKeyRef:
+                          name: invoicer-smtp
+                          key: password
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: invoicer
+              namespace: billing
+            spec:
+              replicas: 2
+              selector:
+                matchLabels:
+                  app: invoicer
+              template:
+                metadata:
+                  labels:
+                    app: invoicer
+                spec:
+                  containers:
+                  - name: invoicer
+                    image: registry.example.com/billing/invoicer:3.4
+                    env:
+                    - name: SMTP_PASSWORD
+                      valueFrom:
+                        secretKeyRef: { key: password, name: invoicer-smtp, optional: false }
+                    - name: SMTP_USER
+                      valueFrom:
+                        secretKeyRef: { key: username, name: invoicer-smtp }
+                    - name: SMTP_HOST
+                      valueFrom:
+                        configMapKeyRef: { key: SMTP_HOST, name: invoicer-config }
+                    - name: SMTP_PORT
+                      valueFrom:
+                        configMapKeyRef: { key: SMTP_PORT, name: invoicer-config }
+      negatives:
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: invoicer
+              namespace: billing
+            spec:
+              replicas: 2
+              selector:
+                matchLabels:
+                  app: invoicer
+              template:
+                metadata:
+                  labels:
+                    app: invoicer
+                spec:
+                  containers:
+                  - name: invoicer
+                    image: registry.example.com/billing/invoicer:3.4
+                    env:
+                    - name: SMTP_HOST
+                      valueFrom:
+                        configMapKeyRef:
+                          name: invoicer-config
+                          key: SMTP_HOST
+                    - name: SMTP_PORT
+                      valueFrom:
+                        configMapKeyRef:
+                          name: invoicer-config
+                          key: SMTP_PORT
+                    - name: SMTP_USER
+                      valueFrom:
+                        secretKeyRef:
+                          name: invoicer-smtp-secret
+                          key: user
+                    - name: SMTP_PASSWORD
+                      valueFrom:
+                        secretKeyRef:
+                          name: invoicer-smtp-secret
+                          key: password
+          why: Only the reported error is fixed; the kubelet stops at the first bad reference, and the next Pods fail with secret "invoicer-smtp-secret" not found.
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: invoicer
+              namespace: billing
+            spec:
+              replicas: 2
+              selector:
+                matchLabels:
+                  app: invoicer
+              template:
+                metadata:
+                  labels:
+                    app: invoicer
+                spec:
+                  containers:
+                  - name: invoicer
+                    image: registry.example.com/billing/invoicer:3.4
+                    env:
+                    - name: SMTP_HOST
+                      valueFrom:
+                        configMapKeyRef:
+                          name: invoicer-config
+                          key: SMTP_HOST
+                    - name: SMTP_PORT
+                      valueFrom:
+                        configMapKeyRef:
+                          name: invoicer-config
+                          key: SMTP_PORT
+                    - name: SMTP_USER
+                      valueFrom:
+                        secretKeyRef:
+                          name: invoicer-smtp
+                          key: user
+                    - name: SMTP_PASSWORD
+                      valueFrom:
+                        secretKeyRef:
+                          name: invoicer-smtp
+                          key: password
+          why: The Secret name is fixed but the key is still user; the Secret holds username, so the Pods fail with couldn't find key user in Secret billing/invoicer-smtp.
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: invoicer
+              namespace: billing
+            spec:
+              replicas: 2
+              selector:
+                matchLabels:
+                  app: invoicer
+              template:
+                metadata:
+                  labels:
+                    app: invoicer
+                spec:
+                  containers:
+                  - name: invoicer
+                    image: registry.example.com/billing/invoicer:3.4
+                    env:
+                    - name: SMTP_HOST
+                      valueFrom:
+                        configMapKeyRef:
+                          name: invoicer-config
+                          key: smtp_host
+                          optional: true
+                    - name: SMTP_PORT
+                      valueFrom:
+                        configMapKeyRef:
+                          name: invoicer-config
+                          key: SMTP_PORT
+                    - name: SMTP_USER
+                      valueFrom:
+                        secretKeyRef:
+                          name: invoicer-smtp
+                          key: username
+                    - name: SMTP_PASSWORD
+                      valueFrom:
+                        secretKeyRef:
+                          name: invoicer-smtp
+                          key: password
+          why: optional true lets the Pods start, but the missing key leaves SMTP_HOST unset instead of mail.example.com.
+    explanation:
+      correct:
+        en: '`CreateContainerConfigError` means a referenced ConfigMap, Secret or key is missing. The kubelet reports only the first bad reference, so compare every reference with the objects: the ConfigMap key is `SMTP_HOST`, not `smtp_host`; the Secret is `invoicer-smtp`, not `invoicer-smtp-secret`; and its keys are `username` and `password`. Fix the Deployment, whose template recreates the Pods; `optional: true` would only hide the error and leave the variable unset.'
+    references:
+      - title: Configure a Pod to Use a ConfigMap
+        url: https://kubernetes.io/docs/tasks/configure-pod-container/configure-pod-configmap/

@@ -1,0 +1,163 @@
+id: cka-3a-fix-deployment-selector
+objective: "3.1.1"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    `kubectl apply -f billing.yaml` fails for the Deployment `billing` of namespace `payments` below. Fix the manifest so that the API server accepts it, and at the same time update the container `billing` to `registry.example.com/payments/billing:1.9`.
+
+    - Keep the selector exactly as written (other tooling relies on both labels).
+    - Keep 3 replicas.
+body:
+  starter: |
+    apiVersion: apps/v1beta2
+    kind: Deployment
+    metadata:
+      name: billing
+      namespace: payments
+      labels:
+        app: billing
+    spec:
+      replicas: 3
+      selector:
+        matchLabels:
+          app: billing
+          tier: backend
+      template:
+        metadata:
+          labels:
+            app: billing
+        spec:
+          containers:
+          - name: billing
+            image: registry.example.com/payments/billing:1.8
+answer:
+  checks:
+  - id: api
+    label: Uses apiVersion apps/v1
+    path: apiVersion
+    op: equals
+    value: apps/v1
+  - id: meta
+    label: A Deployment named billing in namespace payments
+    path: metadata
+    op: subset
+    value: {name: billing, namespace: payments}
+  - id: selector
+    label: The selector still requires app=billing and tier=backend
+    path: spec.selector.matchLabels
+    op: equals
+    value: {app: billing, tier: backend}
+  - id: template-labels
+    label: The Pod template carries app=billing and tier=backend
+    path: spec.template.metadata.labels
+    op: subset
+    value: {app: billing, tier: backend}
+  - id: image
+    label: Container billing runs billing:1.9
+    path: spec.template.spec.containers[name=billing].image
+    op: equals
+    value: registry.example.com/payments/billing:1.9
+  - id: replicas
+    label: 3 replicas
+    path: spec.replicas
+    op: equals
+    value: 3
+  solution:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: billing
+        namespace: payments
+        labels:
+          app: billing
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: billing
+            tier: backend
+        template:
+          metadata:
+            labels:
+              app: billing
+              tier: backend
+          spec:
+            containers:
+            - name: billing
+              image: registry.example.com/payments/billing:1.9
+  negatives:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: billing
+        namespace: payments
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: billing
+        template:
+          metadata:
+            labels:
+              app: billing
+          spec:
+            containers:
+            - name: billing
+              image: registry.example.com/payments/billing:1.9
+    why: Dropping tier from the selector makes it match, but the task says to keep the selector; on an existing Deployment the selector is also immutable.
+  - manifest: |
+      apiVersion: apps/v1beta2
+      kind: Deployment
+      metadata:
+        name: billing
+        namespace: payments
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: billing
+            tier: backend
+        template:
+          metadata:
+            labels:
+              app: billing
+              tier: backend
+          spec:
+            containers:
+            - name: billing
+              image: registry.example.com/payments/billing:1.9
+    why: apps/v1beta2 was removed in Kubernetes 1.16; the API server has no Deployment in that version.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: billing
+        namespace: payments
+        labels:
+          app: billing
+          tier: backend
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: billing
+            tier: backend
+        template:
+          metadata:
+            labels:
+              app: billing
+          spec:
+            containers:
+            - name: billing
+              image: registry.example.com/payments/billing:1.9
+    why: The selector must match the Pod template labels (spec.template.metadata.labels), not the Deployment's own metadata.labels.
+explanation:
+  correct:
+    en: 'Two errors block the apply: `apps/v1beta2` is no longer served (use `apps/v1`), and `spec.selector` must match `spec.template.metadata.labels`, or the API rejects the Deployment. Since the selector must stay, add `tier: backend` to the template labels. Changing the image in the template then starts a rolling update once the object exists.'
+references:
+- title: Deployments
+  url: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/

@@ -1,0 +1,178 @@
+id: cka-2a-kubelet-runtime-endpoint
+objective: "2.1.1"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    Node `node-4` is `NotReady` and its kubelet restarts in a loop. The node runs containerd, and `systemctl is-active containerd` prints `active`. The files `kubelet-journal.txt` and `ls-run-containerd.txt` show what you found on the node.
+
+    The editor contains `/var/lib/kubelet/config.yaml` of `node-4`. Write the corrected file so that the kubelet connects to containerd. Change nothing else (you restart the kubelet afterwards).
+body:
+  starter: |
+    apiVersion: kubelet.config.k8s.io/v1beta1
+    kind: KubeletConfiguration
+    authentication:
+      anonymous:
+        enabled: false
+      webhook:
+        enabled: true
+      x509:
+        clientCAFile: /etc/kubernetes/pki/ca.crt
+    authorization:
+      mode: Webhook
+    cgroupDriver: systemd
+    clusterDNS:
+    - 10.96.0.10
+    clusterDomain: cluster.local
+    containerRuntimeEndpoint: unix:///var/run/crio/crio.sock
+    rotateCertificates: true
+    staticPodPath: /etc/kubernetes/manifests
+  files:
+  - name: kubelet-journal.txt
+    content: |
+      node-4 kubelet[2817]: E1127 09:14:02.118344    2817 run.go:72] "command failed" err="failed to run Kubelet: validate service connection: validate CRI v1 runtime API for endpoint \"unix:///var/run/crio/crio.sock\": rpc error: code = Unavailable desc = connection error: desc = \"transport: Error while dialing: dial unix /var/run/crio/crio.sock: connect: no such file or directory\""
+      node-4 systemd[1]: kubelet.service: Main process exited, code=exited, status=1/FAILURE
+  - name: ls-run-containerd.txt
+    content: |
+      # ls /var/run/containerd/
+      containerd.sock  containerd.sock.ttrpc  io.containerd.runtime.v2.task
+answer:
+  checks:
+  - id: kind
+    label: The document is a KubeletConfiguration
+    path: kind
+    op: equals
+    value: KubeletConfiguration
+  - id: endpoint
+    label: containerRuntimeEndpoint is the containerd CRI socket
+    path: containerRuntimeEndpoint
+    op: oneOf
+    value: [unix:///var/run/containerd/containerd.sock, unix:///run/containerd/containerd.sock]
+  - id: static-pods
+    label: staticPodPath is unchanged
+    path: staticPodPath
+    op: equals
+    value: /etc/kubernetes/manifests
+  - id: cgroup
+    label: cgroupDriver is unchanged (systemd)
+    path: cgroupDriver
+    op: equals
+    value: systemd
+  - id: dns
+    label: clusterDNS is unchanged
+    path: clusterDNS
+    op: contains
+    value: 10.96.0.10
+  - id: ca
+    label: The client CA file is unchanged
+    path: authentication.x509.clientCAFile
+    op: equals
+    value: /etc/kubernetes/pki/ca.crt
+  solution:
+  - manifest: |
+      apiVersion: kubelet.config.k8s.io/v1beta1
+      kind: KubeletConfiguration
+      authentication:
+        anonymous:
+          enabled: false
+        webhook:
+          enabled: true
+        x509:
+          clientCAFile: /etc/kubernetes/pki/ca.crt
+      authorization:
+        mode: Webhook
+      cgroupDriver: systemd
+      clusterDNS:
+      - 10.96.0.10
+      clusterDomain: cluster.local
+      containerRuntimeEndpoint: unix:///var/run/containerd/containerd.sock
+      rotateCertificates: true
+      staticPodPath: /etc/kubernetes/manifests
+  - manifest: |
+      apiVersion: kubelet.config.k8s.io/v1beta1
+      kind: KubeletConfiguration
+      authentication:
+        anonymous:
+          enabled: false
+        webhook:
+          enabled: true
+        x509:
+          clientCAFile: /etc/kubernetes/pki/ca.crt
+      authorization:
+        mode: Webhook
+      cgroupDriver: systemd
+      clusterDNS:
+      - 10.96.0.10
+      clusterDomain: cluster.local
+      containerRuntimeEndpoint: unix:///run/containerd/containerd.sock
+      rotateCertificates: true
+      staticPodPath: /etc/kubernetes/manifests
+  negatives:
+  - manifest: |
+      apiVersion: kubelet.config.k8s.io/v1beta1
+      kind: KubeletConfiguration
+      authentication:
+        anonymous:
+          enabled: false
+        webhook:
+          enabled: true
+        x509:
+          clientCAFile: /etc/kubernetes/pki/ca.crt
+      authorization:
+        mode: Webhook
+      cgroupDriver: systemd
+      clusterDNS:
+      - 10.96.0.10
+      clusterDomain: cluster.local
+      containerRuntimeEndpoint: unix:///var/run/containerd/containerd.sock.ttrpc
+      rotateCertificates: true
+      staticPodPath: /etc/kubernetes/manifests
+    why: containerd.sock.ttrpc is containerd's internal ttrpc socket for its shims; the CRI gRPC API is served on containerd.sock.
+  - manifest: |
+      apiVersion: kubelet.config.k8s.io/v1beta1
+      kind: KubeletConfiguration
+      authentication:
+        anonymous:
+          enabled: false
+        webhook:
+          enabled: true
+        x509:
+          clientCAFile: /etc/kubernetes/pki/ca.crt
+      authorization:
+        mode: Webhook
+      cgroupDriver: systemd
+      clusterDNS:
+      - 10.96.0.10
+      clusterDomain: cluster.local
+      rotateCertificates: true
+      staticPodPath: /etc/kubernetes/manifests
+    why: containerRuntimeEndpoint is a required field with no default; removing it does not make the kubelet find containerd.
+  - manifest: |
+      apiVersion: kubelet.config.k8s.io/v1beta1
+      kind: KubeletConfiguration
+      authentication:
+        anonymous:
+          enabled: false
+        webhook:
+          enabled: true
+        x509:
+          clientCAFile: /etc/kubernetes/pki/ca.crt
+      authorization:
+        mode: Webhook
+      cgroupDriver: systemd
+      clusterDNS:
+      - 10.96.0.10
+      clusterDomain: cluster.local
+      containerRuntimeEndpoint: unix:///var/run/dockershim.sock
+      rotateCertificates: true
+      staticPodPath: /etc/kubernetes/manifests
+    why: dockershim was removed from the kubelet in v1.24; the node runs containerd.
+explanation:
+  correct:
+    en: 'The journal shows the kubelet dialing the CRI-O socket, which does not exist on this containerd node. `containerRuntimeEndpoint` must be the containerd CRI socket `unix:///var/run/containerd/containerd.sock` (`/var/run` is a link to `/run`, so `unix:///run/containerd/containerd.sock` is the same socket). A changed `config.yaml` only needs `systemctl restart kubelet`.'
+references:
+- title: Kubelet Configuration (v1beta1)
+  url: https://kubernetes.io/docs/reference/config-api/kubelet-config.v1beta1/
+- title: Debugging Kubernetes nodes with crictl
+  url: https://kubernetes.io/docs/tasks/debug/debug-cluster/crictl/

@@ -1,0 +1,229 @@
+id: cka-5e-ingress-wildcard-host-apex
+objective: "5.5.1"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    Each tenant of the platform gets a subdomain such as `alpha.apps.example.com` or `beta.apps.example.com`. Write the manifest of an Ingress named `tenants` in namespace `tenants`, handled by the IngressClass `edge`, that:
+
+    - sends every request for any single-label subdomain of `apps.example.com`, whatever its path, to Service `tenant-router` on port 80;
+    - for the host `apps.example.com` itself, sends the paths under `/status` to Service `status-page` on port 8080 and every other path to Service `landing` on port 80.
+body:
+  starter: |
+    apiVersion: networking.k8s.io/v1
+    kind: Ingress
+    metadata:
+      name: tenants
+      namespace: tenants
+    spec:
+answer:
+  checks:
+  - id: ingress
+    label: An Ingress named tenants in namespace tenants
+    path: metadata
+    op: subset
+    value: {name: tenants, namespace: tenants}
+  - id: class
+    label: It uses the IngressClass edge through ingressClassName
+    path: spec.ingressClassName
+    op: equals
+    value: edge
+  - id: wildcard
+    label: Host *.apps.example.com sends every path to tenant-router:80
+    path: spec.rules[host=*.apps.example.com].http.paths
+    op: contains
+    value: {path: /, pathType: Prefix, backend: {service: {name: tenant-router, port: {number: 80}}}}
+  - id: status
+    label: Host apps.example.com sends the prefix /status to status-page:8080
+    path: spec.rules[host=apps.example.com].http.paths
+    op: contains
+    value: {path: /status, pathType: Prefix, backend: {service: {name: status-page, port: {number: 8080}}}}
+  - id: landing
+    label: Host apps.example.com sends every other path to landing:80
+    path: spec.rules[host=apps.example.com].http.paths
+    op: contains
+    value: {path: /, pathType: Prefix, backend: {service: {name: landing, port: {number: 80}}}}
+  solution:
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: tenants
+        namespace: tenants
+      spec:
+        ingressClassName: edge
+        rules:
+        - host: "*.apps.example.com"
+          http:
+            paths:
+            - path: /
+              pathType: Prefix
+              backend:
+                service:
+                  name: tenant-router
+                  port:
+                    number: 80
+        - host: apps.example.com
+          http:
+            paths:
+            - path: /status
+              pathType: Prefix
+              backend:
+                service:
+                  name: status-page
+                  port:
+                    number: 8080
+            - path: /
+              pathType: Prefix
+              backend:
+                service:
+                  name: landing
+                  port:
+                    number: 80
+  negatives:
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: tenants
+        namespace: tenants
+      spec:
+        ingressClassName: edge
+        rules:
+        - host: "*.apps.example.com"
+          http:
+            paths:
+            - path: /
+              pathType: Prefix
+              backend:
+                service:
+                  name: tenant-router
+                  port:
+                    number: 80
+            - path: /status
+              pathType: Prefix
+              backend:
+                service:
+                  name: status-page
+                  port:
+                    number: 8080
+    why: A wildcard host covers exactly one extra DNS label; it does not match apps.example.com itself, which needs its own rule.
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: tenants
+        namespace: tenants
+      spec:
+        ingressClassName: edge
+        rules:
+        - host: "*.example.com"
+          http:
+            paths:
+            - path: /
+              pathType: Prefix
+              backend:
+                service:
+                  name: tenant-router
+                  port:
+                    number: 80
+        - host: apps.example.com
+          http:
+            paths:
+            - path: /status
+              pathType: Prefix
+              backend:
+                service:
+                  name: status-page
+                  port:
+                    number: 8080
+            - path: /
+              pathType: Prefix
+              backend:
+                service:
+                  name: landing
+                  port:
+                    number: 80
+    why: '*.example.com matches one extra label, such as shop.example.com or apps.example.com, but not alpha.apps.example.com, which has two.'
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: tenants
+        namespace: tenants
+      spec:
+        ingressClassName: edge
+        rules:
+        - host: "*.apps.example.com"
+          http:
+            paths:
+            - path: /
+              pathType: Prefix
+              backend:
+                service:
+                  name: tenant-router
+                  port:
+                    number: 80
+        - host: apps.example.com
+          http:
+            paths:
+            - path: /status
+              pathType: Exact
+              backend:
+                service:
+                  name: status-page
+                  port:
+                    number: 8080
+            - path: /
+              pathType: Prefix
+              backend:
+                service:
+                  name: landing
+                  port:
+                    number: 80
+    why: Exact /status does not match /status/api or /status/history, which would go to landing.
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: tenants
+        namespace: tenants
+        annotations:
+          kubernetes.io/ingress.class: edge
+      spec:
+        rules:
+        - host: "*.apps.example.com"
+          http:
+            paths:
+            - path: /
+              pathType: Prefix
+              backend:
+                service:
+                  name: tenant-router
+                  port:
+                    number: 80
+        - host: apps.example.com
+          http:
+            paths:
+            - path: /status
+              pathType: Prefix
+              backend:
+                service:
+                  name: status-page
+                  port:
+                    number: 8080
+            - path: /
+              pathType: Prefix
+              backend:
+                service:
+                  name: landing
+                  port:
+                    number: 80
+    why: kubernetes.io/ingress.class is the deprecated annotation that spec.ingressClassName replaced; the class must be set with the field.
+explanation:
+  correct:
+    en: 'A wildcard `host` such as `*.apps.example.com` matches when the Host header has the same suffix plus exactly one DNS label: `alpha.apps.example.com` matches, `apps.example.com` and `x.alpha.apps.example.com` do not, so the apex needs its own rule. Within that rule, `/status` (Prefix) is longer than `/` and wins for `/status` and `/status/...`. Quote a host that starts with `*` in YAML, and select the controller with `spec.ingressClassName`.'
+references:
+- title: Ingress
+  url: https://kubernetes.io/docs/concepts/services-networking/ingress/

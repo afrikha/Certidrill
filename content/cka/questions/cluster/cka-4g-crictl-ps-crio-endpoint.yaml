@@ -1,0 +1,56 @@
+id: cka-4g-crictl-ps-crio-endpoint
+objective: "4.7.1"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    On control plane node `cp-1`, kubectl gets no answer from the API server. The node's container runtime is CRI-O, listening on its default socket `/var/run/crio/crio.sock`, and `/etc/crictl.yaml` does not exist.
+
+    List all containers on the node, including the exited ones, with crictl pointed explicitly at the CRI-O socket. Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+  tools: [crictl, kubectl]
+answer:
+  checks:
+  - id: tool
+    label: Uses crictl
+    path: tool
+    op: equals
+    value: crictl
+  - id: verb
+    label: Lists containers with crictl ps
+    path: verb
+    op: equals
+    value: ps
+  - id: endpoint
+    label: Sets the runtime endpoint to unix:///var/run/crio/crio.sock (--runtime-endpoint or -r)
+    path: flags.runtime-endpoint
+    op: matches
+    value: '^unix:///(var/)?run/crio/crio\.sock$'
+  - id: all
+    label: Includes exited containers (--all or -a)
+    path: flags.all
+    op: equals
+    value: true
+  solution:
+  - command: crictl --runtime-endpoint unix:///var/run/crio/crio.sock ps -a
+  - command: sudo crictl -r unix:///run/crio/crio.sock ps --all
+  - command: crictl --runtime-endpoint=unix:///var/run/crio/crio.sock ps -a
+  - command: crictl -r unix:///var/run/crio/crio.sock ps -a --no-trunc
+  negatives:
+  - command: crictl --runtime-endpoint unix:///var/run/crio/crio.sock ps
+    why: Without -a crictl ps shows only running containers; a crashing kube-apiserver container is often exited.
+  - command: crictl --runtime-endpoint unix:///run/containerd/containerd.sock ps -a
+    why: That is the containerd socket; the node runs CRI-O.
+  - command: crictl --runtime-endpoint unix:///var/run/crio/crio.sock pods
+    why: crictl pods lists Pod sandboxes, not the containers inside them.
+explanation:
+  correct:
+    en: 'crictl talks to the CRI socket of the runtime, so it works when the API server is down. Without `/etc/crictl.yaml` or `CONTAINER_RUNTIME_ENDPOINT`, set the global flag `--runtime-endpoint` (`-r`) before the sub-command: `crictl --runtime-endpoint unix:///var/run/crio/crio.sock ps -a`. `ps -a` adds exited containers; `crictl pods` lists sandboxes. containerd''s default socket is `/run/containerd/containerd.sock`.'
+references:
+- title: Debugging Kubernetes nodes with crictl
+  url: https://kubernetes.io/docs/tasks/debug/debug-cluster/crictl/
+- title: Container Runtimes
+  url: https://kubernetes.io/docs/setup/production-environment/container-runtimes/

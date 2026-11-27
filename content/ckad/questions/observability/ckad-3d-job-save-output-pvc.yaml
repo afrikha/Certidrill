@@ -1,0 +1,182 @@
+id: ckad-3d-job-save-output-pvc
+objective: "3.4.2"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    An auditor wants the environment of the application image as a file that outlives the Pod. In namespace `audit`, the PersistentVolumeClaim `reports` already exists.
+
+    Write the manifest of a Job named `env-report` in namespace `audit`:
+
+    - one container named `report`, image `busybox:1.36`, that saves the output of the command `env` to the file `/reports/env.txt`;
+    - the claim `reports` is mounted at `/reports`;
+    - a failed container is never restarted in place.
+body:
+  starter: |
+    apiVersion: batch/v1
+    kind: Job
+    metadata:
+      name: env-report
+      namespace: audit
+answer:
+  checks:
+  - id: kind
+    label: The object is a batch/v1 Job
+    path: apiVersion
+    op: equals
+    value: batch/v1
+  - id: job
+    label: A Job named env-report in namespace audit
+    path: metadata
+    op: subset
+    value: {name: env-report, namespace: audit}
+  - id: kind-job
+    label: Kind is Job
+    path: kind
+    op: equals
+    value: Job
+  - id: image
+    label: Container report runs busybox:1.36
+    path: spec.template.spec.containers[name=report].image
+    op: equals
+    value: busybox:1.36
+  - id: redirect
+    label: Container report writes the output of env to /reports/env.txt
+    path: spec.template.spec.containers[name=report]
+    op: matches
+    value: 'env.*/reports/env\.txt'
+  - id: claim
+    label: A volume uses the claim reports
+    path: spec.template.spec.volumes
+    op: contains
+    value: {persistentVolumeClaim: {claimName: reports}}
+  - id: mount
+    label: The volume is mounted at /reports
+    path: spec.template.spec.containers[name=report].volumeMounts
+    op: contains
+    value: {mountPath: /reports}
+  - id: restart
+    label: restartPolicy is Never
+    path: spec.template.spec.restartPolicy
+    op: equals
+    value: Never
+  solution:
+  - manifest: |
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: env-report
+        namespace: audit
+      spec:
+        template:
+          spec:
+            restartPolicy: Never
+            containers:
+            - name: report
+              image: busybox:1.36
+              command: ["sh", "-c", "env > /reports/env.txt"]
+              volumeMounts:
+              - name: reports
+                mountPath: /reports
+            volumes:
+            - name: reports
+              persistentVolumeClaim:
+                claimName: reports
+  - manifest: |
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: env-report
+        namespace: audit
+      spec:
+        backoffLimit: 2
+        template:
+          spec:
+            containers:
+            - name: report
+              image: busybox:1.36
+              command:
+              - /bin/sh
+              - -c
+              - env >/reports/env.txt
+              volumeMounts:
+              - name: data
+                mountPath: /reports
+            restartPolicy: Never
+            volumes:
+            - name: data
+              persistentVolumeClaim:
+                claimName: reports
+  negatives:
+  - manifest: |
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: env-report
+        namespace: audit
+      spec:
+        template:
+          spec:
+            restartPolicy: OnFailure
+            containers:
+            - name: report
+              image: busybox:1.36
+              command: ["sh", "-c", "env > /reports/env.txt"]
+              volumeMounts:
+              - name: reports
+                mountPath: /reports
+            volumes:
+            - name: reports
+              persistentVolumeClaim:
+                claimName: reports
+    why: With OnFailure the kubelet restarts a failed container in place; the task requires Never.
+  - manifest: |
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: env-report
+        namespace: audit
+      spec:
+        template:
+          spec:
+            restartPolicy: Never
+            containers:
+            - name: report
+              image: busybox:1.36
+              command: ["sh", "-c", "env > /reports/env.txt"]
+              volumeMounts:
+              - name: reports
+                mountPath: /reports
+            volumes:
+            - name: reports
+              emptyDir: {}
+    why: An emptyDir is deleted with the Pod, so the file does not outlive it.
+  - manifest: |
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: env-report
+        namespace: audit
+      spec:
+        template:
+          spec:
+            restartPolicy: Never
+            containers:
+            - name: report
+              image: busybox:1.36
+              command: ["env"]
+              volumeMounts:
+              - name: reports
+                mountPath: /reports
+            volumes:
+            - name: reports
+              persistentVolumeClaim:
+                claimName: reports
+    why: Without a shell redirection the output goes to the container log, not to /reports/env.txt.
+explanation:
+  correct:
+    en: 'A container command cannot use `>` unless a shell runs it, so the command is `sh -c "env > /reports/env.txt"`. The file lands on the volume backed by the claim `reports`, which outlives the Pod, unlike an `emptyDir`. A Job''s Pod template only accepts `restartPolicy` `Never` or `OnFailure`; `Never` lets the Job controller create a new Pod instead of restarting the container in place.'
+references:
+- title: Jobs
+  url: https://kubernetes.io/docs/concepts/workloads/controllers/job/

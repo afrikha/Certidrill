@@ -1,0 +1,150 @@
+id: cka-4e-join-config-control-plane
+objective: "4.5.2"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    A colleague wrote `/root/join-cp2.yaml` (below) to add `cp2` as a control plane node with `kubeadm join --config /root/join-cp2.yaml`, copying the layout of the `InitConfiguration` used on `cp1`. kubeadm rejects it, and as written the node would not become a control plane node.
+
+    Fix the file so that `cp2` joins through `k8s-api.example.com:6443` as a control plane node whose API server advertises `192.168.10.12` on port `6443`, and downloads the shared certificates with the certificate key shown. Keep the discovery settings.
+body:
+  starter: |
+    apiVersion: kubeadm.k8s.io/v1beta4
+    kind: JoinConfiguration
+    nodeRegistration:
+      name: cp2
+    localAPIEndpoint:
+      advertiseAddress: 192.168.10.12
+      bindPort: 6443
+    certificateKey: b7e4c1a9d3f60825e19c7b4a3d2f8e6c5b0a9f1e2d3c4b5a6f7e8d9c0b1a2f3e
+    discovery:
+      bootstrapToken:
+        apiServerEndpoint: k8s-api.example.com:6443
+        token: r4t8w2.k9d3j6h1p5s7q0yb
+        caCertHashes:
+        - sha256:9e1d7c3b5a0f2e4d6c8b1a3f5e7d9c0b2a4f6e8d1c3b5a7f9e0d2c4b6a8f1e3d
+answer:
+  checks:
+  - id: kind
+    label: The document is a JoinConfiguration
+    path: kind
+    op: equals
+    value: JoinConfiguration
+  - id: cp-advertise
+    label: controlPlane.localAPIEndpoint.advertiseAddress is 192.168.10.12
+    path: controlPlane.localAPIEndpoint.advertiseAddress
+    op: equals
+    value: 192.168.10.12
+  - id: cp-key
+    label: controlPlane.certificateKey holds the certificate key
+    path: controlPlane.certificateKey
+    op: equals
+    value: b7e4c1a9d3f60825e19c7b4a3d2f8e6c5b0a9f1e2d3c4b5a6f7e8d9c0b1a2f3e
+  - id: no-top-key
+    label: No top-level certificateKey (it is an InitConfiguration field)
+    path: certificateKey
+    op: absent
+  - id: no-top-endpoint
+    label: No top-level localAPIEndpoint (it is an InitConfiguration field)
+    path: localAPIEndpoint
+    op: absent
+  - id: discovery-endpoint
+    label: Discovery still goes through k8s-api.example.com:6443
+    path: discovery.bootstrapToken.apiServerEndpoint
+    op: equals
+    value: k8s-api.example.com:6443
+  - id: ca-hash
+    label: The CA hash is kept
+    path: discovery.bootstrapToken.caCertHashes
+    op: contains
+    value: sha256:9e1d7c3b5a0f2e4d6c8b1a3f5e7d9c0b2a4f6e8d1c3b5a7f9e0d2c4b6a8f1e3d
+  - id: name
+    label: The node registers as cp2
+    path: nodeRegistration.name
+    op: equals
+    value: cp2
+  solution:
+  - manifest: |
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: JoinConfiguration
+      nodeRegistration:
+        name: cp2
+      controlPlane:
+        localAPIEndpoint:
+          advertiseAddress: 192.168.10.12
+          bindPort: 6443
+        certificateKey: b7e4c1a9d3f60825e19c7b4a3d2f8e6c5b0a9f1e2d3c4b5a6f7e8d9c0b1a2f3e
+      discovery:
+        bootstrapToken:
+          apiServerEndpoint: k8s-api.example.com:6443
+          token: r4t8w2.k9d3j6h1p5s7q0yb
+          caCertHashes:
+          - sha256:9e1d7c3b5a0f2e4d6c8b1a3f5e7d9c0b2a4f6e8d1c3b5a7f9e0d2c4b6a8f1e3d
+  - manifest: |
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: JoinConfiguration
+      discovery:
+        bootstrapToken:
+          apiServerEndpoint: k8s-api.example.com:6443
+          token: r4t8w2.k9d3j6h1p5s7q0yb
+          caCertHashes:
+          - sha256:9e1d7c3b5a0f2e4d6c8b1a3f5e7d9c0b2a4f6e8d1c3b5a7f9e0d2c4b6a8f1e3d
+      controlPlane:
+        certificateKey: "b7e4c1a9d3f60825e19c7b4a3d2f8e6c5b0a9f1e2d3c4b5a6f7e8d9c0b1a2f3e"
+        localAPIEndpoint:
+          advertiseAddress: "192.168.10.12"
+      nodeRegistration:
+        name: cp2
+        criSocket: unix:///run/containerd/containerd.sock
+  negatives:
+  - manifest: |
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: JoinConfiguration
+      nodeRegistration:
+        name: cp2
+      controlPlane:
+        localAPIEndpoint:
+          advertiseAddress: 192.168.10.12
+          bindPort: 6443
+      certificateKey: b7e4c1a9d3f60825e19c7b4a3d2f8e6c5b0a9f1e2d3c4b5a6f7e8d9c0b1a2f3e
+      discovery:
+        bootstrapToken:
+          apiServerEndpoint: k8s-api.example.com:6443
+          token: r4t8w2.k9d3j6h1p5s7q0yb
+          caCertHashes:
+          - sha256:9e1d7c3b5a0f2e4d6c8b1a3f5e7d9c0b2a4f6e8d1c3b5a7f9e0d2c4b6a8f1e3d
+    why: In a JoinConfiguration the certificate key belongs to controlPlane.certificateKey; a top-level certificateKey is an InitConfiguration field.
+  - manifest: |
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: JoinConfiguration
+      nodeRegistration:
+        name: cp2
+      controlPlane:
+        localAPIEndpoint:
+          advertiseAddress: 192.168.10.12
+          bindPort: 6443
+        certificateKey: b7e4c1a9d3f60825e19c7b4a3d2f8e6c5b0a9f1e2d3c4b5a6f7e8d9c0b1a2f3e
+      discovery:
+        bootstrapToken:
+          apiServerEndpoint: 192.168.10.12:6443
+          token: r4t8w2.k9d3j6h1p5s7q0yb
+          caCertHashes:
+          - sha256:9e1d7c3b5a0f2e4d6c8b1a3f5e7d9c0b2a4f6e8d1c3b5a7f9e0d2c4b6a8f1e3d
+    why: apiServerEndpoint is where discovery finds the existing cluster; 192.168.10.12 is cp2 itself, which has no API server yet.
+  - manifest: |
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: InitConfiguration
+      nodeRegistration:
+        name: cp2
+      localAPIEndpoint:
+        advertiseAddress: 192.168.10.12
+        bindPort: 6443
+      certificateKey: b7e4c1a9d3f60825e19c7b4a3d2f8e6c5b0a9f1e2d3c4b5a6f7e8d9c0b1a2f3e
+    why: kubeadm join needs a JoinConfiguration; an InitConfiguration has no discovery settings.
+explanation:
+  correct:
+    en: 'In a `JoinConfiguration`, everything about the new control plane instance goes under `controlPlane`: `localAPIEndpoint` (`advertiseAddress`, `bindPort`, default 6443) and `certificateKey`, which decrypts the certificates uploaded with `--upload-certs`. If `controlPlane` is nil, the node joins as a worker. Top-level `localAPIEndpoint` and `certificateKey` exist only in the `InitConfiguration`. Discovery still targets the load-balanced endpoint.'
+references:
+- title: kubeadm Configuration (v1beta4)
+  url: https://kubernetes.io/docs/reference/config-api/kubeadm-config.v1beta4/

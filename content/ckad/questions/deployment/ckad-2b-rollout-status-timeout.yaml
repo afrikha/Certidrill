@@ -1,0 +1,63 @@
+id: ckad-2b-rollout-status-timeout
+objective: "2.2.1"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    You have just changed the image of Deployment `api` in namespace `payments`. Follow its rollout until it completes, but make the command give up after **2 minutes** if the rollout has not finished, so that a script can react to the non-zero exit code.
+
+    Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: It is a rollout command
+    path: verb
+    op: equals
+    value: rollout
+  - id: subverb
+    label: Uses kubectl rollout status
+    path: subverb
+    op: equals
+    value: status
+  - id: resource
+    label: Targets a Deployment
+    path: resource
+    op: equals
+    value: deployment
+  - id: name
+    label: Names the Deployment api
+    path: names
+    op: contains
+    value: api
+  - id: timeout
+    label: Gives up after 2 minutes
+    path: flags.timeout
+    op: oneOf
+    value: ["2m", "120s", "2m0s"]
+  - id: namespace
+    label: Runs in namespace payments
+    path: flags.namespace
+    op: equals
+    value: payments
+  solution:
+  - command: kubectl rollout status deployment/api -n payments --timeout=2m
+  - command: k -n payments rollout status deploy api --timeout 120s
+  negatives:
+  - command: kubectl rollout status deployment/api -n payments --timeout=120
+    why: A non-zero timeout needs a time unit (1s, 2m, 3h); a bare 120 is rejected.
+  - command: kubectl rollout status deployment/api -n payments
+    why: Without --timeout the command watches until the rollout ends, however long that takes.
+  - command: kubectl rollout history deployment/api -n payments
+    why: history lists the revisions; it does not follow the current rollout.
+explanation:
+  correct:
+    en: '`kubectl rollout status deployment/api` watches the latest rollout until it is complete and exits with 0; `--timeout=2m` ends the watch after 2 minutes. Non-zero values need a unit. The command also returns a non-zero exit code when the Deployment exceeds its `progressDeadlineSeconds`.'
+references:
+- title: kubectl rollout status
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_rollout/kubectl_rollout_status/
+- title: Deployments
+  url: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/

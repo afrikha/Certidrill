@@ -1,0 +1,79 @@
+id: ckad-5a-pods-selected-by-policy
+objective: "5.1.2"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    Before you add a default-deny policy in namespace `shop`, you want to know which Pods the existing NetworkPolicy `api-ingress` (file `api-ingress.yaml`) already isolates.
+
+    List the Pods of namespace `shop` that this policy selects, with a label selector. Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+  files:
+  - name: api-ingress.yaml
+    content: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: api-ingress
+        namespace: shop
+      spec:
+        podSelector:
+          matchLabels:
+            app: api
+            tier: backend
+        policyTypes:
+        - Ingress
+        ingress:
+        - from:
+          - podSelector:
+              matchLabels:
+                app: web
+          ports:
+          - protocol: TCP
+            port: 8080
+answer:
+  checks:
+  - id: verb
+    label: Uses kubectl get
+    path: verb
+    op: equals
+    value: get
+  - id: resource
+    label: Lists Pods
+    path: resource
+    op: equals
+    value: pod
+  - id: namespace
+    label: Runs in namespace shop
+    path: flags.namespace
+    op: equals
+    value: shop
+  - id: selector
+    label: Selects Pods with both app=api and tier=backend
+    path: flags.selector
+    op: oneOf
+    value: ["app=api,tier=backend", "tier=backend,app=api"]
+  solution:
+  - command: kubectl get pods -n shop -l app=api,tier=backend
+  - command: k -n shop get po --selector=tier=backend,app=api
+  - command: kubectl get pod -l app=api,tier=backend --namespace shop --show-labels
+  negatives:
+  - command: kubectl get pods -n shop -l app=web
+    why: app=web is the label of the allowed clients (from), not of the Pods the policy selects.
+  - command: kubectl get pods -n shop -l app=api
+    why: matchLabels entries are ANDed; Pods labeled app=api without tier=backend are not selected.
+  - command: kubectl get pods -l app=api,tier=backend
+    why: Without -n the command lists Pods of the context namespace, default; a policy selects Pods of its own namespace only.
+  - command: kubectl describe networkpolicy api-ingress -n shop
+    why: describe shows the selector, not the Pods that match it.
+explanation:
+  correct:
+    en: '`spec.podSelector` of a NetworkPolicy selects Pods of the policy''s own namespace, and all its `matchLabels` entries must match. `kubectl get pods -n shop -l app=api,tier=backend` lists exactly those Pods (a comma in `-l` means AND). `app: web` in the `from` rule describes the allowed clients, not the selected Pods.'
+references:
+- title: Network Policies
+  url: https://kubernetes.io/docs/concepts/services-networking/network-policies/
+- title: Labels and Selectors
+  url: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/

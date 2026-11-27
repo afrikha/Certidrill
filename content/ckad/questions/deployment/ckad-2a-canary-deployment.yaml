@@ -1,0 +1,140 @@
+id: ckad-2a-canary-deployment
+objective: "2.1.2"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    In namespace `catalog`, Deployment `search-stable` runs 9 replicas of `registry.example.com/catalog/search:5.0` with Pod labels `app: search` and `track: stable`. Service `search` selects `app: search` only.
+
+    Write the manifest of a canary Deployment `search-canary` in namespace `catalog`, with one container named `search` running `registry.example.com/catalog/search:5.1`.
+
+    - About 10 % of the requests sent to Service `search` must reach the canary. Do not change `search-stable`.
+    - Its Pods carry the labels `app: search` and `track: canary`.
+    - Its selector must not match the stable Pods.
+body:
+  starter: ""
+answer:
+  checks:
+  - id: kind
+    label: The object is an apps/v1 Deployment
+    path: apiVersion
+    op: equals
+    value: apps/v1
+  - id: meta
+    label: It is named search-canary in namespace catalog
+    path: metadata
+    op: subset
+    value: {name: search-canary, namespace: catalog}
+  - id: replicas
+    label: It runs 1 replica (1 out of 10 Pods behind the Service)
+    path: spec.replicas
+    op: equals
+    value: 1
+  - id: image
+    label: Container search runs registry.example.com/catalog/search:5.1
+    path: spec.template.spec.containers[name=search].image
+    op: equals
+    value: registry.example.com/catalog/search:5.1
+  - id: labels
+    label: Canary Pods are labelled app search and track canary
+    path: spec.template.metadata.labels
+    op: subset
+    value: {app: search, track: canary}
+  - id: selector
+    label: The selector requires track canary
+    path: spec.selector.matchLabels.track
+    op: equals
+    value: canary
+  solution:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: search-canary
+        namespace: catalog
+      spec:
+        replicas: 1
+        selector:
+          matchLabels:
+            app: search
+            track: canary
+        template:
+          metadata:
+            labels:
+              app: search
+              track: canary
+          spec:
+            containers:
+            - name: search
+              image: registry.example.com/catalog/search:5.1
+  negatives:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: search-canary
+        namespace: catalog
+      spec:
+        replicas: 10
+        selector:
+          matchLabels:
+            app: search
+            track: canary
+        template:
+          metadata:
+            labels:
+              app: search
+              track: canary
+          spec:
+            containers:
+            - name: search
+              image: registry.example.com/catalog/search:5.1
+    why: The split follows the Pod counts. 10 canary Pods next to 9 stable ones receive more than half of the traffic.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: search-canary
+        namespace: catalog
+      spec:
+        replicas: 1
+        selector:
+          matchLabels:
+            track: canary
+        template:
+          metadata:
+            labels:
+              track: canary
+          spec:
+            containers:
+            - name: search
+              image: registry.example.com/catalog/search:5.1
+    why: Without app search, the Service (selector app=search) never routes to the canary Pod.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: search-canary
+        namespace: catalog
+      spec:
+        replicas: 1
+        selector:
+          matchLabels:
+            app: search
+        template:
+          metadata:
+            labels:
+              app: search
+              track: canary
+          spec:
+            containers:
+            - name: search
+              image: registry.example.com/catalog/search:5.1
+    why: A selector of app search alone overlaps with search-stable; the two Deployments could conflict over the same Pods.
+explanation:
+  correct:
+    en: 'A Service balances across all the Pods it selects, so with plain Deployments the canary share is the ratio of Pod counts: 1 canary Pod next to 9 stable Pods gives about 10 %. The canary keeps the common label `app: search` that the Service selects and adds `track: canary`, which its own selector requires so that it does not overlap with `search-stable`.'
+references:
+- title: Deploy a Release Using a Canary Deployment
+  url: https://kubernetes.io/docs/tutorials/stateless-application/canary-deployment/

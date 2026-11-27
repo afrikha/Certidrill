@@ -1,0 +1,182 @@
+id: cka-3d-daemonset-control-plane
+objective: "3.4.1"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    The cluster has two control plane nodes, tainted `node-role.kubernetes.io/control-plane:NoSchedule` (no value), and four worker nodes.
+
+    Write the manifest of a workload named `node-exporter` in namespace `monitoring` that keeps exactly one Pod running on every node, control plane nodes included, and recreates it on any node that joins later.
+
+    - Pod label: `app: node-exporter`; one container named `exporter` running `registry.example.com/monitoring/node-exporter:1.8`.
+    - Tolerate the control plane taint only, not every taint.
+body:
+  starter: ""
+answer:
+  checks:
+  - id: kind
+    label: The workload is an apps/v1 DaemonSet
+    path: apiVersion
+    op: equals
+    value: apps/v1
+  - id: daemonset
+    label: The object is a DaemonSet
+    path: kind
+    op: equals
+    value: DaemonSet
+  - id: meta
+    label: It is named node-exporter in namespace monitoring
+    path: metadata
+    op: subset
+    value: {name: node-exporter, namespace: monitoring}
+  - id: selector
+    label: The selector matches app=node-exporter
+    path: spec.selector.matchLabels.app
+    op: equals
+    value: node-exporter
+  - id: template-label
+    label: The Pod template carries app=node-exporter
+    path: spec.template.metadata.labels.app
+    op: equals
+    value: node-exporter
+  - id: image
+    label: Container exporter runs node-exporter:1.8
+    path: spec.template.spec.containers[name=exporter].image
+    op: equals
+    value: registry.example.com/monitoring/node-exporter:1.8
+  - id: toleration
+    label: The Pods tolerate node-role.kubernetes.io/control-plane:NoSchedule
+    path: spec.template.spec.tolerations[key=node-role.kubernetes.io/control-plane]
+    op: oneOf
+    value:
+    - {key: node-role.kubernetes.io/control-plane, operator: Exists, effect: NoSchedule}
+    - {key: node-role.kubernetes.io/control-plane, effect: NoSchedule}
+    - {key: node-role.kubernetes.io/control-plane, operator: Equal, effect: NoSchedule}
+    - {key: node-role.kubernetes.io/control-plane, operator: Exists}
+  solution:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: DaemonSet
+      metadata:
+        name: node-exporter
+        namespace: monitoring
+      spec:
+        selector:
+          matchLabels:
+            app: node-exporter
+        template:
+          metadata:
+            labels:
+              app: node-exporter
+          spec:
+            tolerations:
+            - key: node-role.kubernetes.io/control-plane
+              operator: Exists
+              effect: NoSchedule
+            containers:
+            - name: exporter
+              image: registry.example.com/monitoring/node-exporter:1.8
+  - manifest: |
+      apiVersion: apps/v1
+      kind: DaemonSet
+      metadata:
+        name: node-exporter
+        namespace: monitoring
+        labels:
+          app: node-exporter
+      spec:
+        selector:
+          matchLabels:
+            app: node-exporter
+        updateStrategy:
+          type: RollingUpdate
+        template:
+          metadata:
+            labels:
+              app: node-exporter
+          spec:
+            containers:
+            - image: registry.example.com/monitoring/node-exporter:1.8
+              name: exporter
+            tolerations:
+            - effect: NoSchedule
+              key: node-role.kubernetes.io/control-plane
+              operator: Exists
+  negatives:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: DaemonSet
+      metadata:
+        name: node-exporter
+        namespace: monitoring
+      spec:
+        selector:
+          matchLabels:
+            app: node-exporter
+        template:
+          metadata:
+            labels:
+              app: node-exporter
+          spec:
+            tolerations:
+            - key: node-role.kubernetes.io/master
+              operator: Exists
+              effect: NoSchedule
+            containers:
+            - name: exporter
+              image: registry.example.com/monitoring/node-exporter:1.8
+    why: kubeadm taints control plane nodes with node-role.kubernetes.io/control-plane; the old master key no longer matches, so the control plane nodes get no Pod.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: node-exporter
+        namespace: monitoring
+      spec:
+        replicas: 6
+        selector:
+          matchLabels:
+            app: node-exporter
+        template:
+          metadata:
+            labels:
+              app: node-exporter
+          spec:
+            tolerations:
+            - key: node-role.kubernetes.io/control-plane
+              operator: Exists
+              effect: NoSchedule
+            containers:
+            - name: exporter
+              image: registry.example.com/monitoring/node-exporter:1.8
+    why: A Deployment with 6 replicas does not guarantee one Pod per node (two can land on the same node) and does not follow nodes that join later.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: DaemonSet
+      metadata:
+        name: node-exporter
+        namespace: monitoring
+      spec:
+        selector:
+          matchLabels:
+            app: node-exporter
+        template:
+          metadata:
+            labels:
+              app: node-exporter
+          spec:
+            tolerations:
+            - operator: Exists
+            containers:
+            - name: exporter
+              image: registry.example.com/monitoring/node-exporter:1.8
+    why: An empty key with operator Exists tolerates every taint, which the task forbids.
+explanation:
+  correct:
+    en: 'A DaemonSet runs one Pod on every eligible node and adds a Pod when a node joins. Its `spec.selector` must match the template labels. Control plane nodes of a kubeadm cluster carry the taint `node-role.kubernetes.io/control-plane:NoSchedule`, so the template needs a toleration for that key with effect `NoSchedule`; `operator: Exists` is the usual form because the taint has no value. A toleration with an empty key and `operator: Exists` would tolerate every taint.'
+references:
+- title: DaemonSet
+  url: https://kubernetes.io/docs/concepts/workloads/controllers/daemonset/
+- title: Taints and Tolerations
+  url: https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/

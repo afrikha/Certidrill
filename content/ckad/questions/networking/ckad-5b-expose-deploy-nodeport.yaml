@@ -1,0 +1,184 @@
+id: ckad-5b-expose-deploy-nodeport
+objective: "5.2.1"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    Deployment `storefront` in namespace `shop` (manifest in `storefront.yaml`) runs Pods labelled `app=storefront` whose container listens on port 8080.
+
+    Expose it with a Service named `storefront` of type NodePort that listens on port 80 and forwards to port 8080 of the Pods. Let Kubernetes allocate the node port.
+
+    Type the single command you would run.
+body:
+  mode: object
+  namespace: default
+  files:
+  - name: storefront.yaml
+    content: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: storefront
+        namespace: shop
+        labels:
+          app: storefront
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: storefront
+        template:
+          metadata:
+            labels:
+              app: storefront
+          spec:
+            containers:
+            - name: storefront
+              image: registry.example.com/shop/storefront:1.4
+              ports:
+              - containerPort: 8080
+answer:
+  checks:
+  - id: kind
+    label: The object is a Service
+    path: kind
+    op: equals
+    value: Service
+  - id: name
+    label: It is named storefront
+    path: metadata.name
+    op: equals
+    value: storefront
+  - id: namespace
+    label: It is created in namespace shop
+    path: metadata.namespace
+    op: equals
+    value: shop
+  - id: type
+    label: Its type is NodePort
+    path: spec.type
+    op: equals
+    value: NodePort
+  - id: port
+    label: The Service listens on port 80
+    path: spec.ports[0].port
+    op: equals
+    value: 80
+  - id: target-port
+    label: Traffic is forwarded to port 8080 of the Pods
+    path: spec.ports[0].targetPort
+    op: equals
+    value: 8080
+  - id: selector
+    label: It selects the Pods labelled app=storefront
+    path: spec.selector
+    op: subset
+    value: {app: storefront}
+  solution:
+  - command: kubectl expose deployment storefront --type=NodePort --port=80 --target-port=8080 -n shop
+    output: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        labels:
+          app: storefront
+        name: storefront
+        namespace: shop
+      spec:
+        ports:
+        - port: 80
+          protocol: TCP
+          targetPort: 8080
+        selector:
+          app: storefront
+        type: NodePort
+      status:
+        loadBalancer: {}
+  - command: k -n shop expose deploy/storefront --port 80 --target-port 8080 --type NodePort --dry-run=client -o yaml
+    output: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        labels:
+          app: storefront
+        name: storefront
+        namespace: shop
+      spec:
+        ports:
+        - port: 80
+          protocol: TCP
+          targetPort: 8080
+        selector:
+          app: storefront
+        type: NodePort
+      status:
+        loadBalancer: {}
+  negatives:
+  - command: kubectl expose deployment storefront --type=NodePort --port=80 -n shop
+    why: Without --target-port the target port defaults to the Service port, 80, where nothing listens in the Pods.
+    output: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        labels:
+          app: storefront
+        name: storefront
+        namespace: shop
+      spec:
+        ports:
+        - port: 80
+          protocol: TCP
+          targetPort: 80
+        selector:
+          app: storefront
+        type: NodePort
+      status:
+        loadBalancer: {}
+  - command: kubectl expose deployment storefront --port=80 --target-port=8080 -n shop
+    why: Without --type the Service is a ClusterIP Service, reachable only inside the cluster.
+    output: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        labels:
+          app: storefront
+        name: storefront
+        namespace: shop
+      spec:
+        ports:
+        - port: 80
+          protocol: TCP
+          targetPort: 8080
+        selector:
+          app: storefront
+      status:
+        loadBalancer: {}
+  - command: kubectl expose deployment storefront --type=NodePort --port=8080 --target-port=80 -n shop
+    why: port and targetPort are swapped. port is what the Service listens on, targetPort is the container port.
+    output: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        labels:
+          app: storefront
+        name: storefront
+        namespace: shop
+      spec:
+        ports:
+        - port: 8080
+          protocol: TCP
+          targetPort: 80
+        selector:
+          app: storefront
+        type: NodePort
+      status:
+        loadBalancer: {}
+explanation:
+  correct:
+    en: '`kubectl expose deployment storefront --type=NodePort --port=80 --target-port=8080 -n shop` creates a Service named after the Deployment, with the selector copied from the Deployment (`app: storefront`). `--port` is the Service port and `--target-port` the container port; without `--target-port` it defaults to the value of `--port`. With type NodePort the control plane allocates a node port from the default range 30000-32767 when none is given.'
+references:
+- title: kubectl expose
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_expose/
+- title: Service
+  url: https://kubernetes.io/docs/concepts/services-networking/service/

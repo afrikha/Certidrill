@@ -1,0 +1,132 @@
+id: cka-3d-job-restart-onfailure
+objective: "3.4.1"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    Write the manifest of a Job named `report` in namespace `batch` with one container named `report` running `registry.example.com/batch/report:3.1`.
+
+    - When the container exits with an error, the kubelet must re-run it inside the same Pod, on the same node, instead of the Job controller creating a new Pod.
+    - The Job must be marked failed after 3 retries.
+body:
+  starter: |
+    apiVersion: batch/v1
+    kind: Job
+    metadata:
+      name: report
+      namespace: batch
+    spec:
+      template:
+        spec:
+          containers:
+          - name: report
+            image: registry.example.com/batch/report:3.1
+answer:
+  checks:
+  - id: job
+    label: It is named report in namespace batch
+    path: metadata
+    op: subset
+    value: {name: report, namespace: batch}
+  - id: kind
+    label: The object is a Job
+    path: kind
+    op: equals
+    value: Job
+  - id: image
+    label: Container report runs report:3.1
+    path: spec.template.spec.containers[name=report].image
+    op: equals
+    value: registry.example.com/batch/report:3.1
+  - id: restart
+    label: The Pod template uses restartPolicy OnFailure
+    path: spec.template.spec.restartPolicy
+    op: equals
+    value: OnFailure
+  - id: backoff
+    label: backoffLimit is 3
+    path: spec.backoffLimit
+    op: equals
+    value: 3
+  solution:
+  - manifest: |
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: report
+        namespace: batch
+      spec:
+        backoffLimit: 3
+        template:
+          spec:
+            restartPolicy: OnFailure
+            containers:
+            - name: report
+              image: registry.example.com/batch/report:3.1
+  negatives:
+  - manifest: |
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: report
+        namespace: batch
+      spec:
+        backoffLimit: 3
+        template:
+          spec:
+            restartPolicy: Never
+            containers:
+            - name: report
+              image: registry.example.com/batch/report:3.1
+    why: With restartPolicy Never a failed container fails the whole Pod, and the Job controller starts a new Pod, possibly on another node.
+  - manifest: |
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: report
+        namespace: batch
+      spec:
+        backoffLimit: 3
+        template:
+          spec:
+            restartPolicy: Always
+            containers:
+            - name: report
+              image: registry.example.com/batch/report:3.1
+    why: A Job Pod template accepts only Never or OnFailure; Always is rejected by the API server.
+  - manifest: |
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: report
+        namespace: batch
+      spec:
+        template:
+          spec:
+            restartPolicy: OnFailure
+            containers:
+            - name: report
+              image: registry.example.com/batch/report:3.1
+    why: Without backoffLimit the default of 6 retries applies, not 3.
+  - manifest: |
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: report
+        namespace: batch
+      spec:
+        template:
+          spec:
+            restartPolicy: OnFailure
+            backoffLimit: 3
+            containers:
+            - name: report
+              image: registry.example.com/batch/report:3.1
+    why: backoffLimit is a field of the Job spec, not of the Pod spec; in the Pod template it is an unknown field.
+explanation:
+  correct:
+    en: 'A Job Pod template accepts only `restartPolicy: Never` or `OnFailure`. With `OnFailure` the Pod stays on its node and the kubelet re-runs the failed container; with `Never` the Pod fails and the Job controller creates a new Pod. `spec.backoffLimit` (default 6) sets the number of retries before the Job is marked failed.'
+references:
+- title: Jobs
+  url: https://kubernetes.io/docs/concepts/workloads/controllers/job/

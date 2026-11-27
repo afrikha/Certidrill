@@ -1,0 +1,201 @@
+id: ckad-1b-daemonset-log-agent
+objective: "1.2.2"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    Every worker node of the cluster, including nodes added later, must run exactly one copy of a log collector that reads the node's `/var/log` directory.
+
+    Write the manifest of the workload resource that does this, named `log-agent` in namespace `monitoring`:
+
+    - Pods labelled `app: log-agent`, selected by that label;
+    - one container named `collector` running `fluent/fluent-bit:3.1`;
+    - the host directory `/var/log` mounted read-only at `/var/log` in the container, through a volume named `varlog`.
+body:
+  starter: ""
+answer:
+  checks:
+  - id: api
+    label: Uses apiVersion apps/v1
+    path: apiVersion
+    op: equals
+    value: apps/v1
+  - id: kind
+    label: The workload is a DaemonSet
+    path: kind
+    op: equals
+    value: DaemonSet
+  - id: metadata
+    label: Named log-agent in namespace monitoring
+    path: metadata
+    op: subset
+    value: {name: log-agent, namespace: monitoring}
+  - id: selector
+    label: The selector matches app=log-agent
+    path: spec.selector.matchLabels
+    op: equals
+    value: {app: log-agent}
+  - id: labels
+    label: The Pod template has the label app=log-agent
+    path: spec.template.metadata.labels.app
+    op: equals
+    value: log-agent
+  - id: image
+    label: Container collector runs fluent/fluent-bit:3.1
+    path: spec.template.spec.containers[name=collector].image
+    op: equals
+    value: fluent/fluent-bit:3.1
+  - id: volume
+    label: Volume varlog is the host path /var/log
+    path: spec.template.spec.volumes[name=varlog].hostPath.path
+    op: equals
+    value: /var/log
+  - id: mount
+    label: varlog is mounted read-only at /var/log
+    path: spec.template.spec.containers[name=collector].volumeMounts
+    op: contains
+    value: {name: varlog, mountPath: /var/log, readOnly: true}
+  solution:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: DaemonSet
+      metadata:
+        name: log-agent
+        namespace: monitoring
+      spec:
+        selector:
+          matchLabels:
+            app: log-agent
+        template:
+          metadata:
+            labels:
+              app: log-agent
+          spec:
+            containers:
+            - name: collector
+              image: fluent/fluent-bit:3.1
+              volumeMounts:
+              - name: varlog
+                mountPath: /var/log
+                readOnly: true
+            volumes:
+            - name: varlog
+              hostPath:
+                path: /var/log
+  - manifest: |
+      apiVersion: apps/v1
+      kind: DaemonSet
+      metadata:
+        name: log-agent
+        namespace: monitoring
+        labels:
+          app: log-agent
+      spec:
+        selector:
+          matchLabels:
+            app: log-agent
+        template:
+          metadata:
+            labels:
+              app: log-agent
+          spec:
+            volumes:
+            - name: varlog
+              hostPath:
+                path: /var/log
+                type: Directory
+            containers:
+            - name: collector
+              image: fluent/fluent-bit:3.1
+              volumeMounts:
+              - mountPath: /var/log
+                name: varlog
+                readOnly: true
+  negatives:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: log-agent
+        namespace: monitoring
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: log-agent
+        template:
+          metadata:
+            labels:
+              app: log-agent
+          spec:
+            containers:
+            - name: collector
+              image: fluent/fluent-bit:3.1
+              volumeMounts:
+              - name: varlog
+                mountPath: /var/log
+                readOnly: true
+            volumes:
+            - name: varlog
+              hostPath:
+                path: /var/log
+    why: A Deployment with a fixed replica count does not follow the number of nodes and may place two copies on one node.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: DaemonSet
+      metadata:
+        name: log-agent
+        namespace: monitoring
+      spec:
+        selector:
+          matchLabels:
+            app: log-agent
+        template:
+          metadata:
+            labels:
+              app: log-agent
+          spec:
+            containers:
+            - name: collector
+              image: fluent/fluent-bit:3.1
+              volumeMounts:
+              - name: varlog
+                mountPath: /var/log
+            volumes:
+            - name: varlog
+              hostPath:
+                path: /var/log
+    why: Without readOnly true the container can write to the node's /var/log.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: DaemonSet
+      metadata:
+        name: log-agent
+        namespace: monitoring
+      spec:
+        selector:
+          matchLabels:
+            app: log-agent
+        template:
+          metadata:
+            labels:
+              app: log-agent
+          spec:
+            containers:
+            - name: collector
+              image: fluent/fluent-bit:3.1
+              volumeMounts:
+              - name: varlog
+                mountPath: /var/log
+                readOnly: true
+            volumes:
+            - name: varlog
+              emptyDir: {}
+    why: An emptyDir is a new empty directory for the Pod, not the node's /var/log.
+explanation:
+  correct:
+    en: 'A DaemonSet runs one Pod on each eligible node and adds one when a node joins; it has no `replicas` field. The node directory comes from a `hostPath` volume, and `readOnly: true` on the `volumeMount` prevents writes. A Deployment only guarantees a replica count, not one Pod per node.'
+references:
+- title: DaemonSet
+  url: https://kubernetes.io/docs/concepts/workloads/controllers/daemonset/

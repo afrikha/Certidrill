@@ -1,0 +1,199 @@
+id: ckad-2c-template-values-precedence
+objective: "2.3.2"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    The local chart `./webapp` contains the files `values.yaml` and `prod.yaml` shown in the working directory, and one template, `templates/deployment.yaml`:
+
+    ```yaml
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: {{ .Release.Name }}-webapp
+    spec:
+      replicas: {{ .Values.replicaCount }}
+      selector:
+        matchLabels:
+          app: {{ .Release.Name }}-webapp
+      template:
+        metadata:
+          labels:
+            app: {{ .Release.Name }}-webapp
+        spec:
+          containers:
+          - name: webapp
+            image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+            resources:
+              limits:
+                memory: {{ .Values.resources.memory }}
+    ```
+
+    You run `helm template web ./webapp -f ./webapp/prod.yaml --set image.tag=2.1.0`.
+
+    Write the Deployment manifest that this command prints (leave out the `# Source:` comment).
+body:
+  starter: ""
+  files:
+  - name: webapp/values.yaml
+    content: |
+      replicaCount: 1
+      image:
+        repository: registry.example.com/shop/webapp
+        tag: 2.0.0
+      resources:
+        memory: 256Mi
+  - name: webapp/prod.yaml
+    content: |
+      replicaCount: 3
+      image:
+        tag: 2.0.5
+answer:
+  checks:
+  - id: kind
+    label: The rendered object is a Deployment
+    path: kind
+    op: equals
+    value: Deployment
+  - id: name
+    label: The name uses the release name (web-webapp)
+    path: metadata.name
+    op: equals
+    value: web-webapp
+  - id: replicas
+    label: replicaCount comes from prod.yaml (3)
+    path: spec.replicas
+    op: equals
+    value: 3
+  - id: image
+    label: The image tag comes from --set (registry.example.com/shop/webapp:2.1.0)
+    path: spec.template.spec.containers[name=webapp].image
+    op: equals
+    value: registry.example.com/shop/webapp:2.1.0
+  - id: memory
+    label: The memory limit keeps the chart default (256Mi)
+    path: spec.template.spec.containers[name=webapp].resources.limits.memory
+    op: quantity
+    value: 256Mi
+  - id: selector
+    label: The selector is app=web-webapp
+    path: spec.selector.matchLabels.app
+    op: equals
+    value: web-webapp
+  solution:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: web-webapp
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: web-webapp
+        template:
+          metadata:
+            labels:
+              app: web-webapp
+          spec:
+            containers:
+            - name: webapp
+              image: "registry.example.com/shop/webapp:2.1.0"
+              resources:
+                limits:
+                  memory: 256Mi
+  negatives:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: web-webapp
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: web-webapp
+        template:
+          metadata:
+            labels:
+              app: web-webapp
+          spec:
+            containers:
+            - name: webapp
+              image: "registry.example.com/shop/webapp:2.0.5"
+              resources:
+                limits:
+                  memory: 256Mi
+    why: --set has higher precedence than a values file, so image.tag is 2.1.0, not the 2.0.5 of prod.yaml.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: web-webapp
+      spec:
+        replicas: 1
+        selector:
+          matchLabels:
+            app: web-webapp
+        template:
+          metadata:
+            labels:
+              app: web-webapp
+          spec:
+            containers:
+            - name: webapp
+              image: "registry.example.com/shop/webapp:2.1.0"
+              resources:
+                limits:
+                  memory: 256Mi
+    why: prod.yaml, passed with -f, overrides the chart default replicaCount of 1.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: web-webapp
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: web-webapp
+        template:
+          metadata:
+            labels:
+              app: web-webapp
+          spec:
+            containers:
+            - name: webapp
+              image: "registry.example.com/shop/webapp:2.1.0"
+    why: Values files are merged with the chart values, not substituted for them; resources.memory keeps its default 256Mi.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: webapp
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: webapp
+        template:
+          metadata:
+            labels:
+              app: webapp
+          spec:
+            containers:
+            - name: webapp
+              image: "registry.example.com/shop/webapp:2.1.0"
+              resources:
+                limits:
+                  memory: 256Mi
+    why: .Release.Name is the release name given to helm template, web, so the name and labels are web-webapp.
+explanation:
+  correct:
+    en: 'Helm merges values from lowest to highest precedence: the chart `values.yaml`, then each `-f` file (the right-most wins), then `--set`. Here `replicaCount` is 3 (from `prod.yaml`), `image.tag` is 2.1.0 (`--set` beats `prod.yaml`), and `image.repository` and `resources.memory` keep the chart defaults because a values file is merged key by key. `.Release.Name` is `web`, the name given to `helm template`.'
+references:
+- title: Using Helm
+  url: https://helm.sh/docs/intro/using_helm/
+- title: helm template
+  url: https://helm.sh/docs/helm/helm_template/

@@ -1,0 +1,141 @@
+id: ckad-3b-exec-liveness
+objective: "3.2.1"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    The queue worker in namespace `jobs` exposes no port. It touches the file `/tmp/healthy` while it is healthy and deletes it when it deadlocks.
+
+    Write the manifest of a Pod named `worker` in namespace `jobs` with one container named `worker` running `registry.example.com/queue-worker:1.8`. The kubelet must restart the container when the command `cat /tmp/healthy` run inside the container fails. The first check runs 5 seconds after the container starts, then every 5 seconds.
+body:
+  starter: |
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: worker
+      namespace: jobs
+    spec:
+      containers:
+      - name: worker
+        image: registry.example.com/queue-worker:1.8
+answer:
+  checks:
+  - id: pod
+    label: A Pod named worker in namespace jobs
+    path: metadata
+    op: subset
+    value: {name: worker, namespace: jobs}
+  - id: image
+    label: Container worker runs registry.example.com/queue-worker:1.8
+    path: spec.containers[name=worker].image
+    op: equals
+    value: registry.example.com/queue-worker:1.8
+  - id: liveness-exec
+    label: The liveness probe runs cat /tmp/healthy
+    path: spec.containers[name=worker].livenessProbe.exec.command
+    op: matches
+    value: cat.*/tmp/healthy
+  - id: initial-delay
+    label: The first liveness check runs after 5 seconds
+    path: spec.containers[name=worker].livenessProbe.initialDelaySeconds
+    op: equals
+    value: 5
+  - id: period
+    label: The liveness probe runs every 5 seconds
+    path: spec.containers[name=worker].livenessProbe.periodSeconds
+    op: equals
+    value: 5
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: worker
+        namespace: jobs
+      spec:
+        containers:
+        - name: worker
+          image: registry.example.com/queue-worker:1.8
+          livenessProbe:
+            exec:
+              command:
+              - cat
+              - /tmp/healthy
+            initialDelaySeconds: 5
+            periodSeconds: 5
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: worker
+        namespace: jobs
+      spec:
+        containers:
+        - name: worker
+          image: registry.example.com/queue-worker:1.8
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "cat /tmp/healthy"]
+            periodSeconds: 5
+            initialDelaySeconds: 5
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: worker
+        namespace: jobs
+      spec:
+        containers:
+        - name: worker
+          image: registry.example.com/queue-worker:1.8
+          readinessProbe:
+            exec:
+              command:
+              - cat
+              - /tmp/healthy
+            initialDelaySeconds: 5
+            periodSeconds: 5
+    why: A failing readiness probe only marks the Pod not ready; it never restarts the container.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: worker
+        namespace: jobs
+      spec:
+        livenessProbe:
+          exec:
+            command:
+            - cat
+            - /tmp/healthy
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        containers:
+        - name: worker
+          image: registry.example.com/queue-worker:1.8
+    why: Probes are container fields; spec.livenessProbe does not exist at Pod level and the API server rejects or drops it.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: worker
+        namespace: jobs
+      spec:
+        containers:
+        - name: worker
+          image: registry.example.com/queue-worker:1.8
+          livenessProbe:
+            exec:
+              command:
+              - cat
+              - /tmp/healthy
+            initialDelaySeconds: 5
+    why: Without periodSeconds the probe runs every 10 seconds (the default), not every 5.
+explanation:
+  correct:
+    en: 'An `exec` probe runs a command inside the container; exit code 0 is a success, any other code a failure. As a `livenessProbe`, failures make the kubelet kill and restart the container. `initialDelaySeconds: 5` delays the first check and `periodSeconds: 5` sets the interval (default 10). Probes belong to each container, not to the Pod spec.'
+references:
+- title: Configure Liveness, Readiness and Startup Probes
+  url: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/

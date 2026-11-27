@@ -1,0 +1,52 @@
+id: ckad-2a-endpointslices-service
+objective: "2.1.3"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    You have just switched the selector of Service `web` in namespace `shop` from blue to green. Check which Pod IPs the Service now routes to by listing the EndpointSlices that belong to Service `web`, selecting them by the label the control plane puts on every EndpointSlice of a Service.
+
+    Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Uses kubectl get
+    path: verb
+    op: equals
+    value: get
+  - id: resource
+    label: Lists EndpointSlices
+    path: resource
+    op: equals
+    value: endpointslice
+  - id: selector
+    label: Selects them with kubernetes.io/service-name=web
+    path: flags.selector
+    op: oneOf
+    value: ["kubernetes.io/service-name=web", "kubernetes.io/service-name==web"]
+  - id: namespace
+    label: Runs in namespace shop
+    path: flags.namespace
+    op: equals
+    value: shop
+  solution:
+  - command: kubectl get endpointslices -l kubernetes.io/service-name=web -n shop
+  - command: k -n shop get endpointslice --selector kubernetes.io/service-name=web
+  - command: kubectl get endpointslices.discovery.k8s.io -l kubernetes.io/service-name=web -n shop -o wide
+  negatives:
+  - command: kubectl get endpointslices web -n shop
+    why: EndpointSlices get generated names (web-xxxxx), so there is usually no EndpointSlice named exactly web.
+  - command: kubectl get pods -l kubernetes.io/service-name=web -n shop
+    why: Pods do not carry this label; it is set on the EndpointSlices of the Service.
+  - command: kubectl get endpointslices -l kubernetes.io/service-name=web
+    why: Without -n the command searches the context namespace, default.
+explanation:
+  correct:
+    en: 'The control plane creates EndpointSlices for every Service that has a selector and labels each of them `kubernetes.io/service-name=<service>`, so `kubectl get endpointslices -l kubernetes.io/service-name=web -n shop` lists the endpoints the Service currently uses. After a selector switch, the addresses shown must be those of the green Pods; an empty list points to a selector that matches no ready Pod.'
+references:
+- title: EndpointSlices
+  url: https://kubernetes.io/docs/concepts/services-networking/endpoint-slices/

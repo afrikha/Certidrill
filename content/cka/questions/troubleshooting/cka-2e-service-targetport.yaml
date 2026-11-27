@@ -1,0 +1,132 @@
+id: cka-2e-service-targetport
+objective: "2.5.1"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    In namespace `finance`, `kubectl get endpointslices -l kubernetes.io/service-name=ledger -n finance` shows the three Pods of Deployment `ledger` with port 80, and they are ready. From a test Pod, `wget -qO- -T 3 http://ledger.finance` fails with `Connection refused`. The container `api` of these Pods declares:
+
+    ```yaml
+    ports:
+    - name: http
+      containerPort: 9090
+    ```
+
+    Correct the Service so that clients keep calling port 80 and reach the application. Write the corrected manifest.
+body:
+  starter: |
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: ledger
+      namespace: finance
+    spec:
+      selector:
+        app: ledger
+      ports:
+      - name: web
+        port: 80
+        targetPort: 80
+answer:
+  checks:
+  - id: service
+    label: The Service ledger in namespace finance
+    path: metadata
+    op: subset
+    value: {name: ledger, namespace: finance}
+  - id: port
+    label: Clients still call port 80
+    path: spec.ports[port=80]
+    op: exists
+  - id: target
+    label: Port 80 forwards to container port 9090 (by number or by its name http)
+    path: spec.ports[port=80].targetPort
+    op: oneOf
+    value: [9090, http]
+  - id: selector
+    label: The selector stays app=ledger
+    path: spec.selector.app
+    op: equals
+    value: ledger
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: ledger
+        namespace: finance
+      spec:
+        selector:
+          app: ledger
+        ports:
+        - name: web
+          port: 80
+          targetPort: 9090
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: ledger
+        namespace: finance
+      spec:
+        selector:
+          app: ledger
+        ports:
+        - name: web
+          protocol: TCP
+          port: 80
+          targetPort: http
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: ledger
+        namespace: finance
+      spec:
+        selector:
+          app: ledger
+        ports:
+        - name: web
+          port: 9090
+          targetPort: 80
+    why: This changes the port clients call to 9090 and still sends the traffic to port 80, where nothing listens.
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: ledger
+        namespace: finance
+      spec:
+        selector:
+          app: ledger
+        ports:
+        - name: web
+          port: 80
+          targetPort: web
+    why: targetPort web refers to a container port named web; the container port is named http.
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: ledger
+        namespace: finance
+      spec:
+        selector:
+          app: ledger
+        ports:
+        - name: http
+          port: 80
+    why: Renaming the Service port does not change the target; without targetPort the traffic goes to port 80, the value of port.
+explanation:
+  correct:
+    en: >-
+      `port` is what clients call on the Service and `targetPort` is the port on the Pods. The EndpointSlice shows port
+      80, the current `targetPort`, but the container listens on 9090, hence `Connection refused`. Set `targetPort: 9090`,
+      or `targetPort: http` to follow the named container port. When `targetPort` is omitted it defaults to `port`.
+references:
+- title: Service
+  url: https://kubernetes.io/docs/concepts/services-networking/service/
+- title: Debug Services
+  url: https://kubernetes.io/docs/tasks/debug/debug-application/debug-service/

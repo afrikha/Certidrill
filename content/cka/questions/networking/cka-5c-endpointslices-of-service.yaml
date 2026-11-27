@@ -1,0 +1,56 @@
+id: cka-5c-endpointslices-of-service
+objective: "5.3.2"
+difficulty: 1
+status: draft
+type: command
+stem:
+  en: |-
+    Requests to Service `web` in namespace `shop` time out. Before looking at the Pods, you want to see which Pod addresses and ports the control plane has recorded for this Service.
+
+    List the EndpointSlices that belong to Service `web` in namespace `shop`. Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Uses kubectl get
+    path: verb
+    op: equals
+    value: get
+  - id: resource
+    label: Lists EndpointSlices
+    path: resource
+    op: equals
+    value: endpointslice
+  - id: namespace
+    label: Lists namespace shop
+    path: flags.namespace
+    op: equals
+    value: shop
+  - id: selector
+    label: Selects the slices of Service web with the label kubernetes.io/service-name=web
+    path: flags.selector
+    op: equals
+    value: kubernetes.io/service-name=web
+  solution:
+  - command: kubectl get endpointslices -n shop -l kubernetes.io/service-name=web
+  - command: k get endpointslice --selector=kubernetes.io/service-name=web --namespace shop -o wide
+  - command: kubectl -n shop get endpointslices.discovery.k8s.io -l kubernetes.io/service-name=web -o yaml
+  negatives:
+  - command: kubectl get endpointslice web -n shop
+    why: The controller names the slices web-<suffix>, so there is no EndpointSlice named web; select them by the kubernetes.io/service-name label.
+  - command: kubectl get endpoints web -n shop
+    why: This reads the legacy Endpoints API (deprecated since v1.33), not the EndpointSlices.
+  - command: kubectl get endpointslices -l kubernetes.io/service-name=web
+    why: Without -n the command searches the context namespace, default.
+  - command: kubectl get endpointslices -n shop -l app=web
+    why: app=web is the label of the Pods; EndpointSlices carry kubernetes.io/service-name=<Service name>.
+explanation:
+  correct:
+    en: 'The EndpointSlice controller creates one or more slices per Service, named after the Service with a random suffix, and links them with the label `kubernetes.io/service-name=<service>`, so `kubectl get endpointslices -n shop -l kubernetes.io/service-name=web` finds them. An empty ENDPOINTS column means no ready Pod matches the selector or the target port; the Endpoints API is deprecated since v1.33.'
+references:
+- title: EndpointSlices
+  url: https://kubernetes.io/docs/concepts/services-networking/endpoint-slices/
+- title: Debug Services
+  url: https://kubernetes.io/docs/tasks/debug/debug-application/debug-service/

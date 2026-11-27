@@ -1,0 +1,198 @@
+id: ckad-5c-create-ingress-wildcard-default
+objective: "5.3.1"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    In namespace `saas`, create an Ingress named `tenants`, handled by the IngressClass `nginx`:
+
+    - every request for a host one level below `tenants.example.com` (`acme.tenants.example.com`, `globex.tenants.example.com`…), whatever its path, goes to Service `tenant-router` on port 80;
+    - every request that matches no rule goes to Service `notfound` on its port named `http`.
+
+    Type the single command you would run.
+body:
+  mode: object
+  namespace: default
+answer:
+  checks:
+  - id: kind
+    label: The object is an Ingress
+    path: kind
+    op: equals
+    value: Ingress
+  - id: meta
+    label: It is named tenants in namespace saas
+    path: metadata
+    op: subset
+    value: {name: tenants, namespace: saas}
+  - id: class
+    label: ingressClassName is nginx
+    path: spec.ingressClassName
+    op: equals
+    value: nginx
+  - id: wildcard
+    label: A rule for the wildcard host *.tenants.example.com sends every path (Prefix /) to tenant-router:80
+    path: spec.rules
+    op: contains
+    value:
+      host: "*.tenants.example.com"
+      http:
+        paths:
+        - path: /
+          pathType: Prefix
+          backend:
+            service:
+              name: tenant-router
+              port: {number: 80}
+  - id: default
+    label: The default backend is Service notfound on its port named http
+    path: spec.defaultBackend
+    op: equals
+    value:
+      service:
+        name: notfound
+        port: {name: http}
+  solution:
+  - command: kubectl create ingress tenants -n saas --class=nginx --rule="*.tenants.example.com/*=tenant-router:80" --default-backend=notfound:http
+    output: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: tenants
+        namespace: saas
+      spec:
+        defaultBackend:
+          service:
+            name: notfound
+            port:
+              name: http
+        ingressClassName: nginx
+        rules:
+        - host: '*.tenants.example.com'
+          http:
+            paths:
+            - backend:
+                service:
+                  name: tenant-router
+                  port:
+                    number: 80
+              path: /
+              pathType: Prefix
+      status:
+        loadBalancer: {}
+  - command: k create ing tenants --class nginx --default-backend notfound:http --rule '*.tenants.example.com/*=tenant-router:80' -n saas
+    output: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: tenants
+        namespace: saas
+      spec:
+        defaultBackend:
+          service:
+            name: notfound
+            port:
+              name: http
+        ingressClassName: nginx
+        rules:
+        - host: '*.tenants.example.com'
+          http:
+            paths:
+            - backend:
+                service:
+                  name: tenant-router
+                  port:
+                    number: 80
+              path: /
+              pathType: Prefix
+      status:
+        loadBalancer: {}
+  negatives:
+  - command: kubectl create ingress tenants -n saas --class=nginx --rule="tenants.example.com/*=tenant-router:80" --default-backend=notfound:http
+    why: Without the *. prefix the rule matches only the host tenants.example.com itself, not acme.tenants.example.com.
+    output: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: tenants
+        namespace: saas
+      spec:
+        defaultBackend:
+          service:
+            name: notfound
+            port:
+              name: http
+        ingressClassName: nginx
+        rules:
+        - host: tenants.example.com
+          http:
+            paths:
+            - backend:
+                service:
+                  name: tenant-router
+                  port:
+                    number: 80
+              path: /
+              pathType: Prefix
+      status:
+        loadBalancer: {}
+  - command: kubectl create ingress tenants -n saas --class=nginx --rule="*.tenants.example.com/=tenant-router:80" --default-backend=notfound:http
+    why: Without the trailing * the path / gets pathType Exact, so only the home page of each tenant is routed.
+    output: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: tenants
+        namespace: saas
+      spec:
+        defaultBackend:
+          service:
+            name: notfound
+            port:
+              name: http
+        ingressClassName: nginx
+        rules:
+        - host: '*.tenants.example.com'
+          http:
+            paths:
+            - backend:
+                service:
+                  name: tenant-router
+                  port:
+                    number: 80
+              path: /
+              pathType: Exact
+      status:
+        loadBalancer: {}
+  - command: kubectl create ingress tenants -n saas --class=nginx --rule="*.tenants.example.com/*=tenant-router:80"
+    why: Without --default-backend, requests that match no rule are not sent to Service notfound.
+    output: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: tenants
+        namespace: saas
+      spec:
+        ingressClassName: nginx
+        rules:
+        - host: '*.tenants.example.com'
+          http:
+            paths:
+            - backend:
+                service:
+                  name: tenant-router
+                  port:
+                    number: 80
+              path: /
+              pathType: Prefix
+      status:
+        loadBalancer: {}
+explanation:
+  correct:
+    en: 'A wildcard host `*.tenants.example.com` matches a `Host` header that has exactly one more DNS label (`acme.tenants.example.com`), but neither `tenants.example.com` nor `a.b.tenants.example.com`. In `--rule`, `/*` gives path `/` with `pathType: Prefix`. `--default-backend=notfound:http` fills `spec.defaultBackend`, and a non-numeric port becomes `port.name`.'
+references:
+- title: Ingress
+  url: https://kubernetes.io/docs/concepts/services-networking/ingress/
+- title: kubectl create ingress
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_create/kubectl_create_ingress/

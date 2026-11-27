@@ -1,0 +1,156 @@
+id: ckad-1b-cronjob-concurrency
+objective: "1.2.4"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    Write the manifest of a CronJob named `sync` in namespace `crm` that starts a Job every 10 minutes. Its Job runs one container named `sync` with `registry.example.com/crm/sync:4.0` and `restartPolicy: OnFailure`.
+
+    - If the previous run is still in progress, the new run must be skipped (the running Job is left alone).
+    - A run that cannot start within 120 seconds of its scheduled time must be skipped.
+body:
+  starter: ""
+answer:
+  checks:
+  - id: api
+    label: Uses apiVersion batch/v1
+    path: apiVersion
+    op: equals
+    value: batch/v1
+  - id: metadata
+    label: A CronJob named sync in namespace crm
+    path: metadata
+    op: subset
+    value: {name: sync, namespace: crm}
+  - id: kind
+    label: The object is a CronJob
+    path: kind
+    op: equals
+    value: CronJob
+  - id: schedule
+    label: It runs every 10 minutes
+    path: spec.schedule
+    op: oneOf
+    value: ["*/10 * * * *", "0/10 * * * *", "0,10,20,30,40,50 * * * *"]
+  - id: concurrency
+    label: concurrencyPolicy is Forbid
+    path: spec.concurrencyPolicy
+    op: equals
+    value: Forbid
+  - id: deadline
+    label: startingDeadlineSeconds is 120
+    path: spec.startingDeadlineSeconds
+    op: equals
+    value: 120
+  - id: image
+    label: Container sync runs registry.example.com/crm/sync:4.0
+    path: spec.jobTemplate.spec.template.spec.containers[name=sync].image
+    op: equals
+    value: registry.example.com/crm/sync:4.0
+  - id: restart
+    label: restartPolicy is OnFailure
+    path: spec.jobTemplate.spec.template.spec.restartPolicy
+    op: equals
+    value: OnFailure
+  solution:
+  - manifest: |
+      apiVersion: batch/v1
+      kind: CronJob
+      metadata:
+        name: sync
+        namespace: crm
+      spec:
+        schedule: "*/10 * * * *"
+        concurrencyPolicy: Forbid
+        startingDeadlineSeconds: 120
+        jobTemplate:
+          spec:
+            template:
+              spec:
+                containers:
+                - name: sync
+                  image: registry.example.com/crm/sync:4.0
+                restartPolicy: OnFailure
+  negatives:
+  - manifest: |
+      apiVersion: batch/v1
+      kind: CronJob
+      metadata:
+        name: sync
+        namespace: crm
+      spec:
+        schedule: "*/10 * * * *"
+        concurrencyPolicy: Replace
+        startingDeadlineSeconds: 120
+        jobTemplate:
+          spec:
+            template:
+              spec:
+                containers:
+                - name: sync
+                  image: registry.example.com/crm/sync:4.0
+                restartPolicy: OnFailure
+    why: Replace stops the running Job and starts the new one; Forbid skips the new run.
+  - manifest: |
+      apiVersion: batch/v1
+      kind: CronJob
+      metadata:
+        name: sync
+        namespace: crm
+      spec:
+        schedule: "*/10 * * * *"
+        startingDeadlineSeconds: 120
+        jobTemplate:
+          spec:
+            template:
+              spec:
+                containers:
+                - name: sync
+                  image: registry.example.com/crm/sync:4.0
+                restartPolicy: OnFailure
+    why: The default concurrencyPolicy, Allow, lets runs overlap.
+  - manifest: |
+      apiVersion: batch/v1
+      kind: CronJob
+      metadata:
+        name: sync
+        namespace: crm
+      spec:
+        schedule: "*/10 * * * *"
+        concurrencyPolicy: Forbid
+        jobTemplate:
+          spec:
+            activeDeadlineSeconds: 120
+            template:
+              spec:
+                containers:
+                - name: sync
+                  image: registry.example.com/crm/sync:4.0
+                restartPolicy: OnFailure
+    why: activeDeadlineSeconds limits how long a started Job may run; the start deadline is the CronJob field startingDeadlineSeconds.
+  - manifest: |
+      apiVersion: batch/v1beta1
+      kind: CronJob
+      metadata:
+        name: sync
+        namespace: crm
+      spec:
+        schedule: "*/10 * * * *"
+        concurrencyPolicy: Forbid
+        startingDeadlineSeconds: 120
+        jobTemplate:
+          spec:
+            template:
+              spec:
+                containers:
+                - name: sync
+                  image: registry.example.com/crm/sync:4.0
+                restartPolicy: OnFailure
+    why: batch/v1beta1 CronJob was removed in Kubernetes 1.25; use batch/v1.
+explanation:
+  correct:
+    en: '`concurrencyPolicy: Forbid` skips a run while the previous Job is still active (`Allow`, the default, runs them side by side; `Replace` replaces the running Job). `startingDeadlineSeconds: 120` skips a run that cannot be created within 120 seconds of its scheduled time. Both are CronJob spec fields, next to `schedule` and `jobTemplate`.'
+references:
+- title: CronJob
+  url: https://kubernetes.io/docs/concepts/workloads/controllers/cron-jobs/

@@ -1,0 +1,147 @@
+id: cka-1c-pod-mount-claim
+objective: "1.3.2"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    The claim `web-content` in namespace `shop` is `Bound`. Write the manifest of a Pod `web` in namespace `shop` with one container `nginx` running `nginx:1.27`.
+
+    The Pod uses the claim through a volume named `content`, mounted read-only at `/usr/share/nginx/html`.
+body:
+  starter: ""
+answer:
+  checks:
+  - id: meta
+    label: A Pod named web in namespace shop
+    path: metadata
+    op: subset
+    value: {name: web, namespace: shop}
+  - id: kind
+    label: The kind is Pod
+    path: kind
+    op: equals
+    value: Pod
+  - id: image
+    label: Container nginx runs nginx:1.27
+    path: spec.containers[name=nginx].image
+    op: equals
+    value: nginx:1.27
+  - id: claim
+    label: Volume content uses the claim web-content
+    path: spec.volumes[name=content].persistentVolumeClaim.claimName
+    op: equals
+    value: web-content
+  - id: mount
+    label: Volume content is mounted at /usr/share/nginx/html
+    path: spec.containers[name=nginx].volumeMounts[name=content].mountPath
+    op: equals
+    value: /usr/share/nginx/html
+  - id: readonly
+    label: The volume is mounted read-only (volumeMount or claim readOnly)
+    path: spec
+    op: matches
+    value: '"readOnly":true'
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: web
+        namespace: shop
+      spec:
+        containers:
+        - name: nginx
+          image: nginx:1.27
+          volumeMounts:
+          - name: content
+            mountPath: /usr/share/nginx/html
+            readOnly: true
+        volumes:
+        - name: content
+          persistentVolumeClaim:
+            claimName: web-content
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: web
+        namespace: shop
+      spec:
+        volumes:
+        - name: content
+          persistentVolumeClaim:
+            claimName: web-content
+            readOnly: true
+        containers:
+        - name: nginx
+          image: nginx:1.27
+          volumeMounts:
+          - mountPath: /usr/share/nginx/html
+            name: content
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: web
+        namespace: shop
+      spec:
+        containers:
+        - name: nginx
+          image: nginx:1.27
+          volumeMounts:
+          - name: content
+            mountPath: /usr/share/nginx/html
+            readOnly: true
+        volumes:
+        - name: content
+          persistentVolumeClaim:
+            claimName: content
+    why: claimName must be the claim, web-content; content is only the name of the Pod volume.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: web
+        namespace: shop
+      spec:
+        containers:
+        - name: nginx
+          image: nginx:1.27
+          volumeMounts:
+          - name: content
+            mountPath: /usr/share/nginx/html
+        volumes:
+        - name: content
+          persistentVolumeClaim:
+            claimName: web-content
+    why: Without readOnly the container can write to the volume.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: web
+        namespace: shop
+      spec:
+        containers:
+        - name: nginx
+          image: nginx:1.27
+          volumeMounts:
+          - name: content
+            mountPath: /usr/share/nginx/html
+            readOnly: true
+        volumes:
+        - name: content
+          persistentVolumeClaim:
+            name: web-content
+    why: The field of a persistentVolumeClaim volume is claimName, not name.
+explanation:
+  correct:
+    en: |-
+      A Pod refers to a claim of its own namespace with `volumes[].persistentVolumeClaim.claimName`. Each container mounts the Pod volume by its name in `volumeMounts`. `readOnly: true` can be set on the mount or on the `persistentVolumeClaim` volume source; either one stops the container from writing.
+references:
+- title: Volumes
+  url: https://kubernetes.io/docs/concepts/storage/volumes/
+- title: Persistent Volumes
+  url: https://kubernetes.io/docs/concepts/storage/persistent-volumes/

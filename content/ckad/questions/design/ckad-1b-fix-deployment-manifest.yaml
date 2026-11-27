@@ -1,0 +1,184 @@
+id: ckad-1b-fix-deployment-manifest
+objective: "1.2.1"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    A colleague wrote the manifest below for an older cluster. `kubectl apply` fails on the v1.37 cluster, and once applied it would not expose the port correctly.
+
+    Fix it so that it creates the Deployment `ledger` in namespace `finance` with 2 replicas of the container `ledger` running `registry.example.com/finance/ledger:1.4` on container port 8443. Keep the Pod label `app: ledger` and select the Pods by it.
+body:
+  starter: |
+    apiVersion: extensions/v1beta1
+    kind: Deployment
+    metadata:
+      name: ledger
+      namespace: finance
+    spec:
+      replicas: 2
+      template:
+        metadata:
+          labels:
+            app: ledger
+        spec:
+          containers:
+          - name: ledger
+            image: registry.example.com/finance/ledger:1.4
+            ports:
+            - port: 8443
+answer:
+  checks:
+  - id: api
+    label: Uses apiVersion apps/v1
+    path: apiVersion
+    op: equals
+    value: apps/v1
+  - id: deployment
+    label: A Deployment named ledger in namespace finance
+    path: metadata
+    op: subset
+    value: {name: ledger, namespace: finance}
+  - id: replicas
+    label: It runs 2 replicas
+    path: spec.replicas
+    op: equals
+    value: 2
+  - id: selector
+    label: The selector matches app=ledger
+    path: spec.selector.matchLabels.app
+    op: equals
+    value: ledger
+  - id: labels
+    label: The Pod template keeps the label app=ledger
+    path: spec.template.metadata.labels.app
+    op: equals
+    value: ledger
+  - id: image
+    label: Container ledger runs registry.example.com/finance/ledger:1.4
+    path: spec.template.spec.containers[name=ledger].image
+    op: equals
+    value: registry.example.com/finance/ledger:1.4
+  - id: port
+    label: Container ledger declares containerPort 8443
+    path: spec.template.spec.containers[name=ledger].ports
+    op: contains
+    value: {containerPort: 8443}
+  solution:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: ledger
+        namespace: finance
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: ledger
+        template:
+          metadata:
+            labels:
+              app: ledger
+          spec:
+            containers:
+            - name: ledger
+              image: registry.example.com/finance/ledger:1.4
+              ports:
+              - containerPort: 8443
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: ledger
+        namespace: finance
+      spec:
+        replicas: 2
+        selector:
+          matchExpressions:
+          - {key: app, operator: In, values: [ledger]}
+          matchLabels:
+            app: ledger
+        template:
+          metadata:
+            labels:
+              app: ledger
+          spec:
+            containers:
+            - name: ledger
+              image: registry.example.com/finance/ledger:1.4
+              ports:
+              - name: https
+                containerPort: 8443
+  negatives:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: ledger
+        namespace: finance
+      spec:
+        replicas: 2
+        template:
+          metadata:
+            labels:
+              app: ledger
+          spec:
+            containers:
+            - name: ledger
+              image: registry.example.com/finance/ledger:1.4
+              ports:
+              - containerPort: 8443
+    why: In apps/v1, spec.selector is required; it is no longer defaulted from the template labels.
+  - manifest: |
+      apiVersion: extensions/v1beta1
+      kind: Deployment
+      metadata:
+        name: ledger
+        namespace: finance
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: ledger
+        template:
+          metadata:
+            labels:
+              app: ledger
+          spec:
+            containers:
+            - name: ledger
+              image: registry.example.com/finance/ledger:1.4
+              ports:
+              - containerPort: 8443
+    why: extensions/v1beta1 Deployments were removed in Kubernetes 1.16; the cluster no longer serves that version.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: ledger
+        namespace: finance
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: ledger
+        template:
+          metadata:
+            labels:
+              app: ledger
+          spec:
+            containers:
+            - name: ledger
+              image: registry.example.com/finance/ledger:1.4
+              ports:
+              - port: 8443
+    why: port is not a container field; the container port is declared with containerPort.
+explanation:
+  correct:
+    en: 'Three fixes: `apiVersion: apps/v1` (the `extensions/v1beta1` Deployment API is gone), a required `spec.selector` whose labels match the template (`matchLabels: {app: ledger}`), and `containerPort: 8443` instead of `port`, which only exists on Services. `kubectl explain deployment.spec.selector` confirms the field on the cluster.'
+references:
+- title: Deployments
+  url: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/
+- title: Deprecated API Migration Guide
+  url: https://kubernetes.io/docs/reference/using-api/deprecation-guide/

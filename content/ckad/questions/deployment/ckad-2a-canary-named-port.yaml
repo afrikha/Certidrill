@@ -1,0 +1,167 @@
+id: ckad-2a-canary-named-port
+objective: "2.1.2"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    In namespace `shop`, two Deployments form a canary (files `frontend-stable.yaml` and `frontend-canary.yaml`). Both Pod templates carry `app: frontend`, with `track: stable` or `track: canary`. The new version moved its HTTP listener: stable Pods listen on 8080, canary Pods on 9090, and both declare the container port under the name `http`.
+
+    Write the manifest of a Service `frontend` in namespace `shop` that exposes port 80 and sends traffic to **both** versions, each on its own HTTP port.
+body:
+  starter: ""
+  files:
+  - name: frontend-stable.yaml
+    content: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: frontend-stable
+        namespace: shop
+      spec:
+        replicas: 4
+        selector:
+          matchLabels:
+            app: frontend
+            track: stable
+        template:
+          metadata:
+            labels:
+              app: frontend
+              track: stable
+          spec:
+            containers:
+            - name: frontend
+              image: registry.example.com/shop/frontend:8.0
+              ports:
+              - name: http
+                containerPort: 8080
+  - name: frontend-canary.yaml
+    content: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: frontend-canary
+        namespace: shop
+      spec:
+        replicas: 1
+        selector:
+          matchLabels:
+            app: frontend
+            track: canary
+        template:
+          metadata:
+            labels:
+              app: frontend
+              track: canary
+          spec:
+            containers:
+            - name: frontend
+              image: registry.example.com/shop/frontend:9.0
+              ports:
+              - name: http
+                containerPort: 9090
+answer:
+  checks:
+  - id: kind
+    label: The object is a Service
+    path: kind
+    op: equals
+    value: Service
+  - id: meta
+    label: It is named frontend in namespace shop
+    path: metadata
+    op: subset
+    value: {name: frontend, namespace: shop}
+  - id: selector
+    label: The selector is only app frontend, which matches both tracks
+    path: spec.selector
+    op: equals
+    value: {app: frontend}
+  - id: port
+    label: The Service port is 80
+    path: spec.ports[0].port
+    op: equals
+    value: 80
+  - id: target
+    label: targetPort is the port name http, resolved in each Pod
+    path: spec.ports[0].targetPort
+    op: equals
+    value: http
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: frontend
+        namespace: shop
+      spec:
+        selector:
+          app: frontend
+        ports:
+        - port: 80
+          targetPort: http
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: frontend
+        namespace: shop
+      spec:
+        type: ClusterIP
+        selector:
+          app: frontend
+        ports:
+        - name: web
+          protocol: TCP
+          port: 80
+          targetPort: http
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: frontend
+        namespace: shop
+      spec:
+        selector:
+          app: frontend
+        ports:
+        - port: 80
+          targetPort: 8080
+    why: A numeric targetPort 8080 is used for every Pod. The canary Pods listen on 9090, so their share of requests would fail.
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: frontend
+        namespace: shop
+      spec:
+        selector:
+          app: frontend
+          track: stable
+        ports:
+        - port: 80
+          targetPort: http
+    why: Adding track stable to the selector excludes the canary; it would get no traffic.
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: frontend
+        namespace: shop
+      spec:
+        selector:
+          app: frontend
+        ports:
+        - port: http
+          targetPort: 80
+    why: port must be a number; it is the Service port clients use. The name goes in targetPort.
+explanation:
+  correct:
+    en: 'For a replica-count canary the Service selects only the label shared by both tracks, `app: frontend`, and leaves `track` out. When `targetPort` is a port name, it is resolved in each backend Pod, so `targetPort: http` reaches 8080 on stable Pods and 9090 on canary Pods. A numeric `targetPort` would be the same for all Pods.'
+references:
+- title: Service
+  url: https://kubernetes.io/docs/concepts/services-networking/service/
+- title: Deploy a Release Using a Canary Deployment
+  url: https://kubernetes.io/docs/tutorials/stateless-application/canary-deployment/

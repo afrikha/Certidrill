@@ -1,0 +1,179 @@
+id: ckad-5b-expose-pod-named-port
+objective: "5.2.1"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    Pod `ledger` in namespace `payments` (manifest in `ledger.yaml`) exposes a container port named `grpc`.
+
+    Create a ClusterIP Service named `ledger-grpc` for this Pod that listens on port 50051 and forwards to the container port **by its name**, so that the Service keeps working if the port number changes.
+
+    Type the single command you would run.
+body:
+  mode: object
+  namespace: default
+  files:
+  - name: ledger.yaml
+    content: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: ledger
+        namespace: payments
+        labels:
+          app: ledger
+          tier: backend
+      spec:
+        containers:
+        - name: ledger
+          image: registry.example.com/payments/ledger:3.1
+          ports:
+          - name: grpc
+            containerPort: 9090
+answer:
+  checks:
+  - id: kind
+    label: The object is a Service
+    path: kind
+    op: equals
+    value: Service
+  - id: name
+    label: It is named ledger-grpc
+    path: metadata.name
+    op: equals
+    value: ledger-grpc
+  - id: namespace
+    label: It is created in namespace payments
+    path: metadata.namespace
+    op: equals
+    value: payments
+  - id: port
+    label: The Service listens on port 50051
+    path: spec.ports[0].port
+    op: equals
+    value: 50051
+  - id: target-port
+    label: The target port is the named container port grpc
+    path: spec.ports[0].targetPort
+    op: equals
+    value: grpc
+  - id: selector
+    label: It selects the Pod by its app=ledger label
+    path: spec.selector
+    op: subset
+    value: {app: ledger}
+  solution:
+  - command: kubectl expose pod ledger --name=ledger-grpc --port=50051 --target-port=grpc -n payments
+    output: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        labels:
+          app: ledger
+          tier: backend
+        name: ledger-grpc
+        namespace: payments
+      spec:
+        ports:
+        - port: 50051
+          protocol: TCP
+          targetPort: grpc
+        selector:
+          app: ledger
+          tier: backend
+      status:
+        loadBalancer: {}
+  - command: k expose po/ledger -n payments --port 50051 --target-port grpc --name ledger-grpc --type ClusterIP --dry-run=client -o yaml
+    output: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        labels:
+          app: ledger
+          tier: backend
+        name: ledger-grpc
+        namespace: payments
+      spec:
+        ports:
+        - port: 50051
+          protocol: TCP
+          targetPort: grpc
+        selector:
+          app: ledger
+          tier: backend
+        type: ClusterIP
+      status:
+        loadBalancer: {}
+  negatives:
+  - command: kubectl expose pod ledger --name=ledger-grpc --port=50051 --target-port=9090 -n payments
+    why: The target port is the number 9090, not the name grpc. The Service breaks if the container port number changes.
+    output: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        labels:
+          app: ledger
+          tier: backend
+        name: ledger-grpc
+        namespace: payments
+      spec:
+        ports:
+        - port: 50051
+          protocol: TCP
+          targetPort: 9090
+        selector:
+          app: ledger
+          tier: backend
+      status:
+        loadBalancer: {}
+  - command: kubectl expose pod ledger --port=50051 --target-port=grpc -n payments
+    why: Without --name the Service takes the name of the exposed Pod, ledger.
+    output: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        labels:
+          app: ledger
+          tier: backend
+        name: ledger
+        namespace: payments
+      spec:
+        ports:
+        - port: 50051
+          protocol: TCP
+          targetPort: grpc
+        selector:
+          app: ledger
+          tier: backend
+      status:
+        loadBalancer: {}
+  - command: kubectl expose pod ledger --name=ledger-grpc --port=50051 -n payments
+    why: Without --target-port the target port defaults to the Service port, 50051, where the container does not listen.
+    output: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        labels:
+          app: ledger
+          tier: backend
+        name: ledger-grpc
+        namespace: payments
+      spec:
+        ports:
+        - port: 50051
+          protocol: TCP
+          targetPort: 50051
+        selector:
+          app: ledger
+          tier: backend
+      status:
+        loadBalancer: {}
+explanation:
+  correct:
+    en: '`kubectl expose pod ledger --name=ledger-grpc --port=50051 --target-port=grpc -n payments` creates a ClusterIP Service (the default type) whose selector is copied from the Pod labels. `--target-port` accepts a name or a number: a name refers to a named port in the Pod spec, so the Service follows the container port if its number changes. Without `--name`, the Service takes the name of the exposed object.'
+references:
+- title: kubectl expose
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_expose/
+- title: Service
+  url: https://kubernetes.io/docs/concepts/services-networking/service/

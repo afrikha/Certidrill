@@ -1,0 +1,48 @@
+id: ckad-3a-explain-api-version
+objective: "3.1.1"
+difficulty: 3
+status: draft
+type: command
+stem:
+  en: |-
+    The cluster serves HorizontalPodAutoscaler in two versions, `autoscaling/v1` and `autoscaling/v2`. You are writing an HPA with a `metrics` list and want the documentation of `spec.metrics` exactly as the `autoscaling/v2` schema defines it, selecting that version explicitly rather than relying on the preferred version.
+
+    Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Uses kubectl explain
+    path: verb
+    op: equals
+    value: explain
+  - id: field
+    label: Targets the field hpa.spec.metrics
+    path: args
+    op: matches
+    value: ^\["(hpa|horizontalpodautoscalers?)\.spec\.metrics"\]$
+  - id: version
+    label: Selects the API version autoscaling/v2
+    path: flags.api-version
+    op: equals
+    value: autoscaling/v2
+  solution:
+  - command: kubectl explain hpa.spec.metrics --api-version=autoscaling/v2
+  - command: k explain horizontalpodautoscalers.spec.metrics --api-version autoscaling/v2
+  negatives:
+  - command: kubectl explain hpa.spec.metrics --api-version=v2
+    why: --api-version takes group/version; v2 alone is not a version of the autoscaling group.
+  - command: kubectl explain hpa.spec.metrics --api-version=autoscaling/v2beta2
+    why: autoscaling/v2beta2 has not been served since v1.26; the cluster has no schema for it.
+  - command: kubectl explain hpa.spec --api-version=autoscaling/v1
+    why: autoscaling/v1 has no metrics field (it only has targetCPUUtilizationPercentage), and the field asked for is spec.metrics.
+explanation:
+  correct:
+    en: '`kubectl explain hpa.spec.metrics --api-version=autoscaling/v2` documents the field in the chosen group/version. `spec.metrics` exists only in `autoscaling/v2`; `autoscaling/v1` offers `targetCPUUtilizationPercentage` instead. The beta versions `v2beta1` and `v2beta2` were removed in v1.25 and v1.26.'
+references:
+- title: kubectl explain
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_explain/
+- title: Deprecated API Migration Guide
+  url: https://kubernetes.io/docs/reference/using-api/deprecation-guide/

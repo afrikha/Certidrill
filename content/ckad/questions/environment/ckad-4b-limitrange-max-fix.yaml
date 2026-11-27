@@ -1,0 +1,181 @@
+id: ckad-4b-limitrange-max-fix
+objective: "4.2.3"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    Namespace `dev` has the LimitRange shown in `limitrange.yaml`. Applying the Pod in the editor fails with:
+
+    ```text
+    Error from server (Forbidden): error when creating "worker.yaml": pods "worker" is forbidden: [maximum cpu usage per Container is 1, but limit is 1500m, maximum memory usage per Container is 1Gi, but limit is 2Gi]
+    ```
+
+    Fix the Pod so that it is admitted. Keep its requests unchanged and set its CPU and memory limits to the highest values the LimitRange allows.
+body:
+  starter: |
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: worker
+      namespace: dev
+    spec:
+      containers:
+      - name: worker
+        image: registry.example.com/worker:3.2
+        resources:
+          requests:
+            cpu: 500m
+            memory: 768Mi
+          limits:
+            cpu: 1500m
+            memory: 2Gi
+  files:
+  - name: limitrange.yaml
+    content: |
+      apiVersion: v1
+      kind: LimitRange
+      metadata:
+        name: container-limits
+        namespace: dev
+      spec:
+        limits:
+        - type: Container
+          max:
+            cpu: "1"
+            memory: 1Gi
+          min:
+            memory: 64Mi
+          default:
+            cpu: 500m
+            memory: 512Mi
+          defaultRequest:
+            cpu: 250m
+            memory: 256Mi
+answer:
+  checks:
+  - id: pod
+    label: Pod worker in namespace dev
+    path: metadata
+    op: subset
+    value: {name: worker, namespace: dev}
+  - id: image
+    label: Container worker still runs registry.example.com/worker:3.2
+    path: spec.containers[name=worker].image
+    op: equals
+    value: registry.example.com/worker:3.2
+  - id: lim-cpu
+    label: CPU limit is the maximum, 1 CPU
+    path: spec.containers[name=worker].resources.limits.cpu
+    op: quantity
+    value: "1"
+  - id: lim-mem
+    label: Memory limit is the maximum, 1Gi
+    path: spec.containers[name=worker].resources.limits.memory
+    op: quantity
+    value: 1Gi
+  - id: req-cpu
+    label: CPU request is still 500m
+    path: spec.containers[name=worker].resources.requests.cpu
+    op: quantity
+    value: 500m
+  - id: req-mem
+    label: Memory request is still 768Mi
+    path: spec.containers[name=worker].resources.requests.memory
+    op: quantity
+    value: 768Mi
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: worker
+        namespace: dev
+      spec:
+        containers:
+        - name: worker
+          image: registry.example.com/worker:3.2
+          resources:
+            requests:
+              cpu: 500m
+              memory: 768Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: worker
+        namespace: dev
+      spec:
+        containers:
+        - name: worker
+          image: registry.example.com/worker:3.2
+          resources:
+            requests:
+              cpu: 500m
+              memory: 768Mi
+            limits:
+              cpu: 1000m
+              memory: 1024Mi
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: worker
+        namespace: dev
+      spec:
+        containers:
+        - name: worker
+          image: registry.example.com/worker:3.2
+          resources:
+            requests:
+              cpu: 500m
+              memory: 768Mi
+    why: Without limits the LimitRange applies its default limits, 500m and 512Mi; a 512Mi limit below the 768Mi request makes the Pod invalid.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: worker
+        namespace: dev
+      spec:
+        containers:
+        - name: worker
+          image: registry.example.com/worker:3.2
+          resources:
+            requests:
+              cpu: 500m
+              memory: 768Mi
+            limits:
+              cpu: "1"
+              memory: 1G
+    why: 1G is 1,000,000,000 bytes, below the 1Gi (1,073,741,824 bytes) maximum, so it is not the highest allowed limit.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: worker
+        namespace: dev
+      spec:
+        containers:
+        - name: worker
+          image: registry.example.com/worker:3.2
+          resources:
+            requests:
+              cpu: 500m
+              memory: 768Mi
+            limits:
+              cpu: 1500m
+              memory: 1Gi
+    why: The CPU limit of 1500m is still above the 1 CPU maximum, so the Pod is still rejected.
+explanation:
+  correct:
+    en: 'At admission, the LimitRange first fills in missing requests and limits from `defaultRequest` and `default`, then rejects with 403 Forbidden any container whose values are outside `min` and `max`. The highest allowed limits are the `max` values, `1` CPU (or `1000m`) and `1Gi` (or `1024Mi`). Removing the limits does not help here: the default memory limit of 512Mi would be below the 768Mi request.'
+references:
+- title: Limit Ranges
+  url: https://kubernetes.io/docs/concepts/policy/limit-range/
+- title: Configure Minimum and Maximum Memory Constraints for a Namespace
+  url: https://kubernetes.io/docs/tasks/administer-cluster/manage-resources/memory-constraint-namespace/

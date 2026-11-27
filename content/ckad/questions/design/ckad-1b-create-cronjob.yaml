@@ -1,0 +1,177 @@
+id: ckad-1b-create-cronjob
+objective: "1.2.4"
+difficulty: 1
+status: draft
+type: command
+stem:
+  en: |-
+    In namespace `ops`, create a CronJob named `cleanup` that runs every 15 minutes with the image `registry.example.com/ops/cleanup:1.2`. Its container must run the command `/app/cleanup --older-than=24h`.
+
+    Type the single command you would run.
+body:
+  mode: object
+  namespace: default
+answer:
+  checks:
+  - id: kind
+    label: The object is a CronJob
+    path: kind
+    op: equals
+    value: CronJob
+  - id: name
+    label: It is named cleanup
+    path: metadata.name
+    op: equals
+    value: cleanup
+  - id: namespace
+    label: It is created in namespace ops
+    path: metadata.namespace
+    op: equals
+    value: ops
+  - id: schedule
+    label: It runs every 15 minutes
+    path: spec.schedule
+    op: oneOf
+    value: ["*/15 * * * *", "0/15 * * * *", "0,15,30,45 * * * *"]
+  - id: image
+    label: Its container runs registry.example.com/ops/cleanup:1.2
+    path: spec.jobTemplate.spec.template.spec.containers[0].image
+    op: equals
+    value: registry.example.com/ops/cleanup:1.2
+  - id: command
+    label: The container runs /app/cleanup --older-than=24h
+    path: spec.jobTemplate.spec.template.spec.containers[0].command
+    op: equals
+    value: [/app/cleanup, --older-than=24h]
+  solution:
+  - command: kubectl create cronjob cleanup --image=registry.example.com/ops/cleanup:1.2 --schedule="*/15 * * * *" -n ops -- /app/cleanup --older-than=24h
+    output: |
+      apiVersion: batch/v1
+      kind: CronJob
+      metadata:
+        name: cleanup
+        namespace: ops
+      spec:
+        jobTemplate:
+          metadata:
+            name: cleanup
+          spec:
+            template:
+              metadata: {}
+              spec:
+                containers:
+                - command:
+                  - /app/cleanup
+                  - --older-than=24h
+                  image: registry.example.com/ops/cleanup:1.2
+                  name: cleanup
+                  resources: {}
+                restartPolicy: OnFailure
+        schedule: '*/15 * * * *'
+      status: {}
+  - command: k -n ops create cronjob cleanup --image registry.example.com/ops/cleanup:1.2 --schedule '*/15 * * * *' --dry-run=client -o yaml -- /app/cleanup --older-than=24h
+    output: |
+      apiVersion: batch/v1
+      kind: CronJob
+      metadata:
+        name: cleanup
+        namespace: ops
+      spec:
+        jobTemplate:
+          metadata:
+            name: cleanup
+          spec:
+            template:
+              metadata: {}
+              spec:
+                containers:
+                - command:
+                  - /app/cleanup
+                  - --older-than=24h
+                  image: registry.example.com/ops/cleanup:1.2
+                  name: cleanup
+                  resources: {}
+                restartPolicy: OnFailure
+        schedule: '*/15 * * * *'
+      status: {}
+  negatives:
+  - command: kubectl create cronjob cleanup --image=registry.example.com/ops/cleanup:1.2 --schedule="15 * * * *" -n ops -- /app/cleanup --older-than=24h
+    why: 'The schedule 15 * * * * runs once an hour, at minute 15, not every 15 minutes.'
+    output: |
+      apiVersion: batch/v1
+      kind: CronJob
+      metadata:
+        name: cleanup
+        namespace: ops
+      spec:
+        jobTemplate:
+          metadata:
+            name: cleanup
+          spec:
+            template:
+              metadata: {}
+              spec:
+                containers:
+                - command:
+                  - /app/cleanup
+                  - --older-than=24h
+                  image: registry.example.com/ops/cleanup:1.2
+                  name: cleanup
+                  resources: {}
+                restartPolicy: OnFailure
+        schedule: 15 * * * *
+      status: {}
+  - command: kubectl create job cleanup --image=registry.example.com/ops/cleanup:1.2 -n ops -- /app/cleanup --older-than=24h
+    why: A Job runs once; only a CronJob creates Jobs on a schedule.
+    output: |
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: cleanup
+        namespace: ops
+      spec:
+        template:
+          metadata: {}
+          spec:
+            containers:
+            - command:
+              - /app/cleanup
+              - --older-than=24h
+              image: registry.example.com/ops/cleanup:1.2
+              name: cleanup
+              resources: {}
+            restartPolicy: Never
+      status: {}
+  - command: kubectl create cronjob cleanup --image=registry.example.com/ops/cleanup:1.2 --schedule="*/15 * * * *" -- /app/cleanup --older-than=24h
+    why: Without -n the CronJob is created in the context namespace, default.
+    output: |
+      apiVersion: batch/v1
+      kind: CronJob
+      metadata:
+        name: cleanup
+      spec:
+        jobTemplate:
+          metadata:
+            name: cleanup
+          spec:
+            template:
+              metadata: {}
+              spec:
+                containers:
+                - command:
+                  - /app/cleanup
+                  - --older-than=24h
+                  image: registry.example.com/ops/cleanup:1.2
+                  name: cleanup
+                  resources: {}
+                restartPolicy: OnFailure
+        schedule: '*/15 * * * *'
+      status: {}
+explanation:
+  correct:
+    en: '`kubectl create cronjob NAME --image=IMAGE --schedule="*/15 * * * *" -- COMMAND` creates the CronJob; quote the schedule so the shell does not expand the asterisks. The words after `--` become the container `command`, and the generated Job template uses `restartPolicy: OnFailure`. `15 * * * *` would mean "at minute 15 of every hour".'
+references:
+- title: kubectl create cronjob
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_create/kubectl_create_cronjob/
+- title: CronJob
+  url: https://kubernetes.io/docs/concepts/workloads/controllers/cron-jobs/

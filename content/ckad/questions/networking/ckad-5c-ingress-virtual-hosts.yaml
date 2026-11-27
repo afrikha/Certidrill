@@ -1,0 +1,211 @@
+id: ckad-5c-ingress-virtual-hosts
+objective: "5.3.1"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    Write the manifest of an Ingress named `media` in namespace `media`, handled by the IngressClass `public`, that routes by host name:
+
+    - every request for `blog.example.com`, whatever its path, goes to Service `blog` on port 80;
+    - every request for `docs.example.com`, whatever its path, goes to Service `docs` on its port named `web`. Reference the port by name: its number may change.
+body:
+  starter: ""
+answer:
+  checks:
+  - id: ingress
+    label: An Ingress named media in namespace media
+    path: metadata
+    op: subset
+    value: {name: media, namespace: media}
+  - id: kind
+    label: The object is an Ingress
+    path: kind
+    op: equals
+    value: Ingress
+  - id: class
+    label: It uses the IngressClass public
+    path: spec.ingressClassName
+    op: equals
+    value: public
+  - id: blog-path
+    label: The blog.example.com rule matches every path (Prefix /)
+    path: spec.rules[host=blog.example.com].http.paths[0]
+    op: subset
+    value: {path: /, pathType: Prefix}
+  - id: blog-backend
+    label: blog.example.com goes to Service blog
+    path: spec.rules[host=blog.example.com].http.paths[0].backend.service.name
+    op: equals
+    value: blog
+  - id: blog-port
+    label: Service blog is reached on port 80
+    path: spec.rules[host=blog.example.com].http.paths[0].backend.service.port.number
+    op: equals
+    value: 80
+  - id: docs-path
+    label: The docs.example.com rule matches every path (Prefix /)
+    path: spec.rules[host=docs.example.com].http.paths[0]
+    op: subset
+    value: {path: /, pathType: Prefix}
+  - id: docs-backend
+    label: docs.example.com goes to Service docs
+    path: spec.rules[host=docs.example.com].http.paths[0].backend.service.name
+    op: equals
+    value: docs
+  - id: docs-port
+    label: Service docs is reached on its port named web
+    path: spec.rules[host=docs.example.com].http.paths[0].backend.service.port.name
+    op: equals
+    value: web
+  solution:
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: media
+        namespace: media
+      spec:
+        ingressClassName: public
+        rules:
+        - host: blog.example.com
+          http:
+            paths:
+            - path: /
+              pathType: Prefix
+              backend:
+                service:
+                  name: blog
+                  port:
+                    number: 80
+        - host: docs.example.com
+          http:
+            paths:
+            - path: /
+              pathType: Prefix
+              backend:
+                service:
+                  name: docs
+                  port:
+                    name: web
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: media
+        namespace: media
+      spec:
+        ingressClassName: public
+        rules:
+        - host: docs.example.com
+          http:
+            paths:
+            - backend:
+                service:
+                  name: docs
+                  port:
+                    name: web
+              path: /
+              pathType: Prefix
+        - host: blog.example.com
+          http:
+            paths:
+            - backend:
+                service:
+                  name: blog
+                  port:
+                    number: 80
+              path: /
+              pathType: Prefix
+  negatives:
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: media
+        namespace: media
+      spec:
+        ingressClassName: public
+        rules:
+        - host: blog.example.com
+          http:
+            paths:
+            - path: /
+              pathType: Prefix
+              backend:
+                service:
+                  name: blog
+                  port:
+                    number: 80
+        - host: docs.example.com
+          http:
+            paths:
+            - path: /
+              pathType: Prefix
+              backend:
+                service:
+                  name: docs
+                  port:
+                    number: 80
+    why: The docs backend uses a port number; the task requires the Service port named web.
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: media
+        namespace: media
+      spec:
+        ingressClassName: public
+        rules:
+        - host: blog.example.com
+          http:
+            paths:
+            - path: /
+              pathType: Prefix
+              backend:
+                service:
+                  name: blog
+                  port:
+                    number: 80
+        - host: docs.example.com
+          http:
+            paths:
+            - path: /
+              pathType: Prefix
+              backend:
+                service:
+                  name: docs
+                  port: web
+    why: backend.service.port is an object with name or number; a bare string is invalid.
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: media
+        namespace: media
+      spec:
+        ingressClassName: public
+        rules:
+        - http:
+            paths:
+            - path: /blog
+              pathType: Prefix
+              backend:
+                service:
+                  name: blog
+                  port:
+                    number: 80
+            - path: /docs
+              pathType: Prefix
+              backend:
+                service:
+                  name: docs
+                  port:
+                    name: web
+    why: This routes by path on any host instead of by host name; requests for blog.example.com/ and docs.example.com/ are not routed.
+explanation:
+  correct:
+    en: 'Name-based virtual hosting uses one rule per `host`; with `path: /` and `pathType: Prefix` each rule matches every path of its host. A backend port is an object with either `number` or `name`; `name` refers to a named port of the Service, so the Ingress keeps working if the number changes.'
+references:
+- title: Ingress
+  url: https://kubernetes.io/docs/concepts/services-networking/ingress/

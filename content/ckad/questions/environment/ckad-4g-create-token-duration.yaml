@@ -1,0 +1,59 @@
+id: ckad-4g-create-token-duration
+objective: "4.7.2"
+difficulty: 1
+status: draft
+type: command
+stem:
+  en: |-
+    A deployment script needs to call the Kubernetes API as the ServiceAccount `deployer` of namespace `ci`. Request a token for this ServiceAccount with a lifetime of 2 hours and print it.
+
+    Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Uses kubectl create token
+    path: subverb
+    op: equals
+    value: token
+  - id: create
+    label: It is a create command
+    path: verb
+    op: equals
+    value: create
+  - id: name
+    label: Requests a token for ServiceAccount deployer
+    path: names
+    op: contains
+    value: deployer
+  - id: namespace
+    label: Targets namespace ci
+    path: flags.namespace
+    op: equals
+    value: ci
+  - id: duration
+    label: Requests a lifetime of 2 hours
+    path: flags.duration
+    op: oneOf
+    value: ["2h", "120m", "7200s", "2h0m", "2h0m0s"]
+  solution:
+  - command: kubectl create token deployer -n ci --duration=2h
+  - command: k -n ci create token deployer --duration 120m
+  - command: kubectl create token deployer --namespace=ci --duration=7200s
+  negatives:
+  - command: kubectl create token deployer -n ci
+    why: Without --duration the API server chooses the lifetime (usually 1 hour), not the 2 hours asked.
+  - command: kubectl create token deployer -n ci --duration=2
+    why: --duration is a Go duration and needs a unit (2h, 120m); a bare number is rejected.
+  - command: kubectl create serviceaccount deployer -n ci
+    why: This creates the ServiceAccount; it does not issue a token.
+explanation:
+  correct:
+    en: '`kubectl create token SERVICE_ACCOUNT` asks the TokenRequest API for a short-lived, signed token and prints it; nothing is stored in a Secret. `-n ci` selects the namespace of the ServiceAccount and `--duration=2h` (a Go duration with a unit) requests the lifetime, which the server may shorten or lengthen. This replaces the long-lived token Secrets created automatically before v1.24.'
+references:
+- title: kubectl create token
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_create/kubectl_create_token/
+- title: Configure Service Accounts for Pods
+  url: https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/

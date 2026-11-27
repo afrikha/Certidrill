@@ -1,0 +1,1381 @@
+chapter: 31-deployments-config-autoscaling
+questions:
+  # ------------------------------------------------------------------ 1
+  - id: cka-qz-31-01
+    objective: "3.1.1"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        Deployment `web` in namespace `shop` is at revision 3. Which of the following commands creates revision 4 and starts a rollout?
+    body:
+      options:
+        - { id: a, text: "`kubectl scale deployment web --replicas=6 -n shop`" }
+        - { id: b, text: "`kubectl patch deployment web -n shop -p '{\"spec\":{\"revisionHistoryLimit\":4}}'`" }
+        - { id: c, text: "`kubectl set image deployment/web nginx=nginx:1.28 -n shop`" }
+        - { id: d, text: "`kubectl annotate deployment web kubernetes.io/change-cause=\"v1.28\" -n shop`" }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          A Deployment rollout is triggered only when the Pod template (`.spec.template`) changes. `kubectl set image` changes the image of a container in the template, so the controller creates a new ReplicaSet, which is the new revision, and replaces the Pods according to the update strategy.
+      options:
+        a: { en: "Scaling changes `.spec.replicas`, which is outside the Pod template: the current ReplicaSet just gets more Pods, and no revision is created." }
+        b: { en: "`revisionHistoryLimit` only sets how many old ReplicaSets are kept; it is not part of the Pod template and starts no rollout." }
+        d: { en: "The annotation is set on the Deployment's own metadata, not on the Pod template, so no new ReplicaSet is created; it only changes the CHANGE-CAUSE shown for the current revision." }
+    references:
+      - title: Deployments
+        url: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/
+
+  # ------------------------------------------------------------------ 2
+  - id: cka-qz-31-02
+    objective: "3.1.2"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        To save space, a colleague set `revisionHistoryLimit: 0` on Deployment `catalog` in namespace `shop`. An image update then completes, and the new version misbehaves. You run `kubectl rollout undo deployment/catalog -n shop`.
+
+        What happens?
+    body:
+      options:
+        - { id: a, text: { en: "The undo works: the old ReplicaSet is kept at 0 replicas, and only the rollout history list is emptied." } }
+        - { id: b, text: { en: "The undo fails: every old ReplicaSet was deleted when the rollout completed, so there is no revision to go back to." } }
+        - { id: c, text: { en: "The undo fails while the limit is 0; after you set the limit back to 10, the old ReplicaSet is used again and the undo works." } }
+        - { id: d, text: { en: "The undo works: the API server rejected the value 0 when it was set, so the default of 10 old ReplicaSets still applies." } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          `revisionHistoryLimit` is the number of old ReplicaSets the Deployment keeps for rollbacks (default 10). Setting it to 0 cleans up all of the history once a rollout completes, so the Deployment cannot be rolled back: there is no old ReplicaSet whose template `rollout undo` could restore.
+      options:
+        a: { en: "With a limit of 0 the old ReplicaSets themselves are deleted, not just listed differently; the revision history is made of those ReplicaSets." }
+        c: { en: "The old ReplicaSet was deleted when the rollout completed; raising the limit afterwards only keeps future ReplicaSets and cannot bring a deleted one back." }
+        d: { en: "0 is a valid value; the documentation describes it as the setting that removes the whole history and prevents rollbacks." }
+    references:
+      - title: Deployments
+        url: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/
+
+  # ------------------------------------------------------------------ 3
+  - id: cka-qz-31-03
+    objective: "3.2.1"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        The file `shop.env` contains:
+
+        ```text
+        # storefront settings
+        MODE=prod
+
+        GREETING="hello world"
+        TIMEOUT=30
+        ```
+
+        You run `kubectl create configmap shop-env --from-env-file=shop.env -n shop`. What is the result?
+    body:
+      options:
+        - { id: a, text: { en: "A ConfigMap with three keys, `MODE`, `GREETING` and `TIMEOUT`; the value of `GREETING` is `hello world`, without the quotation marks." } }
+        - { id: b, text: { en: "A ConfigMap with one key, `shop.env`, whose value is the whole content of the file, comment and blank line included." } }
+        - { id: c, text: { en: "An error: the comment line and the blank line are not in `KEY=VALUE` format, so kubectl refuses the file." } }
+        - { id: d, text: { en: "A ConfigMap with three keys, `MODE`, `GREETING` and `TIMEOUT`; the value of `GREETING` is `\"hello world\"`, quotation marks included." } }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          `--from-env-file` creates one key per `KEY=VALUE` line. Lines that start with `#` and blank lines are ignored, and quotation marks get no special handling: they become part of the value, so `GREETING` holds `"hello world"` with its quotes. Write the line `GREETING=hello world` if the application must not see the quotes.
+      options:
+        a: { en: "kubectl does not strip quotation marks from env file values, unlike a shell that sources the file; the quotes stay in the value." }
+        b: { en: "That is what `--from-file=shop.env` does (one key named after the file); `--from-env-file` parses the lines into separate keys." }
+        c: { en: "Comment lines (starting with `#`) and blank lines are explicitly ignored by `--from-env-file`; they do not cause an error." }
+    references:
+      - title: Configure a Pod to Use a ConfigMap
+        url: https://kubernetes.io/docs/tasks/configure-pod-container/configure-pod-configmap/
+
+  # ------------------------------------------------------------------ 4
+  - id: cka-qz-31-04
+    objective: "3.2.2"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Last month, an operator ran `kubectl set env deployment/orders --from=configmap/orders-cfg -n shop` while ConfigMap `orders-cfg` held the keys `MODE` and `REGION`. Yesterday the key `CURRENCY` was added to the ConfigMap, and `kubectl rollout restart deployment/orders -n shop` was run. The new Pods have `MODE` and `REGION`, but no `CURRENCY` variable.
+
+        Keys added to `orders-cfg` in the future must also reach the Pods at the next restart, without editing the Deployment again. What should you do?
+    body:
+      options:
+        - { id: a, text: { en: "Replace the `env` entries of the container with an `envFrom` entry whose `configMapRef` names `orders-cfg`." } }
+        - { id: b, text: { en: "Add `optional: true` to each `configMapKeyRef` of the container, so that missing keys are looked up again at startup." } }
+        - { id: c, text: { en: "Run `kubectl rollout restart deployment/orders -n shop` again after the kubelet has refreshed its ConfigMap cache." } }
+        - { id: d, text: { en: "Mount `orders-cfg` as a volume with a `subPath` for each key, so that new keys appear as new files at the next restart." } }
+    answer: { optionId: a }
+    explanation:
+      correct:
+        en: |
+          `kubectl set env --from=configmap/orders-cfg` reads the ConfigMap once and writes one `env` entry with a `configMapKeyRef` for each key that exists at that moment. The Pod template therefore never mentions `CURRENCY`. An `envFrom` entry with `configMapRef` loads every key the ConfigMap holds when the container starts, so keys added later appear after the next restart.
+      options:
+        b: { en: "`optional: true` only lets the container start when a referenced key or ConfigMap is missing; it adds no reference to keys that the template does not list." }
+        c: { en: "The template still lists only `MODE` and `REGION`; restarting again creates Pods from the same template, whatever the cache state." }
+        d: { en: "Each `subPath` mount names one existing key, so a new key would still need a new mount in the template; and the task asks for environment variables, which a file mount does not provide." }
+    references:
+      - title: kubectl set env
+        url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_set/kubectl_set_env/
+      - title: Configure a Pod to Use a ConfigMap
+        url: https://kubernetes.io/docs/tasks/configure-pod-container/configure-pod-configmap/
+
+  # ------------------------------------------------------------------ 5
+  - id: cka-qz-31-05
+    objective: "3.3.1"
+    difficulty: 2
+    status: draft
+    type: single
+    shuffle: false
+    stem:
+      en: |
+        The `autoscaling/v2` HorizontalPodAutoscaler `web` in namespace `shop` targets Deployment `web` with `minReplicas: 2`, `maxReplicas: 5` and two Resource metrics: CPU with an average utilization target of 60 %, and memory with an average utilization target of 75 %.
+
+        The Deployment runs 4 replicas. The current average utilization is 90 % for CPU and 50 % for memory. Ignoring the stabilization windows and scaling policies, how many replicas does the HPA set?
+    body:
+      options:
+        - { id: a, text: "3" }
+        - { id: b, text: "4" }
+        - { id: c, text: "5" }
+        - { id: d, text: "6" }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          The controller computes `ceil(currentReplicas × current / target)` for each metric: CPU gives ceil(4 × 90 / 60) = 6, memory gives ceil(4 × 50 / 75) = 3. With several metrics it keeps the largest proposal, 6, but never goes above `maxReplicas`, so the Deployment is scaled to 5 (the HPA reports `ScalingLimited`).
+      options:
+        a: { en: "3 is the memory proposal alone; with several metrics the HPA uses the largest proposal, not the smallest." }
+        b: { en: "The CPU ratio (1.5) is far outside the 10 % tolerance, so the HPA does change the replica count." }
+        d: { en: "6 is the CPU proposal, but the HPA caps the result at `maxReplicas`, which is 5." }
+    references:
+      - title: Horizontal Pod Autoscaling
+        url: https://kubernetes.io/docs/concepts/workloads/autoscaling/horizontal-pod-autoscale/
+
+  # ------------------------------------------------------------------ 6
+  - id: cka-qz-31-06
+    objective: "3.2.1"
+    difficulty: 3
+    status: draft
+    type: command
+    stem:
+      en: |-
+        The build jobs of namespace `ci` read Git credentials from a Secret of the standard basic authentication type.
+
+        Create the Secret `git-basic` in namespace `ci` with the type `kubernetes.io/basic-auth`, the key `username` set to `deploy-bot` and the key `password` set to `Pa$$w0rd!42` (exactly these characters).
+
+        Type the single command you would run.
+    body:
+      mode: object
+      namespace: default
+    answer:
+      checks:
+        - id: kind
+          label: The object is a Secret
+          path: kind
+          op: equals
+          value: Secret
+        - id: meta
+          label: Named git-basic in namespace ci
+          path: metadata
+          op: subset
+          value: { name: git-basic, namespace: ci }
+        - id: type
+          label: The type is kubernetes.io/basic-auth
+          path: type
+          op: equals
+          value: kubernetes.io/basic-auth
+        - id: username
+          label: Key username holds deploy-bot (base64-encoded)
+          path: data.username
+          op: equals
+          value: ZGVwbG95LWJvdA==
+        - id: password
+          label: Key password holds Pa$$w0rd!42 (base64-encoded)
+          path: data.password
+          op: equals
+          value: UGEkJHcwcmQhNDI=
+        - id: two-keys
+          label: The Secret has exactly two keys
+          path: data
+          op: length
+          value: 2
+      solution:
+        - command: kubectl create secret generic git-basic --type=kubernetes.io/basic-auth --from-literal=username=deploy-bot --from-literal=password='Pa$$w0rd!42' -n ci
+          output: |
+            apiVersion: v1
+            data:
+              password: UGEkJHcwcmQhNDI=
+              username: ZGVwbG95LWJvdA==
+            kind: Secret
+            metadata:
+              name: git-basic
+              namespace: ci
+            type: kubernetes.io/basic-auth
+        - command: k -n ci create secret generic git-basic --from-literal username=deploy-bot --from-literal 'password=Pa$$w0rd!42' --type kubernetes.io/basic-auth --dry-run=client -o yaml
+          output: |
+            apiVersion: v1
+            data:
+              password: UGEkJHcwcmQhNDI=
+              username: ZGVwbG95LWJvdA==
+            kind: Secret
+            metadata:
+              name: git-basic
+              namespace: ci
+            type: kubernetes.io/basic-auth
+      negatives:
+        - command: kubectl create secret generic git-basic --from-literal=username=deploy-bot --from-literal=password='Pa$$w0rd!42' -n ci
+          why: Without --type, create secret generic makes an Opaque Secret (no type field is printed), not a kubernetes.io/basic-auth one.
+          output: |
+            apiVersion: v1
+            data:
+              password: UGEkJHcwcmQhNDI=
+              username: ZGVwbG95LWJvdA==
+            kind: Secret
+            metadata:
+              name: git-basic
+              namespace: ci
+        - command: kubectl create secret generic git-basic --type=kubernetes.io/basic-auth --from-literal=user=deploy-bot --from-literal=password='Pa$$w0rd!42' -n ci
+          why: The basic-auth type expects the key names username and password; a key named user is not what consumers of this type read.
+          output: |
+            apiVersion: v1
+            data:
+              password: UGEkJHcwcmQhNDI=
+              user: ZGVwbG95LWJvdA==
+            kind: Secret
+            metadata:
+              name: git-basic
+              namespace: ci
+            type: kubernetes.io/basic-auth
+        - command: kubectl create secret generic git-basic --type=kubernetes.io/basic-auth --from-literal=username=deploy-bot --from-literal=password='Pa$$w0rd!42'
+          why: Without -n ci the Secret is created in the current namespace, default.
+          output: |
+            apiVersion: v1
+            data:
+              password: UGEkJHcwcmQhNDI=
+              username: ZGVwbG95LWJvdA==
+            kind: Secret
+            metadata:
+              name: git-basic
+              namespace: default
+            type: kubernetes.io/basic-auth
+    explanation:
+      correct:
+        en: |
+          `kubectl create secret generic` makes an `Opaque` Secret unless `--type` names another type, so `--type=kubernetes.io/basic-auth` is required here, with the two expected keys `username` and `password` given as literals. The password must be in single quotes: in double quotes or unquoted, the shell would expand `$$` (its own process ID) before kubectl sees the value. kubectl base64-encodes both values into `data`.
+    references:
+      - title: kubectl create secret generic
+        url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_create/kubectl_create_secret_generic/
+      - title: Secrets
+        url: https://kubernetes.io/docs/concepts/configuration/secret/
+
+  # ------------------------------------------------------------------ 7
+  - id: cka-qz-31-07
+    objective: "3.1.1"
+    difficulty: 3
+    status: draft
+    type: command
+    stem:
+      en: |-
+        Release 4.2 of the storefront must be rolled out to Deployment `storefront` in namespace `shop` (manifest in `storefront.yaml`). The init container `migrate` applies the database schema of the release, so it must run the same image as the application container.
+
+        In a single command, so that only one new revision is created, set the image `registry.example.com/shop/storefront:4.2` on container `web` and on init container `migrate`. Container `metrics` must keep its current image.
+
+        Type the single command you would run.
+    body:
+      mode: object
+      namespace: default
+      files:
+        - name: storefront.yaml
+          content: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              labels:
+                app: storefront
+              name: storefront
+              namespace: shop
+            spec:
+              replicas: 4
+              selector:
+                matchLabels:
+                  app: storefront
+              template:
+                metadata:
+                  labels:
+                    app: storefront
+                spec:
+                  containers:
+                  - image: registry.example.com/shop/storefront:4.1
+                    name: web
+                  - image: registry.example.com/tools/exporter:0.9
+                    name: metrics
+                  initContainers:
+                  - command:
+                    - /app/migrate
+                    - --up
+                    image: registry.example.com/shop/storefront:4.1
+                    name: migrate
+    answer:
+      checks:
+        - id: meta
+          label: The object is the Deployment storefront in namespace shop
+          path: metadata
+          op: subset
+          value: { name: storefront, namespace: shop }
+        - id: web
+          label: Container web runs storefront:4.2
+          path: spec.template.spec.containers[name=web].image
+          op: equals
+          value: registry.example.com/shop/storefront:4.2
+        - id: migrate
+          label: Init container migrate runs storefront:4.2
+          path: spec.template.spec.initContainers[name=migrate].image
+          op: equals
+          value: registry.example.com/shop/storefront:4.2
+        - id: metrics
+          label: Container metrics still runs exporter:0.9
+          path: spec.template.spec.containers[name=metrics].image
+          op: equals
+          value: registry.example.com/tools/exporter:0.9
+      solution:
+        - command: kubectl set image deployment/storefront web=registry.example.com/shop/storefront:4.2 migrate=registry.example.com/shop/storefront:4.2 -n shop
+          output: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              labels:
+                app: storefront
+              name: storefront
+              namespace: shop
+            spec:
+              replicas: 4
+              selector:
+                matchLabels:
+                  app: storefront
+              strategy: {}
+              template:
+                metadata:
+                  labels:
+                    app: storefront
+                spec:
+                  containers:
+                  - image: registry.example.com/shop/storefront:4.2
+                    name: web
+                    resources: {}
+                  - image: registry.example.com/tools/exporter:0.9
+                    name: metrics
+                    resources: {}
+                  initContainers:
+                  - command:
+                    - /app/migrate
+                    - --up
+                    image: registry.example.com/shop/storefront:4.2
+                    name: migrate
+                    resources: {}
+            status: {}
+        - command: k -n shop set image deploy storefront migrate=registry.example.com/shop/storefront:4.2 web=registry.example.com/shop/storefront:4.2
+          output: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              labels:
+                app: storefront
+              name: storefront
+              namespace: shop
+            spec:
+              replicas: 4
+              selector:
+                matchLabels:
+                  app: storefront
+              strategy: {}
+              template:
+                metadata:
+                  labels:
+                    app: storefront
+                spec:
+                  containers:
+                  - image: registry.example.com/shop/storefront:4.2
+                    name: web
+                    resources: {}
+                  - image: registry.example.com/tools/exporter:0.9
+                    name: metrics
+                    resources: {}
+                  initContainers:
+                  - command:
+                    - /app/migrate
+                    - --up
+                    image: registry.example.com/shop/storefront:4.2
+                    name: migrate
+                    resources: {}
+            status: {}
+        - command: kubectl set image -f storefront.yaml web=registry.example.com/shop/storefront:4.2 migrate=registry.example.com/shop/storefront:4.2 --local -o yaml -n shop
+          output: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              labels:
+                app: storefront
+              name: storefront
+              namespace: shop
+            spec:
+              replicas: 4
+              selector:
+                matchLabels:
+                  app: storefront
+              strategy: {}
+              template:
+                metadata:
+                  labels:
+                    app: storefront
+                spec:
+                  containers:
+                  - image: registry.example.com/shop/storefront:4.2
+                    name: web
+                    resources: {}
+                  - image: registry.example.com/tools/exporter:0.9
+                    name: metrics
+                    resources: {}
+                  initContainers:
+                  - command:
+                    - /app/migrate
+                    - --up
+                    image: registry.example.com/shop/storefront:4.2
+                    name: migrate
+                    resources: {}
+            status: {}
+      negatives:
+        - command: kubectl set image deployment/storefront web=registry.example.com/shop/storefront:4.2 -n shop
+          why: Only container web changes; the init container migrate keeps 4.1 and would apply the old schema before the new application starts.
+          output: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              labels:
+                app: storefront
+              name: storefront
+              namespace: shop
+            spec:
+              replicas: 4
+              selector:
+                matchLabels:
+                  app: storefront
+              strategy: {}
+              template:
+                metadata:
+                  labels:
+                    app: storefront
+                spec:
+                  containers:
+                  - image: registry.example.com/shop/storefront:4.2
+                    name: web
+                    resources: {}
+                  - image: registry.example.com/tools/exporter:0.9
+                    name: metrics
+                    resources: {}
+                  initContainers:
+                  - command:
+                    - /app/migrate
+                    - --up
+                    image: registry.example.com/shop/storefront:4.1
+                    name: migrate
+                    resources: {}
+            status: {}
+        - command: kubectl set image deployment/storefront '*=registry.example.com/shop/storefront:4.2' -n shop
+          why: The * wildcard sets the image on every container and init container, so metrics would run the storefront image instead of the exporter.
+          output: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              labels:
+                app: storefront
+              name: storefront
+              namespace: shop
+            spec:
+              replicas: 4
+              selector:
+                matchLabels:
+                  app: storefront
+              strategy: {}
+              template:
+                metadata:
+                  labels:
+                    app: storefront
+                spec:
+                  containers:
+                  - image: registry.example.com/shop/storefront:4.2
+                    name: web
+                    resources: {}
+                  - image: registry.example.com/shop/storefront:4.2
+                    name: metrics
+                    resources: {}
+                  initContainers:
+                  - command:
+                    - /app/migrate
+                    - --up
+                    image: registry.example.com/shop/storefront:4.2
+                    name: migrate
+                    resources: {}
+            status: {}
+    explanation:
+      correct:
+        en: |
+          `kubectl set image` takes several `CONTAINER_NAME=IMAGE` pairs in one call, and it matches names against both the containers and the init containers of the Pod template. One command therefore changes the template once and creates a single new revision, whereas two commands would start two rollouts. Name each container explicitly: the `*` wildcard would also overwrite the image of `metrics`.
+    references:
+      - title: kubectl set image
+        url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_set/kubectl_set_image/
+      - title: Deployments
+        url: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/
+
+  # ------------------------------------------------------------------ 8
+  - id: cka-qz-31-08
+    objective: "3.1.2"
+    difficulty: 3
+    status: draft
+    type: manifest
+    stem:
+      en: |-
+        Every update of Deployment `invoice` in namespace `billing` (8 replicas, manifest below) causes an outage, because it uses the `Recreate` strategy. Switch it to a rolling update that respects these limits:
+
+        - the ResourceQuota of namespace `billing` allows 8 Pods and all of them are in use, so no Pod can be created above the replica count during the update;
+        - at least 6 Pods must stay available at all times;
+        - within these limits, the rollout must replace Pods as fast as possible.
+
+        Use absolute numbers and write the strategy type explicitly. Write the complete Deployment manifest.
+    body:
+      starter: |
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: invoice
+          namespace: billing
+        spec:
+          replicas: 8
+          selector:
+            matchLabels:
+              app: invoice
+          strategy:
+            type: Recreate
+          template:
+            metadata:
+              labels:
+                app: invoice
+            spec:
+              containers:
+              - name: invoice
+                image: registry.example.com/billing/invoice:7.3
+    answer:
+      checks:
+        - id: meta
+          label: The Deployment invoice in namespace billing
+          path: metadata
+          op: subset
+          value: { name: invoice, namespace: billing }
+        - id: kind
+          label: The object is a Deployment
+          path: kind
+          op: equals
+          value: Deployment
+        - id: replicas
+          label: Still 8 replicas
+          path: spec.replicas
+          op: equals
+          value: 8
+        - id: type
+          label: Strategy type is RollingUpdate
+          path: spec.strategy.type
+          op: equals
+          value: RollingUpdate
+        - id: surge
+          label: maxSurge is 0 (no Pod above the replica count)
+          path: spec.strategy.rollingUpdate.maxSurge
+          op: equals
+          value: 0
+        - id: unavailable
+          label: maxUnavailable is 2 (at least 6 of 8 available)
+          path: spec.strategy.rollingUpdate.maxUnavailable
+          op: equals
+          value: 2
+        - id: image
+          label: Container invoice keeps its image
+          path: spec.template.spec.containers[name=invoice].image
+          op: equals
+          value: registry.example.com/billing/invoice:7.3
+      solution:
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: invoice
+              namespace: billing
+            spec:
+              replicas: 8
+              selector:
+                matchLabels:
+                  app: invoice
+              strategy:
+                type: RollingUpdate
+                rollingUpdate:
+                  maxSurge: 0
+                  maxUnavailable: 2
+              template:
+                metadata:
+                  labels:
+                    app: invoice
+                spec:
+                  containers:
+                  - name: invoice
+                    image: registry.example.com/billing/invoice:7.3
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              namespace: billing
+              name: invoice
+              labels:
+                app: invoice
+            spec:
+              strategy:
+                rollingUpdate:
+                  maxUnavailable: 2
+                  maxSurge: 0
+                type: RollingUpdate
+              replicas: 8
+              selector:
+                matchLabels:
+                  app: invoice
+              template:
+                metadata:
+                  labels:
+                    app: invoice
+                spec:
+                  containers:
+                  - image: registry.example.com/billing/invoice:7.3
+                    name: invoice
+      negatives:
+        - why: The rollingUpdate block is added but the type stays Recreate; the API server rejects a Recreate Deployment that has a rollingUpdate block.
+          manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: invoice
+              namespace: billing
+            spec:
+              replicas: 8
+              selector:
+                matchLabels:
+                  app: invoice
+              strategy:
+                type: Recreate
+                rollingUpdate:
+                  maxSurge: 0
+                  maxUnavailable: 2
+              template:
+                metadata:
+                  labels:
+                    app: invoice
+                spec:
+                  containers:
+                  - name: invoice
+                    image: registry.example.com/billing/invoice:7.3
+        - why: maxSurge 1 lets the Deployment create a ninth Pod during the update; the full quota refuses it (FailedCreate events), and the task forbids any Pod above the replica count.
+          manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: invoice
+              namespace: billing
+            spec:
+              replicas: 8
+              selector:
+                matchLabels:
+                  app: invoice
+              strategy:
+                type: RollingUpdate
+                rollingUpdate:
+                  maxSurge: 1
+                  maxUnavailable: 1
+              template:
+                metadata:
+                  labels:
+                    app: invoice
+                spec:
+                  containers:
+                  - name: invoice
+                    image: registry.example.com/billing/invoice:7.3
+        - why: maxUnavailable 1 respects both limits but replaces one Pod at a time, while 2 Pods may be unavailable; the rollout is slower than allowed.
+          manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: invoice
+              namespace: billing
+            spec:
+              replicas: 8
+              selector:
+                matchLabels:
+                  app: invoice
+              strategy:
+                type: RollingUpdate
+                rollingUpdate:
+                  maxSurge: 0
+                  maxUnavailable: 1
+              template:
+                metadata:
+                  labels:
+                    app: invoice
+                spec:
+                  containers:
+                  - name: invoice
+                    image: registry.example.com/billing/invoice:7.3
+        - why: Without a rollingUpdate block the defaults apply (25 % each); maxSurge 25 % of 8 is 2 extra Pods, which the quota refuses.
+          manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: invoice
+              namespace: billing
+            spec:
+              replicas: 8
+              selector:
+                matchLabels:
+                  app: invoice
+              strategy:
+                type: RollingUpdate
+              template:
+                metadata:
+                  labels:
+                    app: invoice
+                spec:
+                  containers:
+                  - name: invoice
+                    image: registry.example.com/billing/invoice:7.3
+    explanation:
+      correct:
+        en: |
+          A full quota means no Pod may exist above `replicas`, so `maxSurge` must be 0; with 8 replicas and at least 6 available, up to 2 Pods may be down, so `maxUnavailable: 2` is the fastest allowed value (the two cannot both be 0). The type must change to `RollingUpdate`: a Deployment of type `Recreate` with a `rollingUpdate` block is rejected. Changing the strategy alone does not start a rollout; the next template change will use it.
+    references:
+      - title: Deployments
+        url: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/
+
+  # ------------------------------------------------------------------ 9
+  - id: cka-qz-31-09
+    objective: "3.2.2"
+    difficulty: 3
+    status: draft
+    type: manifest
+    stem:
+      en: |-
+        Deployment `portal` in namespace `web` (manifest below) runs `nginx:1.27`. The image ships several files in `/etc/nginx` (`mime.types`, `conf.d/`…) that its `nginx.conf` includes. Complete the Deployment so that container `nginx`:
+
+        - uses the key `nginx.conf` of the existing ConfigMap `portal-nginx` as the file `/etc/nginx/nginx.conf`, while every other file the image ships in `/etc/nginx` stays in place (the team applies ConfigMap changes with a rollout restart);
+        - gets the environment variable `FEATURE_FLAGS` from the key `flags` of Secret `portal-flags`. Another team creates that Secret later: until it exists, the Pods must start without the variable.
+
+        Write the complete Deployment manifest.
+    body:
+      starter: |
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: portal
+          namespace: web
+        spec:
+          replicas: 2
+          selector:
+            matchLabels:
+              app: portal
+          template:
+            metadata:
+              labels:
+                app: portal
+            spec:
+              containers:
+              - name: nginx
+                image: nginx:1.27
+                ports:
+                - containerPort: 80
+    answer:
+      checks:
+        - id: meta
+          label: The Deployment portal in namespace web
+          path: metadata
+          op: subset
+          value: { name: portal, namespace: web }
+        - id: image
+          label: Container nginx keeps image nginx:1.27
+          path: spec.template.spec.containers[name=nginx].image
+          op: equals
+          value: nginx:1.27
+        - id: volume
+          label: A volume comes from ConfigMap portal-nginx
+          path: spec.template.spec.volumes
+          op: contains
+          value: { configMap: { name: portal-nginx } }
+        - id: mount
+          label: A mount targets the file /etc/nginx/nginx.conf
+          path: spec.template.spec.containers[name=nginx].volumeMounts
+          op: contains
+          value: { mountPath: /etc/nginx/nginx.conf }
+        - id: subpath
+          label: That mount uses subPath nginx.conf, so the rest of /etc/nginx stays visible
+          path: spec.template.spec.containers[name=nginx].volumeMounts[mountPath=/etc/nginx/nginx.conf].subPath
+          op: equals
+          value: nginx.conf
+        - id: env
+          label: FEATURE_FLAGS comes from key flags of Secret portal-flags
+          path: spec.template.spec.containers[name=nginx].env[name=FEATURE_FLAGS].valueFrom.secretKeyRef
+          op: subset
+          value: { name: portal-flags, key: flags }
+        - id: optional
+          label: The Secret reference is optional
+          path: spec.template.spec.containers[name=nginx].env[name=FEATURE_FLAGS].valueFrom.secretKeyRef.optional
+          op: equals
+          value: true
+      solution:
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: portal
+              namespace: web
+            spec:
+              replicas: 2
+              selector:
+                matchLabels:
+                  app: portal
+              template:
+                metadata:
+                  labels:
+                    app: portal
+                spec:
+                  containers:
+                  - name: nginx
+                    image: nginx:1.27
+                    ports:
+                    - containerPort: 80
+                    env:
+                    - name: FEATURE_FLAGS
+                      valueFrom:
+                        secretKeyRef:
+                          name: portal-flags
+                          key: flags
+                          optional: true
+                    volumeMounts:
+                    - name: nginx-conf
+                      mountPath: /etc/nginx/nginx.conf
+                      subPath: nginx.conf
+                  volumes:
+                  - name: nginx-conf
+                    configMap:
+                      name: portal-nginx
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: portal
+              namespace: web
+            spec:
+              replicas: 2
+              selector:
+                matchLabels:
+                  app: portal
+              template:
+                metadata:
+                  labels:
+                    app: portal
+                spec:
+                  volumes:
+                  - name: conf
+                    configMap:
+                      name: portal-nginx
+                      items:
+                      - key: nginx.conf
+                        path: nginx.conf
+                  containers:
+                  - name: nginx
+                    image: nginx:1.27
+                    ports:
+                    - containerPort: 80
+                    volumeMounts:
+                    - mountPath: /etc/nginx/nginx.conf
+                      name: conf
+                      subPath: nginx.conf
+                      readOnly: true
+                    env:
+                    - name: FEATURE_FLAGS
+                      valueFrom:
+                        secretKeyRef:
+                          key: flags
+                          name: portal-flags
+                          optional: true
+      negatives:
+        - why: Mounting the ConfigMap on /etc/nginx hides every file the image ships there (mime.types, conf.d/), which nginx.conf includes.
+          manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: portal
+              namespace: web
+            spec:
+              replicas: 2
+              selector:
+                matchLabels:
+                  app: portal
+              template:
+                metadata:
+                  labels:
+                    app: portal
+                spec:
+                  containers:
+                  - name: nginx
+                    image: nginx:1.27
+                    ports:
+                    - containerPort: 80
+                    env:
+                    - name: FEATURE_FLAGS
+                      valueFrom:
+                        secretKeyRef:
+                          name: portal-flags
+                          key: flags
+                          optional: true
+                    volumeMounts:
+                    - name: nginx-conf
+                      mountPath: /etc/nginx
+                  volumes:
+                  - name: nginx-conf
+                    configMap:
+                      name: portal-nginx
+        - why: Without subPath the whole volume, a directory, is mounted over /etc/nginx/nginx.conf, a file in the image; a directory cannot be mounted onto a file, so the container does not start.
+          manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: portal
+              namespace: web
+            spec:
+              replicas: 2
+              selector:
+                matchLabels:
+                  app: portal
+              template:
+                metadata:
+                  labels:
+                    app: portal
+                spec:
+                  containers:
+                  - name: nginx
+                    image: nginx:1.27
+                    ports:
+                    - containerPort: 80
+                    env:
+                    - name: FEATURE_FLAGS
+                      valueFrom:
+                        secretKeyRef:
+                          name: portal-flags
+                          key: flags
+                          optional: true
+                    volumeMounts:
+                    - name: nginx-conf
+                      mountPath: /etc/nginx/nginx.conf
+                  volumes:
+                  - name: nginx-conf
+                    configMap:
+                      name: portal-nginx
+        - why: A required secretKeyRef to a Secret that does not exist yet keeps the container in CreateContainerConfigError.
+          manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: portal
+              namespace: web
+            spec:
+              replicas: 2
+              selector:
+                matchLabels:
+                  app: portal
+              template:
+                metadata:
+                  labels:
+                    app: portal
+                spec:
+                  containers:
+                  - name: nginx
+                    image: nginx:1.27
+                    ports:
+                    - containerPort: 80
+                    env:
+                    - name: FEATURE_FLAGS
+                      valueFrom:
+                        secretKeyRef:
+                          name: portal-flags
+                          key: flags
+                    volumeMounts:
+                    - name: nginx-conf
+                      mountPath: /etc/nginx/nginx.conf
+                      subPath: nginx.conf
+                  volumes:
+                  - name: nginx-conf
+                    configMap:
+                      name: portal-nginx
+        - why: envFrom creates a variable named after the key, flags, not FEATURE_FLAGS.
+          manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: portal
+              namespace: web
+            spec:
+              replicas: 2
+              selector:
+                matchLabels:
+                  app: portal
+              template:
+                metadata:
+                  labels:
+                    app: portal
+                spec:
+                  containers:
+                  - name: nginx
+                    image: nginx:1.27
+                    ports:
+                    - containerPort: 80
+                    envFrom:
+                    - secretRef:
+                        name: portal-flags
+                        optional: true
+                    volumeMounts:
+                    - name: nginx-conf
+                      mountPath: /etc/nginx/nginx.conf
+                      subPath: nginx.conf
+                  volumes:
+                  - name: nginx-conf
+                    configMap:
+                      name: portal-nginx
+    explanation:
+      correct:
+        en: |
+          A volume mounted on a directory hides what the image has there, so mount the ConfigMap volume on the file path `/etc/nginx/nginx.conf` with `subPath: nginx.conf`: only that file is replaced. A `subPath` mount never receives ConfigMap updates, which is acceptable because the team restarts the rollout after each change. `optional: true` on the `secretKeyRef` lets the container start without `FEATURE_FLAGS` while Secret `portal-flags` does not exist; without it, the container stays in `CreateContainerConfigError`.
+    references:
+      - title: Configure a Pod to Use a ConfigMap
+        url: https://kubernetes.io/docs/tasks/configure-pod-container/configure-pod-configmap/
+      - title: Secrets
+        url: https://kubernetes.io/docs/concepts/configuration/secret/
+
+  # ------------------------------------------------------------------ 10
+  - id: cka-qz-31-10
+    objective: "3.3.2"
+    difficulty: 3
+    status: draft
+    type: manifest
+    stem:
+      en: |-
+        The resource metrics API is available, and Deployment `reports` in namespace `analytics` sets CPU requests on all its containers. Write a HorizontalPodAutoscaler named `reports` in namespace `analytics` for this Deployment: 2 to 20 replicas, target average CPU utilization of 75 %, and this behavior:
+
+        - before scaling up, take into account the recommendations of the last 2 minutes, so that short spikes are ignored; then add at most 3 Pods per minute;
+        - when scaling down, remove in each 2-minute period whichever is smaller: 4 Pods or 20 % of the current replicas.
+
+        Keep the default scale-down stabilization window. Write the complete manifest.
+    body:
+      starter: ""
+    answer:
+      checks:
+        - id: api
+          label: The object is an autoscaling/v2 HorizontalPodAutoscaler
+          path: apiVersion
+          op: equals
+          value: autoscaling/v2
+        - id: meta
+          label: Named reports in namespace analytics
+          path: metadata
+          op: subset
+          value: { name: reports, namespace: analytics }
+        - id: target
+          label: It scales Deployment reports
+          path: spec.scaleTargetRef
+          op: subset
+          value: { apiVersion: apps/v1, kind: Deployment, name: reports }
+        - id: bounds
+          label: Between 2 and 20 replicas
+          path: spec
+          op: subset
+          value: { minReplicas: 2, maxReplicas: 20 }
+        - id: cpu
+          label: Target 75 % average CPU utilization
+          path: spec.metrics
+          op: contains
+          value: { type: Resource, resource: { name: cpu, target: { type: Utilization, averageUtilization: 75 } } }
+        - id: up-window
+          label: Scale-up stabilization window is 120 seconds
+          path: spec.behavior.scaleUp.stabilizationWindowSeconds
+          op: equals
+          value: 120
+        - id: up-policy
+          label: Scale-up adds at most 3 Pods per 60 seconds
+          path: spec.behavior.scaleUp.policies
+          op: contains
+          value: { type: Pods, value: 3, periodSeconds: 60 }
+        - id: up-only
+          label: Scale-up has that single policy
+          path: spec.behavior.scaleUp.policies
+          op: length
+          value: 1
+        - id: down-pods
+          label: Scale-down policy of 4 Pods per 120 seconds
+          path: spec.behavior.scaleDown.policies
+          op: contains
+          value: { type: Pods, value: 4, periodSeconds: 120 }
+        - id: down-percent
+          label: Scale-down policy of 20 % per 120 seconds
+          path: spec.behavior.scaleDown.policies
+          op: contains
+          value: { type: Percent, value: 20, periodSeconds: 120 }
+        - id: down-count
+          label: Scale-down has exactly these two policies
+          path: spec.behavior.scaleDown.policies
+          op: length
+          value: 2
+        - id: down-select
+          label: Scale-down applies the policy allowing the smaller change
+          path: spec.behavior.scaleDown.selectPolicy
+          op: equals
+          value: Min
+      solution:
+        - manifest: |
+            apiVersion: autoscaling/v2
+            kind: HorizontalPodAutoscaler
+            metadata:
+              name: reports
+              namespace: analytics
+            spec:
+              scaleTargetRef:
+                apiVersion: apps/v1
+                kind: Deployment
+                name: reports
+              minReplicas: 2
+              maxReplicas: 20
+              metrics:
+              - type: Resource
+                resource:
+                  name: cpu
+                  target:
+                    type: Utilization
+                    averageUtilization: 75
+              behavior:
+                scaleUp:
+                  stabilizationWindowSeconds: 120
+                  policies:
+                  - type: Pods
+                    value: 3
+                    periodSeconds: 60
+                scaleDown:
+                  selectPolicy: Min
+                  policies:
+                  - type: Pods
+                    value: 4
+                    periodSeconds: 120
+                  - type: Percent
+                    value: 20
+                    periodSeconds: 120
+        - manifest: |
+            apiVersion: autoscaling/v2
+            kind: HorizontalPodAutoscaler
+            metadata:
+              namespace: analytics
+              name: reports
+            spec:
+              maxReplicas: 20
+              minReplicas: 2
+              scaleTargetRef:
+                kind: Deployment
+                name: reports
+                apiVersion: apps/v1
+              behavior:
+                scaleDown:
+                  stabilizationWindowSeconds: 300
+                  policies:
+                  - periodSeconds: 120
+                    type: Percent
+                    value: 20
+                  - periodSeconds: 120
+                    type: Pods
+                    value: 4
+                  selectPolicy: Min
+                scaleUp:
+                  policies:
+                  - periodSeconds: 60
+                    type: Pods
+                    value: 3
+                  selectPolicy: Max
+                  stabilizationWindowSeconds: 120
+              metrics:
+              - resource:
+                  name: cpu
+                  target:
+                    averageUtilization: 75
+                    type: Utilization
+                type: Resource
+      negatives:
+        - why: Without selectPolicy, scale-down uses the default Max, which applies the policy allowing the larger change instead of the smaller one.
+          manifest: |
+            apiVersion: autoscaling/v2
+            kind: HorizontalPodAutoscaler
+            metadata:
+              name: reports
+              namespace: analytics
+            spec:
+              scaleTargetRef:
+                apiVersion: apps/v1
+                kind: Deployment
+                name: reports
+              minReplicas: 2
+              maxReplicas: 20
+              metrics:
+              - type: Resource
+                resource:
+                  name: cpu
+                  target:
+                    type: Utilization
+                    averageUtilization: 75
+              behavior:
+                scaleUp:
+                  stabilizationWindowSeconds: 120
+                  policies:
+                  - type: Pods
+                    value: 3
+                    periodSeconds: 60
+                scaleDown:
+                  policies:
+                  - type: Pods
+                    value: 4
+                    periodSeconds: 120
+                  - type: Percent
+                    value: 20
+                    periodSeconds: 120
+        - why: The 120-second window is set on scale-down, which then replaces the default 300 seconds, and scale-up keeps its default window of 0, so short spikes still trigger a scale-up.
+          manifest: |
+            apiVersion: autoscaling/v2
+            kind: HorizontalPodAutoscaler
+            metadata:
+              name: reports
+              namespace: analytics
+            spec:
+              scaleTargetRef:
+                apiVersion: apps/v1
+                kind: Deployment
+                name: reports
+              minReplicas: 2
+              maxReplicas: 20
+              metrics:
+              - type: Resource
+                resource:
+                  name: cpu
+                  target:
+                    type: Utilization
+                    averageUtilization: 75
+              behavior:
+                scaleUp:
+                  policies:
+                  - type: Pods
+                    value: 3
+                    periodSeconds: 60
+                scaleDown:
+                  stabilizationWindowSeconds: 120
+                  selectPolicy: Min
+                  policies:
+                  - type: Pods
+                    value: 4
+                    periodSeconds: 120
+                  - type: Percent
+                    value: 20
+                    periodSeconds: 120
+        - why: The scale-down policies use a 60-second period, so up to 4 Pods or 20 % can go every minute instead of every 2 minutes.
+          manifest: |
+            apiVersion: autoscaling/v2
+            kind: HorizontalPodAutoscaler
+            metadata:
+              name: reports
+              namespace: analytics
+            spec:
+              scaleTargetRef:
+                apiVersion: apps/v1
+                kind: Deployment
+                name: reports
+              minReplicas: 2
+              maxReplicas: 20
+              metrics:
+              - type: Resource
+                resource:
+                  name: cpu
+                  target:
+                    type: Utilization
+                    averageUtilization: 75
+              behavior:
+                scaleUp:
+                  stabilizationWindowSeconds: 120
+                  policies:
+                  - type: Pods
+                    value: 3
+                    periodSeconds: 60
+                scaleDown:
+                  selectPolicy: Min
+                  policies:
+                  - type: Pods
+                    value: 4
+                    periodSeconds: 60
+                  - type: Percent
+                    value: 20
+                    periodSeconds: 60
+        - why: The scale-up block keeps a Percent 100 policy beside the Pods policy; with the default selectPolicy Max, more than 3 Pods can be added per minute.
+          manifest: |
+            apiVersion: autoscaling/v2
+            kind: HorizontalPodAutoscaler
+            metadata:
+              name: reports
+              namespace: analytics
+            spec:
+              scaleTargetRef:
+                apiVersion: apps/v1
+                kind: Deployment
+                name: reports
+              minReplicas: 2
+              maxReplicas: 20
+              metrics:
+              - type: Resource
+                resource:
+                  name: cpu
+                  target:
+                    type: Utilization
+                    averageUtilization: 75
+              behavior:
+                scaleUp:
+                  stabilizationWindowSeconds: 120
+                  policies:
+                  - type: Pods
+                    value: 3
+                    periodSeconds: 60
+                  - type: Percent
+                    value: 100
+                    periodSeconds: 60
+                scaleDown:
+                  selectPolicy: Min
+                  policies:
+                  - type: Pods
+                    value: 4
+                    periodSeconds: 120
+                  - type: Percent
+                    value: 20
+                    periodSeconds: 120
+    explanation:
+      correct:
+        en: |
+          `behavior` exists only in `autoscaling/v2`. On scale-up, `stabilizationWindowSeconds: 120` makes the controller consider the recommendations of the last 2 minutes instead of acting at once (default 0), and a single `Pods` policy of 3 per 60 seconds caps the growth. On scale-down, two policies with `periodSeconds: 120` and `selectPolicy: Min` apply whichever allows the smaller change; the default `Max` would apply the larger one. Fields left out, such as the scale-down window, keep their defaults (300 seconds).
+    references:
+      - title: Horizontal Pod Autoscaling
+        url: https://kubernetes.io/docs/concepts/workloads/autoscaling/horizontal-pod-autoscale/

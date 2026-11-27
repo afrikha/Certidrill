@@ -1,0 +1,129 @@
+id: ckad-1b-create-job-command
+objective: "1.2.3"
+difficulty: 1
+status: draft
+type: command
+stem:
+  en: |-
+    In namespace `ops`, create a Job named `db-backup` from the image `registry.example.com/ops/pg-backup:16`. Its container must run the command `/usr/local/bin/backup --full`.
+
+    Type the single command you would run.
+body:
+  mode: object
+  namespace: default
+answer:
+  checks:
+  - id: kind
+    label: The object is a Job
+    path: kind
+    op: equals
+    value: Job
+  - id: name
+    label: It is named db-backup
+    path: metadata.name
+    op: equals
+    value: db-backup
+  - id: namespace
+    label: It is created in namespace ops
+    path: metadata.namespace
+    op: equals
+    value: ops
+  - id: image
+    label: Its container runs registry.example.com/ops/pg-backup:16
+    path: spec.template.spec.containers[0].image
+    op: equals
+    value: registry.example.com/ops/pg-backup:16
+  - id: command
+    label: The container runs /usr/local/bin/backup --full
+    path: spec.template.spec.containers[0].command
+    op: equals
+    value: [/usr/local/bin/backup, --full]
+  solution:
+  - command: kubectl create job db-backup --image=registry.example.com/ops/pg-backup:16 -n ops -- /usr/local/bin/backup --full
+    output: |
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: db-backup
+        namespace: ops
+      spec:
+        template:
+          metadata: {}
+          spec:
+            containers:
+            - command:
+              - /usr/local/bin/backup
+              - --full
+              image: registry.example.com/ops/pg-backup:16
+              name: db-backup
+              resources: {}
+            restartPolicy: Never
+      status: {}
+  - command: k -n ops create job db-backup --image registry.example.com/ops/pg-backup:16 --dry-run=client -o yaml -- /usr/local/bin/backup --full
+    output: |
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: db-backup
+        namespace: ops
+      spec:
+        template:
+          metadata: {}
+          spec:
+            containers:
+            - command:
+              - /usr/local/bin/backup
+              - --full
+              image: registry.example.com/ops/pg-backup:16
+              name: db-backup
+              resources: {}
+            restartPolicy: Never
+      status: {}
+  negatives:
+  - command: kubectl run db-backup --image=registry.example.com/ops/pg-backup:16 -n ops --restart=Never --command -- /usr/local/bin/backup --full
+    why: kubectl run creates a bare Pod; no Job controller retries it or records its completion.
+    output: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        labels:
+          run: db-backup
+        name: db-backup
+        namespace: ops
+      spec:
+        containers:
+        - command:
+          - /usr/local/bin/backup
+          - --full
+          image: registry.example.com/ops/pg-backup:16
+          name: db-backup
+          resources: {}
+        dnsPolicy: ClusterFirst
+        restartPolicy: Never
+      status: {}
+  - command: kubectl create job db-backup --image=registry.example.com/ops/pg-backup:16 -- /usr/local/bin/backup --full
+    why: Without -n the Job is created in the context namespace, default.
+    output: |
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: db-backup
+      spec:
+        template:
+          metadata: {}
+          spec:
+            containers:
+            - command:
+              - /usr/local/bin/backup
+              - --full
+              image: registry.example.com/ops/pg-backup:16
+              name: db-backup
+              resources: {}
+            restartPolicy: Never
+      status: {}
+explanation:
+  correct:
+    en: '`kubectl create job NAME --image=IMAGE -- COMMAND [ARGS]` creates a Job whose container `command` is what follows `--`, with `restartPolicy: Never` and the container named after the Job. Flags such as `-n` and `--dry-run=client -o yaml` must come before `--`. `kubectl run` creates a bare Pod, which is not a Job.'
+references:
+- title: kubectl create job
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_create/kubectl_create_job/

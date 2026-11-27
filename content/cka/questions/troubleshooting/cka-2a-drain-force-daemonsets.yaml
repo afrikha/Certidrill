@@ -1,0 +1,61 @@
+id: cka-2a-drain-force-daemonsets
+objective: "2.1.2"
+difficulty: 3
+status: draft
+type: command
+stem:
+  en: |-
+    Node `node-3` must be emptied for kernel maintenance. It currently runs:
+
+    - Pods of the DaemonSets `kube-proxy` and `node-exporter`;
+    - Pods of the Deployment `cache` in namespace `shop`, which mount an `emptyDir` volume;
+    - a bare Pod `debug-shell` in namespace `default`, created with `kubectl run` (the team accepts that it is deleted).
+
+    With a single command, mark `node-3` unschedulable and evict every Pod that drain can remove.
+body:
+  mode: invocation
+answer:
+  checks:
+  - id: drain
+    label: Uses kubectl drain
+    path: verb
+    op: equals
+    value: drain
+  - id: node
+    label: Targets node-3
+    path: args
+    op: contains
+    value: node-3
+  - id: daemonsets
+    label: Ignores DaemonSet-managed Pods (--ignore-daemonsets)
+    path: flags.ignore-daemonsets
+    op: equals
+    value: true
+  - id: emptydir
+    label: Accepts Pods using emptyDir (--delete-emptydir-data)
+    path: flags.delete-emptydir-data
+    op: equals
+    value: true
+  - id: force
+    label: Accepts the Pod without a controller (--force)
+    path: flags.force
+    op: equals
+    value: true
+  solution:
+  - command: kubectl drain node-3 --ignore-daemonsets --delete-emptydir-data --force
+  - command: k drain --force --delete-emptydir-data --ignore-daemonsets node-3
+  negatives:
+  - command: kubectl drain node-3 --ignore-daemonsets --delete-emptydir-data
+    why: Without --force, drain refuses to delete debug-shell, which no controller manages, and evicts nothing.
+  - command: kubectl drain node-3 --ignore-daemonsets --force
+    why: Without --delete-emptydir-data, drain refuses the cache Pods that use emptyDir.
+  - command: kubectl drain node-3 --ignore-daemonsets --delete-emptydir-data --disable-eviction
+    why: --disable-eviction only replaces eviction by deletion (and skips PodDisruptionBudgets); the Pod without a controller still needs --force.
+  - command: kubectl cordon node-3
+    why: cordon only marks the node unschedulable; the running Pods stay on it.
+explanation:
+  correct:
+    en: '`kubectl drain node-3` cordons the node, then evicts its Pods. `--ignore-daemonsets` is needed because DaemonSet Pods cannot be moved (they stay), `--delete-emptydir-data` accepts losing the `emptyDir` data of the `cache` Pods, and `--force` allows deleting `debug-shell`, which no controller will recreate. Run `kubectl uncordon node-3` after the maintenance.'
+references:
+- title: kubectl drain
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_drain/

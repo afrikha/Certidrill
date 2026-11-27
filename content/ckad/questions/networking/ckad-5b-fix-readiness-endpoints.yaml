@@ -1,0 +1,231 @@
+id: ckad-5b-fix-readiness-endpoints
+objective: "5.2.2"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    In namespace `shop`, Service `web` selects `app=web` and listens on port 80 with targetPort `http`. Its EndpointSlice lists the three Pods of Deployment `web`, but all with `ready: false`, so the Service sends no traffic. The Pods are Running, never restart, and show `0/1` in the READY column.
+
+    The application answers `GET /ready` on its container port `http` (8080). The editor contains the current Deployment. Fix it so that the Pods become ready, keeping a readiness check on `GET /ready`. Do not change the container port.
+body:
+  starter: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: web
+      namespace: shop
+    spec:
+      replicas: 3
+      selector:
+        matchLabels:
+          app: web
+      template:
+        metadata:
+          labels:
+            app: web
+        spec:
+          containers:
+          - name: web
+            image: registry.example.com/shop/web:2.0
+            ports:
+            - name: http
+              containerPort: 8080
+            readinessProbe:
+              httpGet:
+                path: /ready
+                port: 8081
+            livenessProbe:
+              tcpSocket:
+                port: http
+answer:
+  checks:
+  - id: deployment
+    label: The Deployment is still web in namespace shop
+    path: metadata
+    op: subset
+    value: {name: web, namespace: shop}
+  - id: kind
+    label: The object is a Deployment
+    path: kind
+    op: equals
+    value: Deployment
+  - id: replicas
+    label: It still runs 3 replicas
+    path: spec.replicas
+    op: equals
+    value: 3
+  - id: labels
+    label: The Pods keep the label app=web selected by the Service
+    path: spec.template.metadata.labels.app
+    op: equals
+    value: web
+  - id: container-port
+    label: The container port http is still 8080
+    path: spec.template.spec.containers[name=web].ports[name=http].containerPort
+    op: equals
+    value: 8080
+  - id: readiness-path
+    label: The readiness probe still calls GET /ready
+    path: spec.template.spec.containers[name=web].readinessProbe.httpGet.path
+    op: equals
+    value: /ready
+  - id: readiness-port
+    label: The readiness probe targets port 8080 (or its name http)
+    path: spec.template.spec.containers[name=web].readinessProbe.httpGet.port
+    op: oneOf
+    value: [8080, http]
+  solution:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: web
+        namespace: shop
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: web
+        template:
+          metadata:
+            labels:
+              app: web
+          spec:
+            containers:
+            - name: web
+              image: registry.example.com/shop/web:2.0
+              ports:
+              - name: http
+                containerPort: 8080
+              readinessProbe:
+                httpGet:
+                  path: /ready
+                  port: http
+              livenessProbe:
+                tcpSocket:
+                  port: http
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: web
+        namespace: shop
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: web
+        template:
+          metadata:
+            labels:
+              app: web
+          spec:
+            containers:
+            - name: web
+              image: registry.example.com/shop/web:2.0
+              ports:
+              - name: http
+                containerPort: 8080
+              readinessProbe:
+                httpGet:
+                  path: /ready
+                  port: 8080
+                periodSeconds: 5
+              livenessProbe:
+                tcpSocket:
+                  port: http
+  negatives:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: web
+        namespace: shop
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: web
+        template:
+          metadata:
+            labels:
+              app: web
+          spec:
+            containers:
+            - name: web
+              image: registry.example.com/shop/web:2.0
+              ports:
+              - name: http
+                containerPort: 8080
+              livenessProbe:
+                tcpSocket:
+                  port: http
+    why: Removing the readiness probe makes the Pods ready, but the task requires keeping the readiness check on GET /ready.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: web
+        namespace: shop
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: web
+        template:
+          metadata:
+            labels:
+              app: web
+          spec:
+            containers:
+            - name: web
+              image: registry.example.com/shop/web:2.0
+              ports:
+              - name: http
+                containerPort: 8081
+              readinessProbe:
+                httpGet:
+                  path: /ready
+                  port: 8081
+              livenessProbe:
+                tcpSocket:
+                  port: http
+    why: containerPort only documents the port; the application still listens on 8080, so the probe on 8081 keeps failing.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: web
+        namespace: shop
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: web
+        template:
+          metadata:
+            labels:
+              app: web
+          spec:
+            containers:
+            - name: web
+              image: registry.example.com/shop/web:2.0
+              ports:
+              - name: http
+                containerPort: 8080
+              readinessProbe:
+                tcpSocket:
+                  port: 8080
+              livenessProbe:
+                tcpSocket:
+                  port: http
+    why: A TCP check only tests that the port is open; the task requires the readiness check on GET /ready.
+explanation:
+  correct:
+    en: 'A Pod that fails its readiness probe stays Running but is not ready, so its endpoints are marked not ready and the Service sends it no traffic; it is not restarted, because only the liveness probe restarts containers. Here the readiness probe calls port 8081 where nothing listens. Pointing `readinessProbe.httpGet.port` to 8080 or to the named port `http` fixes it.'
+references:
+- title: Configure Liveness, Readiness and Startup Probes
+  url: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/
+- title: Debug Services
+  url: https://kubernetes.io/docs/tasks/debug/debug-application/debug-service/

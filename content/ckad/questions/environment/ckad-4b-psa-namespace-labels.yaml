@@ -1,0 +1,112 @@
+id: ckad-4b-psa-namespace-labels
+objective: "4.2.3"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    Write the manifest of a Namespace named `payments` configured for Pod Security Admission:
+
+    - Pods that violate the `baseline` Pod Security Standard are rejected, using the `baseline` policy as defined in Kubernetes v1.37;
+    - Pods that violate the `restricted` standard are admitted, but the user gets a warning and an audit annotation is added to the audit event.
+body:
+  starter: |
+    apiVersion: v1
+    kind: Namespace
+    metadata:
+      name: payments
+answer:
+  checks:
+  - id: kind
+    label: The object is a Namespace
+    path: kind
+    op: equals
+    value: Namespace
+  - id: name
+    label: It is named payments
+    path: metadata.name
+    op: equals
+    value: payments
+  - id: enforce
+    label: enforce label is baseline
+    path: metadata.labels["pod-security.kubernetes.io/enforce"]
+    op: equals
+    value: baseline
+  - id: enforce-version
+    label: enforce-version label pins v1.37
+    path: metadata.labels["pod-security.kubernetes.io/enforce-version"]
+    op: equals
+    value: v1.37
+  - id: warn
+    label: warn label is restricted
+    path: metadata.labels["pod-security.kubernetes.io/warn"]
+    op: equals
+    value: restricted
+  - id: audit
+    label: audit label is restricted
+    path: metadata.labels["pod-security.kubernetes.io/audit"]
+    op: equals
+    value: restricted
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: payments
+        labels:
+          pod-security.kubernetes.io/enforce: baseline
+          pod-security.kubernetes.io/enforce-version: v1.37
+          pod-security.kubernetes.io/warn: restricted
+          pod-security.kubernetes.io/audit: restricted
+  - manifest: |
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        labels:
+          pod-security.kubernetes.io/audit: restricted
+          pod-security.kubernetes.io/audit-version: latest
+          pod-security.kubernetes.io/enforce: baseline
+          pod-security.kubernetes.io/enforce-version: "v1.37"
+          pod-security.kubernetes.io/warn: restricted
+          pod-security.kubernetes.io/warn-version: latest
+        name: payments
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: payments
+        annotations:
+          pod-security.kubernetes.io/enforce: baseline
+          pod-security.kubernetes.io/enforce-version: v1.37
+          pod-security.kubernetes.io/warn: restricted
+          pod-security.kubernetes.io/audit: restricted
+    why: Pod Security Admission reads namespace labels; the same keys as annotations have no effect.
+  - manifest: |
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: payments
+        labels:
+          pod-security.kubernetes.io/enforce: restricted
+          pod-security.kubernetes.io/enforce-version: v1.37
+          pod-security.kubernetes.io/warn: baseline
+          pod-security.kubernetes.io/audit: baseline
+    why: The levels are swapped; enforcing restricted rejects Pods that only the baseline level should block.
+  - manifest: |
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: payments
+        labels:
+          pod-security.kubernetes.io/enforce: baseline
+          pod-security.kubernetes.io/version: v1.37
+          pod-security.kubernetes.io/warn: restricted
+          pod-security.kubernetes.io/audit: restricted
+    why: The version label is per mode, pod-security.kubernetes.io/enforce-version; a plain version key is ignored and enforce uses latest.
+explanation:
+  correct:
+    en: 'Pod Security Admission (stable since v1.25) is configured with namespace labels `pod-security.kubernetes.io/<MODE>: <LEVEL>`, where MODE is `enforce` (reject), `audit` (audit annotation) or `warn` (user-facing warning) and LEVEL is `privileged`, `baseline` or `restricted`. The optional `<MODE>-version` label pins the policy to a minor version such as `v1.37` or to `latest`. On a live namespace: `kubectl label ns payments pod-security.kubernetes.io/enforce=baseline`.'
+references:
+- title: Pod Security Admission
+  url: https://kubernetes.io/docs/concepts/security/pod-security-admission/

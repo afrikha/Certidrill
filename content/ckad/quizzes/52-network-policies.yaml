@@ -1,0 +1,1580 @@
+chapter: 52-network-policies
+questions:
+  # ------------------------------------------------------------------ 1
+  - id: ckad-qz-52-01
+    objective: "5.1.2"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        A NetworkPolicy has an `ingress` section and no `egress` section. Its author did not write `spec.policyTypes`.
+
+        Which policy types does the policy have?
+    body:
+      options:
+        - { id: a, text: "`[Ingress]`, because the policy has no `egress` section" }
+        - { id: b, text: "`[Ingress, Egress]`, because both types apply when the field is omitted" }
+        - { id: c, text: "None, so the policy has no effect until the field is written" }
+        - { id: d, text: "None, because the API server rejects a policy without the field" }
+    answer: { optionId: a }
+    explanation:
+      correct:
+        en: |
+          When `policyTypes` is omitted, every policy is assumed to affect ingress, and it affects egress only if it contains an `egress` section. This policy is therefore `[Ingress]`: it isolates the selected Pods for ingress and leaves their egress open. To write a deny-egress or egress-only policy you must list `Egress` explicitly.
+      options:
+        b: { en: "Egress is added by default only when the policy has an `egress` section; this one has none, so egress is not isolated." }
+        c: { en: "The field has a default; the policy is enforced as soon as it is created (on a network plugin that supports NetworkPolicies)." }
+        d: { en: "`policyTypes` is optional: the API server fills it from the sections present in the policy." }
+    references:
+      - title: Network Policies
+        url: https://kubernetes.io/docs/concepts/services-networking/network-policies/
+      - title: NetworkPolicy
+        url: https://kubernetes.io/docs/reference/kubernetes-api/policy-resources/network-policy-v1/
+
+  # ------------------------------------------------------------------ 2
+  - id: ckad-qz-52-02
+    objective: "5.1.1"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        In namespace `shop`, two NetworkPolicies select the Pods labeled `app: api`:
+
+        - `allow-web` allows ingress from the Pods labeled `app: web` on TCP port 8080;
+        - `allow-admin` allows ingress from the Pods labeled `app: admin` on TCP port 9000.
+
+        Which ingress traffic from Pods of `shop` do the `app: api` Pods accept?
+    body:
+      options:
+        - { id: a, text: "Only the traffic of the policy created last, because a newer policy replaces the older one" }
+        - { id: b, text: "Traffic from the `app: web` Pods on 8080 and from the `app: admin` Pods on 9000" }
+        - { id: c, text: "No traffic, because a connection must be allowed by every policy that selects the Pod" }
+        - { id: d, text: "Traffic from the `app: web` and `app: admin` Pods on both port 8080 and port 9000" }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          Policies that select the same Pod are combined additively: a connection is allowed if it matches at least one rule of any of them. Each rule keeps its own pairing of sources and ports, so the web Pods get 8080 and the admin Pods get 9000. Order and creation time play no role, and there is no deny rule.
+      options:
+        a: { en: "Policies are not ordered and never replace each other; all policies that select a Pod apply together." }
+        c: { en: "The combination is a union (OR), not an intersection: one matching rule in one policy is enough." }
+        d: { en: "Sources and ports are combined inside each rule, not across policies: `allow-web` does not open port 9000 to the web Pods." }
+    references:
+      - title: Network Policies
+        url: https://kubernetes.io/docs/concepts/services-networking/network-policies/
+
+  # ------------------------------------------------------------------ 3
+  - id: ckad-qz-52-03
+    objective: "5.1.1"
+    difficulty: 2
+    status: draft
+    type: multi
+    stem:
+      en: |
+        In namespace `shop`, the Service `api` has `port: 80` and `targetPort: http`. The containers of its backend Pods declare `containerPort: 8080` with `name: http`.
+
+        You write an ingress NetworkPolicy for those backend Pods. Clients that call the Service must be allowed. Which two `ports` entries allow this traffic?
+
+        Each correct answer presents a complete solution. NOTE: Each correct selection is worth one point.
+    body:
+      choose: 2
+      options:
+        - { id: a, text: "`- port: 80`" }
+        - { id: b, text: "`- port: 8080`" }
+        - { id: c, text: "`- port: http`" }
+        - { id: d, text: "`- {port: http, endPort: 8081}`" }
+        - { id: e, text: "`- {protocol: UDP, port: 8080}`" }
+    answer: { optionIds: [b, c] }
+    explanation:
+      correct:
+        en: |
+          A NetworkPolicy port is the port on the selected Pod, after the Service has forwarded the traffic: here container port 8080. `port` accepts the number or the name of a container port of the selected Pods, so `8080` and `http` match the same traffic; the protocol defaults to TCP.
+      options:
+        a: { en: "80 is the Service port. The policy sees the traffic arriving on the Pod, on the target port 8080." }
+        d: { en: "`endPort` needs a numeric `port`; with a named port the policy is rejected." }
+        e: { en: "HTTP traffic to the Service is TCP; a UDP entry does not match it." }
+    references:
+      - title: NetworkPolicy
+        url: https://kubernetes.io/docs/reference/kubernetes-api/policy-resources/network-policy-v1/
+      - title: Network Policies
+        url: https://kubernetes.io/docs/concepts/services-networking/network-policies/
+
+  # ------------------------------------------------------------------ 4
+  - id: ckad-qz-52-04
+    objective: "5.1.2"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Namespace `shop` contains two NetworkPolicies:
+
+        - `default-deny-all` selects every Pod, with `policyTypes: [Ingress, Egress]` and no rules;
+        - `api-allow` selects the Pods labeled `app: api` and allows ingress from the Pods labeled `app: web` on TCP port 8080.
+
+        Connections from the web Pods to the api Pods on port 8080 time out. You must allow this flow without opening any other traffic. What should you do?
+    body:
+      options:
+        - { id: a, text: "Add a policy that selects the `app: web` Pods and allows egress to the `app: api` Pods on TCP 8080." }
+        - { id: b, text: "Add a policy that selects the `app: web` Pods and allows ingress from the `app: api` Pods, for the replies." }
+        - { id: c, text: "Remove `Egress` from the `policyTypes` of `default-deny-all`, so that the web Pods can open connections." }
+        - { id: d, text: "Add `namespaceSelector: {}` to the `podSelector` peer of `api-allow`, so that the peer matches more web Pods." }
+    answer: { optionId: a }
+    explanation:
+      correct:
+        en: |
+          A connection between two Pods needs the egress side of the source and the ingress side of the destination to allow it. `api-allow` covers the ingress side, but the web Pods are isolated for egress by `default-deny-all` and no rule lets them out. An egress policy on the web Pods, limited to the api Pods on 8080, opens exactly this flow.
+      options:
+        b: { en: "Reply traffic of an allowed connection is allowed implicitly; the missing piece is the egress of the web Pods." }
+        c: { en: "This opens all outgoing traffic of every Pod of the namespace, which the task forbids." }
+        d: { en: "The ingress side already allows the web Pods of `shop`; this only widens it to other namespaces and leaves egress blocked." }
+    references:
+      - title: Network Policies
+        url: https://kubernetes.io/docs/concepts/services-networking/network-policies/
+
+  # ------------------------------------------------------------------ 5
+  - id: ckad-qz-52-05
+    objective: "5.1.2"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        In namespace `reports`, the Pods labeled `app: builder` are selected by this policy. Namespace `kube-system` has no NetworkPolicy.
+
+        ```yaml
+        spec:
+          podSelector:
+            matchLabels:
+              app: builder
+          policyTypes:
+          - Egress
+          egress:
+          - to:
+            - podSelector:
+                matchLabels:
+                  app: mysql
+            ports:
+            - port: 3306
+          - ports:
+            - port: 53
+        ```
+
+        The builder Pods reach the MySQL Pods by IP address, but most name lookups time out. What should you change?
+    body:
+      options:
+        - { id: a, text: "Add an entry with `protocol: UDP` and `port: 53` to the `ports` of the second rule." }
+        - { id: b, text: "Add a `to` with `namespaceSelector: {}` to the second rule, so that it reaches the DNS Pods." }
+        - { id: c, text: "Add `Ingress` to `policyTypes`, so that the DNS replies can come back to the builder Pods." }
+        - { id: d, text: "Add a policy in `kube-system` that allows ingress to the CoreDNS Pods from namespace `reports`." }
+    answer: { optionId: a }
+    explanation:
+      correct:
+        en: |
+          The protocol of a port entry defaults to TCP, so `port: 53` alone opens DNS over TCP only, while most lookups use UDP. Adding `protocol: UDP` on port 53 next to the TCP entry fixes name resolution. A rule without `to` already matches every destination.
+      options:
+        b: { en: "A rule with no `to` matches all destinations; the DNS Pods are already reachable, but only over TCP." }
+        c: { en: "Replies of allowed connections need no rule; listing Ingress with no ingress rule would also block all incoming traffic." }
+        d: { en: "The CoreDNS Pods are not isolated (no policy in `kube-system`), so their ingress is open; the block is the builders' egress on UDP." }
+    references:
+      - title: NetworkPolicy
+        url: https://kubernetes.io/docs/reference/kubernetes-api/policy-resources/network-policy-v1/
+      - title: Network Policies
+        url: https://kubernetes.io/docs/concepts/services-networking/network-policies/
+
+  # ------------------------------------------------------------------ 6
+  - id: ckad-qz-52-06
+    objective: "5.1.1"
+    difficulty: 3
+    status: draft
+    type: command
+    stem:
+      en: |-
+        The current namespace of your context is `shop`. The Pod `reporter` (file `pod-reporter.yaml`) must open connections to the Pods labeled `app: cache` on TCP port 6379, but they time out. The NetworkPolicy `cache-ingress` (file `cache-ingress.yaml`) protects the cache Pods. No policy selects the `reporter` Pod.
+
+        Without changing the policy and without changing the label `app` of `reporter`, make the connection allowed. You may change or add other labels of the Pod. Type the single command you would run.
+    body:
+      mode: object
+      namespace: shop
+      files:
+        - name: cache-ingress.yaml
+          content: |
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: cache-ingress
+              namespace: shop
+            spec:
+              podSelector:
+                matchLabels:
+                  app: cache
+              policyTypes:
+              - Ingress
+              ingress:
+              - from:
+                - podSelector:
+                    matchLabels:
+                      role: cache-admin
+                ports:
+                - protocol: TCP
+                  port: 6380
+              - from:
+                - podSelector:
+                    matchLabels:
+                      cache-access: "true"
+                    matchExpressions:
+                    - key: tier
+                      operator: In
+                      values: [backend, batch]
+                ports:
+                - protocol: TCP
+                  port: 6379
+        - name: pod-reporter.yaml
+          content: |
+            apiVersion: v1
+            kind: Pod
+            metadata:
+              labels:
+                app: reporter
+                tier: frontend
+              name: reporter
+              namespace: shop
+            spec:
+              containers:
+              - image: registry.example.com/shop/reporter:2.1
+                name: reporter
+    answer:
+      checks:
+        - id: kind
+          label: The object changed is a Pod
+          path: kind
+          op: equals
+          value: Pod
+        - id: name
+          label: It is Pod reporter
+          path: metadata.name
+          op: equals
+          value: reporter
+        - id: app
+          label: The label app=reporter is unchanged
+          path: metadata.labels.app
+          op: equals
+          value: reporter
+        - id: tier
+          label: The label tier is backend or batch (matchExpressions In)
+          path: metadata.labels.tier
+          op: oneOf
+          value: [backend, batch]
+        - id: access
+          label: The label cache-access is "true" (matchLabels)
+          path: metadata.labels["cache-access"]
+          op: equals
+          value: "true"
+      solution:
+        - command: kubectl label pod reporter tier=batch cache-access=true --overwrite
+          output: |
+            apiVersion: v1
+            kind: Pod
+            metadata:
+              labels:
+                app: reporter
+                cache-access: "true"
+                tier: batch
+              name: reporter
+              namespace: shop
+            spec:
+              containers:
+              - image: registry.example.com/shop/reporter:2.1
+                name: reporter
+        - command: k -n shop label --overwrite po/reporter cache-access=true tier=backend
+          output: |
+            apiVersion: v1
+            kind: Pod
+            metadata:
+              labels:
+                app: reporter
+                cache-access: "true"
+                tier: backend
+              name: reporter
+              namespace: shop
+            spec:
+              containers:
+              - image: registry.example.com/shop/reporter:2.1
+                name: reporter
+        - command: kubectl label -f pod-reporter.yaml tier=batch cache-access=true --overwrite --local -o yaml
+          output: |
+            apiVersion: v1
+            kind: Pod
+            metadata:
+              labels:
+                app: reporter
+                cache-access: "true"
+                tier: batch
+              name: reporter
+              namespace: shop
+            spec:
+              containers:
+              - image: registry.example.com/shop/reporter:2.1
+                name: reporter
+      negatives:
+        - command: kubectl label pod reporter cache-access=true
+          why: All requirements of a selector are ANDed. With tier=frontend, the Pod fails the matchExpressions requirement (tier In backend, batch) even though cache-access matches.
+          output: |
+            apiVersion: v1
+            kind: Pod
+            metadata:
+              labels:
+                app: reporter
+                cache-access: "true"
+                tier: frontend
+              name: reporter
+              namespace: shop
+            spec:
+              containers:
+              - image: registry.example.com/shop/reporter:2.1
+                name: reporter
+        - command: kubectl label pod reporter role=cache-admin
+          why: role=cache-admin matches the first rule, which opens port 6380 only; the connection on 6379 stays blocked.
+          output: |
+            apiVersion: v1
+            kind: Pod
+            metadata:
+              labels:
+                app: reporter
+                role: cache-admin
+                tier: frontend
+              name: reporter
+              namespace: shop
+            spec:
+              containers:
+              - image: registry.example.com/shop/reporter:2.1
+                name: reporter
+        - command: kubectl label pod reporter tier=backend --overwrite
+          why: The tier requirement is met, but the matchLabels entry cache-access=true of the same selector is still missing.
+          output: |
+            apiVersion: v1
+            kind: Pod
+            metadata:
+              labels:
+                app: reporter
+                tier: backend
+              name: reporter
+              namespace: shop
+            spec:
+              containers:
+              - image: registry.example.com/shop/reporter:2.1
+                name: reporter
+        - command: kubectl annotate pod reporter tier=batch cache-access=true --overwrite
+          why: Selectors match labels, never annotations; the Pod labels do not change.
+          output: |
+            apiVersion: v1
+            kind: Pod
+            metadata:
+              annotations:
+                cache-access: "true"
+                tier: batch
+              labels:
+                app: reporter
+                tier: frontend
+              name: reporter
+              namespace: shop
+            spec:
+              containers:
+              - image: registry.example.com/shop/reporter:2.1
+                name: reporter
+    explanation:
+      correct:
+        en: 'Port 6379 is opened by the second rule only, whose peer requires `cache-access: "true"` **and** a `tier` value in `backend, batch`: `matchLabels` and `matchExpressions` of one selector are ANDed. `kubectl label pod reporter tier=batch cache-access=true --overwrite` sets both; `--overwrite` is needed because `tier` already has a value, otherwise kubectl rejects the update. The `role: cache-admin` peer only opens port 6380.'
+    references:
+      - title: Labels and Selectors
+        url: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
+      - title: kubectl label
+        url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_label/
+
+  # ------------------------------------------------------------------ 7
+  - id: ckad-qz-52-07
+    objective: "5.1.1"
+    difficulty: 3
+    status: draft
+    type: manifest
+    stem:
+      en: |-
+        In namespace `payments`, the Pods labeled `app: ledger` serve a gRPC API on the container port named `grpc` (its number changes between image versions, so it must not be hard-coded) and metrics on TCP ports 9100 through 9199.
+
+        Write a NetworkPolicy named `ledger-ingress` in namespace `payments` that allows only these two ingress flows to the ledger Pods, and nothing else:
+
+        - from the Pods labeled `app: checkout` of namespace `payments`, to the `grpc` port over TCP;
+        - from every Pod of the namespaces labeled `team: audit`, to TCP ports 9100 through 9199.
+
+        Egress traffic of the ledger Pods must not be affected.
+    body:
+      starter: |
+        apiVersion: networking.k8s.io/v1
+        kind: NetworkPolicy
+        metadata:
+          name: ledger-ingress
+          namespace: payments
+        spec:
+    answer:
+      checks:
+        - id: kind
+          label: The object is a networking.k8s.io/v1 NetworkPolicy
+          path: apiVersion
+          op: equals
+          value: networking.k8s.io/v1
+        - id: meta
+          label: It is named ledger-ingress in namespace payments
+          path: metadata
+          op: subset
+          value: { name: ledger-ingress, namespace: payments }
+        - id: target
+          label: The policy selects the app=ledger Pods
+          path: spec.podSelector.matchLabels
+          op: equals
+          value: { app: ledger }
+        - id: no-egress
+          label: Egress is not in policyTypes, so egress is not isolated
+          path: spec
+          op: matches
+          value: '^(?![\s\S]*"Egress")'
+        - id: grpc
+          label: A rule allows the app=checkout Pods on the named port grpc
+          path: spec.ingress
+          op: contains
+          value: { from: [{ podSelector: { matchLabels: { app: checkout } } }], ports: [{ port: grpc }] }
+        - id: metrics
+          label: A rule allows namespaces team=audit on the range 9100-9199 (endPort)
+          path: spec.ingress
+          op: contains
+          value: { from: [{ namespaceSelector: { matchLabels: { team: audit } } }], ports: [{ port: 9100, endPort: 9199 }] }
+        - id: two-rules
+          label: The two flows are two separate ingress rules
+          path: spec.ingress
+          op: length
+          value: 2
+        - id: rule0-from
+          label: The first rule has a single source peer
+          path: spec.ingress[0].from
+          op: length
+          value: 1
+        - id: rule1-from
+          label: The second rule has a single source peer
+          path: spec.ingress[1].from
+          op: length
+          value: 1
+        - id: rule0-ports
+          label: The first rule has a single port entry
+          path: spec.ingress[0].ports
+          op: length
+          value: 1
+        - id: rule1-ports
+          label: The second rule has a single port entry
+          path: spec.ingress[1].ports
+          op: length
+          value: 1
+      solution:
+        - manifest: |
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: ledger-ingress
+              namespace: payments
+            spec:
+              podSelector:
+                matchLabels:
+                  app: ledger
+              policyTypes:
+              - Ingress
+              ingress:
+              - from:
+                - podSelector:
+                    matchLabels:
+                      app: checkout
+                ports:
+                - protocol: TCP
+                  port: grpc
+              - from:
+                - namespaceSelector:
+                    matchLabels:
+                      team: audit
+                ports:
+                - protocol: TCP
+                  port: 9100
+                  endPort: 9199
+        - manifest: |
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              namespace: payments
+              name: ledger-ingress
+            spec:
+              podSelector:
+                matchLabels: {app: ledger}
+              ingress:
+              - ports:
+                - {port: 9100, endPort: 9199}
+                from:
+                - namespaceSelector:
+                    matchLabels: {team: audit}
+                  podSelector: {}
+              - ports:
+                - port: grpc
+                from:
+                - podSelector:
+                    matchLabels: {app: checkout}
+      negatives:
+        - manifest: |
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: ledger-ingress
+              namespace: payments
+            spec:
+              podSelector:
+                matchLabels:
+                  app: ledger
+              policyTypes:
+              - Ingress
+              ingress:
+              - from:
+                - podSelector:
+                    matchLabels:
+                      app: checkout
+                - namespaceSelector:
+                    matchLabels:
+                      team: audit
+                ports:
+                - protocol: TCP
+                  port: grpc
+                - protocol: TCP
+                  port: 9100
+                  endPort: 9199
+          why: In one rule every source gets every port, so the checkout Pods reach the metrics ports and the audit namespaces reach the gRPC port. Different sources with different ports need two rules.
+        - manifest: |
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: ledger-ingress
+              namespace: payments
+            spec:
+              podSelector:
+                matchLabels:
+                  app: ledger
+              policyTypes:
+              - Ingress
+              ingress:
+              - from:
+                - podSelector:
+                    matchLabels:
+                      app: checkout
+                ports:
+                - protocol: TCP
+                  port: grpc
+              - from:
+                - namespaceSelector:
+                    matchLabels:
+                      team: audit
+                ports:
+                - protocol: TCP
+                  port: 9100
+          why: Without endPort the entry opens port 9100 only, not the range up to 9199.
+        - manifest: |
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: ledger-ingress
+              namespace: payments
+            spec:
+              podSelector:
+                matchLabels:
+                  app: ledger
+              policyTypes:
+              - Ingress
+              ingress:
+              - from:
+                - podSelector:
+                    matchLabels:
+                      app: checkout
+                ports:
+                - protocol: TCP
+                  port: grpc
+              - from:
+                - podSelector:
+                    matchLabels:
+                      team: audit
+                ports:
+                - protocol: TCP
+                  port: 9100
+                  endPort: 9199
+          why: A podSelector matches Pod labels in the policy's own namespace; team=audit is a namespace label and needs a namespaceSelector.
+        - manifest: |
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: ledger-ingress
+              namespace: payments
+            spec:
+              podSelector:
+                matchLabels:
+                  app: ledger
+              policyTypes:
+              - Ingress
+              - Egress
+              ingress:
+              - from:
+                - podSelector:
+                    matchLabels:
+                      app: checkout
+                ports:
+                - protocol: TCP
+                  port: grpc
+              - from:
+                - namespaceSelector:
+                    matchLabels:
+                      team: audit
+                ports:
+                - protocol: TCP
+                  port: 9100
+                  endPort: 9199
+          why: Listing Egress with no egress rule isolates the ledger Pods for egress and blocks all their outgoing traffic, DNS included.
+    explanation:
+      correct:
+        en: 'Two rules are needed because inside one rule a connection must match one `from` peer and one `ports` entry, so every source would get every port. `port: grpc` refers to the container port named `grpc` on the ledger Pods, which survives a change of number; `port: 9100` with `endPort: 9199` is an inclusive range and requires a numeric `port`. Without an `egress` section, `policyTypes` defaults to `[Ingress]`, so egress stays open.'
+    references:
+      - title: Network Policies
+        url: https://kubernetes.io/docs/concepts/services-networking/network-policies/
+      - title: NetworkPolicy
+        url: https://kubernetes.io/docs/reference/kubernetes-api/policy-resources/network-policy-v1/
+
+  # ------------------------------------------------------------------ 8
+  - id: ckad-qz-52-08
+    objective: "5.1.2"
+    difficulty: 3
+    status: draft
+    type: manifest
+    stem:
+      en: |-
+        Write one file with two NetworkPolicies in namespace `analytics`:
+
+        - `egress-baseline` applies to every Pod of the namespace, including Pods created later. These Pods may send DNS queries (port 53, over UDP and over TCP) to any destination; all their other outgoing traffic is blocked.
+        - `exporter-internet` applies to the Pods labeled `app: exporter`. In addition to DNS, they may open HTTPS connections (TCP 443) to every address except the private ranges `10.0.0.0/8`, `172.16.0.0/12` and `192.168.0.0/16`.
+
+        Ingress traffic of every Pod must not be affected. Write `protocol` on every port entry.
+    body:
+      starter: ""
+    answer:
+      checks:
+        - id: base-meta
+          label: egress-baseline is in namespace analytics
+          select: { kind: NetworkPolicy, name: egress-baseline }
+          path: metadata.namespace
+          op: equals
+          value: analytics
+        - id: base-all-labels
+          label: egress-baseline selects every Pod (no matchLabels)
+          select: { kind: NetworkPolicy, name: egress-baseline }
+          path: spec.podSelector.matchLabels
+          op: absent
+        - id: base-all-expr
+          label: egress-baseline selects every Pod (no matchExpressions)
+          select: { kind: NetworkPolicy, name: egress-baseline }
+          path: spec.podSelector.matchExpressions
+          op: absent
+        - id: base-types
+          label: egress-baseline has policyTypes Egress only
+          select: { kind: NetworkPolicy, name: egress-baseline }
+          path: spec.policyTypes
+          op: equals
+          value: [Egress]
+        - id: base-udp
+          label: egress-baseline allows UDP 53
+          select: { kind: NetworkPolicy, name: egress-baseline }
+          path: spec.egress
+          op: contains
+          value: { ports: [{ protocol: UDP, port: 53 }] }
+        - id: base-tcp
+          label: egress-baseline allows TCP 53
+          select: { kind: NetworkPolicy, name: egress-baseline }
+          path: spec.egress
+          op: contains
+          value: { ports: [{ protocol: TCP, port: 53 }] }
+        - id: exp-meta
+          label: exporter-internet is in namespace analytics
+          select: { kind: NetworkPolicy, name: exporter-internet }
+          path: metadata.namespace
+          op: equals
+          value: analytics
+        - id: exp-target
+          label: exporter-internet selects the app=exporter Pods
+          select: { kind: NetworkPolicy, name: exporter-internet }
+          path: spec.podSelector.matchLabels
+          op: equals
+          value: { app: exporter }
+        - id: exp-types
+          label: exporter-internet has policyTypes Egress only
+          select: { kind: NetworkPolicy, name: exporter-internet }
+          path: spec.policyTypes
+          op: equals
+          value: [Egress]
+        - id: exp-https
+          label: exporter-internet allows TCP 443 to 0.0.0.0/0 except the three private ranges
+          select: { kind: NetworkPolicy, name: exporter-internet }
+          path: spec.egress
+          op: contains
+          value:
+            to:
+              - ipBlock:
+                  cidr: 0.0.0.0/0
+                  except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16]
+            ports:
+              - { protocol: TCP, port: 443 }
+      solution:
+        - manifest: |
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: egress-baseline
+              namespace: analytics
+            spec:
+              podSelector: {}
+              policyTypes:
+              - Egress
+              egress:
+              - ports:
+                - protocol: UDP
+                  port: 53
+                - protocol: TCP
+                  port: 53
+            ---
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: exporter-internet
+              namespace: analytics
+            spec:
+              podSelector:
+                matchLabels:
+                  app: exporter
+              policyTypes:
+              - Egress
+              egress:
+              - to:
+                - ipBlock:
+                    cidr: 0.0.0.0/0
+                    except:
+                    - 10.0.0.0/8
+                    - 172.16.0.0/12
+                    - 192.168.0.0/16
+                ports:
+                - protocol: TCP
+                  port: 443
+        - manifest: |
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: exporter-internet
+              namespace: analytics
+            spec:
+              podSelector:
+                matchLabels: {app: exporter}
+              policyTypes: [Egress]
+              egress:
+              - ports:
+                - {protocol: UDP, port: 53}
+                - {protocol: TCP, port: 53}
+              - to:
+                - ipBlock:
+                    cidr: 0.0.0.0/0
+                    except: [192.168.0.0/16, 172.16.0.0/12, 10.0.0.0/8]
+                ports:
+                - {protocol: TCP, port: 443}
+            ---
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: egress-baseline
+              namespace: analytics
+            spec:
+              policyTypes: [Egress]
+              egress:
+              - ports:
+                - {protocol: UDP, port: 53}
+              - ports:
+                - {protocol: TCP, port: 53}
+      negatives:
+        - manifest: |
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: egress-baseline
+              namespace: analytics
+            spec:
+              podSelector: {}
+              egress:
+              - ports:
+                - protocol: UDP
+                  port: 53
+                - protocol: TCP
+                  port: 53
+            ---
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: exporter-internet
+              namespace: analytics
+            spec:
+              podSelector:
+                matchLabels:
+                  app: exporter
+              policyTypes:
+              - Egress
+              egress:
+              - to:
+                - ipBlock:
+                    cidr: 0.0.0.0/0
+                    except:
+                    - 10.0.0.0/8
+                    - 172.16.0.0/12
+                    - 192.168.0.0/16
+                ports:
+                - protocol: TCP
+                  port: 443
+          why: Without policyTypes, egress-baseline gets Ingress (always) and Egress (it has an egress section), so every Pod of the namespace also loses all ingress traffic.
+        - manifest: |
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: egress-baseline
+              namespace: analytics
+            spec:
+              podSelector: {}
+              policyTypes:
+              - Egress
+              egress:
+              - ports:
+                - protocol: UDP
+                  port: 53
+                - protocol: TCP
+                  port: 53
+            ---
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: exporter-internet
+              namespace: analytics
+            spec:
+              podSelector:
+                matchLabels:
+                  app: exporter
+              policyTypes:
+              - Egress
+              egress:
+              - to:
+                - ipBlock:
+                    cidr: 0.0.0.0/0
+                ports:
+                - protocol: TCP
+                  port: 443
+          why: Without except, the exporter Pods can also reach the private ranges on 443, Pods and internal services included.
+        - manifest: |
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: egress-baseline
+              namespace: analytics
+            spec:
+              podSelector: {}
+              policyTypes:
+              - Egress
+              egress:
+              - ports:
+                - protocol: TCP
+                  port: 53
+            ---
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: exporter-internet
+              namespace: analytics
+            spec:
+              podSelector:
+                matchLabels:
+                  app: exporter
+              policyTypes:
+              - Egress
+              egress:
+              - to:
+                - ipBlock:
+                    cidr: 0.0.0.0/0
+                    except:
+                    - 10.0.0.0/8
+                    - 172.16.0.0/12
+                    - 192.168.0.0/16
+                ports:
+                - protocol: TCP
+                  port: 443
+          why: DNS over UDP, used by most lookups, stays blocked; the task asks for UDP and TCP 53.
+        - manifest: |
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: egress-baseline
+              namespace: analytics
+            spec:
+              podSelector: {}
+              policyTypes:
+              - Egress
+              egress:
+              - ports:
+                - protocol: UDP
+                  port: 53
+                - protocol: TCP
+                  port: 53
+              - to:
+                - ipBlock:
+                    cidr: 0.0.0.0/0
+                    except:
+                    - 10.0.0.0/8
+                    - 172.16.0.0/12
+                    - 192.168.0.0/16
+                ports:
+                - protocol: TCP
+                  port: 443
+          why: Putting the HTTPS rule in the baseline opens it to every Pod of the namespace, not only to the exporter Pods; the exporter-internet policy is missing.
+    explanation:
+      correct:
+        en: '`egress-baseline` selects every Pod (`podSelector: {}`, or the field omitted) and isolates them for egress; its single rule, with no `to`, allows port 53 over UDP and TCP to any destination. `exporter-internet` adds an allow for the exporter Pods only: policies are a union, so the exporters keep DNS from the baseline and gain TCP 443 to `0.0.0.0/0` minus the `except` ranges. Both policies need `policyTypes: [Egress]` explicitly, because a policy with an `egress` section and no `policyTypes` is also isolated for ingress.'
+    references:
+      - title: Network Policies
+        url: https://kubernetes.io/docs/concepts/services-networking/network-policies/
+      - title: NetworkPolicy
+        url: https://kubernetes.io/docs/reference/kubernetes-api/policy-resources/network-policy-v1/
+
+  # ------------------------------------------------------------------ 9
+  - id: ckad-qz-52-09
+    objective: "5.1.1"
+    difficulty: 3
+    status: draft
+    type: manifest
+    stem:
+      en: |-
+        A colleague wrote the NetworkPolicy `api-ingress` shown in the editor, and `kubectl apply` rejects it. Intended behavior:
+
+        - the Pods labeled `app: api` in namespace `shop` accept ingress on TCP port 8080 only, from the Pods of `shop` labeled `access: "true"` and from the office network `192.168.10.0/24`;
+        - the outgoing traffic of the api Pods is not affected.
+
+        Fix the policy so that it is accepted and behaves as intended. Keep a single ingress rule.
+    body:
+      starter: |
+        apiVersion: networking.k8s.io/v1
+        kind: NetworkPolicy
+        metadata:
+          name: api-ingress
+          namespace: shop
+        spec:
+          podSelector:
+            matchLabels:
+              app: api
+          policyTypes:
+          - Egress
+          ingress:
+          - from:
+            - podSelector:
+                matchLabels:
+                  access: true
+              ipBlock:
+                cidr: 192.168.10.0/24
+            ports:
+            - protocol: TCP
+              port: 8080
+    answer:
+      checks:
+        - id: meta
+          label: It is NetworkPolicy api-ingress in namespace shop
+          path: metadata
+          op: subset
+          value: { name: api-ingress, namespace: shop }
+        - id: target
+          label: The policy selects the app=api Pods
+          path: spec.podSelector.matchLabels
+          op: equals
+          value: { app: api }
+        - id: no-egress
+          label: Egress is not in policyTypes (egress not isolated, ingress is)
+          path: spec
+          op: matches
+          value: '^(?![\s\S]*"Egress")'
+        - id: one-rule
+          label: A single ingress rule
+          path: spec.ingress
+          op: length
+          value: 1
+        - id: two-peers
+          label: The rule has two separate peers (ipBlock cannot share a peer with podSelector)
+          path: spec.ingress[0].from
+          op: length
+          value: 2
+        - id: pods
+          label: A peer selects the Pods labeled access=true on port 8080
+          path: spec.ingress
+          op: contains
+          value: { from: [{ podSelector: { matchLabels: { access: "true" } } }], ports: [{ port: 8080 }] }
+        - id: quoted
+          label: The label value "true" is a string
+          path: spec.ingress[0].from
+          op: matches
+          value: '"access":"true"'
+        - id: office
+          label: A peer allows the office network 192.168.10.0/24
+          path: spec.ingress
+          op: contains
+          value: { from: [{ ipBlock: { cidr: 192.168.10.0/24 } }] }
+      solution:
+        - manifest: |
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: api-ingress
+              namespace: shop
+            spec:
+              podSelector:
+                matchLabels:
+                  app: api
+              policyTypes:
+              - Ingress
+              ingress:
+              - from:
+                - podSelector:
+                    matchLabels:
+                      access: "true"
+                - ipBlock:
+                    cidr: 192.168.10.0/24
+                ports:
+                - protocol: TCP
+                  port: 8080
+        - manifest: |
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: api-ingress
+              namespace: shop
+            spec:
+              podSelector:
+                matchLabels:
+                  app: api
+              ingress:
+              - from:
+                - ipBlock:
+                    cidr: 192.168.10.0/24
+                - podSelector:
+                    matchLabels:
+                      access: 'true'
+                ports:
+                - port: 8080
+      negatives:
+        - manifest: |
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: api-ingress
+              namespace: shop
+            spec:
+              podSelector:
+                matchLabels:
+                  app: api
+              policyTypes:
+              - Ingress
+              ingress:
+              - from:
+                - podSelector:
+                    matchLabels:
+                      access: true
+                - ipBlock:
+                    cidr: 192.168.10.0/24
+                ports:
+                - protocol: TCP
+                  port: 8080
+          why: Label values are strings; an unquoted true is a YAML boolean and the API server still rejects the policy.
+        - manifest: |
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: api-ingress
+              namespace: shop
+            spec:
+              podSelector:
+                matchLabels:
+                  app: api
+              policyTypes:
+              - Egress
+              ingress:
+              - from:
+                - podSelector:
+                    matchLabels:
+                      access: "true"
+                - ipBlock:
+                    cidr: 192.168.10.0/24
+                ports:
+                - protocol: TCP
+                  port: 8080
+          why: With policyTypes [Egress] the policy does not isolate the api Pods for ingress (anyone can still connect) and it blocks all their outgoing traffic, since it has no egress rule.
+        - manifest: |
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: api-ingress
+              namespace: shop
+            spec:
+              podSelector:
+                matchLabels:
+                  app: api
+              policyTypes:
+              - Ingress
+              ingress:
+              - from:
+                - podSelector:
+                    matchLabels:
+                      access: "true"
+                  ipBlock:
+                    cidr: 192.168.10.0/24
+                ports:
+                - protocol: TCP
+                  port: 8080
+          why: When ipBlock is set in a peer, podSelector and namespaceSelector cannot be; the API server still rejects the policy. They must be two elements of from.
+        - manifest: |
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: api-ingress
+              namespace: shop
+            spec:
+              podSelector:
+                matchLabels:
+                  app: api
+              policyTypes:
+              - Ingress
+              - Egress
+              ingress:
+              - from:
+                - podSelector:
+                    matchLabels:
+                      access: "true"
+                - ipBlock:
+                    cidr: 192.168.10.0/24
+                ports:
+                - protocol: TCP
+                  port: 8080
+          why: Keeping Egress next to Ingress isolates the api Pods for egress with no egress rule, which blocks their outgoing traffic.
+    explanation:
+      correct:
+        en: 'Three fixes are needed. `policyTypes` must be `[Ingress]` (or omitted, which gives `[Ingress]` for a policy without an `egress` section): with `[Egress]` the api Pods would stay open for ingress and lose all egress. `ipBlock` cannot share a peer with `podSelector`, so the rule needs two `from` elements, which are ORed. A label value must be a string, so `access: "true"` is quoted.'
+    references:
+      - title: NetworkPolicy
+        url: https://kubernetes.io/docs/reference/kubernetes-api/policy-resources/network-policy-v1/
+      - title: Labels and Selectors
+        url: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
+
+  # ------------------------------------------------------------------ 10
+  - id: ckad-qz-52-10
+    objective: "5.1.2"
+    difficulty: 3
+    status: draft
+    type: manifest
+    stem:
+      en: |-
+        Namespaces `web` and `shop` each contain two NetworkPolicies: `default-deny-all` (every Pod, `policyTypes` Ingress and Egress, no rules) and `allow-dns` (every Pod, egress on port 53 over UDP and TCP to any destination).
+
+        The Pods labeled `app: frontend` in namespace `web` must call the Service `api` of namespace `shop` (file `svc-api.yaml`), whose backend Pods are labeled `app: api`. These calls time out.
+
+        Write one file with two NetworkPolicies, `frontend-to-api` in namespace `web` and `api-from-frontend` in namespace `shop`, that make the calls work. Open only this flow: only from the frontend Pods of `web`, only to the api Pods of `shop`, only on the TCP port those Pods receive. Do not change the existing policies.
+    body:
+      starter: ""
+      files:
+        - name: svc-api.yaml
+          content: |
+            apiVersion: v1
+            kind: Service
+            metadata:
+              name: api
+              namespace: shop
+            spec:
+              selector:
+                app: api
+              ports:
+              - protocol: TCP
+                port: 80
+                targetPort: 8080
+    answer:
+      checks:
+        - id: egress-ns
+          label: frontend-to-api is in namespace web
+          select: { kind: NetworkPolicy, name: frontend-to-api }
+          path: metadata.namespace
+          op: equals
+          value: web
+        - id: egress-target
+          label: frontend-to-api selects the app=frontend Pods
+          select: { kind: NetworkPolicy, name: frontend-to-api }
+          path: spec.podSelector.matchLabels
+          op: equals
+          value: { app: frontend }
+        - id: egress-types
+          label: frontend-to-api is not limited to Ingress, so its egress rule applies
+          select: { kind: NetworkPolicy, name: frontend-to-api }
+          path: spec
+          op: matches
+          value: '^(?![\s\S]*"policyTypes":\["Ingress"\])'
+        - id: egress-rule
+          label: Egress to the app=api Pods of namespace shop (one peer) on port 8080
+          select: { kind: NetworkPolicy, name: frontend-to-api }
+          path: spec.egress
+          op: contains
+          value:
+            to:
+              - namespaceSelector:
+                  matchLabels: { kubernetes.io/metadata.name: shop }
+                podSelector:
+                  matchLabels: { app: api }
+            ports:
+              - { port: 8080 }
+        - id: ingress-ns
+          label: api-from-frontend is in namespace shop
+          select: { kind: NetworkPolicy, name: api-from-frontend }
+          path: metadata.namespace
+          op: equals
+          value: shop
+        - id: ingress-target
+          label: api-from-frontend selects the app=api Pods
+          select: { kind: NetworkPolicy, name: api-from-frontend }
+          path: spec.podSelector.matchLabels
+          op: equals
+          value: { app: api }
+        - id: ingress-types
+          label: api-from-frontend is not limited to Egress, so its ingress rule applies
+          select: { kind: NetworkPolicy, name: api-from-frontend }
+          path: spec
+          op: matches
+          value: '^(?![\s\S]*"policyTypes":\["Egress"\])'
+        - id: ingress-rule
+          label: Ingress from the app=frontend Pods of namespace web (one peer) on port 8080
+          select: { kind: NetworkPolicy, name: api-from-frontend }
+          path: spec.ingress
+          op: contains
+          value:
+            from:
+              - namespaceSelector:
+                  matchLabels: { kubernetes.io/metadata.name: web }
+                podSelector:
+                  matchLabels: { app: frontend }
+            ports:
+              - { port: 8080 }
+        - id: ingress-one-rule
+          label: api-from-frontend has a single ingress rule
+          select: { kind: NetworkPolicy, name: api-from-frontend }
+          path: spec.ingress
+          op: length
+          value: 1
+        - id: ingress-one-peer
+          label: The ingress rule has a single peer
+          select: { kind: NetworkPolicy, name: api-from-frontend }
+          path: spec.ingress[0].from
+          op: length
+          value: 1
+      solution:
+        - manifest: |
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: frontend-to-api
+              namespace: web
+            spec:
+              podSelector:
+                matchLabels:
+                  app: frontend
+              policyTypes:
+              - Egress
+              egress:
+              - to:
+                - namespaceSelector:
+                    matchLabels:
+                      kubernetes.io/metadata.name: shop
+                  podSelector:
+                    matchLabels:
+                      app: api
+                ports:
+                - protocol: TCP
+                  port: 8080
+            ---
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: api-from-frontend
+              namespace: shop
+            spec:
+              podSelector:
+                matchLabels:
+                  app: api
+              policyTypes:
+              - Ingress
+              ingress:
+              - from:
+                - namespaceSelector:
+                    matchLabels:
+                      kubernetes.io/metadata.name: web
+                  podSelector:
+                    matchLabels:
+                      app: frontend
+                ports:
+                - protocol: TCP
+                  port: 8080
+        - manifest: |
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              namespace: shop
+              name: api-from-frontend
+            spec:
+              podSelector:
+                matchLabels: {app: api}
+              ingress:
+              - ports:
+                - port: 8080
+                from:
+                - podSelector:
+                    matchLabels: {app: frontend}
+                  namespaceSelector:
+                    matchLabels: {kubernetes.io/metadata.name: web}
+            ---
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              namespace: web
+              name: frontend-to-api
+            spec:
+              podSelector:
+                matchLabels: {app: frontend}
+              egress:
+              - ports:
+                - port: 8080
+                to:
+                - podSelector:
+                    matchLabels: {app: api}
+                  namespaceSelector:
+                    matchLabels: {kubernetes.io/metadata.name: shop}
+      negatives:
+        - manifest: |
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: frontend-to-api
+              namespace: web
+            spec:
+              podSelector:
+                matchLabels:
+                  app: frontend
+              policyTypes:
+              - Egress
+              egress:
+              - to:
+                - namespaceSelector:
+                    matchLabels:
+                      kubernetes.io/metadata.name: shop
+                  podSelector:
+                    matchLabels:
+                      app: api
+                ports:
+                - protocol: TCP
+                  port: 80
+            ---
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: api-from-frontend
+              namespace: shop
+            spec:
+              podSelector:
+                matchLabels:
+                  app: api
+              policyTypes:
+              - Ingress
+              ingress:
+              - from:
+                - namespaceSelector:
+                    matchLabels:
+                      kubernetes.io/metadata.name: web
+                  podSelector:
+                    matchLabels:
+                      app: frontend
+                ports:
+                - protocol: TCP
+                  port: 80
+          why: 80 is the Service port. Policies see the traffic on the Pod, after the Service has forwarded it to targetPort 8080, on both ends.
+        - manifest: |
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: api-from-frontend
+              namespace: shop
+            spec:
+              podSelector:
+                matchLabels:
+                  app: api
+              policyTypes:
+              - Ingress
+              ingress:
+              - from:
+                - namespaceSelector:
+                    matchLabels:
+                      kubernetes.io/metadata.name: web
+                  podSelector:
+                    matchLabels:
+                      app: frontend
+                ports:
+                - protocol: TCP
+                  port: 8080
+          why: The frontend Pods are isolated for egress by default-deny-all in web, and allow-dns opens only port 53; without an egress allow on the frontend side the connection never leaves.
+        - manifest: |
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: frontend-to-api
+              namespace: web
+            spec:
+              podSelector:
+                matchLabels:
+                  app: frontend
+              policyTypes:
+              - Egress
+              egress:
+              - to:
+                - podSelector:
+                    matchLabels:
+                      app: api
+                ports:
+                - protocol: TCP
+                  port: 8080
+            ---
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: api-from-frontend
+              namespace: shop
+            spec:
+              podSelector:
+                matchLabels:
+                  app: api
+              policyTypes:
+              - Ingress
+              ingress:
+              - from:
+                - podSelector:
+                    matchLabels:
+                      app: frontend
+                ports:
+                - protocol: TCP
+                  port: 8080
+          why: A podSelector without namespaceSelector looks in the policy's own namespace. The egress rule targets app=api Pods of web and the ingress rule app=frontend Pods of shop, so neither matches the real peer.
+        - manifest: |
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: frontend-to-api
+              namespace: web
+            spec:
+              podSelector:
+                matchLabels:
+                  app: frontend
+              policyTypes:
+              - Egress
+              egress:
+              - to:
+                - namespaceSelector:
+                    matchLabels:
+                      kubernetes.io/metadata.name: shop
+                  podSelector:
+                    matchLabels:
+                      app: api
+                ports:
+                - protocol: TCP
+                  port: 8080
+            ---
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: api-from-frontend
+              namespace: shop
+            spec:
+              podSelector:
+                matchLabels:
+                  app: api
+              policyTypes:
+              - Ingress
+              ingress:
+              - from:
+                - namespaceSelector:
+                    matchLabels:
+                      kubernetes.io/metadata.name: web
+                - podSelector:
+                    matchLabels:
+                      app: frontend
+                ports:
+                - protocol: TCP
+                  port: 8080
+          why: Two from elements are ORed. The api Pods then accept every Pod of namespace web, plus the app=frontend Pods of shop.
+        - manifest: |
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: frontend-to-api
+              namespace: shop
+            spec:
+              podSelector:
+                matchLabels:
+                  app: frontend
+              policyTypes:
+              - Egress
+              egress:
+              - to:
+                - namespaceSelector:
+                    matchLabels:
+                      kubernetes.io/metadata.name: shop
+                  podSelector:
+                    matchLabels:
+                      app: api
+                ports:
+                - protocol: TCP
+                  port: 8080
+            ---
+            apiVersion: networking.k8s.io/v1
+            kind: NetworkPolicy
+            metadata:
+              name: api-from-frontend
+              namespace: shop
+            spec:
+              podSelector:
+                matchLabels:
+                  app: api
+              policyTypes:
+              - Ingress
+              ingress:
+              - from:
+                - namespaceSelector:
+                    matchLabels:
+                      kubernetes.io/metadata.name: web
+                  podSelector:
+                    matchLabels:
+                      app: frontend
+                ports:
+                - protocol: TCP
+                  port: 8080
+          why: spec.podSelector only selects Pods of the policy's namespace. Created in shop, frontend-to-api selects no frontend Pod; the egress policy must live in web.
+    explanation:
+      correct:
+        en: 'Both ends are isolated by `default-deny-all`, so the flow needs an egress allow on the frontend Pods (policy in `web`) and an ingress allow on the api Pods (policy in `shop`); `allow-dns` already covers name resolution and replies need no rule. Each peer combines `namespaceSelector` (`kubernetes.io/metadata.name`) and `podSelector` in one element, because the other end lives in another namespace. The port is the `targetPort` 8080 that the Pods receive, not the Service port 80.'
+    references:
+      - title: Network Policies
+        url: https://kubernetes.io/docs/concepts/services-networking/network-policies/
+      - title: NetworkPolicy
+        url: https://kubernetes.io/docs/reference/kubernetes-api/policy-resources/network-policy-v1/

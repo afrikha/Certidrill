@@ -1,0 +1,58 @@
+id: cka-3d-pdb-disruptions-allowed
+objective: "3.4.2"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    `kubectl drain worker-2 --ignore-daemonsets` keeps retrying with `Cannot evict pod as it would violate the pod's disruption budget.` The Pod it cannot evict belongs to the PodDisruptionBudget `api-pdb` in namespace `payments`.
+
+    Print only the number of Pods that the budget currently allows to be evicted, as computed by the disruption controller (a single number, no table). Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: get
+    label: Uses kubectl get
+    path: verb
+    op: equals
+    value: get
+  - id: resource
+    label: Reads a PodDisruptionBudget
+    path: resource
+    op: equals
+    value: poddisruptionbudget
+  - id: name
+    label: Reads api-pdb
+    path: names
+    op: contains
+    value: api-pdb
+  - id: namespace
+    label: Runs in namespace payments
+    path: flags.namespace
+    op: equals
+    value: payments
+  - id: jsonpath
+    label: Prints .status.disruptionsAllowed with a JSONPath template
+    path: flags.output
+    op: matches
+    value: '^jsonpath=\{\s*\.status\.disruptionsAllowed\s*\}$'
+  solution:
+  - command: kubectl get pdb api-pdb -n payments -o jsonpath='{.status.disruptionsAllowed}'
+  - command: k get poddisruptionbudget/api-pdb --namespace=payments --output=jsonpath='{.status.disruptionsAllowed}'
+  negatives:
+  - command: kubectl get pdb api-pdb -n payments -o jsonpath='{.spec.maxUnavailable}'
+    why: spec.maxUnavailable is the configured budget, not the number of evictions the controller allows right now.
+  - command: kubectl get pdb api-pdb -n payments
+    why: The table shows the ALLOWED DISRUPTIONS column among others; the task asks for the number alone.
+  - command: kubectl get pdb api-pdb -o jsonpath='{.status.disruptionsAllowed}'
+    why: Without -n the command looks for api-pdb in the context namespace, default.
+  - command: kubectl get pdb api-pdb -n payments -o jsonpath='{.status.currentHealthy}'
+    why: currentHealthy is the number of healthy Pods; evictions are allowed only for the part above desiredHealthy, which disruptionsAllowed gives.
+explanation:
+  correct:
+    en: 'The disruption controller writes `status.disruptionsAllowed` (with `currentHealthy`, `desiredHealthy` and `expectedPods`) on each PodDisruptionBudget; `kubectl get pdb` shows it as the ALLOWED DISRUPTIONS column. `-o jsonpath=''{.status.disruptionsAllowed}''` prints the value alone. While it is 0, the eviction API refuses evictions and `kubectl drain` keeps retrying.'
+references:
+- title: Specifying a Disruption Budget for your Application
+  url: https://kubernetes.io/docs/tasks/run-application/configure-pdb/

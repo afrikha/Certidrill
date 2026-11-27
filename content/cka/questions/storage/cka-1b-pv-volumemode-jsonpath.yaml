@@ -1,0 +1,57 @@
+id: cka-1b-pv-volumemode-jsonpath
+objective: "1.2.1"
+difficulty: 1
+status: draft
+type: command
+stem:
+  en: |-
+    A claim that asks for a raw block volume stays `Pending`, although the PersistentVolume `pv-fast-01` has the right class, size and access modes. Print only the volume mode of `pv-fast-01`.
+
+    Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Uses kubectl get
+    path: verb
+    op: equals
+    value: get
+  - id: resource
+    label: Reads a PersistentVolume
+    path: resource
+    op: equals
+    value: persistentvolume
+  - id: name
+    label: Names pv-fast-01
+    path: names
+    op: contains
+    value: pv-fast-01
+  - id: field
+    label: Prints only .spec.volumeMode
+    path: flags.output
+    op: matches
+    value: '^(jsonpath=\{\.spec\.volumeMode\}(\{"\\n"\})?|custom-columns=[^:,]+:\.spec\.volumeMode)$'
+  solution:
+  - command: |-
+      kubectl get pv pv-fast-01 -o jsonpath='{.spec.volumeMode}'
+  - command: |-
+      k get persistentvolume/pv-fast-01 -o custom-columns=MODE:.spec.volumeMode
+  negatives:
+  - command: |-
+      kubectl get pv pv-fast-01 -o jsonpath='{.volumeMode}'
+    why: volumeMode is under spec; this JSONPath prints nothing.
+  - command: |-
+      kubectl get pvc pv-fast-01 -o jsonpath='{.spec.volumeMode}'
+    why: pv-fast-01 is a PersistentVolume, not a claim.
+  - command: |-
+      kubectl get pv pv-fast-01 -o jsonpath='{.spec.accessModes}'
+    why: The access modes are already known to match; the task asks for the volume mode.
+explanation:
+  correct:
+    en: |-
+      `kubectl get pv pv-fast-01 -o jsonpath='{.spec.volumeMode}'` prints `Filesystem` or `Block`. A claim with `volumeMode: Block` binds only to a `Block` PV; a PV without the field is `Filesystem` and never binds to it. PVs are cluster-scoped, so no namespace is needed.
+references:
+- title: Persistent Volumes
+  url: https://kubernetes.io/docs/concepts/storage/persistent-volumes/

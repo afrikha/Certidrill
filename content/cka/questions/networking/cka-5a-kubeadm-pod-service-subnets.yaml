@@ -1,0 +1,108 @@
+id: cka-5a-kubeadm-pod-service-subnets
+objective: "5.1.1"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    You are preparing `kubeadm init --config cluster.yaml` for a new v1.37.1 cluster. The nodes use addresses in `172.31.0.0/16`. The CNI plugin you will install is configured for the Pod range `10.244.0.0/16`, and the network team reserved `10.96.0.0/16` for Service ClusterIPs.
+
+    The draft below assigns overlapping ranges. Correct `cluster.yaml` so that Pods get addresses from `10.244.0.0/16` and Services from `10.96.0.0/16`. Keep the version and the control plane endpoint.
+body:
+  starter: |
+    apiVersion: kubeadm.k8s.io/v1beta4
+    kind: ClusterConfiguration
+    kubernetesVersion: v1.37.1
+    controlPlaneEndpoint: k8s-api.example.com:6443
+    networking:
+      dnsDomain: cluster.local
+      serviceSubnet: 10.96.0.0/12
+      podSubnet: 10.96.0.0/16
+answer:
+  checks:
+  - id: kind
+    label: The file is a kubeadm.k8s.io/v1beta4 ClusterConfiguration
+    path: kind
+    op: equals
+    value: ClusterConfiguration
+  - id: api
+    label: It uses apiVersion kubeadm.k8s.io/v1beta4
+    path: apiVersion
+    op: equals
+    value: kubeadm.k8s.io/v1beta4
+  - id: pod-subnet
+    label: networking.podSubnet is 10.244.0.0/16
+    path: networking.podSubnet
+    op: equals
+    value: 10.244.0.0/16
+  - id: service-subnet
+    label: networking.serviceSubnet is 10.96.0.0/16
+    path: networking.serviceSubnet
+    op: equals
+    value: 10.96.0.0/16
+  - id: version
+    label: kubernetesVersion is still v1.37.1
+    path: kubernetesVersion
+    op: equals
+    value: v1.37.1
+  - id: endpoint
+    label: controlPlaneEndpoint is still k8s-api.example.com:6443
+    path: controlPlaneEndpoint
+    op: equals
+    value: k8s-api.example.com:6443
+  solution:
+  - manifest: |
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: ClusterConfiguration
+      kubernetesVersion: v1.37.1
+      controlPlaneEndpoint: k8s-api.example.com:6443
+      networking:
+        dnsDomain: cluster.local
+        serviceSubnet: 10.96.0.0/16
+        podSubnet: 10.244.0.0/16
+  - manifest: |
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: ClusterConfiguration
+      kubernetesVersion: "v1.37.1"
+      controlPlaneEndpoint: "k8s-api.example.com:6443"
+      networking:
+        podSubnet: "10.244.0.0/16"
+        serviceSubnet: "10.96.0.0/16"
+  negatives:
+  - manifest: |
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: ClusterConfiguration
+      kubernetesVersion: v1.37.1
+      controlPlaneEndpoint: k8s-api.example.com:6443
+      networking:
+        dnsDomain: cluster.local
+        serviceSubnet: 10.96.0.0/16
+        podNetworkCidr: 10.244.0.0/16
+    why: podNetworkCidr is not a field of the configuration file (--pod-network-cidr is the kubeadm init flag); the field is networking.podSubnet.
+  - manifest: |
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: ClusterConfiguration
+      kubernetesVersion: v1.37.1
+      controlPlaneEndpoint: k8s-api.example.com:6443
+      networking:
+        dnsDomain: cluster.local
+        serviceSubnet: 10.244.0.0/16
+        podSubnet: 10.96.0.0/16
+    why: The two ranges are swapped; the CNI plugin expects Pods in 10.244.0.0/16.
+  - manifest: |
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: ClusterConfiguration
+      kubernetesVersion: v1.37.1
+      controlPlaneEndpoint: k8s-api.example.com:6443
+      networking:
+        dnsDomain: cluster.local
+        podSubnet: 10.244.0.0/16
+    why: Without serviceSubnet kubeadm uses its default 10.96.0.0/12, wider than the reserved 10.96.0.0/16.
+explanation:
+  correct:
+    en: 'In a kubeadm `ClusterConfiguration`, `networking.podSubnet` is the Pod range (the file equivalent of `kubeadm init --pod-network-cidr`) and `networking.serviceSubnet` the Service range (default `10.96.0.0/12`). Pods, Services and nodes need non-overlapping ranges, and the Pod range must match what the CNI plugin is configured for.'
+references:
+- title: kubeadm Configuration (v1beta4)
+  url: https://kubernetes.io/docs/reference/config-api/kubeadm-config.v1beta4/
+- title: Cluster Networking
+  url: https://kubernetes.io/docs/concepts/cluster-administration/networking/

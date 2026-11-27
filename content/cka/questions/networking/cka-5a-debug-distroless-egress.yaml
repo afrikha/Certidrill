@@ -1,0 +1,75 @@
+id: cka-5a-debug-distroless-egress
+objective: "5.1.2"
+difficulty: 3
+status: draft
+type: command
+stem:
+  en: |-
+    Pod `checkout` in namespace `shop` has a single container named `app`, built on a distroless image: it has no shell and no `wget`. The application logs say it cannot reach Service `inventory` of namespace `stock` on port 8080.
+
+    Test the connection from the network namespace of `checkout` itself, without restarting or copying the Pod: attach an ephemeral debug container with image `busybox:1.36` to your terminal and have it fetch `/healthz` from that Service with `wget`. Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Uses kubectl debug
+    path: verb
+    op: equals
+    value: debug
+  - id: pod
+    label: Targets Pod checkout
+    path: names
+    op: contains
+    value: checkout
+  - id: namespace
+    label: Targets namespace shop
+    path: flags.namespace
+    op: equals
+    value: shop
+  - id: image
+    label: The debug container runs busybox:1.36
+    path: flags.image
+    op: equals
+    value: busybox:1.36
+  - id: attach
+    label: The session is attached to your terminal (-i)
+    path: flags.stdin
+    op: equals
+    value: true
+  - id: ephemeral
+    label: It adds an ephemeral container instead of copying the Pod
+    path: flags.copy-to
+    op: absent
+  - id: wget
+    label: The debug container runs wget
+    path: rest
+    op: matches
+    value: wget
+  - id: url
+    label: It calls Service inventory of namespace stock on port 8080 at /healthz
+    path: rest
+    op: matches
+    value: 'inventory\.stock(\.svc(\.cluster\.local)?)?:8080/healthz'
+  solution:
+  - command: kubectl debug -it checkout -n shop --image=busybox:1.36 --target=app -- wget -qO- http://inventory.stock:8080/healthz
+  - command: k -n shop debug checkout -i --image busybox:1.36 -- wget -O- http://inventory.stock.svc.cluster.local:8080/healthz
+  - command: kubectl debug pod/checkout -n shop -it --image=busybox:1.36 -- sh -c "wget -qO- -T 3 inventory.stock.svc:8080/healthz"
+  negatives:
+  - command: kubectl exec -it checkout -n shop -- wget -qO- http://inventory.stock:8080/healthz
+    why: kubectl exec runs in the existing app container, which has no wget (distroless image).
+  - command: kubectl debug -it checkout -n shop --image=busybox:1.36 --copy-to=checkout-debug -- wget -qO- http://inventory.stock:8080/healthz
+    why: --copy-to creates a new Pod with its own IP and network namespace, not the one of checkout.
+  - command: kubectl debug -it checkout -n shop --image=busybox:1.36 -- wget -qO- http://inventory:8080/healthz
+    why: The short name inventory is looked up in the Pod's namespace, shop, not in stock.
+  - command: kubectl debug -it checkout --image=busybox:1.36 -- wget -qO- http://inventory.stock:8080/healthz
+    why: Without -n kubectl looks for Pod checkout in the context namespace, default.
+explanation:
+  correct:
+    en: '`kubectl debug -it checkout -n shop --image=busybox:1.36 -- wget -qO- http://inventory.stock:8080/healthz` adds an ephemeral container to the running Pod. All containers of a Pod share one network namespace, so the test uses the Pod IP and the DNS settings of `checkout`, exactly what the application sees; `--target=app` (optional here) also shares its process namespace. `--copy-to` would test from a different Pod, and `kubectl exec` needs tools inside the image.'
+references:
+- title: kubectl debug
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_debug/
+- title: DNS for Services and Pods
+  url: https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/

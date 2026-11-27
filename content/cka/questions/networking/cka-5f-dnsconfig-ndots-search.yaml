@@ -1,0 +1,142 @@
+id: cka-5f-dnsconfig-ndots-search
+objective: "5.6.1"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    The batch Pods of namespace `jobs` call many external names such as `api.partner.example.net`, and the default `options ndots:5` in their `/etc/resolv.conf` makes every lookup try the cluster search domains first. They also need to resolve short names of the internal domain `corp.example.com`.
+
+    Write a Pod `batch-runner` in namespace `jobs` with one container `runner` (image `registry.example.com/jobs/runner:2.1`) that **keeps the cluster DNS** and its default search domains, but whose resolver uses `ndots` 2 and also searches `corp.example.com`.
+body:
+  starter: |
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: batch-runner
+      namespace: jobs
+    spec:
+      containers:
+      - name: runner
+        image: registry.example.com/jobs/runner:2.1
+answer:
+  checks:
+  - id: pod
+    label: A Pod named batch-runner in namespace jobs
+    path: metadata
+    op: subset
+    value: {name: batch-runner, namespace: jobs}
+  - id: image
+    label: Container runner runs registry.example.com/jobs/runner:2.1
+    path: spec.containers[name=runner].image
+    op: equals
+    value: registry.example.com/jobs/runner:2.1
+  - id: policy
+    label: The DNS policy keeps the cluster DNS (ClusterFirst, the default)
+    path: spec
+    op: matches
+    value: '^(?![\s\S]*"dnsPolicy":"(None|Default|ClusterFirstWithHostNet)")'
+  - id: ndots
+    label: dnsConfig sets the option ndots to 2
+    path: spec.dnsConfig.options
+    op: contains
+    value: {name: ndots, value: "2"}
+  - id: search
+    label: dnsConfig adds the search domain corp.example.com
+    path: spec.dnsConfig.searches
+    op: contains
+    value: corp.example.com
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: batch-runner
+        namespace: jobs
+      spec:
+        containers:
+        - name: runner
+          image: registry.example.com/jobs/runner:2.1
+        dnsConfig:
+          searches:
+          - corp.example.com
+          options:
+          - name: ndots
+            value: "2"
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: batch-runner
+        namespace: jobs
+      spec:
+        dnsPolicy: ClusterFirst
+        dnsConfig:
+          options:
+          - value: "2"
+            name: ndots
+          searches: ["corp.example.com"]
+        containers:
+        - name: runner
+          image: registry.example.com/jobs/runner:2.1
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: batch-runner
+        namespace: jobs
+      spec:
+        dnsPolicy: "None"
+        dnsConfig:
+          nameservers:
+          - 10.96.0.10
+          searches:
+          - corp.example.com
+          options:
+          - name: ndots
+            value: "2"
+        containers:
+        - name: runner
+          image: registry.example.com/jobs/runner:2.1
+    why: With dnsPolicy None the Pod loses the generated settings, including the cluster search domains jobs.svc.cluster.local, svc.cluster.local and cluster.local.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: batch-runner
+        namespace: jobs
+      spec:
+        dnsConfig:
+          searches:
+          - corp.example.com
+          options:
+          - name: ndots:2
+        containers:
+        - name: runner
+          image: registry.example.com/jobs/runner:2.1
+    why: Each option is an object with name and value; the name ndots:2 is not the ndots option with value 2.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: batch-runner
+        namespace: jobs
+      spec:
+        dnsPolicy: Default
+        dnsConfig:
+          searches:
+          - corp.example.com
+          options:
+          - name: ndots
+            value: "2"
+        containers:
+        - name: runner
+          image: registry.example.com/jobs/runner:2.1
+    why: dnsPolicy Default copies the resolver of the node, so the Pod no longer uses the cluster DNS and cannot resolve Service names.
+explanation:
+  correct:
+    en: '`dnsConfig` works with any `dnsPolicy` and is merged into the generated `/etc/resolv.conf`: with the default `ClusterFirst`, the Pod keeps the cluster nameserver and search domains, gets `corp.example.com` appended to the search list and `options ndots:2`. Each option is an object with `name` and an optional string `value`. `dnsPolicy: None` would require you to supply every setting, and `Default` (despite its name, not the default) uses the node resolver.'
+references:
+- title: DNS for Services and Pods
+  url: https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/

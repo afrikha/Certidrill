@@ -1,0 +1,106 @@
+id: ckad-2d-configmap-generator
+objective: "2.4.2"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    The directory `/opt/web` contains `deployment.yaml` and a file `nginx.conf`. Write `/opt/web/kustomization.yaml` that keeps the Deployment and generates a ConfigMap named `web-config` with:
+
+    - the key `LOG_LEVEL` set to `info`;
+    - the content of `nginx.conf` stored under the key `default.conf`.
+body:
+  starter: |
+    apiVersion: kustomize.config.k8s.io/v1beta1
+    kind: Kustomization
+    resources:
+    - deployment.yaml
+answer:
+  checks:
+  - id: resources
+    label: Keeps deployment.yaml in resources
+    path: resources
+    op: contains
+    value: deployment.yaml
+  - id: generator
+    label: Generates a ConfigMap named web-config
+    path: configMapGenerator[name=web-config]
+    op: exists
+  - id: literal
+    label: Adds the literal LOG_LEVEL=info
+    path: configMapGenerator[name=web-config].literals
+    op: contains
+    value: LOG_LEVEL=info
+  - id: file-key
+    label: Stores nginx.conf under the key default.conf
+    path: configMapGenerator[name=web-config].files
+    op: contains
+    value: default.conf=nginx.conf
+  solution:
+  - manifest: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      resources:
+      - deployment.yaml
+      configMapGenerator:
+      - name: web-config
+        literals:
+        - LOG_LEVEL=info
+        files:
+        - default.conf=nginx.conf
+  - manifest: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      configMapGenerator:
+      - files:
+        - default.conf=nginx.conf
+        literals:
+        - LOG_LEVEL=info
+        name: web-config
+      resources:
+      - deployment.yaml
+  negatives:
+  - manifest: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      resources:
+      - deployment.yaml
+      configMapGenerator:
+      - name: web-config
+        literals:
+        - LOG_LEVEL=info
+        files:
+        - nginx.conf
+    why: A file entry without a key is stored under its file name, nginx.conf, not default.conf.
+  - manifest: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      resources:
+      - deployment.yaml
+      configMapGenerator:
+      - name: web-config
+        literals:
+        - LOG_LEVEL=info
+        files:
+        - nginx.conf=default.conf
+    why: In key=path the key comes first; this reads a file named default.conf, which does not exist.
+  - manifest: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      resources:
+      - deployment.yaml
+      configMapGenerator:
+      - name: web-config
+        literals:
+        - "LOG_LEVEL: info"
+        files:
+        - default.conf=nginx.conf
+    why: 'Literals are written KEY=value; "LOG_LEVEL: info" is not a valid literal.'
+explanation:
+  correct:
+    en: '`configMapGenerator` builds a ConfigMap from `literals` (`KEY=value`), `files` (one key per file, named after the file unless you write `key=path`) and `envs` (one key per line of an env file). The generated name gets a content-hash suffix, and Kustomize rewrites the references to `web-config` in the Deployment to that name.'
+references:
+- title: configMapGenerator
+  url: https://kubectl.docs.kubernetes.io/references/kustomize/kustomization/configmapgenerator/
+- title: Declarative Management of Kubernetes Objects Using Kustomize
+  url: https://kubernetes.io/docs/tasks/manage-kubernetes-objects/kustomization/

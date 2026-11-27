@@ -1,0 +1,63 @@
+id: cka-2d-logs-previous-container
+objective: "2.4.1"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    Pod `ingest-6f8d9c-tz4kq` in namespace `pipeline` runs two containers, `shipper` (listed first) and `parser`, and has no default-container annotation. `kubectl get pod` shows `CrashLoopBackOff` with 6 restarts, all of them for `parser`, and the current instance of `parser` has not printed anything yet.
+
+    Print the logs that `parser` wrote before it crashed the last time. Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Uses kubectl logs
+    path: verb
+    op: equals
+    value: logs
+  - id: pod
+    label: Targets Pod ingest-6f8d9c-tz4kq
+    path: names
+    op: contains
+    value: ingest-6f8d9c-tz4kq
+  - id: container
+    label: Reads container parser
+    path: flags.container
+    op: equals
+    value: parser
+  - id: previous
+    label: Reads the previous, terminated instance
+    path: flags.previous
+    op: equals
+    value: true
+  - id: namespace
+    label: Runs in namespace pipeline
+    path: flags.namespace
+    op: equals
+    value: pipeline
+  solution:
+  - command: kubectl logs ingest-6f8d9c-tz4kq -c parser --previous -n pipeline
+  - command: k -n pipeline logs -p -c parser ingest-6f8d9c-tz4kq
+  - command: kubectl logs pod/ingest-6f8d9c-tz4kq --container=parser --previous=true --namespace pipeline
+  negatives:
+  - command: kubectl logs ingest-6f8d9c-tz4kq -c parser -n pipeline
+    why: Without --previous kubectl reads the current instance of parser, which has printed nothing yet.
+  - command: kubectl logs ingest-6f8d9c-tz4kq --previous -n pipeline
+    why: Without -c and without a default-container annotation, kubectl reads the first container, shipper, not parser.
+  - command: kubectl logs ingest-6f8d9c-tz4kq -c shipper --previous -n pipeline
+    why: shipper never restarted, so it has no previous instance, and it is not the container that crashes.
+explanation:
+  correct:
+    en: >-
+      `kubectl logs POD -c parser --previous` (`-p`) prints the logs of the last terminated instance of the container,
+      which is where a crash-looping container leaves its error. The kubelet keeps one terminated instance per container
+      by default. In a multi-container Pod without the `kubectl.kubernetes.io/default-container` annotation, name the
+      container with `-c`.
+references:
+- title: kubectl logs
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_logs/
+- title: Logging Architecture
+  url: https://kubernetes.io/docs/concepts/cluster-administration/logging/

@@ -1,0 +1,52 @@
+id: ckad-1d-pv-reclaim-retain
+objective: "1.4.3"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    The PersistentVolume `pv-orders` was provisioned dynamically and shows reclaim policy `Delete` in `kubectl get pv`. Its data must survive if the claim bound to it is deleted.
+
+    Change the volume's reclaim policy to `Retain` with a single non-interactive command (no editor). Type the command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Uses kubectl patch
+    path: verb
+    op: equals
+    value: patch
+  - id: resource
+    label: Patches a PersistentVolume
+    path: resource
+    op: equals
+    value: persistentvolume
+  - id: name
+    label: Names pv-orders
+    path: names
+    op: contains
+    value: pv-orders
+  - id: policy
+    label: Sets spec.persistentVolumeReclaimPolicy to Retain
+    path: flags
+    op: matches
+    value: 'persistentVolumeReclaimPolicy\W+(value\W+)?Retain'
+  solution:
+  - command: kubectl patch pv pv-orders -p '{"spec":{"persistentVolumeReclaimPolicy":"Retain"}}'
+  - command: k patch persistentvolume/pv-orders --type=merge --patch '{"spec":{"persistentVolumeReclaimPolicy":"Retain"}}'
+  - command: kubectl patch pv pv-orders --type=json -p '[{"op":"replace","path":"/spec/persistentVolumeReclaimPolicy","value":"Retain"}]'
+  negatives:
+  - command: kubectl patch pv pv-orders -p '{"spec":{"reclaimPolicy":"Retain"}}'
+    why: reclaimPolicy is the StorageClass field; on a PersistentVolume the field is persistentVolumeReclaimPolicy.
+  - command: kubectl patch pv pv-orders -p '{"spec":{"persistentVolumeReclaimPolicy":"Recycle"}}'
+    why: Recycle is deprecated and scrubs the data; Retain keeps it.
+  - command: kubectl patch pvc pv-orders -p '{"spec":{"persistentVolumeReclaimPolicy":"Retain"}}'
+    why: The reclaim policy belongs to the PersistentVolume, not to the claim.
+explanation:
+  correct:
+    en: 'Dynamically provisioned volumes inherit the reclaim policy of their StorageClass, which defaults to `Delete`: deleting the claim would delete the volume and its storage. `kubectl patch pv pv-orders -p ''{"spec":{"persistentVolumeReclaimPolicy":"Retain"}}''` switches it to `Retain`, so after the claim is deleted the volume becomes `Released` and keeps its data for manual reclamation.'
+references:
+- title: Change the Reclaim Policy of a PersistentVolume
+  url: https://kubernetes.io/docs/tasks/administer-cluster/change-pv-reclaim-policy/

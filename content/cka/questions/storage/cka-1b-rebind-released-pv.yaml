@@ -1,0 +1,232 @@
+id: cka-1b-rebind-released-pv
+objective: "1.2.2"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    `kubectl get pv pv-reports -o yaml` gives the file `pv-reports.yaml`: the volume is `Released` and its claim `reports` was deleted. Its data must now be used by a new claim `reports-v2` in namespace `finance`, and no other claim may take the volume first.
+
+    Write two documents: the corrected PersistentVolume `pv-reports`, reserved for `finance/reports-v2`, and the claim `reports-v2` (50Gi, read-write from several nodes) bound to that volume by name.
+body:
+  starter: ""
+  files:
+  - name: pv-reports.yaml
+    content: |
+      apiVersion: v1
+      kind: PersistentVolume
+      metadata:
+        name: pv-reports
+      spec:
+        capacity:
+          storage: 50Gi
+        accessModes:
+        - ReadWriteMany
+        persistentVolumeReclaimPolicy: Retain
+        storageClassName: manual
+        nfs:
+          server: nfs.example.com
+          path: /exports/reports
+        claimRef:
+          apiVersion: v1
+          kind: PersistentVolumeClaim
+          name: reports
+          namespace: finance
+          uid: 8f2c6b1e-4d7a-4e59-9b3c-0a1d5e7f9c24
+      status:
+        phase: Released
+answer:
+  checks:
+  - id: pv-ref-name
+    label: The PV claimRef names reports-v2
+    select: {kind: PersistentVolume, name: pv-reports}
+    path: spec.claimRef.name
+    op: equals
+    value: reports-v2
+  - id: pv-ref-ns
+    label: The PV claimRef namespace is finance
+    select: {kind: PersistentVolume, name: pv-reports}
+    path: spec.claimRef.namespace
+    op: equals
+    value: finance
+  - id: pv-ref-uid
+    label: The old claim uid is removed from claimRef
+    select: {kind: PersistentVolume, name: pv-reports}
+    path: spec.claimRef.uid
+    op: absent
+  - id: pv-nfs
+    label: The PV still points to nfs.example.com:/exports/reports
+    select: {kind: PersistentVolume, name: pv-reports}
+    path: spec.nfs
+    op: subset
+    value: {server: nfs.example.com, path: /exports/reports}
+  - id: pvc-ns
+    label: The claim reports-v2 is in namespace finance
+    select: {kind: PersistentVolumeClaim, name: reports-v2}
+    path: metadata.namespace
+    op: equals
+    value: finance
+  - id: pvc-volume
+    label: The claim names the volume pv-reports
+    select: {kind: PersistentVolumeClaim, name: reports-v2}
+    path: spec.volumeName
+    op: equals
+    value: pv-reports
+  - id: pvc-class
+    label: The claim uses class manual, like the PV
+    select: {kind: PersistentVolumeClaim, name: reports-v2}
+    path: spec.storageClassName
+    op: equals
+    value: manual
+  - id: pvc-mode
+    label: The claim asks for ReadWriteMany
+    select: {kind: PersistentVolumeClaim, name: reports-v2}
+    path: spec.accessModes
+    op: contains
+    value: ReadWriteMany
+  - id: pvc-size
+    label: The claim requests 50Gi
+    select: {kind: PersistentVolumeClaim, name: reports-v2}
+    path: spec.resources.requests.storage
+    op: quantity
+    value: 50Gi
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: PersistentVolume
+      metadata:
+        name: pv-reports
+      spec:
+        capacity:
+          storage: 50Gi
+        accessModes:
+        - ReadWriteMany
+        persistentVolumeReclaimPolicy: Retain
+        storageClassName: manual
+        nfs:
+          server: nfs.example.com
+          path: /exports/reports
+        claimRef:
+          name: reports-v2
+          namespace: finance
+      ---
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: reports-v2
+        namespace: finance
+      spec:
+        accessModes:
+        - ReadWriteMany
+        storageClassName: manual
+        volumeName: pv-reports
+        resources:
+          requests:
+            storage: 50Gi
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: PersistentVolume
+      metadata:
+        name: pv-reports
+      spec:
+        capacity:
+          storage: 50Gi
+        accessModes:
+        - ReadWriteMany
+        persistentVolumeReclaimPolicy: Retain
+        storageClassName: manual
+        nfs:
+          server: nfs.example.com
+          path: /exports/reports
+        claimRef:
+          name: reports-v2
+          namespace: finance
+          uid: 8f2c6b1e-4d7a-4e59-9b3c-0a1d5e7f9c24
+      ---
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: reports-v2
+        namespace: finance
+      spec:
+        accessModes:
+        - ReadWriteMany
+        storageClassName: manual
+        volumeName: pv-reports
+        resources:
+          requests:
+            storage: 50Gi
+    why: The uid still identifies the deleted claim, so the volume does not bind to the new claim, whose uid is different.
+  - manifest: |
+      apiVersion: v1
+      kind: PersistentVolume
+      metadata:
+        name: pv-reports
+      spec:
+        capacity:
+          storage: 50Gi
+        accessModes:
+        - ReadWriteMany
+        persistentVolumeReclaimPolicy: Retain
+        storageClassName: manual
+        nfs:
+          server: nfs.example.com
+          path: /exports/reports
+        claimRef:
+          name: reports-v2
+          namespace: finance
+      ---
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: reports-v2
+        namespace: finance
+      spec:
+        accessModes:
+        - ReadWriteMany
+        volumeName: pv-reports
+        resources:
+          requests:
+            storage: 50Gi
+    why: Without storageClassName the default class is written into the claim, which then no longer matches the class manual of the PV.
+  - manifest: |
+      apiVersion: v1
+      kind: PersistentVolume
+      metadata:
+        name: pv-reports
+      spec:
+        capacity:
+          storage: 50Gi
+        accessModes:
+        - ReadWriteMany
+        persistentVolumeReclaimPolicy: Retain
+        storageClassName: manual
+        nfs:
+          server: nfs.example.com
+          path: /exports/reports
+        claimRef:
+          name: reports
+          namespace: finance
+      ---
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: reports-v2
+        namespace: finance
+      spec:
+        accessModes:
+        - ReadWriteMany
+        storageClassName: manual
+        volumeName: pv-reports
+        resources:
+          requests:
+            storage: 50Gi
+    why: The PV is still reserved for the old claim name reports, not for reports-v2.
+explanation:
+  correct:
+    en: |-
+      A `Released` PV keeps `claimRef` with the old claim's name, namespace and uid. Replace it with a reference that has only `name: reports-v2` and `namespace: finance`: the PV is reserved for that claim and binds to it once it exists. The claim pins the PV with `volumeName: pv-reports`, repeats the class `manual` (an omitted class would become the default class) and asks for modes and a size the PV offers.
+references:
+- title: Persistent Volumes
+  url: https://kubernetes.io/docs/concepts/storage/persistent-volumes/

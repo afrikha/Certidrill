@@ -1,0 +1,82 @@
+id: cka-4d-upgrade-apply-plan-output
+objective: "4.4.1"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    You are on `cp1`, the first control plane node of a kubeadm cluster that runs v1.36.4. The `kubeadm` package on `cp1` has already been upgraded, and `sudo kubeadm upgrade plan` printed the output in `plan-output.txt` (shortened).
+
+    Upgrade the control plane on `cp1` to the next minor version, to the exact version that the plan proposes for it.
+
+    Type the single command you would run.
+body:
+  mode: invocation
+  tools: [kubeadm]
+  namespace: default
+  files:
+  - name: plan-output.txt
+    content: |
+      Upgrade to the latest version in the v1.36 series:
+
+      COMPONENT                 NODE   CURRENT   TARGET
+      kube-apiserver            cp1    v1.36.4   v1.36.6
+      kube-controller-manager   cp1    v1.36.4   v1.36.6
+      kube-scheduler            cp1    v1.36.4   v1.36.6
+      kube-proxy                       1.36.4    v1.36.6
+
+      You can now apply the upgrade by executing the following command:
+
+              kubeadm upgrade apply v1.36.6
+
+      _____________________________________________________________________
+
+      Upgrade to the latest stable version:
+
+      COMPONENT                 NODE   CURRENT   TARGET
+      kube-apiserver            cp1    v1.36.4   v1.37.2
+      kube-controller-manager   cp1    v1.36.4   v1.37.2
+      kube-scheduler            cp1    v1.36.4   v1.37.2
+      kube-proxy                       1.36.4    v1.37.2
+
+      You can now apply the upgrade by executing the following command:
+
+              kubeadm upgrade apply v1.37.2
+answer:
+  checks:
+  - id: tool
+    label: Uses kubeadm
+    path: tool
+    op: equals
+    value: kubeadm
+  - id: upgrade
+    label: Runs a kubeadm upgrade command
+    path: verb
+    op: equals
+    value: upgrade
+  - id: apply
+    label: Uses upgrade apply, which upgrades the first control plane node and the cluster configuration
+    path: args[0]
+    op: equals
+    value: apply
+  - id: version
+    label: Targets v1.37.2
+    path: args[1]
+    op: oneOf
+    value: [v1.37.2, 1.37.2]
+  solution:
+  - command: sudo kubeadm upgrade apply v1.37.2
+  - command: kubeadm upgrade apply v1.37.2 --yes
+  negatives:
+  - command: kubeadm upgrade apply v1.36.6
+    why: v1.36.6 is the latest patch of the current minor version; the task asks for the next minor version.
+  - command: kubeadm upgrade node
+    why: upgrade node is for the other control plane nodes and the workers, after upgrade apply has run on the first control plane node.
+  - command: kubeadm upgrade plan v1.37.2
+    why: upgrade plan only checks and displays what an upgrade would do; it changes nothing.
+explanation:
+  correct:
+    en: 'On the first control plane node, `kubeadm upgrade apply v1.37.2` upgrades the control plane static Pods, the cluster configuration and the add-ons to the version that `upgrade plan` proposes under "Upgrade to the latest stable version". The other control plane nodes and the workers then run `kubeadm upgrade node`. Kubernetes supports upgrading one minor version at a time, so v1.36 goes to v1.37. Without `--yes` (`-y`), kubeadm asks for confirmation before it proceeds.'
+references:
+- title: Upgrading kubeadm clusters
+  url: https://kubernetes.io/docs/tasks/administer-cluster/kubeadm/kubeadm-upgrade/

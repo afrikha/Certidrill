@@ -1,0 +1,168 @@
+id: ckad-1b-job-backoff-per-index
+objective: "1.2.3"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    The image `registry.example.com/search/crawler:2.4` crawls one of 20 site shards; it reads its shard number, from 0 to 19, from the index that Kubernetes gives each Pod. Write the manifest of a Job named `crawl` in namespace `search` with one container named `crawler` running this image:
+
+    - each shard 0 to 19 needs one successful Pod, and at most 4 Pods run at the same time;
+    - a failed Pod is not restarted in place: the Job creates a new Pod;
+    - the Pod of each shard is retried at most 2 times, independently of the failures of the other shards, so that one bad shard cannot use up the retries of the others;
+    - as soon as more than 3 shards have failed, the Job stops all its running Pods and is marked failed.
+body:
+  starter: |
+    apiVersion: batch/v1
+    kind: Job
+    metadata:
+      name: crawl
+      namespace: search
+    spec:
+      template:
+        spec:
+          containers:
+          - name: crawler
+            image: registry.example.com/search/crawler:2.4
+answer:
+  checks:
+  - id: job
+    label: A Job named crawl in namespace search
+    path: metadata
+    op: subset
+    value: {name: crawl, namespace: search}
+  - id: image
+    label: Container crawler runs registry.example.com/search/crawler:2.4
+    path: spec.template.spec.containers[name=crawler].image
+    op: equals
+    value: registry.example.com/search/crawler:2.4
+  - id: indexed
+    label: The Job uses the Indexed completion mode
+    path: spec.completionMode
+    op: equals
+    value: Indexed
+  - id: completions
+    label: 20 completions, one per shard
+    path: spec.completions
+    op: equals
+    value: 20
+  - id: parallelism
+    label: At most 4 Pods run at the same time
+    path: spec.parallelism
+    op: equals
+    value: 4
+  - id: restart
+    label: restartPolicy is Never
+    path: spec.template.spec.restartPolicy
+    op: equals
+    value: Never
+  - id: per-index
+    label: Each index is retried at most 2 times (backoffLimitPerIndex 2)
+    path: spec.backoffLimitPerIndex
+    op: equals
+    value: 2
+  - id: max-failed
+    label: The Job stops when more than 3 indexes have failed (maxFailedIndexes 3)
+    path: spec.maxFailedIndexes
+    op: equals
+    value: 3
+  solution:
+  - manifest: |
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: crawl
+        namespace: search
+      spec:
+        completions: 20
+        parallelism: 4
+        completionMode: Indexed
+        backoffLimitPerIndex: 2
+        maxFailedIndexes: 3
+        template:
+          spec:
+            restartPolicy: Never
+            containers:
+            - name: crawler
+              image: registry.example.com/search/crawler:2.4
+  negatives:
+  - manifest: |
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: crawl
+        namespace: search
+      spec:
+        completions: 20
+        parallelism: 4
+        completionMode: Indexed
+        backoffLimit: 2
+        template:
+          spec:
+            restartPolicy: Never
+            containers:
+            - name: crawler
+              image: registry.example.com/search/crawler:2.4
+    why: backoffLimit counts the failures of all Pods together, so the Job fails after 3 failed Pods in total, whatever their shard.
+  - manifest: |
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: crawl
+        namespace: search
+      spec:
+        completions: 20
+        parallelism: 4
+        backoffLimitPerIndex: 2
+        maxFailedIndexes: 3
+        template:
+          spec:
+            restartPolicy: Never
+            containers:
+            - name: crawler
+              image: registry.example.com/search/crawler:2.4
+    why: Per-index retries need completionMode Indexed; without it the Pods get no index (shard number) and the per-index fields cannot be used.
+  - manifest: |
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: crawl
+        namespace: search
+      spec:
+        completions: 20
+        parallelism: 4
+        completionMode: Indexed
+        backoffLimitPerIndex: 2
+        maxFailedIndexes: 4
+        template:
+          spec:
+            restartPolicy: Never
+            containers:
+            - name: crawler
+              image: registry.example.com/search/crawler:2.4
+    why: The Job is stopped when the number of failed indexes exceeds maxFailedIndexes; with 4 it keeps running after a fourth shard fails.
+  - manifest: |
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: crawl
+        namespace: search
+      spec:
+        completions: 20
+        parallelism: 4
+        completionMode: Indexed
+        backoffLimitPerIndex: 2
+        maxFailedIndexes: 3
+        template:
+          spec:
+            restartPolicy: OnFailure
+            containers:
+            - name: crawler
+              image: registry.example.com/search/crawler:2.4
+    why: OnFailure restarts the container inside the same Pod; the task (and the per-index backoff feature) requires restartPolicy Never.
+explanation:
+  correct:
+    en: '`completionMode: Indexed` with `completions: 20` gives each Pod an index from 0 to 19 (also in the variable `JOB_COMPLETION_INDEX`), and `parallelism: 4` caps the running Pods. `backoffLimitPerIndex: 2` counts failures per index: an index that fails a third time is marked failed and the other indexes keep running. `maxFailedIndexes: 3` stops the whole Job once more than 3 indexes have failed. The global `backoffLimit` would count every failure together; when `backoffLimitPerIndex` is set, it defaults to the maximum int32 value instead of 6.'
+references:
+- title: Jobs
+  url: https://kubernetes.io/docs/concepts/workloads/controllers/job/

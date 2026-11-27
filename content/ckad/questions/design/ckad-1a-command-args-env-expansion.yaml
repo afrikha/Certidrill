@@ -1,0 +1,169 @@
+id: ckad-1a-command-args-env-expansion
+objective: "1.1.3"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    Write the manifest of a Pod named `notify` in namespace `ops` with one container named `notify` running `busybox:latest`:
+
+    - an environment variable `TARGET` with the value `staging`;
+    - `command` is the single item `/bin/echo` (no shell);
+    - `args` is a single item that prints `deploying to staging`, where `staging` comes from `TARGET` and is substituted by Kubernetes, not written literally;
+    - the kubelet uses a local copy of the image when one exists;
+    - the container is not restarted after `echo` exits.
+body:
+  starter: ""
+answer:
+  checks:
+  - id: pod
+    label: A Pod named notify in namespace ops
+    path: metadata
+    op: subset
+    value: {name: notify, namespace: ops}
+  - id: image
+    label: Container notify runs busybox:latest
+    path: spec.containers[name=notify].image
+    op: equals
+    value: busybox:latest
+  - id: env
+    label: TARGET is set to staging
+    path: spec.containers[name=notify].env[name=TARGET].value
+    op: equals
+    value: staging
+  - id: command
+    label: command is /bin/echo
+    path: spec.containers[name=notify].command
+    op: equals
+    value: [/bin/echo]
+  - id: args
+    label: args is the single item "deploying to $(TARGET)"
+    path: spec.containers[name=notify].args
+    op: equals
+    value: ["deploying to $(TARGET)"]
+  - id: pull
+    label: imagePullPolicy is IfNotPresent
+    path: spec.containers[name=notify].imagePullPolicy
+    op: equals
+    value: IfNotPresent
+  - id: restart
+    label: restartPolicy is Never
+    path: spec.restartPolicy
+    op: equals
+    value: Never
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: notify
+        namespace: ops
+      spec:
+        restartPolicy: Never
+        containers:
+        - name: notify
+          image: busybox:latest
+          imagePullPolicy: IfNotPresent
+          env:
+          - name: TARGET
+            value: staging
+          command: ["/bin/echo"]
+          args: ["deploying to $(TARGET)"]
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: notify
+        namespace: ops
+      spec:
+        containers:
+        - args:
+          - deploying to $(TARGET)
+          command:
+          - /bin/echo
+          env:
+          - name: TARGET
+            value: "staging"
+          image: busybox:latest
+          imagePullPolicy: IfNotPresent
+          name: notify
+        restartPolicy: Never
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: notify
+        namespace: ops
+      spec:
+        restartPolicy: Never
+        containers:
+        - name: notify
+          image: busybox:latest
+          imagePullPolicy: IfNotPresent
+          env:
+          - name: TARGET
+            value: staging
+          command: ["/bin/echo"]
+          args: ["deploying to ${TARGET}"]
+    why: Kubernetes only expands the $(VAR) form, and no shell runs here, so echo prints ${TARGET} literally.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: notify
+        namespace: ops
+      spec:
+        containers:
+        - name: notify
+          image: busybox:latest
+          imagePullPolicy: IfNotPresent
+          env:
+          - name: TARGET
+            value: staging
+          command: ["/bin/echo"]
+          args: ["deploying to $(TARGET)"]
+    why: Without restartPolicy the Pod uses Always, so the container is restarted every time echo exits.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: notify
+        namespace: ops
+      spec:
+        restartPolicy: Never
+        containers:
+        - name: notify
+          image: busybox:latest
+          imagePullPolicy: Always
+          env:
+          - name: TARGET
+            value: staging
+          command: ["/bin/echo"]
+          args: ["deploying to $(TARGET)"]
+    why: Always contacts the registry at every start even when the image is on the node; IfNotPresent uses the local copy.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: notify
+        namespace: ops
+      spec:
+        restartPolicy: Never
+        containers:
+        - name: notify
+          image: busybox:latest
+          env:
+          - name: TARGET
+            value: staging
+          command: ["/bin/echo"]
+          args: ["deploying to $(TARGET)"]
+    why: With the latest tag and no imagePullPolicy, the default is Always, not IfNotPresent.
+explanation:
+  correct:
+    en: 'Kubernetes substitutes `$(VAR)` in `command` and `args` with the value of a container environment variable before starting the process, so no shell is needed; `${VAR}` is only understood by a shell. `imagePullPolicy: IfNotPresent` pulls only when the image is missing; it must be written here because the default for a `latest` tag is `Always`; and `restartPolicy: Never` (a Pod-level field) stops the default `Always` restarts.'
+references:
+- title: Define a Command and Arguments for a Container
+  url: https://kubernetes.io/docs/tasks/configure-pod-container/define-command-argument-container/
+- title: Images
+  url: https://kubernetes.io/docs/concepts/containers/images/

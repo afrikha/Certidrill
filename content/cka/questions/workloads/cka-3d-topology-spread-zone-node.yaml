@@ -1,0 +1,267 @@
+id: cka-3d-topology-spread-zone-node
+objective: "3.4.2"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    The cluster's worker nodes are labelled with `topology.kubernetes.io/zone` (three zones) and `kubernetes.io/hostname`. Complete the Deployment `web` in namespace `shop` so that its 6 replicas survive the loss of a zone or of a node:
+
+    - Hard rule: the number of `app=web` Pods in any two zones may differ by at most 1; a Pod that would break this rule stays Pending.
+    - Soft rule: the scheduler should also spread the `app=web` Pods across nodes with a difference of at most 1, but still schedule a Pod when it cannot.
+body:
+  starter: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: web
+      namespace: shop
+    spec:
+      replicas: 6
+      selector:
+        matchLabels:
+          app: web
+      template:
+        metadata:
+          labels:
+            app: web
+        spec:
+          containers:
+          - name: web
+            image: registry.example.com/shop/web:2.3
+answer:
+  checks:
+  - id: meta
+    label: Deployment web in namespace shop
+    path: metadata
+    op: subset
+    value: {name: web, namespace: shop}
+  - id: replicas
+    label: It keeps 6 replicas
+    path: spec.replicas
+    op: equals
+    value: 6
+  - id: zone-skew
+    label: Zone constraint has maxSkew 1
+    path: spec.template.spec.topologySpreadConstraints[topologyKey=topology.kubernetes.io/zone].maxSkew
+    op: equals
+    value: 1
+  - id: zone-hard
+    label: Zone constraint is DoNotSchedule
+    path: spec.template.spec.topologySpreadConstraints[topologyKey=topology.kubernetes.io/zone].whenUnsatisfiable
+    op: equals
+    value: DoNotSchedule
+  - id: zone-selector
+    label: Zone constraint counts the app=web Pods
+    path: spec.template.spec.topologySpreadConstraints[topologyKey=topology.kubernetes.io/zone].labelSelector
+    op: oneOf
+    value:
+    - {matchLabels: {app: web}}
+    - {matchExpressions: [{key: app, operator: In, values: [web]}]}
+  - id: node-skew
+    label: Node constraint has maxSkew 1
+    path: spec.template.spec.topologySpreadConstraints[topologyKey=kubernetes.io/hostname].maxSkew
+    op: equals
+    value: 1
+  - id: node-soft
+    label: Node constraint is ScheduleAnyway
+    path: spec.template.spec.topologySpreadConstraints[topologyKey=kubernetes.io/hostname].whenUnsatisfiable
+    op: equals
+    value: ScheduleAnyway
+  - id: node-selector
+    label: Node constraint counts the app=web Pods
+    path: spec.template.spec.topologySpreadConstraints[topologyKey=kubernetes.io/hostname].labelSelector
+    op: oneOf
+    value:
+    - {matchLabels: {app: web}}
+    - {matchExpressions: [{key: app, operator: In, values: [web]}]}
+  solution:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: web
+        namespace: shop
+      spec:
+        replicas: 6
+        selector:
+          matchLabels:
+            app: web
+        template:
+          metadata:
+            labels:
+              app: web
+          spec:
+            topologySpreadConstraints:
+            - maxSkew: 1
+              topologyKey: topology.kubernetes.io/zone
+              whenUnsatisfiable: DoNotSchedule
+              labelSelector:
+                matchLabels:
+                  app: web
+            - maxSkew: 1
+              topologyKey: kubernetes.io/hostname
+              whenUnsatisfiable: ScheduleAnyway
+              labelSelector:
+                matchLabels:
+                  app: web
+            containers:
+            - name: web
+              image: registry.example.com/shop/web:2.3
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: web
+        namespace: shop
+      spec:
+        replicas: 6
+        selector:
+          matchLabels:
+            app: web
+        template:
+          metadata:
+            labels:
+              app: web
+          spec:
+            containers:
+            - name: web
+              image: registry.example.com/shop/web:2.3
+            topologySpreadConstraints:
+            - labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values: [web]
+              maxSkew: 1
+              topologyKey: kubernetes.io/hostname
+              whenUnsatisfiable: ScheduleAnyway
+            - labelSelector:
+                matchLabels:
+                  app: web
+              matchLabelKeys:
+              - pod-template-hash
+              maxSkew: 1
+              topologyKey: topology.kubernetes.io/zone
+              whenUnsatisfiable: DoNotSchedule
+  negatives:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: web
+        namespace: shop
+      spec:
+        replicas: 6
+        selector:
+          matchLabels:
+            app: web
+        template:
+          metadata:
+            labels:
+              app: web
+          spec:
+            topologySpreadConstraints:
+            - maxSkew: 1
+              topologyKey: topology.kubernetes.io/zone
+              whenUnsatisfiable: ScheduleAnyway
+              labelSelector:
+                matchLabels:
+                  app: web
+            - maxSkew: 1
+              topologyKey: kubernetes.io/hostname
+              whenUnsatisfiable: DoNotSchedule
+              labelSelector:
+                matchLabels:
+                  app: web
+            containers:
+            - name: web
+              image: registry.example.com/shop/web:2.3
+    why: The two whenUnsatisfiable values are swapped; the zone rule must be hard (DoNotSchedule) and the node rule soft (ScheduleAnyway).
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: web
+        namespace: shop
+      spec:
+        replicas: 6
+        selector:
+          matchLabels:
+            app: web
+        template:
+          metadata:
+            labels:
+              app: web
+          spec:
+            topologySpreadConstraints:
+            - maxSkew: 1
+              topologyKey: topology.kubernetes.io/zone
+              whenUnsatisfiable: DoNotSchedule
+            - maxSkew: 1
+              topologyKey: kubernetes.io/hostname
+              whenUnsatisfiable: ScheduleAnyway
+            containers:
+            - name: web
+              image: registry.example.com/shop/web:2.3
+    why: Without labelSelector the constraints do not select the app=web Pods, so the spreading counts nothing useful.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: web
+        namespace: shop
+      spec:
+        replicas: 6
+        selector:
+          matchLabels:
+            app: web
+        topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: web
+        template:
+          metadata:
+            labels:
+              app: web
+          spec:
+            containers:
+            - name: web
+              image: registry.example.com/shop/web:2.3
+    why: topologySpreadConstraints is a Pod spec field; it belongs under spec.template.spec, not under the Deployment spec.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: web
+        namespace: shop
+      spec:
+        replicas: 6
+        selector:
+          matchLabels:
+            app: web
+        template:
+          metadata:
+            labels:
+              app: web
+          spec:
+            affinity:
+              podAntiAffinity:
+                requiredDuringSchedulingIgnoredDuringExecution:
+                - labelSelector:
+                    matchLabels:
+                      app: web
+                  topologyKey: topology.kubernetes.io/zone
+            containers:
+            - name: web
+              image: registry.example.com/shop/web:2.3
+    why: Required anti-affinity per zone allows at most one app=web Pod per zone, so only 3 of the 6 replicas could ever be scheduled.
+explanation:
+  correct:
+    en: 'Each `topologySpreadConstraints` entry names a node label (`topologyKey`), the largest allowed difference between domains (`maxSkew`), the Pods to count (`labelSelector`) and what to do when the rule cannot be met: `DoNotSchedule` keeps the Pod Pending (hard), `ScheduleAnyway` only lowers the score of nodes that increase the skew (soft). Several constraints are combined with AND. Nodes that lack a `topologyKey` label are not candidates for the Pod.'
+references:
+- title: Pod Topology Spread Constraints
+  url: https://kubernetes.io/docs/concepts/scheduling-eviction/topology-spread-constraints/

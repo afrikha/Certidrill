@@ -1,0 +1,62 @@
+id: cka-1a-pvc-capacity-jsonpath
+objective: "1.1.2"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    You raised the request of the claim `db-data` in namespace `payments` to 20Gi. To confirm that the volume has really been resized, print only the capacity the claim reports in its status, with a JSONPath output.
+
+    Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Uses kubectl get
+    path: verb
+    op: equals
+    value: get
+  - id: resource
+    label: Reads a PersistentVolumeClaim
+    path: resource
+    op: equals
+    value: persistentvolumeclaim
+  - id: name
+    label: Names the claim db-data
+    path: names
+    op: contains
+    value: db-data
+  - id: namespace
+    label: Runs in namespace payments
+    path: flags.namespace
+    op: equals
+    value: payments
+  - id: jsonpath
+    label: Prints {.status.capacity.storage}
+    path: flags.output
+    op: matches
+    value: '^jsonpath=\{\.status\.capacity\.storage\}(\{"\\n"\})?$'
+  solution:
+  - command: |-
+      kubectl get pvc db-data -n payments -o jsonpath='{.status.capacity.storage}'
+  - command: |-
+      k -n payments get persistentvolumeclaim/db-data -o=jsonpath="{.status.capacity.storage}"
+  negatives:
+  - command: |-
+      kubectl get pvc db-data -n payments -o jsonpath='{.spec.resources.requests.storage}'
+    why: The spec shows the size you asked for (20Gi at once), not the capacity the resized volume really has.
+  - command: |-
+      kubectl get pvc db-data -o jsonpath='{.status.capacity.storage}'
+    why: Without -n payments the command looks for db-data in the context namespace.
+  - command: |-
+      kubectl get pv -n payments -o jsonpath='{.items[0].spec.capacity.storage}'
+    why: PVs are cluster-scoped and the first item is not necessarily the volume of db-data.
+explanation:
+  correct:
+    en: |-
+      After an expansion, `spec.resources.requests.storage` shows the new request at once, while `status.capacity.storage` changes only when the resize is done: `kubectl get pvc db-data -n payments -o jsonpath='{.status.capacity.storage}'`. If it stays at 10Gi, `kubectl describe pvc` shows the resize conditions and events.
+references:
+- title: Persistent Volumes
+  url: https://kubernetes.io/docs/concepts/storage/persistent-volumes/

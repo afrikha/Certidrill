@@ -1,0 +1,202 @@
+id: cka-4h-fix-cr-against-schema
+objective: "4.8.2"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    A DNS operator is installed with the CRD in `dnsrecords-crd.yaml`. `kubectl apply` rejects the object in the editor: it does not follow the CRD's schema.
+
+    The intent is a record `api` in the zone `example-com`, type `A`, pointing to `203.0.113.10`, with a TTL of 60 seconds. Fix the object (name `api`, namespace `edge`) so that the API server accepts it.
+body:
+  starter: |
+    apiVersion: net.example.com/v1
+    kind: DNSRecord
+    metadata:
+      name: api
+      namespace: edge
+    spec:
+      zone: example-com
+      name: api
+      recordType: a
+      targets: 203.0.113.10
+      ttlSeconds: "60"
+  files:
+  - name: dnsrecords-crd.yaml
+    content: |
+      apiVersion: apiextensions.k8s.io/v1
+      kind: CustomResourceDefinition
+      metadata:
+        name: dnsrecords.net.example.com
+      spec:
+        group: net.example.com
+        scope: Namespaced
+        names:
+          plural: dnsrecords
+          singular: dnsrecord
+          kind: DNSRecord
+        versions:
+        - name: v1
+          served: true
+          storage: true
+          schema:
+            openAPIV3Schema:
+              type: object
+              properties:
+                spec:
+                  type: object
+                  required: [zoneRef, name, recordType, targets]
+                  properties:
+                    zoneRef:
+                      type: object
+                      required: [name]
+                      properties:
+                        name:
+                          type: string
+                    name:
+                      type: string
+                    recordType:
+                      type: string
+                      enum: [A, AAAA, CNAME, TXT]
+                    targets:
+                      type: array
+                      minItems: 1
+                      items:
+                        type: string
+                    ttlSeconds:
+                      type: integer
+                      minimum: 30
+                      default: 300
+answer:
+  checks:
+  - id: meta
+    label: Named api in namespace edge
+    path: metadata
+    op: subset
+    value: {name: api, namespace: edge}
+  - id: api
+    label: apiVersion is net.example.com/v1
+    path: apiVersion
+    op: equals
+    value: net.example.com/v1
+  - id: zone
+    label: The zone is given as spec.zoneRef.name example-com
+    path: spec.zoneRef.name
+    op: equals
+    value: example-com
+  - id: name
+    label: spec.name is api
+    path: spec.name
+    op: equals
+    value: api
+  - id: type
+    label: spec.recordType is A, a value of the enum (case-sensitive)
+    path: spec.recordType
+    op: equals
+    value: A
+  - id: targets
+    label: spec.targets is a list holding 203.0.113.10
+    path: spec.targets
+    op: equals
+    value: [203.0.113.10]
+  - id: ttl
+    label: spec.ttlSeconds is the integer 60
+    path: spec
+    op: matches
+    value: '"ttlSeconds":60[,}]'
+  - id: no-zone
+    label: The unknown field spec.zone is removed
+    path: spec.zone
+    op: absent
+  solution:
+  - manifest: |
+      apiVersion: net.example.com/v1
+      kind: DNSRecord
+      metadata:
+        name: api
+        namespace: edge
+      spec:
+        zoneRef:
+          name: example-com
+        name: api
+        recordType: A
+        targets:
+        - 203.0.113.10
+        ttlSeconds: 60
+  - manifest: |
+      apiVersion: net.example.com/v1
+      kind: DNSRecord
+      metadata:
+        namespace: edge
+        name: api
+      spec:
+        ttlSeconds: 60
+        targets: ["203.0.113.10"]
+        recordType: "A"
+        name: "api"
+        zoneRef: {name: example-com}
+  negatives:
+  - manifest: |
+      apiVersion: net.example.com/v1
+      kind: DNSRecord
+      metadata:
+        name: api
+        namespace: edge
+      spec:
+        zoneRef:
+          name: example-com
+        name: api
+        recordType: a
+        targets:
+        - 203.0.113.10
+        ttlSeconds: 60
+    why: The enum is case-sensitive; "a" is not one of A, AAAA, CNAME, TXT.
+  - manifest: |
+      apiVersion: net.example.com/v1
+      kind: DNSRecord
+      metadata:
+        name: api
+        namespace: edge
+      spec:
+        zoneRef:
+          name: example-com
+        name: api
+        recordType: A
+        targets: 203.0.113.10
+        ttlSeconds: 60
+    why: targets is an array in the schema; a single string is rejected.
+  - manifest: |
+      apiVersion: net.example.com/v1
+      kind: DNSRecord
+      metadata:
+        name: api
+        namespace: edge
+      spec:
+        zoneRef:
+          name: example-com
+        name: api
+        recordType: A
+        targets:
+        - 203.0.113.10
+        ttlSeconds: "60"
+    why: ttlSeconds is an integer in the schema; the quoted "60" is a string and is rejected.
+  - manifest: |
+      apiVersion: net.example.com/v1
+      kind: DNSRecord
+      metadata:
+        name: api
+        namespace: edge
+      spec:
+        zoneRef: example-com
+        name: api
+        recordType: A
+        targets:
+        - 203.0.113.10
+        ttlSeconds: 60
+    why: zoneRef is an object with a required name field, not a string.
+explanation:
+  correct:
+    en: 'The CRD''s `openAPIV3Schema` is the contract: `zoneRef` is an object with a required `name` (the unknown `zone` field would be pruned and the required `zoneRef` would be missing), `recordType` is an enum matched case-sensitively (`A`), `targets` is a list of strings, and `ttlSeconds` an integer (unquoted `60`) with a minimum of 30. `kubectl explain dnsrecords.spec --recursive` shows the same types on a live cluster.'
+references:
+- title: Extend the Kubernetes API with CustomResourceDefinitions
+  url: https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/

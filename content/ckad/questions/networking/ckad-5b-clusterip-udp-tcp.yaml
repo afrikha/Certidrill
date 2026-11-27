@@ -1,0 +1,154 @@
+id: ckad-5b-clusterip-udp-tcp
+objective: "5.2.1"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    In namespace `infra`, Pods labelled `app=dns-cache` serve DNS on container port 5353, over both UDP and TCP.
+
+    Write the manifest of a ClusterIP Service named `dns-cache` that selects these Pods and listens on port 53 for both protocols, forwarding to port 5353:
+
+    - port `dns-udp`: UDP 53 to 5353;
+    - port `dns-tcp`: TCP 53 to 5353.
+body:
+  starter: ""
+answer:
+  checks:
+  - id: service
+    label: A Service named dns-cache in namespace infra
+    path: metadata
+    op: subset
+    value: {name: dns-cache, namespace: infra}
+  - id: kind
+    label: The object is a Service
+    path: kind
+    op: equals
+    value: Service
+  - id: selector
+    label: It selects the Pods labelled app=dns-cache
+    path: spec.selector.app
+    op: equals
+    value: dns-cache
+  - id: udp-protocol
+    label: Port dns-udp uses UDP
+    path: spec.ports[name=dns-udp].protocol
+    op: equals
+    value: UDP
+  - id: udp-port
+    label: Port dns-udp listens on 53
+    path: spec.ports[name=dns-udp].port
+    op: equals
+    value: 53
+  - id: udp-target
+    label: Port dns-udp forwards to 5353
+    path: spec.ports[name=dns-udp].targetPort
+    op: equals
+    value: 5353
+  - id: tcp-port
+    label: Port dns-tcp listens on 53
+    path: spec.ports[name=dns-tcp].port
+    op: equals
+    value: 53
+  - id: tcp-target
+    label: Port dns-tcp forwards to 5353
+    path: spec.ports[name=dns-tcp].targetPort
+    op: equals
+    value: 5353
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: dns-cache
+        namespace: infra
+      spec:
+        selector:
+          app: dns-cache
+        ports:
+        - name: dns-udp
+          protocol: UDP
+          port: 53
+          targetPort: 5353
+        - name: dns-tcp
+          protocol: TCP
+          port: 53
+          targetPort: 5353
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: dns-cache
+        namespace: infra
+      spec:
+        type: ClusterIP
+        ports:
+        - name: dns-tcp
+          port: 53
+          targetPort: 5353
+        - name: dns-udp
+          port: 53
+          protocol: UDP
+          targetPort: 5353
+        selector:
+          app: dns-cache
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: dns-cache
+        namespace: infra
+      spec:
+        selector:
+          app: dns-cache
+        ports:
+        - name: dns-udp
+          port: 53
+          targetPort: 5353
+        - name: dns-tcp
+          port: 53
+          targetPort: 5353
+    why: Without protocol both ports default to TCP; UDP is never exposed and the API server rejects the duplicate port 53/TCP.
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: dns-cache
+        namespace: infra
+      spec:
+        selector:
+          app: dns-cache
+        ports:
+        - name: dns-udp
+          protocol: UDP
+          port: 53
+        - name: dns-tcp
+          protocol: TCP
+          port: 53
+    why: Without targetPort the target port defaults to the Service port, 53, but the Pods listen on 5353.
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: dns-cache
+        namespace: infra
+      spec:
+        selector:
+          app: dns-cache
+        ports:
+        - name: dns-udp
+          protocol: UDP
+          port: 5353
+          targetPort: 53
+        - name: dns-tcp
+          protocol: TCP
+          port: 5353
+          targetPort: 53
+    why: port and targetPort are swapped. Clients use port 53 on the Service; 5353 is the container port.
+explanation:
+  correct:
+    en: 'Each entry of `spec.ports` has its own `protocol`, which defaults to TCP, so the UDP port must say `protocol: UDP`. Two entries can share port 53 because their protocols differ, and as the Service has several ports each needs a name. `targetPort` defaults to the value of `port`, so it must be set to 5353. ClusterIP is the default type and may be omitted.'
+references:
+- title: Service
+  url: https://kubernetes.io/docs/concepts/services-networking/service/

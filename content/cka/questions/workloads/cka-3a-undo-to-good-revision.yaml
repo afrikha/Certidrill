@@ -1,0 +1,72 @@
+id: cka-3a-undo-to-good-revision
+objective: "3.1.1"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    The Pods of the current revision of Deployment `orders` in namespace `shop` crash at startup. `kubectl rollout history deployment/orders -n shop` prints:
+
+    ```text
+    deployment.apps/orders
+    REVISION  CHANGE-CAUSE
+    2         image updated to 3.1
+    4         image updated to 3.3
+    5         set LOG_LEVEL=debug on 3.3
+    6         image updated to 3.4
+    ```
+
+    Bring the Deployment back to the Pod template that ran image `3.3` with the normal log level.
+
+    Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: rollout
+    label: It is a rollout command
+    path: verb
+    op: equals
+    value: rollout
+  - id: undo
+    label: Uses rollout undo
+    path: subverb
+    op: equals
+    value: undo
+  - id: target
+    label: Targets a Deployment
+    path: resource
+    op: equals
+    value: deployment
+  - id: name
+    label: Names the Deployment orders
+    path: names
+    op: contains
+    value: orders
+  - id: revision
+    label: Rolls back to revision 4
+    path: flags.to-revision
+    op: equals
+    value: "4"
+  - id: namespace
+    label: Runs in namespace shop
+    path: flags.namespace
+    op: equals
+    value: shop
+  solution:
+  - command: kubectl rollout undo deployment/orders --to-revision=4 -n shop
+  - command: k -n shop rollout undo deploy orders --to-revision 4
+  negatives:
+  - command: kubectl rollout undo deployment/orders -n shop
+    why: Without --to-revision, undo returns to the previous revision, 5, which still has the debug log level.
+  - command: kubectl rollout undo deployment/orders --to-revision=3 -n shop
+    why: Revision 3 is not listed in the history any more, so kubectl cannot find it; the template with image 3.3 and normal logging is revision 4.
+  - command: kubectl rollout history deployment/orders --revision=4 -n shop
+    why: history --revision only displays the template of revision 4; it does not roll back.
+explanation:
+  correct:
+    en: '`kubectl rollout undo deployment/orders --to-revision=4 -n shop` restores the Pod template of revision 4 (image 3.3, normal logging); it becomes a new revision, 7, and revision 4 disappears from the list. Without `--to-revision`, undo goes to the previous revision, here 5 with debug logging. A number missing from the list, such as 3, cannot be used with `--to-revision`.'
+references:
+- title: Deployments
+  url: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/

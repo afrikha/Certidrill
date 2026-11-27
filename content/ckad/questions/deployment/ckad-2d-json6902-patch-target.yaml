@@ -1,0 +1,99 @@
+id: ckad-2d-json6902-patch-target
+objective: "2.4.3"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    The base `/opt/api/base` contains the Deployment `api` (`apps/v1`) and the Service `api`. The file `/opt/api/overlays/staging/replicas-patch.json` holds a JSON 6902 patch:
+
+    ```json
+    [{"op": "replace", "path": "/spec/replicas", "value": 2}]
+    ```
+
+    Write `/opt/api/overlays/staging/kustomization.yaml`, an overlay built on `../../base` that applies this patch file to the Deployment `api` only.
+body:
+  starter: |
+    apiVersion: kustomize.config.k8s.io/v1beta1
+    kind: Kustomization
+  files:
+  - name: overlays/staging/replicas-patch.json
+    content: |
+      [{"op": "replace", "path": "/spec/replicas", "value": 2}]
+answer:
+  checks:
+  - id: base
+    label: Builds on the base ../../base
+    path: resources
+    op: matches
+    value: '"\.\./\.\./base/?"'
+  - id: patch-path
+    label: Applies the patch file replicas-patch.json
+    path: patches
+    op: contains
+    value: {path: replicas-patch.json}
+  - id: target-kind
+    label: The patch targets kind Deployment
+    path: patches
+    op: contains
+    value: {path: replicas-patch.json, target: {kind: Deployment}}
+  - id: target-name
+    label: The patch targets the object named api
+    path: patches
+    op: contains
+    value: {path: replicas-patch.json, target: {name: api}}
+  solution:
+  - manifest: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      resources:
+      - ../../base
+      patches:
+      - path: replicas-patch.json
+        target:
+          kind: Deployment
+          name: api
+  - manifest: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      resources:
+      - ../../base/
+      patches:
+      - target:
+          group: apps
+          version: v1
+          kind: Deployment
+          name: api
+        path: replicas-patch.json
+  negatives:
+  - manifest: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      resources:
+      - ../../base
+      patches:
+      - path: replicas-patch.json
+    why: A JSON 6902 patch has no apiVersion, kind or name of its own; without target Kustomize cannot tell which object to patch.
+  - manifest: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      resources:
+      - ../../base
+      patches:
+      - path: replicas-patch.json
+        target:
+          name: api
+    why: Both the Deployment and the Service are named api; without kind the patch also targets the Service, which has no spec.replicas.
+  - manifest: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      resources:
+      - ../../base
+      - replicas-patch.json
+    why: resources takes Kubernetes objects; a patch listed there is not applied as a patch.
+explanation:
+  correct:
+    en: 'The `patches` field applies a strategic merge or a JSON 6902 patch from a file (`path`) or inline (`patch`). A JSON 6902 patch is a list of operations with no object identity, so `target` is mandatory; it selects by `group`, `version`, `kind`, `name`, `namespace` or label and annotation selectors. `kind: Deployment` is needed here because the Service has the same name.'
+references:
+- title: Declarative Management of Kubernetes Objects Using Kustomize
+  url: https://kubernetes.io/docs/tasks/manage-kubernetes-objects/kustomization/

@@ -1,0 +1,189 @@
+id: ckad-4b-pod-restricted-fix
+objective: "4.2.3"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    Namespace `secure` has the label `pod-security.kubernetes.io/enforce: restricted`. Applying the Pod in the editor fails with:
+
+    ```text
+    Error from server (Forbidden): error when creating "api.yaml": pods "api" is forbidden: violates PodSecurity "restricted:latest": allowPrivilegeEscalation != false (containers "app", "log-agent" must set securityContext.allowPrivilegeEscalation=false), unrestricted capabilities (containers "app", "log-agent" must set securityContext.capabilities.drop=["ALL"]), seccompProfile (pod or containers "app", "log-agent" must set securityContext.seccompProfile.type to "RuntimeDefault" or "Localhost")
+    ```
+
+    Fix the manifest so that the Pod is admitted. Set the seccomp profile once, at Pod level, to the container runtime's default profile. Keep the existing fields.
+body:
+  starter: |
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: api
+      namespace: secure
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+      containers:
+      - name: app
+        image: registry.example.com/api:2.0
+        ports:
+        - containerPort: 8443
+      - name: log-agent
+        image: registry.example.com/log-agent:1.3
+answer:
+  checks:
+  - id: pod
+    label: Pod api in namespace secure
+    path: metadata
+    op: subset
+    value: {name: api, namespace: secure}
+  - id: nonroot
+    label: Pod still runs as non-root
+    path: spec.securityContext.runAsNonRoot
+    op: equals
+    value: true
+  - id: seccomp
+    label: Pod-level seccomp profile is RuntimeDefault
+    path: spec.securityContext.seccompProfile.type
+    op: equals
+    value: RuntimeDefault
+  - id: app-ape
+    label: Container app disallows privilege escalation
+    path: spec.containers[name=app].securityContext.allowPrivilegeEscalation
+    op: equals
+    value: false
+  - id: app-drop
+    label: Container app drops ALL capabilities
+    path: spec.containers[name=app].securityContext.capabilities.drop
+    op: contains
+    value: ALL
+  - id: agent-ape
+    label: Container log-agent disallows privilege escalation
+    path: spec.containers[name=log-agent].securityContext.allowPrivilegeEscalation
+    op: equals
+    value: false
+  - id: agent-drop
+    label: Container log-agent drops ALL capabilities
+    path: spec.containers[name=log-agent].securityContext.capabilities.drop
+    op: contains
+    value: ALL
+  - id: app-image
+    label: Container app still runs registry.example.com/api:2.0
+    path: spec.containers[name=app].image
+    op: equals
+    value: registry.example.com/api:2.0
+  - id: agent-image
+    label: Container log-agent still runs registry.example.com/log-agent:1.3
+    path: spec.containers[name=log-agent].image
+    op: equals
+    value: registry.example.com/log-agent:1.3
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: api
+        namespace: secure
+      spec:
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          seccompProfile:
+            type: RuntimeDefault
+        containers:
+        - name: app
+          image: registry.example.com/api:2.0
+          ports:
+          - containerPort: 8443
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+        - name: log-agent
+          image: registry.example.com/log-agent:1.3
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: api
+        namespace: secure
+      spec:
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          seccompProfile:
+            type: RuntimeDefault
+        containers:
+        - name: app
+          image: registry.example.com/api:2.0
+          ports:
+          - containerPort: 8443
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+        - name: log-agent
+          image: registry.example.com/log-agent:1.3
+    why: The restricted level checks every container; log-agent still allows privilege escalation and keeps its capabilities.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: api
+        namespace: secure
+      spec:
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+          seccompProfile:
+            type: RuntimeDefault
+        containers:
+        - name: app
+          image: registry.example.com/api:2.0
+          ports:
+          - containerPort: 8443
+        - name: log-agent
+          image: registry.example.com/log-agent:1.3
+    why: allowPrivilegeEscalation and capabilities exist only in the container securityContext; the Pod-level securityContext has no such fields.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: api
+        namespace: secure
+      spec:
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          seccompProfile:
+            type: Unconfined
+        containers:
+        - name: app
+          image: registry.example.com/api:2.0
+          ports:
+          - containerPort: 8443
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+        - name: log-agent
+          image: registry.example.com/log-agent:1.3
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+    why: The restricted level forbids the Unconfined seccomp profile; only RuntimeDefault or Localhost are allowed.
+explanation:
+  correct:
+    en: 'The restricted Pod Security Standard requires, for every container, `allowPrivilegeEscalation: false` and `capabilities.drop` including `ALL` (only `NET_BIND_SERVICE` may be added back), plus `runAsNonRoot: true` and a seccomp profile of `RuntimeDefault` or `Localhost`. Those two may be set once in the Pod-level `securityContext`; capabilities and privilege escalation exist only at container level. The admission error lists each violated control and the containers concerned.'
+references:
+- title: Pod Security Standards
+  url: https://kubernetes.io/docs/concepts/security/pod-security-standards/

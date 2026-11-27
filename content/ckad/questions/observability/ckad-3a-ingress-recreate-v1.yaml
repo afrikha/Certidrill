@@ -1,0 +1,191 @@
+id: ckad-3a-ingress-recreate-v1
+objective: "3.1.2"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    `kubectl apply -f old-ingress.yaml` fails: the file uses an Ingress apiVersion that v1.37 no longer serves. Recreate the same routing imperatively with the current API:
+
+    - Ingress `storefront` in namespace `shop`, ingress class `nginx`;
+    - host `shop.example.com`, every path that starts with `/` (prefix match), to Service `storefront` on port 8080.
+
+    Type the single command you would run.
+body:
+  mode: object
+  namespace: default
+  files:
+  - name: old-ingress.yaml
+    content: |
+      apiVersion: extensions/v1beta1
+      kind: Ingress
+      metadata:
+        name: storefront
+        namespace: shop
+      spec:
+        rules:
+        - host: shop.example.com
+          http:
+            paths:
+            - path: /
+              backend:
+                serviceName: storefront
+                servicePort: 8080
+answer:
+  checks:
+  - id: api-version
+    label: The Ingress uses networking.k8s.io/v1
+    path: apiVersion
+    op: equals
+    value: networking.k8s.io/v1
+  - id: kind
+    label: The object is an Ingress
+    path: kind
+    op: equals
+    value: Ingress
+  - id: metadata
+    label: Named storefront in namespace shop
+    path: metadata
+    op: subset
+    value: {name: storefront, namespace: shop}
+  - id: class
+    label: Uses the ingress class nginx
+    path: spec.ingressClassName
+    op: equals
+    value: nginx
+  - id: path
+    label: Routes path / on host shop.example.com
+    path: spec.rules[host=shop.example.com].http.paths[0].path
+    op: equals
+    value: /
+  - id: path-type
+    label: The path type is Prefix
+    path: spec.rules[host=shop.example.com].http.paths[0].pathType
+    op: equals
+    value: Prefix
+  - id: backend
+    label: The backend is Service storefront on port number 8080
+    path: spec.rules[host=shop.example.com].http.paths[0].backend.service
+    op: subset
+    value: {name: storefront, port: {number: 8080}}
+  solution:
+  - command: kubectl create ingress storefront -n shop --class=nginx --rule='shop.example.com/*=storefront:8080'
+    output: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: storefront
+        namespace: shop
+      spec:
+        ingressClassName: nginx
+        rules:
+        - host: shop.example.com
+          http:
+            paths:
+            - backend:
+                service:
+                  name: storefront
+                  port:
+                    number: 8080
+              path: /
+              pathType: Prefix
+      status:
+        loadBalancer: {}
+  - command: k -n shop create ing storefront --rule="shop.example.com/*=storefront:8080" --class nginx --dry-run=client -o yaml
+    output: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: storefront
+        namespace: shop
+      spec:
+        ingressClassName: nginx
+        rules:
+        - host: shop.example.com
+          http:
+            paths:
+            - backend:
+                service:
+                  name: storefront
+                  port:
+                    number: 8080
+              path: /
+              pathType: Prefix
+      status:
+        loadBalancer: {}
+  negatives:
+  - command: kubectl create ingress storefront -n shop --class=nginx --rule='shop.example.com/=storefront:8080'
+    why: Without the trailing * kubectl sets pathType Exact, so only the path / itself is routed, not /cart or /items.
+    output: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: storefront
+        namespace: shop
+      spec:
+        ingressClassName: nginx
+        rules:
+        - host: shop.example.com
+          http:
+            paths:
+            - backend:
+                service:
+                  name: storefront
+                  port:
+                    number: 8080
+              path: /
+              pathType: Exact
+      status:
+        loadBalancer: {}
+  - command: kubectl create ingress storefront --class=nginx --rule='shop.example.com/*=storefront:8080'
+    why: Without -n the Ingress goes to the context namespace, default, where Service storefront does not exist.
+    output: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: storefront
+      spec:
+        ingressClassName: nginx
+        rules:
+        - host: shop.example.com
+          http:
+            paths:
+            - backend:
+                service:
+                  name: storefront
+                  port:
+                    number: 8080
+              path: /
+              pathType: Prefix
+      status:
+        loadBalancer: {}
+  - command: kubectl create ingress storefront -n shop --rule='shop.example.com/*=storefront:8080'
+    why: Without --class the Ingress has no ingressClassName and is handled only if the cluster has a default IngressClass.
+    output: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: storefront
+        namespace: shop
+      spec:
+        rules:
+        - host: shop.example.com
+          http:
+            paths:
+            - backend:
+                service:
+                  name: storefront
+                  port:
+                    number: 8080
+              path: /
+              pathType: Prefix
+      status:
+        loadBalancer: {}
+explanation:
+  correct:
+    en: 'Ingress `extensions/v1beta1` and `networking.k8s.io/v1beta1` have not been served since v1.22; `kubectl create ingress` generates `networking.k8s.io/v1`, where the backend is `service.name` / `service.port.number` and `pathType` is required. In `--rule`, a path ending with `*` becomes `pathType: Prefix` (the `*` is removed); without it kubectl writes `Exact`. `--class` sets `spec.ingressClassName`.'
+references:
+- title: kubectl create ingress
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_create/kubectl_create_ingress/
+- title: Deprecated API Migration Guide
+  url: https://kubernetes.io/docs/reference/using-api/deprecation-guide/

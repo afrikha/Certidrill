@@ -1,0 +1,51 @@
+id: cka-4c-reset-removed-node
+objective: "4.3.2"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    Worker `node02` is being reinstalled. It has already been drained and deleted from the cluster with `kubectl delete node node02`.
+
+    On `node02`, revert the changes that `kubeadm join` made to the host (kubelet configuration, certificates, static Pod directory...), without being prompted for confirmation. Type the single command you would run.
+body:
+  mode: invocation
+  tools: [kubeadm, kubectl, systemctl]
+  namespace: default
+answer:
+  checks:
+  - id: tool
+    label: Uses kubeadm
+    path: tool
+    op: equals
+    value: kubeadm
+  - id: verb
+    label: Runs kubeadm reset
+    path: verb
+    op: equals
+    value: reset
+  - id: force
+    label: Does not prompt for confirmation (-f / --force)
+    path: flags
+    op: matches
+    value: '"(f|force)":true'
+  - id: no-dry-run
+    label: Really applies the changes (no --dry-run)
+    path: flags.dry-run
+    op: absent
+  solution:
+  - command: kubeadm reset --force
+  - command: sudo kubeadm reset -f
+  negatives:
+  - command: kubeadm reset
+    why: Without -f/--force, kubeadm reset asks for confirmation before resetting the node.
+  - command: kubeadm reset --force --dry-run
+    why: --dry-run only shows what would be done; nothing is cleaned up.
+  - command: kubectl delete node node02 --force
+    why: This deletes the Node object again (already done); it does not clean up the files kubeadm wrote on the host.
+explanation:
+  correct:
+    en: '`kubeadm reset` is a best-effort revert of `kubeadm init` or `kubeadm join` on the local host; `-f`/`--force` skips the confirmation prompt. On a control plane node with stacked etcd it also removes the local etcd member. It does not clean `/etc/cni/net.d`, iptables, nftables or IPVS rules, or `$HOME/.kube`: remove those by hand. The usual order is `kubectl drain`, `kubeadm reset`, `kubectl delete node`.'
+references:
+- title: kubeadm reset
+  url: https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-reset/

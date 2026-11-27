@@ -1,0 +1,184 @@
+id: cka-2e-selectorless-endpointslice
+objective: "2.5.1"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    In namespace `shop`, Service `legacy-db` has no selector and no endpoints. It must send traffic to a database pooler running outside the cluster, on the hosts `10.20.0.15` and `10.20.0.16`, which listen on TCP port `6432`. The Service is:
+
+    ```yaml
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: legacy-db
+      namespace: shop
+    spec:
+      ports:
+      - name: pg
+        protocol: TCP
+        port: 5432
+        targetPort: 6432
+    ```
+
+    Write an EndpointSlice named `legacy-db-1` that connects this Service to the two hosts.
+body:
+  starter: ""
+answer:
+  checks:
+  - id: kind
+    label: The object is an EndpointSlice (discovery.k8s.io/v1)
+    path: apiVersion
+    op: equals
+    value: discovery.k8s.io/v1
+  - id: slice
+    label: It is named legacy-db-1 in namespace shop
+    path: metadata
+    op: subset
+    value: {name: legacy-db-1, namespace: shop}
+  - id: service-label
+    label: The label kubernetes.io/service-name links it to legacy-db
+    path: metadata.labels["kubernetes.io/service-name"]
+    op: equals
+    value: legacy-db
+  - id: address-type
+    label: addressType is IPv4
+    path: addressType
+    op: equals
+    value: IPv4
+  - id: port
+    label: The port is named pg like the Service port and is the backend port 6432
+    path: ports
+    op: contains
+    value: {name: pg, port: 6432}
+  - id: host-15
+    label: 10.20.0.15 is an endpoint
+    path: endpoints
+    op: contains
+    value: {addresses: [10.20.0.15]}
+  - id: host-16
+    label: 10.20.0.16 is an endpoint
+    path: endpoints
+    op: contains
+    value: {addresses: [10.20.0.16]}
+  solution:
+  - manifest: |
+      apiVersion: discovery.k8s.io/v1
+      kind: EndpointSlice
+      metadata:
+        name: legacy-db-1
+        namespace: shop
+        labels:
+          kubernetes.io/service-name: legacy-db
+          endpointslice.kubernetes.io/managed-by: cluster-admins
+      addressType: IPv4
+      ports:
+      - name: pg
+        protocol: TCP
+        port: 6432
+      endpoints:
+      - addresses:
+        - "10.20.0.15"
+      - addresses:
+        - "10.20.0.16"
+  - manifest: |
+      apiVersion: discovery.k8s.io/v1
+      kind: EndpointSlice
+      metadata:
+        name: legacy-db-1
+        namespace: shop
+        labels:
+          kubernetes.io/service-name: legacy-db
+      addressType: IPv4
+      ports:
+      - port: 6432
+        name: pg
+      endpoints:
+      - addresses: ["10.20.0.15"]
+        conditions:
+          ready: true
+      - addresses: ["10.20.0.16"]
+        conditions:
+          ready: true
+  negatives:
+  - manifest: |
+      apiVersion: discovery.k8s.io/v1
+      kind: EndpointSlice
+      metadata:
+        name: legacy-db-1
+        namespace: shop
+        labels:
+          kubernetes.io/service-name: legacy-db
+      addressType: IPv4
+      ports:
+      - name: pg
+        protocol: TCP
+        port: 5432
+      endpoints:
+      - addresses:
+        - "10.20.0.15"
+      - addresses:
+        - "10.20.0.16"
+    why: The EndpointSlice port is the port on the backends, 6432; 5432 is the Service port, where the hosts do not listen.
+  - manifest: |
+      apiVersion: discovery.k8s.io/v1
+      kind: EndpointSlice
+      metadata:
+        name: legacy-db-1
+        namespace: shop
+      addressType: IPv4
+      ports:
+      - name: pg
+        protocol: TCP
+        port: 6432
+      endpoints:
+      - addresses:
+        - "10.20.0.15"
+      - addresses:
+        - "10.20.0.16"
+    why: Without the kubernetes.io/service-name label, nothing links the EndpointSlice to the Service, whatever its name.
+  - manifest: |
+      apiVersion: discovery.k8s.io/v1
+      kind: EndpointSlice
+      metadata:
+        name: legacy-db-1
+        namespace: shop
+        labels:
+          kubernetes.io/service-name: legacy-db
+      addressType: IPv4
+      ports:
+      - name: postgres
+        protocol: TCP
+        port: 6432
+      endpoints:
+      - addresses:
+        - "10.20.0.15"
+      - addresses:
+        - "10.20.0.16"
+    why: The port name must match the Service port name, pg; with postgres the Service port finds no matching endpoint port.
+  - manifest: |
+      apiVersion: v1
+      kind: Endpoints
+      metadata:
+        name: legacy-db
+        namespace: shop
+      subsets:
+      - addresses:
+        - ip: 10.20.0.15
+        - ip: 10.20.0.16
+        ports:
+        - name: pg
+          port: 6432
+    why: The v1 Endpoints API is deprecated; the task asks for an EndpointSlice, the object to create directly for a selectorless Service.
+explanation:
+  correct:
+    en: >-
+      A Service without a selector gets no EndpointSlice automatically: you create one with the label
+      `kubernetes.io/service-name: legacy-db`, which links it to the Service whatever its name. Its `ports[].name` must
+      match the Service port name (`pg`) and `port` is the port on the backends (6432), each host being one endpoint. The
+      documentation also recommends an `endpointslice.kubernetes.io/managed-by` label for slices you manage yourself.
+references:
+- title: Service
+  url: https://kubernetes.io/docs/concepts/services-networking/service/
+- title: EndpointSlices
+  url: https://kubernetes.io/docs/concepts/services-networking/endpoint-slices/

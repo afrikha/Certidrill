@@ -1,0 +1,57 @@
+id: ckad-4h-exec-id-container
+objective: "4.8.1"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    Pod `reports` in namespace `analytics` has two containers: `gen` (listed first) and `uploader`. Its manifest sets `runAsUser` at Pod level and a different `runAsUser` on `uploader`.
+
+    Verify which user and groups the processes of container `uploader` really run with, by running the `id` command in that container. Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Uses kubectl exec
+    path: verb
+    op: equals
+    value: exec
+  - id: pod
+    label: Targets Pod reports
+    path: names
+    op: contains
+    value: reports
+  - id: container
+    label: Runs in container uploader
+    path: flags.container
+    op: equals
+    value: uploader
+  - id: namespace
+    label: Runs in namespace analytics
+    path: flags.namespace
+    op: equals
+    value: analytics
+  - id: command
+    label: Runs the id command after --
+    path: rest
+    op: equals
+    value: [id]
+  solution:
+  - command: kubectl exec reports -c uploader -n analytics -- id
+  - command: k -n analytics exec -it reports --container=uploader -- id
+  - command: kubectl exec pod/reports -n analytics -c uploader -- id
+  negatives:
+  - command: kubectl exec reports -n analytics -- id
+    why: Without -c kubectl uses the default container, here the first one, gen, whose user differs.
+  - command: kubectl exec reports -c uploader -- id
+    why: Without -n analytics kubectl looks for the Pod in the context namespace, default.
+  - command: kubectl describe pod reports -n analytics
+    why: describe shows the Pod events and spec, not the identity of the running process.
+explanation:
+  correct:
+    en: '`kubectl exec POD -c CONTAINER -n NAMESPACE -- id` runs `id` inside the chosen container and prints `uid=`, `gid=` and `groups=` of the process. A container-level `runAsUser` overrides the Pod-level one, so you must target `uploader` with `-c`; without it kubectl uses the default container (the first one unless the Pod has the `kubectl.kubernetes.io/default-container` annotation).'
+references:
+- title: Configure a Security Context for a Pod or Container
+  url: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/

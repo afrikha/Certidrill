@@ -1,0 +1,139 @@
+id: cka-5c-label-pod-into-endpoints
+objective: "5.3.2"
+difficulty: 1
+status: draft
+type: command
+stem:
+  en: |-
+    Service `api` of namespace `shop` selects `app=api,tier=backend`. The standalone Pod `legacy-api` (manifest in `legacy-api.yaml`) is Running and Ready but does not appear in the EndpointSlice of the Service, because it carries only the label `app=api`.
+
+    Add the missing label to the running Pod, without recreating it. Type the single command you would run.
+body:
+  mode: object
+  namespace: default
+  files:
+  - name: legacy-api.yaml
+    content: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        labels:
+          app: api
+        name: legacy-api
+        namespace: shop
+      spec:
+        containers:
+        - image: registry.example.com/shop/api:1.9
+          name: api
+          ports:
+          - containerPort: 8080
+answer:
+  checks:
+  - id: kind
+    label: The object is Pod legacy-api
+    path: metadata.name
+    op: equals
+    value: legacy-api
+  - id: namespace
+    label: It is the Pod of namespace shop
+    path: metadata.namespace
+    op: equals
+    value: shop
+  - id: labels
+    label: The Pod is labelled app=api and tier=backend
+    path: metadata.labels
+    op: subset
+    value: {app: api, tier: backend}
+  solution:
+  - command: kubectl label pod legacy-api tier=backend -n shop
+    output: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        labels:
+          app: api
+          tier: backend
+        name: legacy-api
+        namespace: shop
+      spec:
+        containers:
+        - image: registry.example.com/shop/api:1.9
+          name: api
+          ports:
+          - containerPort: 8080
+  - command: k -n shop label po/legacy-api tier=backend
+    output: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        labels:
+          app: api
+          tier: backend
+        name: legacy-api
+        namespace: shop
+      spec:
+        containers:
+        - image: registry.example.com/shop/api:1.9
+          name: api
+          ports:
+          - containerPort: 8080
+  negatives:
+  - command: kubectl label pod legacy-api tier=backend
+    why: Without -n kubectl looks for legacy-api in the context namespace, default.
+    output: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        labels:
+          app: api
+          tier: backend
+        name: legacy-api
+      spec:
+        containers:
+        - image: registry.example.com/shop/api:1.9
+          name: api
+          ports:
+          - containerPort: 8080
+  - command: kubectl annotate pod legacy-api tier=backend -n shop
+    why: An annotation is not a label; Service selectors only match labels.
+    output: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        annotations:
+          tier: backend
+        labels:
+          app: api
+        name: legacy-api
+        namespace: shop
+      spec:
+        containers:
+        - image: registry.example.com/shop/api:1.9
+          name: api
+          ports:
+          - containerPort: 8080
+  - command: kubectl label pod legacy-api tier=frontend -n shop
+    why: The Service selects tier=backend.
+    output: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        labels:
+          app: api
+          tier: frontend
+        name: legacy-api
+        namespace: shop
+      spec:
+        containers:
+        - image: registry.example.com/shop/api:1.9
+          name: api
+          ports:
+          - containerPort: 8080
+explanation:
+  correct:
+    en: 'A Service selector is an AND of all its labels, so a Pod with only `app=api` is not selected. `kubectl label pod legacy-api tier=backend -n shop` adds the label in place; the EndpointSlice controller then adds the ready Pod to the slices of `api` within seconds. Labelling a Pod managed by a Deployment would only fix that one Pod: there you change the Pod template.'
+references:
+- title: kubectl label
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_label/
+- title: EndpointSlices
+  url: https://kubernetes.io/docs/concepts/services-networking/endpoint-slices/

@@ -1,0 +1,50 @@
+id: cka-2b-kubelet-journal-since
+objective: "2.2.2"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    About ten minutes ago you edited `/etc/kubernetes/manifests/kube-apiserver.yaml` on `cp-1`. Since then `kubectl` gets `connection refused`, and `crictl ps -a --name kube-apiserver` prints no container at all: the kubelet never created one, so there is no container log to read.
+
+    You are root on `cp-1`. Print the journal entries of the kubelet unit from the last 10 minutes. Type the single command you would run.
+body:
+  mode: invocation
+  tools: [journalctl, crictl, kubectl]
+answer:
+  checks:
+  - id: tool
+    label: Uses journalctl
+    path: tool
+    op: equals
+    value: journalctl
+  - id: unit
+    label: Selects the kubelet unit (-u or --unit)
+    path: flags.unit
+    op: matches
+    value: '^kubelet(\.service)?$'
+  - id: since
+    label: Starts 10 minutes ago (--since or -S)
+    path: flags.since
+    op: matches
+    value: '^(-10 ?(m|min|minutes?)|10 ?(m|min|minutes?) ago)$'
+  solution:
+  - command: journalctl -u kubelet --since "10 min ago"
+  - command: journalctl --unit kubelet.service --since=-10m
+  - command: journalctl -u kubelet -S "10 minutes ago"
+  - command: journalctl -xeu kubelet --since "10 min ago"
+  negatives:
+  - command: journalctl -u kubelet -n 10
+    why: -n 10 prints the last 10 entries, not the entries of the last 10 minutes; the parse error may be further back.
+  - command: journalctl -u containerd --since "10 min ago"
+    why: containerd never received a request to create the container; the kubelet, which reads the manifest, logs the error.
+  - command: crictl logs kube-apiserver
+    why: crictl logs needs the ID of an existing container, and no kube-apiserver container was created.
+explanation:
+  correct:
+    en: 'When `crictl ps -a` shows no container at all, the kubelet could not turn the manifest into a Pod (a YAML error, an invalid field, a missing volume): the reason is in the kubelet journal, not in a container log. `journalctl -u kubelet --since "10 min ago"` limits the output to the period after the edit; `-10m` is an equivalent relative time.'
+references:
+- title: Troubleshooting Clusters
+  url: https://kubernetes.io/docs/tasks/debug/debug-cluster/
+- title: Debugging Kubernetes nodes with crictl
+  url: https://kubernetes.io/docs/tasks/debug/debug-cluster/crictl/

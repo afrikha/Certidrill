@@ -1,0 +1,127 @@
+id: cka-1b-csi-static-pv
+objective: "1.2.3"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    A volume already exists in the storage backend, managed by the CSI driver `csi.example.com`. The driver identifies it as `vol-7f3a2c` and it holds an `xfs` file system with the data of a legacy database.
+
+    Write the PersistentVolume `pv-legacy-db` that gives the cluster access to this existing volume: 50Gi, read-write by one node, class `manual`, mounted as `xfs`.
+body:
+  starter: ""
+answer:
+  checks:
+  - id: name
+    label: A PersistentVolume named pv-legacy-db
+    path: metadata.name
+    op: equals
+    value: pv-legacy-db
+  - id: kind
+    label: The kind is PersistentVolume
+    path: kind
+    op: equals
+    value: PersistentVolume
+  - id: driver
+    label: csi.driver is csi.example.com
+    path: spec.csi.driver
+    op: equals
+    value: csi.example.com
+  - id: handle
+    label: csi.volumeHandle is vol-7f3a2c
+    path: spec.csi.volumeHandle
+    op: equals
+    value: vol-7f3a2c
+  - id: fstype
+    label: csi.fsType is xfs
+    path: spec.csi.fsType
+    op: equals
+    value: xfs
+  - id: capacity
+    label: Capacity is 50Gi
+    path: spec.capacity.storage
+    op: quantity
+    value: 50Gi
+  - id: mode
+    label: Access mode ReadWriteOnce
+    path: spec.accessModes
+    op: contains
+    value: ReadWriteOnce
+  - id: class
+    label: storageClassName is manual
+    path: spec.storageClassName
+    op: equals
+    value: manual
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: PersistentVolume
+      metadata:
+        name: pv-legacy-db
+      spec:
+        capacity:
+          storage: 50Gi
+        accessModes:
+        - ReadWriteOnce
+        persistentVolumeReclaimPolicy: Retain
+        storageClassName: manual
+        csi:
+          driver: csi.example.com
+          volumeHandle: vol-7f3a2c
+          fsType: xfs
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: PersistentVolume
+      metadata:
+        name: pv-legacy-db
+      spec:
+        capacity:
+          storage: 50Gi
+        accessModes:
+        - ReadWriteOnce
+        storageClassName: manual
+        csi:
+          driver: csi.example.com
+          fsType: xfs
+          volumeAttributes:
+            volumeHandle: vol-7f3a2c
+    why: volumeHandle is a field of csi itself; volumeAttributes holds driver-specific static properties, and a csi source without volumeHandle is invalid.
+  - manifest: |
+      apiVersion: v1
+      kind: PersistentVolume
+      metadata:
+        name: pv-legacy-db
+      spec:
+        capacity:
+          storage: 50Gi
+        accessModes:
+        - ReadWriteOnce
+        storageClassName: manual
+        csi:
+          driver: csi.example.com
+          volumeHandle: vol-7f3a2c
+    why: Without fsType the volume is not declared as xfs; the file system used would be the driver's or the cluster's default.
+  - manifest: |
+      apiVersion: v1
+      kind: PersistentVolume
+      metadata:
+        name: pv-legacy-db
+      spec:
+        capacity:
+          storage: 50Gi
+        accessModes:
+        - ReadWriteOnce
+        storageClassName: manual
+        csi:
+          driver: kubernetes.io/csi
+          volumeHandle: vol-7f3a2c
+          fsType: xfs
+    why: driver must be the name of the CSI driver that manages the volume, csi.example.com.
+explanation:
+  correct:
+    en: |-
+      A static CSI PV points to an existing volume with `csi.driver` (the driver's name) and `csi.volumeHandle` (the id the driver uses for the volume). With `volumeMode: Filesystem`, `fsType` says which file system to mount. Optional fields are `readOnly`, `volumeAttributes` and the secret references. Manual PVs default to `Retain`.
+references:
+- title: Volumes
+  url: https://kubernetes.io/docs/concepts/storage/volumes/

@@ -1,0 +1,68 @@
+id: ckad-2c-rollback-revision
+objective: "2.3.3"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    `helm history shop-web -n shop` lists three revisions of the release (columns shortened):
+
+    ```text
+    REVISION  CHART         DESCRIPTION
+    1         webapp-2.3.1  Install complete
+    2         webapp-2.4.0  Upgrade complete
+    3         webapp-2.5.0  Upgrade "shop-web" failed
+    ```
+
+    Revision 2 already had the bug that revision 3 was meant to fix. Roll the Helm release `shop-web` back to revision 1.
+
+    Type the single command you would run.
+body:
+  mode: invocation
+  tools: [helm, kubectl]
+  namespace: default
+answer:
+  checks:
+  - id: helm
+    label: Uses helm
+    path: tool
+    op: equals
+    value: helm
+  - id: rollback
+    label: Uses helm rollback
+    path: verb
+    op: equals
+    value: rollback
+  - id: release
+    label: Targets the release shop-web
+    path: args[0]
+    op: equals
+    value: shop-web
+  - id: revision
+    label: Rolls back to revision 1
+    path: args[1]
+    op: equals
+    value: "1"
+  - id: namespace
+    label: Looks in namespace shop
+    path: flags.namespace
+    op: equals
+    value: shop
+  solution:
+  - command: helm rollback shop-web 1 -n shop
+  - command: helm rollback shop-web 1 --namespace shop --wait
+  negatives:
+  - command: helm rollback shop-web -n shop
+    why: Without a revision, helm rollback returns to the previous release, revision 2, which has the bug.
+  - command: kubectl rollout undo deployment/shop-web -n shop
+    why: rollout undo changes only the Deployment and bypasses Helm, so the release history and its other objects stay at revision 3.
+  - command: helm rollback shop-web 1
+    why: Without -n Helm looks for the release in the context namespace, default.
+explanation:
+  correct:
+    en: '`helm rollback RELEASE REVISION` redeploys the manifests and values of that revision and records the result as a new revision (4 here). Without a revision, or with 0, it goes back to the previous release. `kubectl rollout undo` acts on one Deployment outside Helm and leaves the release record unchanged.'
+references:
+- title: helm rollback
+  url: https://helm.sh/docs/helm/helm_rollback/
+- title: helm history
+  url: https://helm.sh/docs/helm/helm_history/

@@ -51,7 +51,7 @@ Sous `vendors.cncf` :
 
 ## 4. Certifications non couvertes
 
-- **CKA, CKAD, CKS** : examens pratiques en ligne de commande sur de vrais clusters (2 heures, tâches notées par un correcteur automatique). Un QCM ne serait pas un examen blanc réaliste ; ils demanderaient un environnement d'exercices (clusters éphémères, terminal dans le navigateur, correction par scripts), soit un autre produit. À étudier séparément si besoin.
+- **CKA, CKAD, CKS** : examens pratiques en ligne de commande sur de vrais clusters (2 heures, tâches notées par un correcteur automatique). Un QCM ne serait pas un examen blanc réaliste. La CKAD et la CKA ont une préparation pratique sans cluster (cours, quiz, exercices de commande et de manifeste) : `docs/SPECS-KUBERNETES-PRATIQUE.md`. La CKS n'est pas couverte.
 - **Autres QCM de la Linux Foundation** (CNPA, CGOA, PCA, ICA, CCA, OTCA…) : possibles sur le même modèle ; demande moindre. À décider.
 
 ## 5. Procédure

@@ -1,0 +1,157 @@
+id: ckad-3c-labels-match-selector
+objective: "3.3.2"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    The on-call runbook lists the Pods of the cart service with this command:
+
+    ```bash
+    kubectl get pods -n shop -l 'app=cart,tier in (backend),!canary'
+    ```
+
+    Write the manifest of a Deployment named `cart` in namespace `shop` with 2 replicas and one container named `cart` running `registry.example.com/cart:3.1`. Its selector uses only the label `app: cart`, and the command above must list all its Pods.
+body:
+  starter: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: cart
+      namespace: shop
+    spec:
+      replicas: 2
+answer:
+  checks:
+  - id: deployment
+    label: A Deployment named cart in namespace shop
+    path: metadata
+    op: subset
+    value: {name: cart, namespace: shop}
+  - id: kind
+    label: The object is a Deployment
+    path: kind
+    op: equals
+    value: Deployment
+  - id: replicas
+    label: It runs 2 replicas
+    path: spec.replicas
+    op: equals
+    value: 2
+  - id: selector
+    label: The selector is app=cart only
+    path: spec.selector
+    op: equals
+    value: {matchLabels: {app: cart}}
+  - id: label-app
+    label: Pod template has label app=cart
+    path: spec.template.metadata.labels.app
+    op: equals
+    value: cart
+  - id: label-tier
+    label: Pod template has label tier=backend
+    path: spec.template.metadata.labels.tier
+    op: equals
+    value: backend
+  - id: no-canary
+    label: Pod template has no canary label key
+    path: spec.template.metadata.labels.canary
+    op: absent
+  - id: image
+    label: Container cart runs registry.example.com/cart:3.1
+    path: spec.template.spec.containers[name=cart].image
+    op: equals
+    value: registry.example.com/cart:3.1
+  solution:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: cart
+        namespace: shop
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: cart
+        template:
+          metadata:
+            labels:
+              app: cart
+              tier: backend
+          spec:
+            containers:
+            - name: cart
+              image: registry.example.com/cart:3.1
+  negatives:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: cart
+        namespace: shop
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: cart
+        template:
+          metadata:
+            labels:
+              app: cart
+              tier: backend
+              canary: "false"
+          spec:
+            containers:
+            - name: cart
+              image: registry.example.com/cart:3.1
+    why: '`!canary` selects objects that have no canary label at all, whatever its value; canary: "false" excludes the Pods.'
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: cart
+        namespace: shop
+        labels:
+          tier: backend
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: cart
+        template:
+          metadata:
+            labels:
+              app: cart
+          spec:
+            containers:
+            - name: cart
+              image: registry.example.com/cart:3.1
+    why: Labels on the Deployment's own metadata are not copied to its Pods; the Pod template has no tier label.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: cart
+        namespace: shop
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: cart
+        template:
+          metadata:
+            labels:
+              app: cart
+              tier: back-end
+          spec:
+            containers:
+            - name: cart
+              image: registry.example.com/cart:3.1
+    why: '`tier in (backend)` matches the exact value backend; back-end does not match.'
+explanation:
+  correct:
+    en: 'A comma in a label selector means AND: `app=cart` and `tier in (backend)` require those labels on the Pods, and `!canary` requires that the key canary is absent. kubectl get pods matches the labels of the Pods, so they go in `spec.template.metadata.labels`, which must also contain the selector label `app: cart`.'
+references:
+- title: Labels and Selectors
+  url: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/

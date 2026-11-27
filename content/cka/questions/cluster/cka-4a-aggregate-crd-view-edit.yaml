@@ -1,0 +1,217 @@
+id: cka-4a-aggregate-crd-view-edit
+objective: "4.1.1"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    A backup operator installed the custom resource `backups` in the API group `data.example.com`. Users who already hold the built-in ClusterRoles must get access to it without any new binding:
+
+    - `backups-reader`: `get`, `list` and `watch` on `backups`, added to the built-in `view` role;
+    - `backups-writer`: `create`, `update`, `patch` and `delete` on `backups`, added to the built-in `edit` and `admin` roles.
+
+    Write the two ClusterRoles.
+body:
+  starter: ""
+answer:
+  checks:
+  - id: reader-label
+    label: backups-reader carries the label rbac.authorization.k8s.io/aggregate-to-view with the string "true"
+    select: {kind: ClusterRole, name: backups-reader}
+    path: metadata.labels
+    op: matches
+    value: '"rbac\.authorization\.k8s\.io/aggregate-to-view":"true"'
+  - id: reader-rule
+    label: backups-reader allows get, list and watch on backups in data.example.com
+    select: {kind: ClusterRole, name: backups-reader}
+    path: rules
+    op: contains
+    value: {apiGroups: [data.example.com], resources: [backups], verbs: [get, list, watch]}
+  - id: writer-edit
+    label: backups-writer carries the label rbac.authorization.k8s.io/aggregate-to-edit with the string "true"
+    select: {kind: ClusterRole, name: backups-writer}
+    path: metadata.labels
+    op: matches
+    value: '"rbac\.authorization\.k8s\.io/aggregate-to-edit":"true"'
+  - id: writer-admin
+    label: backups-writer carries the label rbac.authorization.k8s.io/aggregate-to-admin with the string "true"
+    select: {kind: ClusterRole, name: backups-writer}
+    path: metadata.labels
+    op: matches
+    value: '"rbac\.authorization\.k8s\.io/aggregate-to-admin":"true"'
+  - id: writer-rule
+    label: backups-writer allows create, update, patch and delete on backups in data.example.com
+    select: {kind: ClusterRole, name: backups-writer}
+    path: rules
+    op: contains
+    value: {apiGroups: [data.example.com], resources: [backups], verbs: [create, update, patch, delete]}
+  - id: reader-no-write
+    label: backups-reader grants no write verb (create, update, patch, delete)
+    select: {kind: ClusterRole, name: backups-reader}
+    path: rules
+    op: matches
+    value: '^((?!"create"|"delete"|"update"|"patch").)*$'
+  solution:
+  - manifest: |
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRole
+      metadata:
+        name: backups-reader
+        labels:
+          rbac.authorization.k8s.io/aggregate-to-view: "true"
+      rules:
+      - apiGroups: ["data.example.com"]
+        resources: ["backups"]
+        verbs: ["get", "list", "watch"]
+      ---
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRole
+      metadata:
+        name: backups-writer
+        labels:
+          rbac.authorization.k8s.io/aggregate-to-edit: "true"
+          rbac.authorization.k8s.io/aggregate-to-admin: "true"
+      rules:
+      - apiGroups: ["data.example.com"]
+        resources: ["backups"]
+        verbs: ["create", "update", "patch", "delete"]
+  - manifest: |
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRole
+      metadata:
+        name: backups-writer
+        labels:
+          rbac.authorization.k8s.io/aggregate-to-admin: 'true'
+          rbac.authorization.k8s.io/aggregate-to-edit: 'true'
+      rules:
+      - apiGroups:
+        - data.example.com
+        resources:
+        - backups
+        verbs:
+        - create
+        - delete
+        - patch
+        - update
+      ---
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRole
+      metadata:
+        name: backups-reader
+        labels:
+          rbac.authorization.k8s.io/aggregate-to-view: 'true'
+      rules:
+      - apiGroups:
+        - data.example.com
+        resources:
+        - backups
+        verbs:
+        - get
+        - list
+        - watch
+  negatives:
+  - manifest: |
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRole
+      metadata:
+        name: backups-reader
+        labels:
+          rbac.authorization.k8s.io/aggregate-to-view: true
+      rules:
+      - apiGroups: ["data.example.com"]
+        resources: ["backups"]
+        verbs: ["get", "list", "watch"]
+      ---
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRole
+      metadata:
+        name: backups-writer
+        labels:
+          rbac.authorization.k8s.io/aggregate-to-edit: true
+          rbac.authorization.k8s.io/aggregate-to-admin: true
+      rules:
+      - apiGroups: ["data.example.com"]
+        resources: ["backups"]
+        verbs: ["create", "update", "patch", "delete"]
+    why: Unquoted true is a YAML boolean; label values must be strings, so the API server rejects the objects.
+  - manifest: |
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRole
+      metadata:
+        name: backups-reader
+        labels:
+          rbac.authorization.k8s.io/aggregate-to-view: "true"
+      rules:
+      - apiGroups: [""]
+        resources: ["backups"]
+        verbs: ["get", "list", "watch"]
+      ---
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRole
+      metadata:
+        name: backups-writer
+        labels:
+          rbac.authorization.k8s.io/aggregate-to-edit: "true"
+          rbac.authorization.k8s.io/aggregate-to-admin: "true"
+      rules:
+      - apiGroups: [""]
+        resources: ["backups"]
+        verbs: ["create", "update", "patch", "delete"]
+    why: The core group "" has no backups resource; the rules must name the CRD's group data.example.com.
+  - manifest: |
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRole
+      metadata:
+        name: backups-reader
+      aggregationRule:
+        clusterRoleSelectors:
+        - matchLabels:
+            rbac.authorization.k8s.io/aggregate-to-view: "true"
+      rules:
+      - apiGroups: ["data.example.com"]
+        resources: ["backups"]
+        verbs: ["get", "list", "watch"]
+      ---
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRole
+      metadata:
+        name: backups-writer
+      aggregationRule:
+        clusterRoleSelectors:
+        - matchLabels:
+            rbac.authorization.k8s.io/aggregate-to-edit: "true"
+      rules:
+      - apiGroups: ["data.example.com"]
+        resources: ["backups"]
+        verbs: ["create", "update", "patch", "delete"]
+    why: An aggregationRule makes these roles collect other roles' rules (and overwrites their own); it does not add them to view, edit or admin.
+  - manifest: |
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRole
+      metadata:
+        name: backups-reader
+        labels:
+          rbac.authorization.k8s.io/aggregate-to-view: "true"
+      rules:
+      - apiGroups: ["data.example.com"]
+        resources: ["backups"]
+        verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+      ---
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRole
+      metadata:
+        name: backups-writer
+        labels:
+          rbac.authorization.k8s.io/aggregate-to-edit: "true"
+          rbac.authorization.k8s.io/aggregate-to-admin: "true"
+      rules:
+      - apiGroups: ["data.example.com"]
+        resources: ["backups"]
+        verbs: ["create", "update", "patch", "delete"]
+    why: backups-reader is aggregated into view, so its write verbs would give every view user write access to backups.
+explanation:
+  correct:
+    en: 'The built-in `view`, `edit` and `admin` ClusterRoles carry an `aggregationRule` that selects ClusterRoles labelled `rbac.authorization.k8s.io/aggregate-to-view`, `aggregate-to-edit` and `aggregate-to-admin` with the value `"true"`; the controller merges their rules in. So the new roles only need those labels (quoted: label values are strings) and rules on `backups` in the group `data.example.com`. Every existing binding to view, edit or admin then covers backups.'
+references:
+- title: Using RBAC Authorization
+  url: https://kubernetes.io/docs/reference/access-authn-authz/rbac/

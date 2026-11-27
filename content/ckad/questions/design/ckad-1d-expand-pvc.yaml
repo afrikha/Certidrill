@@ -1,0 +1,57 @@
+id: ckad-1d-expand-pvc
+objective: "1.4.2"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    In namespace `cms`, the PersistentVolumeClaim `media` is bound and requests `10Gi`. Its StorageClass has `allowVolumeExpansion: true`.
+
+    Grow the claim to `20Gi` with a single non-interactive command (no editor). Type the command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Uses kubectl patch
+    path: verb
+    op: equals
+    value: patch
+  - id: resource
+    label: Patches a PersistentVolumeClaim
+    path: resource
+    op: equals
+    value: persistentvolumeclaim
+  - id: name
+    label: Names the claim media
+    path: names
+    op: contains
+    value: media
+  - id: namespace
+    label: Runs in namespace cms
+    path: flags.namespace
+    op: equals
+    value: cms
+  - id: size
+    label: Sets the storage request to 20Gi
+    path: flags
+    op: matches
+    value: "requests.*storage.*20Gi"
+  solution:
+  - command: kubectl patch pvc media -n cms -p '{"spec":{"resources":{"requests":{"storage":"20Gi"}}}}'
+  - command: k -n cms patch persistentvolumeclaim/media --type=merge --patch '{"spec":{"resources":{"requests":{"storage":"20Gi"}}}}'
+  - command: kubectl patch pvc media -n cms --type=json -p '[{"op":"replace","path":"/spec/resources/requests/storage","value":"20Gi"}]'
+  negatives:
+  - command: kubectl patch pv media -n cms -p '{"spec":{"capacity":{"storage":"20Gi"}}}'
+    why: Expansion is requested on the claim; editing a PersistentVolume's capacity does not resize the storage and can prevent an automatic resize.
+  - command: kubectl patch pvc media -n cms -p '{"spec":{"resources":{"limits":{"storage":"20Gi"}}}}'
+    why: Expansion is driven by spec.resources.requests.storage, not by a limit.
+  - command: kubectl patch pvc media -p '{"spec":{"resources":{"requests":{"storage":"20Gi"}}}}'
+    why: Without -n the command looks for media in the context namespace, default.
+explanation:
+  correct:
+    en: 'To expand a claim, raise `spec.resources.requests.storage` on the PVC; this works only when its StorageClass has `allowVolumeExpansion: true`, and the existing volume is resized (no new PersistentVolume is created). `kubectl patch pvc media -n cms -p ''{"spec":{"resources":{"requests":{"storage":"20Gi"}}}}''` does it without an editor. Shrinking a claim is not supported.'
+references:
+- title: Persistent Volumes
+  url: https://kubernetes.io/docs/concepts/storage/persistent-volumes/

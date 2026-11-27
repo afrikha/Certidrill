@@ -1,0 +1,300 @@
+id: ckad-2a-bluegreen-cutover
+objective: "2.1.1"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    In namespace `payments`, version 3.2 of the API runs as Deployment `api-blue` (file `api-blue.yaml`) behind Service `api` (file `svc-api.yaml`).
+
+    Write one file with two documents that performs a blue/green cutover to version 3.3:
+
+    1. A Deployment `api-green` identical to `api-blue` except for its name, the label `release: green` (instead of `release: blue`) and the image `registry.example.com/payments/api:3.3`.
+    2. The Service `api`, updated so that all traffic goes to the green Pods. Keep its ports.
+body:
+  starter: ""
+  files:
+  - name: api-blue.yaml
+    content: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: api-blue
+        namespace: payments
+      spec:
+        replicas: 4
+        selector:
+          matchLabels:
+            app: api
+            release: blue
+        template:
+          metadata:
+            labels:
+              app: api
+              release: blue
+          spec:
+            containers:
+            - name: api
+              image: registry.example.com/payments/api:3.2
+              ports:
+              - containerPort: 8443
+  - name: svc-api.yaml
+    content: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: api
+        namespace: payments
+      spec:
+        selector:
+          app: api
+          release: blue
+        ports:
+        - port: 443
+          targetPort: 8443
+answer:
+  checks:
+  - id: green-ns
+    label: Deployment api-green is in namespace payments
+    select: {kind: Deployment, name: api-green}
+    path: metadata.namespace
+    op: equals
+    value: payments
+  - id: green-replicas
+    label: api-green runs 4 replicas, the full capacity of blue
+    select: {kind: Deployment, name: api-green}
+    path: spec.replicas
+    op: equals
+    value: 4
+  - id: green-image
+    label: Container api runs registry.example.com/payments/api:3.3
+    select: {kind: Deployment, name: api-green}
+    path: spec.template.spec.containers[name=api].image
+    op: equals
+    value: registry.example.com/payments/api:3.3
+  - id: green-labels
+    label: Green Pods are labelled app api and release green
+    select: {kind: Deployment, name: api-green}
+    path: spec.template.metadata.labels
+    op: subset
+    value: {app: api, release: green}
+  - id: green-selector
+    label: The api-green selector requires release green
+    select: {kind: Deployment, name: api-green}
+    path: spec.selector.matchLabels.release
+    op: equals
+    value: green
+  - id: svc-ns
+    label: Service api is in namespace payments
+    select: {kind: Service, name: api}
+    path: metadata.namespace
+    op: equals
+    value: payments
+  - id: svc-selector
+    label: Service api selects exactly app api and release green
+    select: {kind: Service, name: api}
+    path: spec.selector
+    op: equals
+    value: {app: api, release: green}
+  - id: svc-port
+    label: Service api still listens on 443
+    select: {kind: Service, name: api}
+    path: spec.ports[0].port
+    op: equals
+    value: 443
+  - id: svc-target
+    label: Service api still forwards to 8443
+    select: {kind: Service, name: api}
+    path: spec.ports[0].targetPort
+    op: equals
+    value: 8443
+  solution:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: api-green
+        namespace: payments
+      spec:
+        replicas: 4
+        selector:
+          matchLabels:
+            app: api
+            release: green
+        template:
+          metadata:
+            labels:
+              app: api
+              release: green
+          spec:
+            containers:
+            - name: api
+              image: registry.example.com/payments/api:3.3
+              ports:
+              - containerPort: 8443
+      ---
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: api
+        namespace: payments
+      spec:
+        selector:
+          app: api
+          release: green
+        ports:
+        - port: 443
+          targetPort: 8443
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: api
+        namespace: payments
+      spec:
+        ports:
+        - port: 443
+          protocol: TCP
+          targetPort: 8443
+        selector:
+          release: green
+          app: api
+      ---
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: api-green
+        namespace: payments
+        labels:
+          app: api
+          release: green
+      spec:
+        replicas: 4
+        selector:
+          matchLabels:
+            release: green
+            app: api
+        template:
+          metadata:
+            labels:
+              release: green
+              app: api
+          spec:
+            containers:
+            - image: registry.example.com/payments/api:3.3
+              name: api
+              ports:
+              - containerPort: 8443
+  negatives:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: api-green
+        namespace: payments
+      spec:
+        replicas: 4
+        selector:
+          matchLabels:
+            app: api
+            release: green
+        template:
+          metadata:
+            labels:
+              app: api
+              release: green
+          spec:
+            containers:
+            - name: api
+              image: registry.example.com/payments/api:3.3
+      ---
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: api
+        namespace: payments
+      spec:
+        selector:
+          release: green
+        ports:
+        - port: 443
+          targetPort: 8443
+    why: The Service selector lost app api. The new selector replaces the old one, so it would match any green Pod in the namespace.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: api-green
+        namespace: payments
+      spec:
+        replicas: 1
+        selector:
+          matchLabels:
+            app: api
+            release: green
+        template:
+          metadata:
+            labels:
+              app: api
+              release: green
+          spec:
+            containers:
+            - name: api
+              image: registry.example.com/payments/api:3.3
+      ---
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: api
+        namespace: payments
+      spec:
+        selector:
+          app: api
+          release: green
+        ports:
+        - port: 443
+          targetPort: 8443
+    why: With 1 replica the green side cannot take the load that 4 blue Pods carried. In blue/green the new version runs at full size before the switch.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: api-green
+        namespace: payments
+      spec:
+        replicas: 4
+        selector:
+          matchLabels:
+            app: api
+            release: green
+        template:
+          metadata:
+            labels:
+              app: api
+              release: green
+          spec:
+            containers:
+            - name: api
+              image: registry.example.com/payments/api:3.3
+      ---
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: api
+        namespace: payments
+      spec:
+        selector:
+          app: api
+          release: blue
+        ports:
+        - port: 443
+          targetPort: 8443
+    why: The Service still selects release blue, so no traffic reaches version 3.3.
+explanation:
+  correct:
+    en: 'The green Deployment is a copy of blue with its own name, `release: green` in both the selector and the Pod template, and the new image, at the same replica count. The cutover itself is the Service selector, changed to `app: api` and `release: green`; ports stay the same. Rolling back is setting `release: blue` again, as long as `api-blue` is kept running.'
+references:
+- title: Deployments
+  url: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/
+- title: Labels and Selectors
+  url: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/

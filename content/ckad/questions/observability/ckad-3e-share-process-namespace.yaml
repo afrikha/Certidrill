@@ -1,0 +1,153 @@
+id: ckad-3e-share-process-namespace
+objective: "3.5.2"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    You need to inspect and signal the nginx processes of a Pod from a toolbox container. Write the manifest of a Pod named `proxy` in namespace `edge`:
+
+    - container `nginx` runs `nginx:1.27`;
+    - container `shell` runs `busybox:1.36` with the command `sleep 3600`;
+    - `ps` in `shell` must list the processes of `nginx`, and `shell` must hold the Linux capability needed to send them signals.
+body:
+  starter: |
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: proxy
+      namespace: edge
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.27
+answer:
+  checks:
+  - id: pod
+    label: A Pod named proxy in namespace edge
+    path: metadata
+    op: subset
+    value: {name: proxy, namespace: edge}
+  - id: share
+    label: shareProcessNamespace is true
+    path: spec.shareProcessNamespace
+    op: equals
+    value: true
+  - id: nginx-image
+    label: Container nginx runs nginx:1.27
+    path: spec.containers[name=nginx].image
+    op: equals
+    value: nginx:1.27
+  - id: shell-image
+    label: Container shell runs busybox:1.36
+    path: spec.containers[name=shell].image
+    op: equals
+    value: busybox:1.36
+  - id: shell-sleep
+    label: Container shell runs sleep 3600
+    path: spec.containers[name=shell]
+    op: matches
+    value: 'sleep"?,? ?"?3600'
+  - id: ptrace
+    label: Container shell adds the SYS_PTRACE capability
+    path: spec.containers[name=shell].securityContext.capabilities.add
+    op: contains
+    value: SYS_PTRACE
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: proxy
+        namespace: edge
+      spec:
+        shareProcessNamespace: true
+        containers:
+        - name: nginx
+          image: nginx:1.27
+        - name: shell
+          image: busybox:1.36
+          command: ["sleep", "3600"]
+          securityContext:
+            capabilities:
+              add:
+              - SYS_PTRACE
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: proxy
+        namespace: edge
+      spec:
+        containers:
+        - name: nginx
+          image: nginx:1.27
+        - name: shell
+          image: busybox:1.36
+          command: ["sh", "-c", "sleep 3600"]
+          securityContext:
+            capabilities:
+              add: ["SYS_PTRACE"]
+          stdin: true
+          tty: true
+        shareProcessNamespace: true
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: proxy
+        namespace: edge
+      spec:
+        hostPID: true
+        containers:
+        - name: nginx
+          image: nginx:1.27
+        - name: shell
+          image: busybox:1.36
+          command: ["sleep", "3600"]
+          securityContext:
+            capabilities:
+              add:
+              - SYS_PTRACE
+    why: hostPID shares the node's process namespace, exposing every process of the node, instead of sharing one namespace between the Pod's containers.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: proxy
+        namespace: edge
+      spec:
+        shareProcessNamespace: true
+        containers:
+        - name: nginx
+          image: nginx:1.27
+        - name: shell
+          image: busybox:1.36
+          command: ["sleep", "3600"]
+    why: Without SYS_PTRACE the shell container sees the processes but cannot signal them.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: proxy
+        namespace: edge
+      spec:
+        shareProcessNamespace: true
+        securityContext:
+          capabilities:
+            add:
+            - SYS_PTRACE
+        containers:
+        - name: nginx
+          image: nginx:1.27
+        - name: shell
+          image: busybox:1.36
+          command: ["sleep", "3600"]
+    why: Capabilities exist only in the container securityContext; the Pod-level securityContext has no capabilities field.
+explanation:
+  correct:
+    en: '`spec.shareProcessNamespace: true` puts all containers of the Pod in one process namespace, so `ps ax` in `shell` lists the nginx processes (and the pause process gets PID 1). Sending signals to another container''s processes needs the `SYS_PTRACE` capability in the container''s `securityContext.capabilities.add`. `hostPID` would expose the whole node instead.'
+references:
+- title: Share Process Namespace between Containers in a Pod
+  url: https://kubernetes.io/docs/tasks/configure-pod-container/share-process-namespace/

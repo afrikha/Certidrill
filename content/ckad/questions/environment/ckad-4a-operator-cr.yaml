@@ -1,0 +1,172 @@
+id: ckad-4a-operator-cr
+objective: "4.1.2"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    A Redis Operator runs in the cluster. It watches `RedisCluster` objects (CRD in `rediscluster-crd.yaml`) and creates the StatefulSets, Services and PersistentVolumeClaims for each one.
+
+    Ask the Operator for a Redis cluster named `sessions` in namespace `shop`:
+
+    - 3 shards with 1 replica per shard;
+    - image `registry.example.com/redis:7.2`;
+    - persistence enabled with a volume size of `5Gi` per node (`size` is a Kubernetes quantity).
+body:
+  starter: ""
+  files:
+  - name: rediscluster-crd.yaml
+    content: |
+      apiVersion: apiextensions.k8s.io/v1
+      kind: CustomResourceDefinition
+      metadata:
+        name: redisclusters.cache.example.com
+      spec:
+        group: cache.example.com
+        scope: Namespaced
+        names:
+          plural: redisclusters
+          singular: rediscluster
+          kind: RedisCluster
+          shortNames: [rc]
+        versions:
+        - name: v1
+          served: true
+          storage: true
+          schema:
+            openAPIV3Schema:
+              type: object
+              properties:
+                spec:
+                  type: object
+                  properties:
+                    shards: {type: integer}
+                    replicasPerShard: {type: integer}
+                    image: {type: string}
+                    persistence:
+                      type: object
+                      properties:
+                        enabled: {type: boolean}
+                        size: {type: string}
+answer:
+  checks:
+  - id: api
+    label: apiVersion is cache.example.com/v1
+    path: apiVersion
+    op: equals
+    value: cache.example.com/v1
+  - id: kind
+    label: Kind is RedisCluster
+    path: kind
+    op: equals
+    value: RedisCluster
+  - id: meta
+    label: Named sessions in namespace shop
+    path: metadata
+    op: subset
+    value: {name: sessions, namespace: shop}
+  - id: shards
+    label: 3 shards
+    path: spec.shards
+    op: equals
+    value: 3
+  - id: replicas
+    label: 1 replica per shard
+    path: spec.replicasPerShard
+    op: equals
+    value: 1
+  - id: image
+    label: Image registry.example.com/redis:7.2
+    path: spec.image
+    op: equals
+    value: registry.example.com/redis:7.2
+  - id: persistence
+    label: Persistence is enabled
+    path: spec.persistence.enabled
+    op: equals
+    value: true
+  - id: size
+    label: Volume size is 5Gi
+    path: spec.persistence.size
+    op: quantity
+    value: 5Gi
+  solution:
+  - manifest: |
+      apiVersion: cache.example.com/v1
+      kind: RedisCluster
+      metadata:
+        name: sessions
+        namespace: shop
+      spec:
+        shards: 3
+        replicasPerShard: 1
+        image: registry.example.com/redis:7.2
+        persistence:
+          enabled: true
+          size: 5Gi
+  - manifest: |
+      apiVersion: cache.example.com/v1
+      kind: RedisCluster
+      metadata:
+        namespace: shop
+        name: sessions
+      spec:
+        image: "registry.example.com/redis:7.2"
+        persistence: {enabled: true, size: 5120Mi}
+        replicasPerShard: 1
+        shards: 3
+  negatives:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: StatefulSet
+      metadata:
+        name: sessions
+        namespace: shop
+      spec:
+        replicas: 6
+        serviceName: sessions
+        selector:
+          matchLabels:
+            app: sessions
+        template:
+          metadata:
+            labels:
+              app: sessions
+          spec:
+            containers:
+            - name: redis
+              image: registry.example.com/redis:7.2
+    why: The Operator creates and manages the StatefulSets from the RedisCluster object; a hand-written StatefulSet is not what it watches and is not reconciled.
+  - manifest: |
+      apiVersion: cache.example.com/v1
+      kind: RedisCluster
+      metadata:
+        name: sessions
+        namespace: shop
+      spec:
+        shards: 3
+        replicasPerShard: 1
+        image: registry.example.com/redis:7.2
+        persistence:
+          enabled: true
+          size: 5G
+    why: 5G is 5,000,000,000 bytes, smaller than 5Gi (5,368,709,120 bytes).
+  - manifest: |
+      apiVersion: cache.example.com/v1
+      kind: RedisCluster
+      metadata:
+        name: sessions
+        namespace: shop
+      spec:
+        shards: 3
+        replicasPerShard: 1
+        image: registry.example.com/redis:7.2
+        enabled: true
+        size: 5Gi
+    why: enabled and size belong under spec.persistence; at the spec level they are unknown fields that the API server prunes.
+explanation:
+  correct:
+    en: 'An Operator is a controller plus custom resources: you declare the desired state in a custom object and its reconcile loop creates and maintains the underlying StatefulSets, Services and PVCs. Write the `RedisCluster` with `apiVersion: cache.example.com/v1`, the fields of the CRD schema, and `persistence.size: 5Gi` (`5G` is a smaller decimal quantity). Afterwards, `kubectl get redisclusters -n shop` (or `rc`) shows it.'
+references:
+- title: Operator pattern
+  url: https://kubernetes.io/docs/concepts/extend-kubernetes/operator/

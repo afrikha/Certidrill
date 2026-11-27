@@ -1,0 +1,164 @@
+id: ckad-1c-native-sidecar-log-shipper
+objective: "1.3.2"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    In namespace `shop`, Pod `orders` runs the container `app` (`registry.example.com/orders:2.0`), which writes its log files to `/var/log/orders`.
+
+    Add a log shipper as a **native sidecar container**: it must start before `app` and keep running for the whole life of the Pod.
+
+    - sidecar name `log-shipper`, image `registry.example.com/log-shipper:3.1`;
+    - an `emptyDir` volume named `logs`, mounted at `/var/log/orders` in `app` and read-only at `/var/log/orders` in `log-shipper`.
+body:
+  starter: |
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: orders
+      namespace: shop
+    spec:
+      containers:
+      - name: app
+        image: registry.example.com/orders:2.0
+answer:
+  checks:
+  - id: pod
+    label: A Pod named orders in namespace shop
+    path: metadata
+    op: subset
+    value: {name: orders, namespace: shop}
+  - id: sidecar-image
+    label: log-shipper is an init container running registry.example.com/log-shipper:3.1
+    path: spec.initContainers[name=log-shipper].image
+    op: equals
+    value: registry.example.com/log-shipper:3.1
+  - id: sidecar-restart
+    label: log-shipper has restartPolicy Always (native sidecar)
+    path: spec.initContainers[name=log-shipper].restartPolicy
+    op: equals
+    value: Always
+  - id: sidecar-mount
+    label: log-shipper mounts logs read-only at /var/log/orders
+    path: spec.initContainers[name=log-shipper].volumeMounts[name=logs]
+    op: subset
+    value: {mountPath: /var/log/orders, readOnly: true}
+  - id: app-mount
+    label: app mounts logs at /var/log/orders
+    path: spec.containers[name=app].volumeMounts[name=logs].mountPath
+    op: equals
+    value: /var/log/orders
+  - id: volume
+    label: Volume logs is an emptyDir
+    path: spec.volumes[name=logs].emptyDir
+    op: exists
+  - id: one-app-container
+    label: app is the only entry in containers
+    path: spec.containers
+    op: length
+    value: 1
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: orders
+        namespace: shop
+      spec:
+        volumes:
+        - name: logs
+          emptyDir: {}
+        initContainers:
+        - name: log-shipper
+          image: registry.example.com/log-shipper:3.1
+          restartPolicy: Always
+          volumeMounts:
+          - name: logs
+            mountPath: /var/log/orders
+            readOnly: true
+        containers:
+        - name: app
+          image: registry.example.com/orders:2.0
+          volumeMounts:
+          - name: logs
+            mountPath: /var/log/orders
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: orders
+        namespace: shop
+      spec:
+        volumes:
+        - name: logs
+          emptyDir: {}
+        containers:
+        - name: app
+          image: registry.example.com/orders:2.0
+          volumeMounts:
+          - name: logs
+            mountPath: /var/log/orders
+        - name: log-shipper
+          image: registry.example.com/log-shipper:3.1
+          volumeMounts:
+          - name: logs
+            mountPath: /var/log/orders
+            readOnly: true
+    why: This is a classic sidecar in containers; it starts at the same time as app, not before it.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: orders
+        namespace: shop
+      spec:
+        volumes:
+        - name: logs
+          emptyDir: {}
+        initContainers:
+        - name: log-shipper
+          image: registry.example.com/log-shipper:3.1
+          volumeMounts:
+          - name: logs
+            mountPath: /var/log/orders
+            readOnly: true
+        containers:
+        - name: app
+          image: registry.example.com/orders:2.0
+          volumeMounts:
+          - name: logs
+            mountPath: /var/log/orders
+    why: Without restartPolicy Always it is a regular init container; a shipper never exits, so app never starts.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: orders
+        namespace: shop
+      spec:
+        restartPolicy: Always
+        volumes:
+        - name: logs
+          emptyDir: {}
+        initContainers:
+        - name: log-shipper
+          image: registry.example.com/log-shipper:3.1
+          volumeMounts:
+          - name: logs
+            mountPath: /var/log/orders
+            readOnly: true
+        containers:
+        - name: app
+          image: registry.example.com/orders:2.0
+          volumeMounts:
+          - name: logs
+            mountPath: /var/log/orders
+    why: The Pod-level restartPolicy does not make an init container a sidecar; restartPolicy Always must be set on the init container itself.
+explanation:
+  correct:
+    en: 'A native sidecar is an entry of `initContainers` with its own `restartPolicy: Always` (stable since v1.33). The kubelet starts it, and as soon as it is running starts the next init container or the app containers; it keeps running until the main containers have stopped. Both containers mount the same `emptyDir`, and `readOnly: true` limits only the shipper''s mount.'
+references:
+- title: Sidecar Containers
+  url: https://kubernetes.io/docs/concepts/workloads/pods/sidecar-containers/

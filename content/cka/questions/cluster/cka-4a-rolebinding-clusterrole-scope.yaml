@@ -1,0 +1,130 @@
+id: cka-4a-rolebinding-clusterrole-scope
+objective: "4.1.2"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    The ClusterRole `secret-reader` (file `secret-reader.yaml`) already exists. The ServiceAccount `sync` of namespace `tools` must read Secrets in namespace `vault-a`, and in no other namespace.
+
+    Write the manifest of the binding, named `sync-secret-reader`, that grants exactly this access by reusing `secret-reader`.
+body:
+  starter: ""
+  files:
+  - name: secret-reader.yaml
+    content: |
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRole
+      metadata:
+        name: secret-reader
+      rules:
+      - apiGroups: [""]
+        resources: ["secrets"]
+        verbs: ["get", "list", "watch"]
+answer:
+  checks:
+  - id: kind
+    label: The binding is a RoleBinding
+    path: kind
+    op: equals
+    value: RoleBinding
+  - id: name
+    label: It is named sync-secret-reader
+    path: metadata.name
+    op: equals
+    value: sync-secret-reader
+  - id: namespace
+    label: It is created in namespace vault-a
+    path: metadata.namespace
+    op: equals
+    value: vault-a
+  - id: roleref
+    label: It references the ClusterRole secret-reader
+    path: roleRef
+    op: subset
+    value: {kind: ClusterRole, name: secret-reader}
+  - id: subject
+    label: Its subject is the ServiceAccount sync of namespace tools
+    path: subjects
+    op: contains
+    value: {kind: ServiceAccount, name: sync, namespace: tools}
+  solution:
+  - manifest: |
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: RoleBinding
+      metadata:
+        name: sync-secret-reader
+        namespace: vault-a
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: secret-reader
+      subjects:
+      - kind: ServiceAccount
+        name: sync
+        namespace: tools
+  negatives:
+  - manifest: |
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRoleBinding
+      metadata:
+        name: sync-secret-reader
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: secret-reader
+      subjects:
+      - kind: ServiceAccount
+        name: sync
+        namespace: tools
+    why: A ClusterRoleBinding grants secret-reader in every namespace, not only in vault-a.
+  - manifest: |
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: RoleBinding
+      metadata:
+        name: sync-secret-reader
+        namespace: tools
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: secret-reader
+      subjects:
+      - kind: ServiceAccount
+        name: sync
+        namespace: tools
+    why: The binding's namespace is where access applies; this one grants Secrets of tools, not of vault-a.
+  - manifest: |
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: RoleBinding
+      metadata:
+        name: sync-secret-reader
+        namespace: vault-a
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: Role
+        name: secret-reader
+      subjects:
+      - kind: ServiceAccount
+        name: sync
+        namespace: tools
+    why: roleRef kind Role looks for a Role named secret-reader in vault-a, which does not exist; the existing object is a ClusterRole.
+  - manifest: |
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: RoleBinding
+      metadata:
+        name: sync-secret-reader
+        namespace: vault-a
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: secret-reader
+      subjects:
+      - kind: ServiceAccount
+        name: sync
+    why: Without a namespace the subject is the ServiceAccount sync of the binding's namespace, vault-a, not the one of tools.
+explanation:
+  correct:
+    en: 'A RoleBinding can reference a ClusterRole: the rules then apply only in the RoleBinding''s own namespace. So the binding lives in `vault-a`, its `roleRef` is `kind: ClusterRole, name: secret-reader`, and the subject is `kind: ServiceAccount, name: sync, namespace: tools`. Check it with `kubectl auth can-i list secrets --as=system:serviceaccount:tools:sync -n vault-a`.'
+references:
+- title: Using RBAC Authorization
+  url: https://kubernetes.io/docs/reference/access-authn-authz/rbac/

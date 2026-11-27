@@ -1,0 +1,217 @@
+id: ckad-1b-deployment-rolling-strategy
+objective: "1.2.2"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    The web frontend `storefront` in namespace `shop` is stateless: its 4 Pods are interchangeable and keep no data. Write the manifest of the workload resource that fits, with:
+
+    - Pods labelled `app: storefront`, selected by that label, one container named `web` running `registry.example.com/shop/storefront:5.2`;
+    - updates that replace Pods gradually, never with fewer than 4 available Pods and never with more than 5 Pods in total;
+    - a new Pod counted as available only after it has been ready for 10 seconds;
+    - only the 5 most recent old ReplicaSets kept for rollbacks.
+body:
+  starter: ""
+answer:
+  checks:
+  - id: kind
+    label: The workload is a Deployment
+    path: kind
+    op: equals
+    value: Deployment
+  - id: metadata
+    label: Named storefront in namespace shop
+    path: metadata
+    op: subset
+    value: {name: storefront, namespace: shop}
+  - id: replicas
+    label: It runs 4 replicas
+    path: spec.replicas
+    op: equals
+    value: 4
+  - id: selector
+    label: The selector matches app=storefront
+    path: spec.selector.matchLabels
+    op: equals
+    value: {app: storefront}
+  - id: image
+    label: Container web runs registry.example.com/shop/storefront:5.2
+    path: spec.template.spec.containers[name=web].image
+    op: equals
+    value: registry.example.com/shop/storefront:5.2
+  - id: unavailable
+    label: maxUnavailable is 0
+    path: spec.strategy.rollingUpdate.maxUnavailable
+    op: oneOf
+    value: [0, "0%"]
+  - id: surge
+    label: maxSurge allows exactly 1 extra Pod
+    path: spec.strategy.rollingUpdate.maxSurge
+    op: matches
+    value: '^(1|([1-9]|1[0-9]|2[0-5])%)$'
+  - id: min-ready
+    label: minReadySeconds is 10
+    path: spec.minReadySeconds
+    op: equals
+    value: 10
+  - id: history
+    label: revisionHistoryLimit is 5
+    path: spec.revisionHistoryLimit
+    op: equals
+    value: 5
+  solution:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: storefront
+        namespace: shop
+      spec:
+        replicas: 4
+        minReadySeconds: 10
+        revisionHistoryLimit: 5
+        strategy:
+          type: RollingUpdate
+          rollingUpdate:
+            maxUnavailable: 0
+            maxSurge: 1
+        selector:
+          matchLabels:
+            app: storefront
+        template:
+          metadata:
+            labels:
+              app: storefront
+          spec:
+            containers:
+            - name: web
+              image: registry.example.com/shop/storefront:5.2
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: storefront
+        namespace: shop
+      spec:
+        replicas: 4
+        selector:
+          matchLabels:
+            app: storefront
+        strategy:
+          rollingUpdate:
+            maxSurge: 25%
+            maxUnavailable: 0%
+        minReadySeconds: 10
+        revisionHistoryLimit: 5
+        template:
+          metadata:
+            labels:
+              app: storefront
+          spec:
+            containers:
+            - image: registry.example.com/shop/storefront:5.2
+              name: web
+  negatives:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: storefront
+        namespace: shop
+      spec:
+        replicas: 4
+        minReadySeconds: 10
+        revisionHistoryLimit: 5
+        selector:
+          matchLabels:
+            app: storefront
+        template:
+          metadata:
+            labels:
+              app: storefront
+          spec:
+            containers:
+            - name: web
+              image: registry.example.com/shop/storefront:5.2
+    why: The default maxUnavailable of 25% lets the rollout drop to 3 available Pods.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: storefront
+        namespace: shop
+      spec:
+        replicas: 4
+        minReadySeconds: 10
+        revisionHistoryLimit: 5
+        strategy:
+          type: Recreate
+        selector:
+          matchLabels:
+            app: storefront
+        template:
+          metadata:
+            labels:
+              app: storefront
+          spec:
+            containers:
+            - name: web
+              image: registry.example.com/shop/storefront:5.2
+    why: Recreate stops every old Pod before starting new ones, so the frontend is down during the update.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: storefront
+        namespace: shop
+      spec:
+        replicas: 4
+        minReadySeconds: 10
+        revisionHistoryLimit: 5
+        strategy:
+          type: RollingUpdate
+          rollingUpdate:
+            maxUnavailable: 0
+            maxSurge: 2
+        selector:
+          matchLabels:
+            app: storefront
+        template:
+          metadata:
+            labels:
+              app: storefront
+          spec:
+            containers:
+            - name: web
+              image: registry.example.com/shop/storefront:5.2
+    why: maxSurge 2 allows 6 Pods in total during the update, more than 5.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: StatefulSet
+      metadata:
+        name: storefront
+        namespace: shop
+      spec:
+        replicas: 4
+        minReadySeconds: 10
+        revisionHistoryLimit: 5
+        serviceName: storefront
+        selector:
+          matchLabels:
+            app: storefront
+        template:
+          metadata:
+            labels:
+              app: storefront
+          spec:
+            containers:
+            - name: web
+              image: registry.example.com/shop/storefront:5.2
+    why: A StatefulSet is for Pods that need stable identities or storage; it has no maxSurge and updates one Pod at a time.
+explanation:
+  correct:
+    en: 'Interchangeable, stateless Pods belong in a Deployment. With 4 replicas, `maxUnavailable: 0` keeps 4 available Pods and `maxSurge: 1` (or 25%, rounded up to 1) caps the total at 5. `minReadySeconds: 10` delays availability, and `revisionHistoryLimit: 5` keeps 5 old ReplicaSets instead of the default 10.'
+references:
+- title: Deployments
+  url: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/

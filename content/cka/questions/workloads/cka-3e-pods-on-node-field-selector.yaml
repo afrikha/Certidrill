@@ -1,0 +1,51 @@
+id: cka-3e-pods-on-node-field-selector
+objective: "3.5.1"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    You added node affinity rules to several workloads and want to check where their Pods landed. List the Pods of every namespace that are bound to node `worker-2`, and only those, letting the API server do the filtering.
+
+    Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: get
+    label: Uses kubectl get
+    path: verb
+    op: equals
+    value: get
+  - id: pods
+    label: Lists Pods
+    path: resource
+    op: equals
+    value: pod
+  - id: all-ns
+    label: Covers all namespaces
+    path: flags.all-namespaces
+    op: equals
+    value: true
+  - id: field
+    label: Filters on spec.nodeName=worker-2
+    path: flags.field-selector
+    op: oneOf
+    value: [spec.nodeName=worker-2, spec.nodeName==worker-2]
+  solution:
+  - command: kubectl get pods -A --field-selector spec.nodeName=worker-2
+  - command: k get po --all-namespaces --field-selector=spec.nodeName==worker-2 -o wide
+  negatives:
+  - command: kubectl get pods -A -l kubernetes.io/hostname=worker-2
+    why: kubernetes.io/hostname is a node label; Pods do not carry it, so this label selector returns no Pod.
+  - command: kubectl get pods --field-selector spec.nodeName=worker-2
+    why: Without -A only the context namespace, default, is listed.
+  - command: kubectl get pods -A --field-selector status.nominatedNodeName=worker-2
+    why: nominatedNodeName is set only on a Pod waiting for preemption; bound Pods are found by spec.nodeName.
+explanation:
+  correct:
+    en: 'The scheduler records its decision by setting the Pod''s `spec.nodeName`. Pods support the field selector `spec.nodeName`, with `=` or `==` (same meaning), so `kubectl get pods -A --field-selector spec.nodeName=worker-2` returns only the Pods bound to that node, in every namespace. Node labels such as `kubernetes.io/hostname` are on the Node object, not on its Pods.'
+references:
+- title: Field Selectors
+  url: https://kubernetes.io/docs/concepts/overview/working-with-objects/field-selectors/

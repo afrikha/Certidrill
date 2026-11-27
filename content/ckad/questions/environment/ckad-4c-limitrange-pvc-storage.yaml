@@ -1,0 +1,102 @@
+id: ckad-4c-limitrange-pvc-storage
+objective: "4.3.2"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    Write the manifest of a LimitRange named `storage-limits` in namespace `data` so that any PersistentVolumeClaim created in `data` that requests less than 1Gi or more than 20Gi of storage is rejected.
+body:
+  starter: ""
+answer:
+  checks:
+  - id: meta
+    label: A LimitRange named storage-limits in namespace data
+    path: metadata
+    op: subset
+    value: {name: storage-limits, namespace: data}
+  - id: kind
+    label: The object is a LimitRange
+    path: kind
+    op: equals
+    value: LimitRange
+  - id: min
+    label: PersistentVolumeClaim min storage is 1Gi
+    path: spec.limits[type=PersistentVolumeClaim].min.storage
+    op: quantity
+    value: 1Gi
+  - id: max
+    label: PersistentVolumeClaim max storage is 20Gi
+    path: spec.limits[type=PersistentVolumeClaim].max.storage
+    op: quantity
+    value: 20Gi
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: LimitRange
+      metadata:
+        name: storage-limits
+        namespace: data
+      spec:
+        limits:
+        - type: PersistentVolumeClaim
+          min:
+            storage: 1Gi
+          max:
+            storage: 20Gi
+  - manifest: |
+      apiVersion: v1
+      kind: LimitRange
+      metadata:
+        namespace: data
+        name: storage-limits
+      spec:
+        limits:
+        - max: {storage: 20Gi}
+          min: {storage: 1024Mi}
+          type: PersistentVolumeClaim
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: LimitRange
+      metadata:
+        name: storage-limits
+        namespace: data
+      spec:
+        limits:
+        - type: Container
+          min:
+            storage: 1Gi
+          max:
+            storage: 20Gi
+    why: Claim sizes are constrained by an item of type PersistentVolumeClaim; a Container item does not apply to PVCs.
+  - manifest: |
+      apiVersion: v1
+      kind: LimitRange
+      metadata:
+        name: storage-limits
+        namespace: data
+      spec:
+        limits:
+        - type: PersistentVolumeClaim
+          min:
+            storage: 1G
+          max:
+            storage: 20G
+    why: G is decimal; 1G is smaller than 1Gi and 20G smaller than 20Gi, so the bounds are not the ones asked.
+  - manifest: |
+      apiVersion: v1
+      kind: ResourceQuota
+      metadata:
+        name: storage-limits
+        namespace: data
+      spec:
+        hard:
+          requests.storage: 20Gi
+    why: A ResourceQuota caps the total storage of all claims in the namespace; it sets no per-claim minimum or maximum.
+explanation:
+  correct:
+    en: 'A LimitRange item of `type: PersistentVolumeClaim` with `min.storage` and `max.storage` makes the admission controller reject any claim whose storage request is below or above those values. A ResourceQuota with `requests.storage` limits the namespace total instead, and `persistentvolumeclaims` limits the number of claims.'
+references:
+- title: Limit Storage Consumption
+  url: https://kubernetes.io/docs/tasks/administer-cluster/limit-storage-consumption/

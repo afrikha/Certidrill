@@ -1,0 +1,155 @@
+id: ckad-1b-run-pod-labels-port
+objective: "1.2.1"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    In namespace `shop`, create a Pod named `cart` running `registry.example.com/shop/cart:1.8`. The Pod must carry exactly the labels `app=cart` and `tier=backend`, its container must declare port 8080, and it must have the environment variable `LOG_LEVEL=info`.
+
+    Type the single command you would run.
+body:
+  mode: object
+  namespace: default
+answer:
+  checks:
+  - id: kind
+    label: The object is a Pod
+    path: kind
+    op: equals
+    value: Pod
+  - id: name
+    label: It is named cart
+    path: metadata.name
+    op: equals
+    value: cart
+  - id: namespace
+    label: It is created in namespace shop
+    path: metadata.namespace
+    op: equals
+    value: shop
+  - id: labels
+    label: Its labels are app=cart and tier=backend
+    path: metadata.labels
+    op: equals
+    value: {app: cart, tier: backend}
+  - id: image
+    label: Its container runs registry.example.com/shop/cart:1.8
+    path: spec.containers[0].image
+    op: equals
+    value: registry.example.com/shop/cart:1.8
+  - id: port
+    label: The container declares port 8080
+    path: spec.containers[0].ports
+    op: contains
+    value: {containerPort: 8080}
+  - id: env
+    label: LOG_LEVEL is set to info
+    path: spec.containers[0].env[name=LOG_LEVEL].value
+    op: equals
+    value: info
+  solution:
+  - command: kubectl run cart --image=registry.example.com/shop/cart:1.8 -n shop --labels=app=cart,tier=backend --port=8080 --env=LOG_LEVEL=info
+    output: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        labels:
+          app: cart
+          tier: backend
+        name: cart
+        namespace: shop
+      spec:
+        containers:
+        - env:
+          - name: LOG_LEVEL
+            value: info
+          image: registry.example.com/shop/cart:1.8
+          name: cart
+          ports:
+          - containerPort: 8080
+          resources: {}
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+      status: {}
+  - command: k -n shop run cart --image registry.example.com/shop/cart:1.8 -l app=cart,tier=backend --port 8080 --env LOG_LEVEL=info --dry-run=client -o yaml
+    output: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        labels:
+          app: cart
+          tier: backend
+        name: cart
+        namespace: shop
+      spec:
+        containers:
+        - env:
+          - name: LOG_LEVEL
+            value: info
+          image: registry.example.com/shop/cart:1.8
+          name: cart
+          ports:
+          - containerPort: 8080
+          resources: {}
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+      status: {}
+  negatives:
+  - command: kubectl run cart --image=registry.example.com/shop/cart:1.8 -n shop --port=8080 --env=LOG_LEVEL=info
+    why: Without --labels, kubectl run sets only the label run=cart.
+    output: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        labels:
+          run: cart
+        name: cart
+        namespace: shop
+      spec:
+        containers:
+        - env:
+          - name: LOG_LEVEL
+            value: info
+          image: registry.example.com/shop/cart:1.8
+          name: cart
+          ports:
+          - containerPort: 8080
+          resources: {}
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+      status: {}
+  - command: kubectl create deployment cart --image=registry.example.com/shop/cart:1.8 -n shop --port=8080
+    why: create deployment makes a Deployment (labelled app=cart), not a Pod, and sets neither tier nor LOG_LEVEL.
+    output: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        labels:
+          app: cart
+        name: cart
+        namespace: shop
+      spec:
+        replicas: 1
+        selector:
+          matchLabels:
+            app: cart
+        strategy: {}
+        template:
+          metadata:
+            labels:
+              app: cart
+          spec:
+            containers:
+            - image: registry.example.com/shop/cart:1.8
+              name: cart
+              ports:
+              - containerPort: 8080
+              resources: {}
+      status: {}
+explanation:
+  correct:
+    en: '`kubectl run` creates a single Pod. `--labels` (`-l`) replaces the default `run=cart` label with the given comma-separated list, `--port` adds a `containerPort`, and `--env KEY=value` (repeatable) adds an environment variable. Add `--dry-run=client -o yaml` to print the manifest instead of creating the Pod.'
+references:
+- title: kubectl run
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_run/

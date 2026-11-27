@@ -1,0 +1,171 @@
+id: ckad-5b-fix-service-selector
+objective: "5.2.2"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    In namespace `shop`, clients call Service `orders` on port 80 and get no answer. `kubectl get endpointslices -l kubernetes.io/service-name=orders -n shop` shows no endpoints, although the Pods of Deployment `orders` (manifest in `orders-deploy.yaml`) are Running and Ready.
+
+    The editor contains the current Service. Fix it so that it selects the Pods of Deployment `orders` and forwards traffic to the port the application listens on. Keep its name, namespace and Service port 80.
+body:
+  starter: |
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: orders
+      namespace: shop
+    spec:
+      selector:
+        app: order
+        tier: api
+      ports:
+      - port: 80
+        targetPort: 80
+  files:
+  - name: orders-deploy.yaml
+    content: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: orders
+        namespace: shop
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: orders
+            tier: api
+        template:
+          metadata:
+            labels:
+              app: orders
+              tier: api
+          spec:
+            containers:
+            - name: orders
+              image: registry.example.com/shop/orders:5.2
+              ports:
+              - name: http
+                containerPort: 8080
+answer:
+  checks:
+  - id: service
+    label: The Service is still orders in namespace shop
+    path: metadata
+    op: subset
+    value: {name: orders, namespace: shop}
+  - id: kind
+    label: The object is a Service
+    path: kind
+    op: equals
+    value: Service
+  - id: selector-app
+    label: The selector uses app=orders, the label of the Pods
+    path: spec.selector.app
+    op: equals
+    value: orders
+  - id: port
+    label: The Service still listens on port 80
+    path: spec.ports[0].port
+    op: equals
+    value: 80
+  - id: target-port
+    label: Traffic is forwarded to container port 8080 (or its name http)
+    path: spec.ports[0].targetPort
+    op: oneOf
+    value: [8080, http]
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: orders
+        namespace: shop
+      spec:
+        selector:
+          app: orders
+          tier: api
+        ports:
+        - port: 80
+          targetPort: 8080
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: orders
+        namespace: shop
+      spec:
+        selector:
+          app: orders
+        ports:
+        - name: http
+          port: 80
+          targetPort: http
+          protocol: TCP
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: orders
+        namespace: shop
+      spec:
+        selector:
+          app: orders
+          tier: api
+        ports:
+        - port: 80
+          targetPort: 80
+    why: The selector now matches, but targetPort 80 sends traffic to a port where the container does not listen (8080).
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: orders
+        namespace: shop
+      spec:
+        selector:
+          app: order
+          tier: api
+        ports:
+        - port: 80
+          targetPort: 8080
+    why: The selector still asks for app=order; no Pod has that label, so the Service keeps having no endpoints.
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: orders
+        namespace: shop
+      spec:
+        selector:
+          matchLabels:
+            app: orders
+            tier: api
+        ports:
+        - port: 80
+          targetPort: 8080
+    why: A Service selector is a plain map of labels, not a matchLabels block as in a Deployment.
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: orders
+        namespace: shop
+      spec:
+        selector:
+          app: orders
+          tier: api
+        ports:
+        - port: 8080
+          targetPort: 8080
+    why: Changing the Service port to 8080 breaks the clients, which call port 80.
+explanation:
+  correct:
+    en: 'A Service gets endpoints only when its `spec.selector` matches the labels of ready Pods: here the Pods carry `app: orders`, not `app: order`. `targetPort` must be the port the container listens on, 8080 or its name `http`, while `port` stays 80 for the clients. Unlike a Deployment, a Service selector is a plain label map without `matchLabels`.'
+references:
+- title: Debug Services
+  url: https://kubernetes.io/docs/tasks/debug/debug-application/debug-service/
+- title: Service
+  url: https://kubernetes.io/docs/concepts/services-networking/service/

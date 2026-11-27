@@ -1,0 +1,257 @@
+id: cka-2c-oom-raise-memory-limit
+objective: "2.3.2"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    The Pods of Deployment `ingest` in namespace `analytics` restart every few minutes. `kubectl describe pod` shows `Last State: Terminated, Reason: OOMKilled, Exit Code: 137` for container `worker`, and `kubectl top pod --containers` showed `worker` at 251Mi just before the last restart. The application team measured a peak of 420Mi.
+
+    Correct the Deployment: for container `worker`, set the memory request to `384Mi` and the memory limit to `512Mi`. Leave its CPU values and the `metrics` container unchanged. Write the corrected manifest.
+body:
+  starter: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: ingest
+      namespace: analytics
+    spec:
+      replicas: 2
+      selector:
+        matchLabels:
+          app: ingest
+      template:
+        metadata:
+          labels:
+            app: ingest
+        spec:
+          containers:
+          - name: worker
+            image: registry.example.com/analytics/ingest:3.2
+            resources:
+              requests:
+                cpu: 250m
+                memory: 128Mi
+              limits:
+                cpu: 500m
+                memory: 256Mi
+          - name: metrics
+            image: registry.example.com/analytics/exporter:1.4
+            resources:
+              requests:
+                cpu: 50m
+                memory: 64Mi
+              limits:
+                memory: 64Mi
+answer:
+  checks:
+  - id: deployment
+    label: The Deployment ingest in namespace analytics
+    path: metadata
+    op: subset
+    value: {name: ingest, namespace: analytics}
+  - id: mem-limit
+    label: Container worker has a 512Mi memory limit
+    path: spec.template.spec.containers[name=worker].resources.limits.memory
+    op: quantity
+    value: 512Mi
+  - id: mem-request
+    label: Container worker requests 384Mi of memory
+    path: spec.template.spec.containers[name=worker].resources.requests.memory
+    op: quantity
+    value: 384Mi
+  - id: cpu-request
+    label: Container worker still requests 250m CPU
+    path: spec.template.spec.containers[name=worker].resources.requests.cpu
+    op: quantity
+    value: 250m
+  - id: cpu-limit
+    label: Container worker keeps its 500m CPU limit
+    path: spec.template.spec.containers[name=worker].resources.limits.cpu
+    op: quantity
+    value: 500m
+  - id: metrics-memory
+    label: Container metrics keeps its 64Mi memory limit
+    path: spec.template.spec.containers[name=metrics].resources.limits.memory
+    op: quantity
+    value: 64Mi
+  solution:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: ingest
+        namespace: analytics
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: ingest
+        template:
+          metadata:
+            labels:
+              app: ingest
+          spec:
+            containers:
+            - name: worker
+              image: registry.example.com/analytics/ingest:3.2
+              resources:
+                requests:
+                  cpu: 250m
+                  memory: 384Mi
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
+            - name: metrics
+              image: registry.example.com/analytics/exporter:1.4
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  memory: 64Mi
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: ingest
+        namespace: analytics
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: ingest
+        template:
+          metadata:
+            labels:
+              app: ingest
+          spec:
+            containers:
+            - name: metrics
+              image: registry.example.com/analytics/exporter:1.4
+              resources:
+                requests: {cpu: 50m, memory: 64Mi}
+                limits: {memory: 64Mi}
+            - name: worker
+              image: registry.example.com/analytics/ingest:3.2
+              resources:
+                limits: {cpu: "0.5", memory: 0.5Gi}
+                requests: {cpu: 0.25, memory: 384Mi}
+  negatives:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: ingest
+        namespace: analytics
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: ingest
+        template:
+          metadata:
+            labels:
+              app: ingest
+          spec:
+            containers:
+            - name: worker
+              image: registry.example.com/analytics/ingest:3.2
+              resources:
+                requests:
+                  cpu: 250m
+                  memory: 384Mi
+                limits:
+                  cpu: 500m
+                  memory: 256Mi
+            - name: metrics
+              image: registry.example.com/analytics/exporter:1.4
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  memory: 64Mi
+    why: The OOM kill is triggered by the limit, which stays at 256Mi; a request higher than the limit is also rejected by validation.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: ingest
+        namespace: analytics
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: ingest
+        template:
+          metadata:
+            labels:
+              app: ingest
+          spec:
+            containers:
+            - name: worker
+              image: registry.example.com/analytics/ingest:3.2
+              resources:
+                requests:
+                  cpu: 250m
+                  memory: 384M
+                limits:
+                  cpu: 500m
+                  memory: 512M
+            - name: metrics
+              image: registry.example.com/analytics/exporter:1.4
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  memory: 64Mi
+    why: M is a decimal suffix (512M = 512,000,000 bytes), smaller than the 512Mi (536,870,912 bytes) asked for.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: ingest
+        namespace: analytics
+      spec:
+        replicas: 2
+        selector:
+          matchLabels:
+            app: ingest
+        template:
+          metadata:
+            labels:
+              app: ingest
+          spec:
+            containers:
+            - name: worker
+              image: registry.example.com/analytics/ingest:3.2
+              resources:
+                requests:
+                  cpu: 250m
+                  memory: 128Mi
+                limits:
+                  cpu: 500m
+                  memory: 256Mi
+            - name: metrics
+              image: registry.example.com/analytics/exporter:1.4
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 384Mi
+                limits:
+                  memory: 512Mi
+    why: The new values were put on the metrics container; worker, the container being OOM-killed, keeps its 256Mi limit.
+explanation:
+  correct:
+    en: >-
+      Exit code 137 with reason `OOMKilled` means the container went over its memory limit and the kernel killed it, so
+      the limit of `worker` must cover the 420Mi peak: `limits.memory: 512Mi`, with `requests.memory: 384Mi` so the
+      scheduler reserves enough memory on the node. CPU over its limit is only throttled, so the CPU values stay. Use
+      binary suffixes as asked: `512M` is about 24Mi less than `512Mi`.
+references:
+- title: Assign Memory Resources to Containers and Pods
+  url: https://kubernetes.io/docs/tasks/configure-pod-container/assign-memory-resource/
+- title: Resource Management for Pods and Containers
+  url: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/

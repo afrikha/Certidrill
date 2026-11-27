@@ -1,0 +1,238 @@
+id: cka-5e-create-ingress-exact-default-backend
+objective: "5.5.1"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    In namespace `docs`, create an Ingress named `docs`, handled by the IngressClass `internal`, with these routes for host `docs.example.com`:
+
+    - exactly the path `/search` (not `/search/...`) goes to Service `search` on port 8080;
+    - every other path of `docs.example.com` goes to Service `docs` on port 80.
+
+    Requests that match no rule (any other host) must go to Service `notfound` on port 80, set as the Ingress default backend.
+
+    Type the single command you would run.
+body:
+  mode: object
+  namespace: default
+answer:
+  checks:
+  - id: kind
+    label: The object is an Ingress
+    path: kind
+    op: equals
+    value: Ingress
+  - id: name
+    label: It is named docs in namespace docs
+    path: metadata
+    op: subset
+    value: {name: docs, namespace: docs}
+  - id: class
+    label: It uses the IngressClass internal
+    path: spec.ingressClassName
+    op: equals
+    value: internal
+  - id: search-exact
+    label: /search on docs.example.com is an Exact path
+    path: spec.rules[host=docs.example.com].http.paths[path=/search].pathType
+    op: equals
+    value: Exact
+  - id: search-backend
+    label: /search goes to search port 8080
+    path: spec.rules[host=docs.example.com].http.paths[path=/search].backend.service
+    op: subset
+    value: {name: search, port: {number: 8080}}
+  - id: root-prefix
+    label: / on docs.example.com is a Prefix path
+    path: spec.rules[host=docs.example.com].http.paths[path=/].pathType
+    op: equals
+    value: Prefix
+  - id: root-backend
+    label: Other paths go to docs port 80
+    path: spec.rules[host=docs.example.com].http.paths[path=/].backend.service
+    op: subset
+    value: {name: docs, port: {number: 80}}
+  - id: default-backend
+    label: The default backend is notfound port 80
+    path: spec.defaultBackend.service
+    op: subset
+    value: {name: notfound, port: {number: 80}}
+  solution:
+  - command: kubectl create ingress docs -n docs --class=internal --rule="docs.example.com/search=search:8080" --rule="docs.example.com/*=docs:80" --default-backend=notfound:80
+    output: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: docs
+        namespace: docs
+      spec:
+        defaultBackend:
+          service:
+            name: notfound
+            port:
+              number: 80
+        ingressClassName: internal
+        rules:
+        - host: docs.example.com
+          http:
+            paths:
+            - backend:
+                service:
+                  name: search
+                  port:
+                    number: 8080
+              path: /search
+              pathType: Exact
+            - backend:
+                service:
+                  name: docs
+                  port:
+                    number: 80
+              path: /
+              pathType: Prefix
+      status:
+        loadBalancer: {}
+  - command: k -n docs create ingress docs --default-backend notfound:80 --rule 'docs.example.com/*=docs:80' --rule 'docs.example.com/search=search:8080' --class internal --dry-run=client -o yaml
+    output: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: docs
+        namespace: docs
+      spec:
+        defaultBackend:
+          service:
+            name: notfound
+            port:
+              number: 80
+        ingressClassName: internal
+        rules:
+        - host: docs.example.com
+          http:
+            paths:
+            - backend:
+                service:
+                  name: docs
+                  port:
+                    number: 80
+              path: /
+              pathType: Prefix
+            - backend:
+                service:
+                  name: search
+                  port:
+                    number: 8080
+              path: /search
+              pathType: Exact
+      status:
+        loadBalancer: {}
+  negatives:
+  - command: kubectl create ingress docs -n docs --class=internal --rule="docs.example.com/search*=search:8080" --rule="docs.example.com/*=docs:80" --default-backend=notfound:80
+    why: /search* gives pathType Prefix, which also sends /search/advanced to search; the task wants exactly /search.
+    output: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: docs
+        namespace: docs
+      spec:
+        defaultBackend:
+          service:
+            name: notfound
+            port:
+              number: 80
+        ingressClassName: internal
+        rules:
+        - host: docs.example.com
+          http:
+            paths:
+            - backend:
+                service:
+                  name: search
+                  port:
+                    number: 8080
+              path: /search
+              pathType: Prefix
+            - backend:
+                service:
+                  name: docs
+                  port:
+                    number: 80
+              path: /
+              pathType: Prefix
+      status:
+        loadBalancer: {}
+  - command: kubectl create ingress docs -n docs --class=internal --rule="docs.example.com/search=search:8080" --rule="docs.example.com/=docs:80" --default-backend=notfound:80
+    why: Without * the path / is Exact and matches only the home page; /guides/install would fall to the default backend.
+    output: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: docs
+        namespace: docs
+      spec:
+        defaultBackend:
+          service:
+            name: notfound
+            port:
+              number: 80
+        ingressClassName: internal
+        rules:
+        - host: docs.example.com
+          http:
+            paths:
+            - backend:
+                service:
+                  name: search
+                  port:
+                    number: 8080
+              path: /search
+              pathType: Exact
+            - backend:
+                service:
+                  name: docs
+                  port:
+                    number: 80
+              path: /
+              pathType: Exact
+      status:
+        loadBalancer: {}
+  - command: kubectl create ingress docs -n docs --class=internal --rule="docs.example.com/search=search:8080" --rule="docs.example.com/*=docs:80"
+    why: Without --default-backend, requests for other hosts are handled however the controller decides (often a 404), not by notfound.
+    output: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: docs
+        namespace: docs
+      spec:
+        ingressClassName: internal
+        rules:
+        - host: docs.example.com
+          http:
+            paths:
+            - backend:
+                service:
+                  name: search
+                  port:
+                    number: 8080
+              path: /search
+              pathType: Exact
+            - backend:
+                service:
+                  name: docs
+                  port:
+                    number: 80
+              path: /
+              pathType: Prefix
+      status:
+        loadBalancer: {}
+explanation:
+  correct:
+    en: 'Two `--rule` flags with the same host become two paths of one rule. `/search` without `*` is `Exact`; `/*` is `Prefix /`. When several paths match, the longest one wins and, at equal length, `Exact` beats `Prefix`, so `/search` goes to `search` and everything else to `docs`. `--default-backend=notfound:80` sets `spec.defaultBackend`, which receives the requests that match no rule; without it, their handling is up to the controller.'
+references:
+- title: kubectl create ingress
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_create/kubectl_create_ingress/
+- title: Ingress
+  url: https://kubernetes.io/docs/concepts/services-networking/ingress/

@@ -1,0 +1,154 @@
+id: ckad-1d-configmap-subpath
+objective: "1.4.1"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    In namespace `edge`, the ConfigMap `proxy-conf` has a key `nginx.conf`. Write the manifest of a Pod named `proxy` with one container named `nginx` (`nginx:1.27`) that uses this file as `/etc/nginx/nginx.conf`.
+
+    - Declare the ConfigMap as a volume named `conf`.
+    - Mount only that file, with `subPath` set to the key name, so that the other files the image ships in `/etc/nginx` (such as `mime.types`) stay visible.
+    - The mount is read-only.
+body: {}
+answer:
+  checks:
+  - id: pod
+    label: A Pod named proxy in namespace edge
+    path: metadata
+    op: subset
+    value: {name: proxy, namespace: edge}
+  - id: image
+    label: Container nginx runs nginx:1.27
+    path: spec.containers[name=nginx].image
+    op: equals
+    value: nginx:1.27
+  - id: volume
+    label: Volume conf uses ConfigMap proxy-conf
+    path: spec.volumes[name=conf].configMap.name
+    op: equals
+    value: proxy-conf
+  - id: mount-path
+    label: conf is mounted at /etc/nginx/nginx.conf
+    path: spec.containers[name=nginx].volumeMounts[name=conf].mountPath
+    op: equals
+    value: /etc/nginx/nginx.conf
+  - id: subpath
+    label: The mount uses subPath nginx.conf
+    path: spec.containers[name=nginx].volumeMounts[name=conf].subPath
+    op: equals
+    value: nginx.conf
+  - id: readonly
+    label: The mount is read-only
+    path: spec.containers[name=nginx].volumeMounts[name=conf].readOnly
+    op: equals
+    value: true
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: proxy
+        namespace: edge
+      spec:
+        containers:
+        - name: nginx
+          image: nginx:1.27
+          volumeMounts:
+          - name: conf
+            mountPath: /etc/nginx/nginx.conf
+            subPath: nginx.conf
+            readOnly: true
+        volumes:
+        - name: conf
+          configMap:
+            name: proxy-conf
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: proxy
+        namespace: edge
+      spec:
+        volumes:
+        - name: conf
+          configMap:
+            name: proxy-conf
+            items:
+            - key: nginx.conf
+              path: nginx.conf
+        containers:
+        - name: nginx
+          image: nginx:1.27
+          volumeMounts:
+          - name: conf
+            mountPath: /etc/nginx/nginx.conf
+            subPath: nginx.conf
+            readOnly: true
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: proxy
+        namespace: edge
+      spec:
+        containers:
+        - name: nginx
+          image: nginx:1.27
+          volumeMounts:
+          - name: conf
+            mountPath: /etc/nginx
+            readOnly: true
+        volumes:
+        - name: conf
+          configMap:
+            name: proxy-conf
+    why: Mounting the whole volume on /etc/nginx hides every file the image ships there, mime.types included.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: proxy
+        namespace: edge
+      spec:
+        containers:
+        - name: nginx
+          image: nginx:1.27
+          volumeMounts:
+          - name: conf
+            mountPath: /etc/nginx/nginx.conf
+            readOnly: true
+        volumes:
+        - name: conf
+          configMap:
+            name: proxy-conf
+    why: Without subPath the volume root, a directory, is mounted at /etc/nginx/nginx.conf, so nginx finds a directory where it expects a file.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: proxy
+        namespace: edge
+      spec:
+        containers:
+        - name: nginx
+          image: nginx:1.27
+          volumeMounts:
+          - name: conf
+            mountPath: /etc/nginx/nginx.conf
+            subPath: nginx.conf
+            readOnly: true
+        volumes:
+        - name: conf
+          secret:
+            secretName: proxy-conf
+    why: proxy-conf is a ConfigMap; a secret volume looks for a Secret of that name.
+explanation:
+  correct:
+    en: 'A `configMap` volume exposes each key as a file in a directory. `subPath: nginx.conf` mounts only that file at `mountPath: /etc/nginx/nginx.conf`, leaving the rest of `/etc/nginx` from the image untouched. Mounting without `subPath` puts the whole directory at the mount path. Trade-off to remember: a container that mounts a ConfigMap with `subPath` does not receive updates when the ConfigMap changes.'
+references:
+- title: Volume Types
+  url: https://kubernetes.io/docs/reference/storage/volume-types/
+- title: Volumes
+  url: https://kubernetes.io/docs/concepts/storage/volumes/

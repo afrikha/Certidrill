@@ -1,0 +1,186 @@
+id: ckad-2b-set-image-container
+objective: "2.2.1"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    In namespace `shop`, Deployment `web` (file `web.yaml`) has two containers: `web`, running `registry.example.com/shop/web:1.4`, and the log shipper `log-agent`, running `registry.example.com/tools/log-agent:3.1`.
+
+    Start a rolling update of the `web` container to `registry.example.com/shop/web:1.5`. The `log-agent` container must keep its image.
+
+    Type the single command you would run.
+body:
+  mode: object
+  namespace: default
+  files:
+  - name: web.yaml
+    content: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        labels:
+          app: web
+        name: web
+        namespace: shop
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: web
+        template:
+          metadata:
+            labels:
+              app: web
+          spec:
+            containers:
+            - image: registry.example.com/shop/web:1.4
+              name: web
+            - image: registry.example.com/tools/log-agent:3.1
+              name: log-agent
+answer:
+  checks:
+  - id: kind
+    label: The object is the Deployment web
+    path: metadata.name
+    op: equals
+    value: web
+  - id: namespace
+    label: It is in namespace shop
+    path: metadata.namespace
+    op: equals
+    value: shop
+  - id: web-image
+    label: Container web now runs registry.example.com/shop/web:1.5
+    path: spec.template.spec.containers[name=web].image
+    op: equals
+    value: registry.example.com/shop/web:1.5
+  - id: agent-image
+    label: Container log-agent still runs log-agent:3.1
+    path: spec.template.spec.containers[name=log-agent].image
+    op: equals
+    value: registry.example.com/tools/log-agent:3.1
+  solution:
+  - command: kubectl set image deployment/web web=registry.example.com/shop/web:1.5 -n shop
+    output: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        labels:
+          app: web
+        name: web
+        namespace: shop
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: web
+        strategy: {}
+        template:
+          metadata:
+            labels:
+              app: web
+          spec:
+            containers:
+            - image: registry.example.com/shop/web:1.5
+              name: web
+              resources: {}
+            - image: registry.example.com/tools/log-agent:3.1
+              name: log-agent
+              resources: {}
+      status: {}
+  - command: k -n shop set image deploy web web=registry.example.com/shop/web:1.5
+    output: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        labels:
+          app: web
+        name: web
+        namespace: shop
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: web
+        strategy: {}
+        template:
+          metadata:
+            labels:
+              app: web
+          spec:
+            containers:
+            - image: registry.example.com/shop/web:1.5
+              name: web
+              resources: {}
+            - image: registry.example.com/tools/log-agent:3.1
+              name: log-agent
+              resources: {}
+      status: {}
+  negatives:
+  - command: kubectl set image deployment/web *=registry.example.com/shop/web:1.5 -n shop
+    why: The * wildcard sets the image of every container, so log-agent would also run the web image.
+    output: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        labels:
+          app: web
+        name: web
+        namespace: shop
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: web
+        strategy: {}
+        template:
+          metadata:
+            labels:
+              app: web
+          spec:
+            containers:
+            - image: registry.example.com/shop/web:1.5
+              name: web
+              resources: {}
+            - image: registry.example.com/shop/web:1.5
+              name: log-agent
+              resources: {}
+      status: {}
+  - command: kubectl set image deployment/web log-agent=registry.example.com/shop/web:1.5 -n shop
+    why: The part before = is the container name, not the image name. This replaces the log shipper and leaves web on 1.4.
+    output: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        labels:
+          app: web
+        name: web
+        namespace: shop
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: web
+        strategy: {}
+        template:
+          metadata:
+            labels:
+              app: web
+          spec:
+            containers:
+            - image: registry.example.com/shop/web:1.4
+              name: web
+              resources: {}
+            - image: registry.example.com/shop/web:1.5
+              name: log-agent
+              resources: {}
+      status: {}
+explanation:
+  correct:
+    en: '`kubectl set image deployment/web web=registry.example.com/shop/web:1.5 -n shop` changes the image of the container named `web` in the Pod template, which triggers a new rollout. Each argument is `CONTAINER_NAME=IMAGE`, so other containers are untouched; `*=IMAGE` would change all of them.'
+references:
+- title: kubectl set image
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_set/kubectl_set_image/
+- title: Deployments
+  url: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/

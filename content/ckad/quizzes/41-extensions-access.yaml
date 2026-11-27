@@ -1,0 +1,920 @@
+chapter: 41-extensions-access
+questions:
+  # ------------------------------------------------------------------ 1
+  - id: ckad-qz-41-01
+    objective: "4.1.1"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |-
+        The CRD `crontabs.stable.example.com` is installed. Its `names` define the plural `crontabs`, the kind `CronTab` and the short name `ct`, and nothing else. `kubectl get crontabs -n batch-jobs` lists two objects, but `kubectl get all -n batch-jobs` does not show them.
+
+        Why are the CronTab objects missing from the output of `kubectl get all`?
+    body:
+      options:
+        - id: a
+          text: { en: "`get all` lists only the types of the `all` category, and this CRD does not add its type to that category." }
+        - id: b
+          text: { en: "`get all` lists only the types of the core API group (`v1`), and custom resources always belong to another group." }
+        - id: c
+          text: { en: "`get all` lists only the objects that own running Pods, and a CronTab owns no Pod until a controller acts on it." }
+        - id: d
+          text: { en: "`get all` lists only the types that have a short name of their own, and `ct` is already used by a built-in type." }
+    answer: { optionId: a }
+    explanation:
+      correct:
+        en: |-
+          `kubectl get all` is a category query: it lists the types whose API resource declares the category `all`. A CRD joins that category only if its `names` include `categories: ["all"]`. Without it, query the custom type by name (`kubectl get crontabs`, `kubectl get ct` or `kubectl get crontabs.stable.example.com`).
+      options:
+        b: { en: "Deployments, ReplicaSets, Jobs and other `apps` or `batch` types are listed by `get all`, so the filter is not the core group: it is the `all` category." }
+        c: { en: "Ownership of Pods plays no role: Services and Deployments scaled to zero are listed by `get all` too. Only the category membership decides." }
+        d: { en: "Short names do not decide what `get all` shows, and `ct` is not a built-in short name. The missing piece is `categories: [\"all\"]` in the CRD." }
+    references:
+      - title: Extend the Kubernetes API with CustomResourceDefinitions
+        url: https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/
+
+  # ------------------------------------------------------------------ 2
+  - id: ckad-qz-41-02
+    objective: "4.2.3"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |-
+        Namespace `web` carries a single Pod Security label: `pod-security.kubernetes.io/warn: restricted`. A developer applies a Pod whose only container sets no `securityContext` at all.
+
+        What happens?
+    body:
+      options:
+        - id: a
+          text: { en: "The Pod is rejected with 403 Forbidden, and the message lists the `restricted` controls that the container breaks." }
+        - id: b
+          text: { en: "The Pod is created, and kubectl prints a warning that lists the `restricted` controls that the container breaks." }
+        - id: c
+          text: { en: "The Pod is created with no message, and the violations are only recorded as an annotation on the audit event." }
+        - id: d
+          text: { en: "The Pod is created, and the admission controller adds the missing `securityContext` fields so that it complies." }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |-
+          The `warn` mode returns a user-facing warning for each violation but still admits the object. Only `enforce` rejects Pods, and `audit` adds an annotation to the audit event without telling the user. Here only `warn` is set, so the Pod is created and kubectl prints `Warning: would violate PodSecurity "restricted:latest": ...`.
+      options:
+        a: { en: "Rejection is the behaviour of the `enforce` mode. The namespace has no `enforce` label, so nothing is rejected." }
+        c: { en: "That is the `audit` mode, which writes to the audit log. The `warn` mode shows the violations to the user who sent the request." }
+        d: { en: "Pod Security Admission is a validating admission controller: it checks Pods against a standard and never changes their fields." }
+    references:
+      - title: Pod Security Admission
+        url: https://kubernetes.io/docs/concepts/security/pod-security-admission/
+
+  # ------------------------------------------------------------------ 3
+  - id: ckad-qz-41-03
+    objective: "4.2.1"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |-
+        Your kubeconfig file has two contexts: `dev-eu`, which sets no namespace, and `prod-eu`, which sets the namespace `orders`. The current context is `dev-eu`. You run these commands in order:
+
+        ```bash
+        kubectl config set-context --current --namespace=shop
+        kubectl config use-context prod-eu
+        kubectl get pods
+        ```
+
+        In which namespace does the last command list Pods?
+    body:
+      options:
+        - id: a
+          text: { en: "`shop`, because `set-context --current --namespace` sets the default namespace of kubectl for every context." }
+        - id: b
+          text: { en: "`default`, because `use-context` clears the namespace of the context it switches to until you set it again." }
+        - id: c
+          text: { en: "`orders`, because the first command changed only the `dev-eu` entry and `prod-eu` keeps its own namespace." }
+        - id: d
+          text: { en: "`shop` in this terminal and `orders` in a new one, because `set-context` only changes the current shell session." }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |-
+          A namespace belongs to a context entry of the kubeconfig file. `set-context --current --namespace=shop` writes `shop` into the entry of the current context, `dev-eu`, and nothing else. After `use-context prod-eu`, kubectl uses the cluster, user and namespace of `prod-eu`, so `get pods` lists the Pods of `orders`.
+      options:
+        a: { en: "There is no global default namespace: each context has its own. The change went into the `dev-eu` entry only." }
+        b: { en: "`use-context` only changes `current-context`; it does not modify any context entry, so `prod-eu` still sets `orders`." }
+        d: { en: "Both commands write to the kubeconfig file, not to the shell: every terminal that uses this file sees the same result, `orders`." }
+    references:
+      - title: Organizing Cluster Access Using kubeconfig Files
+        url: https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/
+      - title: kubectl config set-context
+        url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_config/kubectl_config_set-context/
+
+  # ------------------------------------------------------------------ 4
+  - id: ckad-qz-41-04
+    objective: "4.2.2"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |-
+        In namespace `shop`, a RoleBinding grants the ServiceAccount `ci` of `shop` a Role with this single rule:
+
+        ```yaml
+        rules:
+        - apiGroups: [""]
+          resources: ["deployments"]
+          verbs: ["get", "list", "watch"]
+        ```
+
+        `kubectl auth can-i list deployments -n shop --as=system:serviceaccount:shop:ci` answers `no`. What is the cause?
+    body:
+      options:
+        - id: a
+          text: { en: "A ServiceAccount receives permissions only from a ClusterRoleBinding, so the RoleBinding has no effect." }
+        - id: b
+          text: { en: "A Role's `resources` list takes the kind as written in manifests, so it must say `Deployment`, not `deployments`." }
+        - id: c
+          text: { en: "Deployments belong to the `apps` API group, and this rule only matches resources of the core API group." }
+        - id: d
+          text: { en: "Listing Deployments also needs `get` on their `deployments/status` subresource, which the rule does not grant." }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |-
+          In an RBAC rule, `apiGroups: [""]` means the core group (Pods, Services, ConfigMaps...). Deployments are served by `apps/v1`, so the rule needs `apiGroups: ["apps"]`. `kubectl create role --resource=deployments` fills the right group automatically, which is why generating the Role avoids this mistake.
+      options:
+        a: { en: "A RoleBinding grants a Role to any subject, ServiceAccounts included, inside the binding's namespace. That is the usual way to give an application rights in one namespace." }
+        b: { en: "RBAC rules name resources by their plural, lower-case resource name as in the API URL (`deployments`); the kind `Deployment` would match nothing." }
+        d: { en: "Each verb is checked on the resource requested; `list` on `deployments` does not require any right on the `status` subresource." }
+    references:
+      - title: Using RBAC Authorization
+        url: https://kubernetes.io/docs/reference/access-authn-authz/rbac/
+
+  # ------------------------------------------------------------------ 5
+  - id: ckad-qz-41-05
+    objective: "4.1.2"
+    difficulty: 2
+    status: draft
+    type: multi
+    stem:
+      en: |-
+        A database Operator runs as the Deployment `db-operator` in namespace `db-operator`. It watches `PostgresCluster` objects (CRD `postgresclusters.db.example.com`) and creates a StatefulSet, Services and PersistentVolumeClaims for each one. Ten minutes ago you applied a `PostgresCluster` named `orders` in namespace `payments`. `kubectl get postgrescluster orders -n payments` shows the object, but there is still no StatefulSet in `payments`.
+
+        Which two statements are true?
+
+        NOTE: Each correct selection is worth one point.
+    body:
+      choose: 2
+      options:
+        - id: a
+          text: { en: "The API server creates the StatefulSet from the CRD's schema once the object passes validation, so a missing StatefulSet means a schema error." }
+        - id: b
+          text: { en: "The StatefulSet is created by the Operator's controller; if `db-operator` has no ready Pod, nothing reconciles the `orders` object." }
+        - id: c
+          text: { en: "Deleting the CRD and applying it again makes the Operator process `orders` again, with no effect on the existing custom objects." }
+        - id: d
+          text: { en: "`kubectl logs -n db-operator deploy/db-operator` can show why the controller did not create the StatefulSet for `orders`." }
+        - id: e
+          text: { en: "Writing the StatefulSet yourself is how an Operator is meant to be used: the custom object only documents the desired state." }
+    answer: { optionIds: [b, d] }
+    explanation:
+      correct:
+        en: |-
+          A CRD only makes the API server store `PostgresCluster` objects; the Operator's controller, running in the `db-operator` Deployment, watches them and creates the StatefulSet, Services and PVCs. If the controller is not running, or fails, the object stays without effect, and the controller's logs say why (missing rights, invalid values, errors while creating objects).
+      options:
+        a: { en: "The API server validates and stores custom objects but never creates other objects from them; that is the controller's job." }
+        c: { en: "Deleting a CRD deletes every custom object of that type, `orders` included, and a recreated CRD starts empty." }
+        e: { en: "You use an Operator by creating and editing its custom objects; a hand-written StatefulSet bypasses the Operator and is not managed by it." }
+    references:
+      - title: Operator pattern
+        url: https://kubernetes.io/docs/concepts/extend-kubernetes/operator/
+      - title: Extend the Kubernetes API with CustomResourceDefinitions
+        url: https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/
+
+  # ------------------------------------------------------------------ 6
+  - id: ckad-qz-41-06
+    objective: "4.1.1"
+    difficulty: 3
+    status: draft
+    type: command
+    stem:
+      en: |-
+        The platform team installed several CRDs in the API group `platform.example.com`. Some of them define namespaced resources, others cluster-scoped resources.
+
+        Print only the cluster-scoped resource types that the API server serves in the group `platform.example.com`: one name per line, with no table header and no other column. Type the single command you would run.
+    body:
+      mode: invocation
+      namespace: default
+    answer:
+      checks:
+        - id: verb
+          label: Uses kubectl api-resources
+          path: verb
+          op: equals
+          value: api-resources
+        - id: group
+          label: Limited to the API group platform.example.com
+          path: flags.api-group
+          op: equals
+          value: platform.example.com
+        - id: scope
+          label: Returns only non-namespaced (cluster-scoped) types
+          path: flags.namespaced
+          op: equals
+          value: "false"
+        - id: output
+          label: Prints names only
+          path: flags.output
+          op: equals
+          value: name
+      solution:
+        - command: kubectl api-resources --api-group=platform.example.com --namespaced=false -o name
+        - command: k api-resources -o name --namespaced=false --api-group platform.example.com
+        - command: kubectl api-resources --output=name --api-group=platform.example.com --namespaced=false
+      negatives:
+        - command: kubectl api-resources --api-group=platform.example.com -o name
+          why: --namespaced defaults to true, so this prints the namespaced types of the group, not the cluster-scoped ones.
+        - command: kubectl api-resources --api-group=platform.example.com --namespaced=true -o name
+          why: --namespaced=true returns the namespaced types; cluster-scoped types need --namespaced=false.
+        - command: kubectl api-resources --api-group=platform.example.com --namespaced=false --no-headers
+          why: --no-headers removes the header line but still prints every column (short names, apiVersion, namespaced, kind).
+        - command: kubectl get crd -o name
+          why: This lists the CustomResourceDefinition objects of every group, with no filter on the group or on the scope.
+    explanation:
+      correct:
+        en: |-
+          `kubectl api-resources` lists the types the API server serves; `--api-group` limits it to one group and `--namespaced=false` keeps only cluster-scoped types (the flag defaults to `true`, which returns namespaced types). `-o name` prints only the resource names, one per line, without header; `--no-headers` would keep the other columns.
+    references:
+      - title: kubectl api-resources
+        url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_api-resources/
+
+  # ------------------------------------------------------------------ 7
+  - id: ckad-qz-41-07
+    objective: "4.2.1"
+    difficulty: 3
+    status: draft
+    type: command
+    stem:
+      en: |-
+        Your default kubeconfig file (`~/.kube/config`) does not know the production clusters. The file `/opt/kubeconfigs/prod.yaml` defines two contexts, `prod-eu` (its `current-context`) and `prod-us`; neither of them sets a namespace.
+
+        Without changing the current context of any kubeconfig file and without setting an environment variable, list the Deployments of namespace `payments` in the cluster of context `prod-us`. Type the single command you would run.
+    body:
+      mode: invocation
+      namespace: default
+    answer:
+      checks:
+        - id: verb
+          label: Uses kubectl get
+          path: verb
+          op: equals
+          value: get
+        - id: resource
+          label: Lists Deployments
+          path: resource
+          op: equals
+          value: deployment
+        - id: kubeconfig
+          label: Reads the kubeconfig file /opt/kubeconfigs/prod.yaml
+          path: flags.kubeconfig
+          op: equals
+          value: /opt/kubeconfigs/prod.yaml
+        - id: context
+          label: Uses the context prod-us for this command
+          path: flags.context
+          op: equals
+          value: prod-us
+        - id: namespace
+          label: Targets namespace payments
+          path: flags.namespace
+          op: equals
+          value: payments
+      solution:
+        - command: kubectl get deployments -n payments --context=prod-us --kubeconfig=/opt/kubeconfigs/prod.yaml
+        - command: k --kubeconfig /opt/kubeconfigs/prod.yaml --context prod-us get deploy -n payments
+        - command: kubectl get deployments.apps --namespace=payments --kubeconfig=/opt/kubeconfigs/prod.yaml --context=prod-us
+      negatives:
+        - command: kubectl get deployments -n payments --context=prod-us
+          why: Without --kubeconfig, kubectl reads ~/.kube/config, which has no context named prod-us.
+        - command: kubectl get deployments -n payments --kubeconfig=/opt/kubeconfigs/prod.yaml
+          why: Without --context, kubectl uses the current-context of that file, prod-eu, so it lists the Deployments of the wrong cluster.
+        - command: kubectl get deployments -n payments --kubeconfig=/opt/kubeconfigs/prod.yaml --cluster=prod-us
+          why: --cluster takes the name of a cluster entry, not of a context; the context prod-us is not selected.
+        - command: kubectl get deployments --kubeconfig=/opt/kubeconfigs/prod.yaml --context=prod-us
+          why: The context sets no namespace, so the command lists the Deployments of default, not of payments.
+    explanation:
+      correct:
+        en: |-
+          `--kubeconfig` makes kubectl read only that file, without merging, and `--context` selects a context for this one command without touching `current-context`. Because the context sets no namespace, `-n payments` is still needed. `kubectl config use-context` would change the file, which the task forbids.
+    references:
+      - title: Organizing Cluster Access Using kubeconfig Files
+        url: https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/
+
+  # ------------------------------------------------------------------ 8
+  - id: ckad-qz-41-08
+    objective: "4.2.2"
+    difficulty: 3
+    status: draft
+    type: command
+    stem:
+      en: |-
+        In namespace `staging`, the ServiceAccount `deployer` of `staging` is bound to a Role that you are not allowed to read. A pipeline step that runs as this ServiceAccount must run `kubectl logs` on the Pods of `staging`.
+
+        Check whether this ServiceAccount is allowed to read Pod logs in namespace `staging`. You are allowed to impersonate. Type the single command you would run.
+    body:
+      mode: invocation
+      namespace: default
+    answer:
+      checks:
+        - id: verb
+          label: Uses kubectl auth
+          path: verb
+          op: equals
+          value: auth
+        - id: subverb
+          label: Uses can-i
+          path: subverb
+          op: equals
+          value: can-i
+        - id: action
+          label: Checks the verb get
+          path: args[1]
+          op: equals
+          value: get
+        - id: resource
+          label: Checks Pods as the resource
+          path: args[2]
+          op: oneOf
+          value: [pods, pod, po]
+        - id: subresource
+          label: Checks the log subresource
+          path: flags.subresource
+          op: equals
+          value: log
+        - id: as
+          label: Impersonates system:serviceaccount:staging:deployer
+          path: flags.as
+          op: equals
+          value: system:serviceaccount:staging:deployer
+        - id: namespace
+          label: Checks in namespace staging
+          path: flags.namespace
+          op: equals
+          value: staging
+      solution:
+        - command: kubectl auth can-i get pods --subresource=log -n staging --as=system:serviceaccount:staging:deployer
+        - command: k auth can-i get pod -n staging --as system:serviceaccount:staging:deployer --subresource log
+      negatives:
+        - command: kubectl auth can-i get pods/log -n staging --as=system:serviceaccount:staging:deployer
+          why: In can-i, TYPE/NAME names one object, so pods/log checks get on a Pod named log, not on the log subresource.
+        - command: kubectl auth can-i list pods --subresource=log -n staging --as=system:serviceaccount:staging:deployer
+          why: kubectl logs reads the log subresource with the verb get; list is a different permission.
+        - command: kubectl auth can-i get pods --subresource=logs -n staging --as=system:serviceaccount:staging:deployer
+          why: The subresource is named log (pods/log in a Role); logs does not exist, so the answer says nothing about kubectl logs.
+        - command: kubectl auth can-i get pods --subresource=log --as=system:serviceaccount:staging:deployer
+          why: Without -n the check runs in the context namespace, default, not in staging where the Role is bound.
+    explanation:
+      correct:
+        en: |-
+          `kubectl logs` needs `get` on the `pods/log` subresource. `kubectl auth can-i get pods --subresource=log` tests exactly that, `--as=system:serviceaccount:staging:deployer` impersonates the ServiceAccount and `-n staging` sets the namespace checked. Writing `pods/log` as the argument is a trap: `TYPE/NAME` means one named object.
+    references:
+      - title: kubectl auth can-i
+        url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_auth/kubectl_auth_can-i/
+      - title: Using RBAC Authorization
+        url: https://kubernetes.io/docs/reference/access-authn-authz/rbac/
+
+  # ------------------------------------------------------------------ 9
+  - id: ckad-qz-41-09
+    objective: "4.1.2"
+    difficulty: 3
+    status: draft
+    type: manifest
+    stem:
+      en: |-
+        A PostgreSQL Operator watches `PostgresCluster` objects (CRD in `postgrescluster-crd.yaml`, with the status subresource enabled). For each object it runs one database Pod per instance, through a StatefulSet that it owns. The editor contains the output of `kubectl get pgc orders -n payments -o yaml`.
+
+        Change the manifest so that, once it is applied, the Operator runs 3 instances of `orders` and takes a backup every day at 02:30 that is kept for 7 days. Keep PostgreSQL version 16 and the 10Gi of storage. Use the field names of the schema.
+    body:
+      starter: |
+        apiVersion: db.example.com/v1
+        kind: PostgresCluster
+        metadata:
+          name: orders
+          namespace: payments
+          generation: 1
+          resourceVersion: "48213"
+          uid: 6b1f0c2e-3d4a-4f6b-9a7e-2c8d5e1f0a93
+        spec:
+          version: "16"
+          instances: 1
+          storage:
+            size: 10Gi
+        status:
+          phase: Ready
+          readyInstances: 1
+      files:
+        - name: postgrescluster-crd.yaml
+          content: |
+            apiVersion: apiextensions.k8s.io/v1
+            kind: CustomResourceDefinition
+            metadata:
+              name: postgresclusters.db.example.com
+            spec:
+              group: db.example.com
+              scope: Namespaced
+              names:
+                plural: postgresclusters
+                singular: postgrescluster
+                kind: PostgresCluster
+                shortNames: [pgc]
+              versions:
+              - name: v1
+                served: true
+                storage: true
+                subresources:
+                  status: {}
+                schema:
+                  openAPIV3Schema:
+                    type: object
+                    properties:
+                      spec:
+                        type: object
+                        properties:
+                          version: {type: string}
+                          instances: {type: integer, minimum: 1}
+                          storage:
+                            type: object
+                            properties:
+                              size: {type: string}
+                          backup:
+                            type: object
+                            properties:
+                              schedule: {type: string, description: "cron expression"}
+                              retentionDays: {type: integer}
+                      status:
+                        type: object
+                        properties:
+                          phase: {type: string}
+                          readyInstances: {type: integer}
+    answer:
+      checks:
+        - id: api
+          label: apiVersion is db.example.com/v1
+          path: apiVersion
+          op: equals
+          value: db.example.com/v1
+        - id: kind
+          label: Kind is PostgresCluster
+          path: kind
+          op: equals
+          value: PostgresCluster
+        - id: meta
+          label: Still the object orders in namespace payments
+          path: metadata
+          op: subset
+          value: {name: orders, namespace: payments}
+        - id: instances
+          label: spec.instances is 3
+          path: spec.instances
+          op: equals
+          value: 3
+        - id: version
+          label: PostgreSQL version is still 16
+          path: spec.version
+          op: equals
+          value: "16"
+        - id: storage
+          label: Storage is still 10Gi
+          path: spec.storage.size
+          op: quantity
+          value: 10Gi
+        - id: schedule
+          label: Backup schedule is every day at 02:30
+          path: spec.backup.schedule
+          op: matches
+          value: '^\s*30\s+0?2\s+\*\s+\*\s+\*\s*$'
+        - id: retention
+          label: Backups are kept 7 days
+          path: spec.backup.retentionDays
+          op: equals
+          value: 7
+      solution:
+        - manifest: |
+            apiVersion: db.example.com/v1
+            kind: PostgresCluster
+            metadata:
+              name: orders
+              namespace: payments
+            spec:
+              version: "16"
+              instances: 3
+              storage:
+                size: 10Gi
+              backup:
+                schedule: "30 2 * * *"
+                retentionDays: 7
+        - manifest: |
+            apiVersion: db.example.com/v1
+            kind: PostgresCluster
+            metadata:
+              name: orders
+              namespace: payments
+              generation: 1
+              resourceVersion: "48213"
+              uid: 6b1f0c2e-3d4a-4f6b-9a7e-2c8d5e1f0a93
+            spec:
+              backup: {retentionDays: 7, schedule: "30 02 * * *"}
+              instances: 3
+              storage: {size: 10Gi}
+              version: "16"
+            status:
+              phase: Ready
+              readyInstances: 1
+      negatives:
+        - manifest: |
+            apiVersion: db.example.com/v1
+            kind: PostgresCluster
+            metadata:
+              name: orders
+              namespace: payments
+            spec:
+              version: "16"
+              instances: 1
+              storage:
+                size: 10Gi
+              backup:
+                schedule: "30 2 * * *"
+                retentionDays: 7
+            status:
+              phase: Ready
+              readyInstances: 3
+          why: status is written by the controller and, with the status subresource, changes to it through the main resource are ignored; the desired count is spec.instances.
+        - manifest: |
+            apiVersion: apps/v1
+            kind: StatefulSet
+            metadata:
+              name: orders
+              namespace: payments
+            spec:
+              replicas: 3
+              serviceName: orders
+              selector:
+                matchLabels:
+                  app: orders
+              template:
+                metadata:
+                  labels:
+                    app: orders
+                spec:
+                  containers:
+                  - name: postgres
+                    image: registry.example.com/postgres:16
+          why: The StatefulSet belongs to the Operator, which reconciles it from the PostgresCluster; the custom object still asks for 1 instance and no backup.
+        - manifest: |
+            apiVersion: db.example.com/v1
+            kind: PostgresCluster
+            metadata:
+              name: orders
+              namespace: payments
+            spec:
+              version: "16"
+              instances: 3
+              storage:
+                size: 10Gi
+            backup:
+              schedule: "30 2 * * *"
+              retentionDays: 7
+          why: backup sits at the top level instead of under spec; it is not a field of the schema, so kubectl rejects it and no backup is configured.
+        - manifest: |
+            apiVersion: db.example.com/v1
+            kind: PostgresCluster
+            metadata:
+              name: orders
+              namespace: payments
+            spec:
+              version: "16"
+              instances: 3
+              storage:
+                size: 10Gi
+              backup:
+                schedule: "2 30 * * *"
+                retentionDays: 7
+          why: A cron expression starts with the minute, then the hour; "2 30 * * *" is not 02:30 (and hour 30 is invalid).
+    explanation:
+      correct:
+        en: |-
+          You drive an Operator through the `spec` of its custom object: set `spec.instances: 3` and add `spec.backup` with `schedule: "30 2 * * *"` (minute, then hour) and `retentionDays: 7`, keeping `version` and `storage`. The controller then updates the StatefulSet it owns. `status` is reported by the controller; with the status subresource, edits to it through the main resource are ignored, and a StatefulSet changed by hand would be reconciled back.
+    references:
+      - title: Operator pattern
+        url: https://kubernetes.io/docs/concepts/extend-kubernetes/operator/
+      - title: Extend the Kubernetes API with CustomResourceDefinitions
+        url: https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/
+
+  # ------------------------------------------------------------------ 10
+  - id: ckad-qz-41-10
+    objective: "4.2.3"
+    difficulty: 3
+    status: draft
+    type: manifest
+    stem:
+      en: |-
+        Namespace `orders` has the labels `pod-security.kubernetes.io/enforce: baseline` and `pod-security.kubernetes.io/warn: restricted`. Its only ResourceQuota is in `quota.yaml`, and it has no LimitRange. Applying the Deployment in the editor printed a `Warning: would violate PodSecurity "restricted:latest": ...` line and `deployment.apps/api created`, but `kubectl get deploy api -n orders` shows `READY 0/3`, and the ReplicaSet events show:
+
+        ```text
+        Warning  FailedCreate  replicaset-controller  Error creating: pods "api-5f7d9c6b8-" is forbidden: violates PodSecurity "baseline:latest": host namespaces (hostNetwork=true), privileged (container "api" must not set securityContext.privileged=true)
+        ```
+
+        Fix the Deployment so that its 3 Pods are admitted. Do not change the namespace labels, the quota, the replicas, the image or the requests. Any memory limit you add must be 512Mi.
+    body:
+      starter: |
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: api
+          namespace: orders
+        spec:
+          replicas: 3
+          selector:
+            matchLabels:
+              app: api
+          template:
+            metadata:
+              labels:
+                app: api
+            spec:
+              hostNetwork: true
+              containers:
+              - name: api
+                image: registry.example.com/orders-api:2.4
+                ports:
+                - containerPort: 8080
+                securityContext:
+                  privileged: true
+                resources:
+                  requests:
+                    cpu: 250m
+                    memory: 256Mi
+      files:
+        - name: quota.yaml
+          content: |
+            apiVersion: v1
+            kind: ResourceQuota
+            metadata:
+              name: compute
+              namespace: orders
+            spec:
+              hard:
+                requests.cpu: "2"
+                requests.memory: 2Gi
+                limits.memory: 2Gi
+    answer:
+      checks:
+        - id: deploy
+          label: Deployment api in namespace orders
+          select: {kind: Deployment, name: api}
+          path: metadata
+          op: subset
+          value: {name: api, namespace: orders}
+        - id: replicas
+          label: Still 3 replicas
+          select: {kind: Deployment, name: api}
+          path: spec.replicas
+          op: equals
+          value: 3
+        - id: labels
+          label: Pod template still labelled app=api
+          select: {kind: Deployment, name: api}
+          path: spec.template.metadata.labels
+          op: subset
+          value: {app: api}
+        - id: image
+          label: Image is still registry.example.com/orders-api:2.4
+          select: {kind: Deployment, name: api}
+          path: spec.template.spec.containers[name=api].image
+          op: equals
+          value: registry.example.com/orders-api:2.4
+        - id: host-network
+          label: The Pod template does not use the host network
+          select: {kind: Deployment, name: api}
+          path: spec.template.spec
+          op: matches
+          value: '^(?!.*"hostNetwork":true)'
+        - id: privileged
+          label: Container api is not privileged
+          select: {kind: Deployment, name: api}
+          path: spec.template.spec.containers[name=api]
+          op: matches
+          value: '^(?!.*"privileged":true)'
+        - id: limit-memory
+          label: Container api has a memory limit of 512Mi (required by the quota)
+          select: {kind: Deployment, name: api}
+          path: spec.template.spec.containers[name=api].resources.limits.memory
+          op: quantity
+          value: 512Mi
+        - id: req-cpu
+          label: CPU request is still 250m
+          select: {kind: Deployment, name: api}
+          path: spec.template.spec.containers[name=api].resources.requests.cpu
+          op: quantity
+          value: 250m
+        - id: req-memory
+          label: Memory request is still 256Mi
+          select: {kind: Deployment, name: api}
+          path: spec.template.spec.containers[name=api].resources.requests.memory
+          op: quantity
+          value: 256Mi
+      solution:
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: api
+              namespace: orders
+            spec:
+              replicas: 3
+              selector:
+                matchLabels:
+                  app: api
+              template:
+                metadata:
+                  labels:
+                    app: api
+                spec:
+                  containers:
+                  - name: api
+                    image: registry.example.com/orders-api:2.4
+                    ports:
+                    - containerPort: 8080
+                    resources:
+                      requests:
+                        cpu: 250m
+                        memory: 256Mi
+                      limits:
+                        memory: 512Mi
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: api
+              namespace: orders
+            spec:
+              replicas: 3
+              selector:
+                matchLabels: {app: api}
+              template:
+                metadata:
+                  labels: {app: api}
+                spec:
+                  hostNetwork: false
+                  securityContext:
+                    seccompProfile: {type: RuntimeDefault}
+                  containers:
+                  - name: api
+                    image: registry.example.com/orders-api:2.4
+                    ports:
+                    - containerPort: 8080
+                    securityContext:
+                      privileged: false
+                      allowPrivilegeEscalation: false
+                      capabilities: {drop: ["ALL"]}
+                    resources:
+                      requests: {cpu: 250m, memory: 256Mi}
+                      limits: {memory: 512Mi, cpu: 500m}
+      negatives:
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: api
+              namespace: orders
+            spec:
+              replicas: 3
+              selector:
+                matchLabels:
+                  app: api
+              template:
+                metadata:
+                  labels:
+                    app: api
+                spec:
+                  hostNetwork: true
+                  securityContext:
+                    seccompProfile:
+                      type: RuntimeDefault
+                  containers:
+                  - name: api
+                    image: registry.example.com/orders-api:2.4
+                    ports:
+                    - containerPort: 8080
+                    securityContext:
+                      allowPrivilegeEscalation: false
+                      capabilities:
+                        drop: ["ALL"]
+                    resources:
+                      requests:
+                        cpu: 250m
+                        memory: 256Mi
+                      limits:
+                        memory: 512Mi
+          why: The added restricted-style fields and the removed privileged flag are not enough; hostNetwork is still true, which the enforced baseline level forbids, so the Pods are still rejected.
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: api
+              namespace: orders
+            spec:
+              replicas: 3
+              selector:
+                matchLabels:
+                  app: api
+              template:
+                metadata:
+                  labels:
+                    app: api
+                spec:
+                  containers:
+                  - name: api
+                    image: registry.example.com/orders-api:2.4
+                    ports:
+                    - containerPort: 8080
+                    resources:
+                      requests:
+                        cpu: 250m
+                        memory: 256Mi
+          why: The Pods now pass Pod Security, but the quota tracks limits.memory, so each Pod without a memory limit is rejected next.
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: api
+              namespace: orders
+            spec:
+              replicas: 3
+              selector:
+                matchLabels:
+                  app: api
+              template:
+                metadata:
+                  labels:
+                    app: api
+                spec:
+                  containers:
+                  - name: api
+                    image: registry.example.com/orders-api:2.4
+                    ports:
+                    - containerPort: 8080
+                    resources:
+                      requests:
+                        cpu: 250m
+                        memory: 256Mi
+                      limits:
+                        cpu: 500m
+          why: A CPU limit does not satisfy the quota, which tracks limits.memory; the Pods are still rejected for the missing memory limit.
+        - manifest: |
+            apiVersion: v1
+            kind: Namespace
+            metadata:
+              name: orders
+              labels:
+                pod-security.kubernetes.io/enforce: privileged
+                pod-security.kubernetes.io/warn: restricted
+            ---
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: api
+              namespace: orders
+            spec:
+              replicas: 3
+              selector:
+                matchLabels:
+                  app: api
+              template:
+                metadata:
+                  labels:
+                    app: api
+                spec:
+                  hostNetwork: true
+                  containers:
+                  - name: api
+                    image: registry.example.com/orders-api:2.4
+                    ports:
+                    - containerPort: 8080
+                    securityContext:
+                      privileged: true
+                    resources:
+                      requests:
+                        cpu: 250m
+                        memory: 256Mi
+          why: The task forbids changing the namespace labels, and even with enforce relaxed the quota still rejects Pods that have no memory limit.
+    explanation:
+      correct:
+        en: |-
+          Two admission checks stand in the way. `enforce: baseline` rejects Pods with `hostNetwork: true` or a privileged container, so remove both (or set them to `false`); the `restricted` level is only in `warn` mode, so its fields are optional. Once the Pods pass Pod Security, the quota, which tracks `limits.memory`, rejects every Pod without a memory limit: add `limits.memory: 512Mi` (3 × 512Mi fits in 2Gi). Enforcement applies to the Pods, which is why the Deployment was created and only the ReplicaSet shows `FailedCreate`.
+    references:
+      - title: Pod Security Standards
+        url: https://kubernetes.io/docs/concepts/security/pod-security-standards/
+      - title: Resource Quotas
+        url: https://kubernetes.io/docs/concepts/policy/resource-quotas/

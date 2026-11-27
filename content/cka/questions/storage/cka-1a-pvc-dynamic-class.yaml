@@ -1,0 +1,113 @@
+id: cka-1a-pvc-dynamic-class
+objective: "1.1.2"
+difficulty: 1
+status: draft
+type: manifest
+stem:
+  en: |-
+    The StorageClass `fast-ssd` provisions volumes dynamically. Write the manifest of a PersistentVolumeClaim named `media` in namespace `shop` that gets a new 5Gi volume from that class, mounted read-write by a single node.
+body:
+  starter: ""
+answer:
+  checks:
+  - id: kind
+    label: The object is a PersistentVolumeClaim
+    path: kind
+    op: equals
+    value: PersistentVolumeClaim
+  - id: meta
+    label: It is named media, in namespace shop
+    path: metadata
+    op: subset
+    value: {name: media, namespace: shop}
+  - id: class
+    label: storageClassName is fast-ssd
+    path: spec.storageClassName
+    op: equals
+    value: fast-ssd
+  - id: mode
+    label: Access mode ReadWriteOnce
+    path: spec.accessModes
+    op: contains
+    value: ReadWriteOnce
+  - id: size
+    label: Requests 5Gi of storage
+    path: spec.resources.requests.storage
+    op: quantity
+    value: 5Gi
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: media
+        namespace: shop
+      spec:
+        accessModes:
+        - ReadWriteOnce
+        storageClassName: fast-ssd
+        resources:
+          requests:
+            storage: 5Gi
+  - manifest: |
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        namespace: shop
+        name: media
+      spec:
+        storageClassName: fast-ssd
+        accessModes: ["ReadWriteOnce"]
+        volumeMode: Filesystem
+        resources:
+          requests:
+            storage: 5120Mi
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: media
+        namespace: shop
+      spec:
+        accessModes:
+        - ReadWriteOnce
+        storageClassName: ""
+        resources:
+          requests:
+            storage: 5Gi
+    why: storageClassName "" means no class, which disables dynamic provisioning; the claim waits for a class-less PV.
+  - manifest: |
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: media
+        namespace: shop
+      spec:
+        accessModes:
+        - ReadWriteOnce
+        storageClassName: fast-ssd
+        resources:
+          limits:
+            storage: 5Gi
+    why: The size a claim asks for is resources.requests.storage; a limit alone does not request 5Gi.
+  - manifest: |
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: media
+      spec:
+        accessModes:
+        - ReadWriteOnce
+        storageClassName: fast-ssd
+        resources:
+          requests:
+            storage: 5Gi
+    why: Without metadata.namespace the claim is created in the context namespace, not in shop.
+explanation:
+  correct:
+    en: |-
+      A claim that names a class with a provisioner and matches no existing PV triggers dynamic provisioning: `storageClassName: fast-ssd`, `accessModes: [ReadWriteOnce]` (read-write by one node) and `resources.requests.storage: 5Gi`. A claim is namespaced, so it must be in `shop`, the namespace of the Pods that will mount it. `storageClassName: ""` would turn provisioning off.
+references:
+- title: Persistent Volumes
+  url: https://kubernetes.io/docs/concepts/storage/persistent-volumes/

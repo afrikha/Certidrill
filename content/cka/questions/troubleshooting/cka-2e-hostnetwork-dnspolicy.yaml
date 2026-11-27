@@ -1,0 +1,164 @@
+id: cka-2e-hostnetwork-dnspolicy
+objective: "2.5.2"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    DaemonSet `node-agent` in namespace `monitoring` uses the host network of each node. Its Pods cannot send data to Service `collector` of the same namespace. In one Pod you collected:
+
+    ```text
+    $ kubectl logs node-agent-x8k2d -n monitoring | tail -1
+    level=error msg="dial tcp: lookup collector.monitoring.svc.cluster.local on 192.168.10.1:53: no such host"
+    $ kubectl exec node-agent-x8k2d -n monitoring -- cat /etc/resolv.conf
+    nameserver 192.168.10.1
+    search lab.example.com
+    ```
+
+    Other Pods of the cluster resolve the name. Correct the DaemonSet so that its Pods use the cluster DNS while keeping the host network, without writing the DNS server address into the manifest. Write the corrected manifest.
+body:
+  starter: |
+    apiVersion: apps/v1
+    kind: DaemonSet
+    metadata:
+      name: node-agent
+      namespace: monitoring
+    spec:
+      selector:
+        matchLabels:
+          app: node-agent
+      template:
+        metadata:
+          labels:
+            app: node-agent
+        spec:
+          hostNetwork: true
+          containers:
+          - name: agent
+            image: registry.example.com/monitoring/node-agent:0.12
+            args: [--collector=collector.monitoring.svc.cluster.local:4317]
+answer:
+  checks:
+  - id: daemonset
+    label: The DaemonSet node-agent in namespace monitoring
+    path: metadata
+    op: subset
+    value: {name: node-agent, namespace: monitoring}
+  - id: host-network
+    label: The Pods keep the host network
+    path: spec.template.spec.hostNetwork
+    op: equals
+    value: true
+  - id: dns-policy
+    label: dnsPolicy is ClusterFirstWithHostNet
+    path: spec.template.spec.dnsPolicy
+    op: equals
+    value: ClusterFirstWithHostNet
+  - id: no-dnsconfig
+    label: No DNS server address is written in the Pod template
+    path: spec.template.spec.dnsConfig.nameservers
+    op: absent
+  solution:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: DaemonSet
+      metadata:
+        name: node-agent
+        namespace: monitoring
+      spec:
+        selector:
+          matchLabels:
+            app: node-agent
+        template:
+          metadata:
+            labels:
+              app: node-agent
+          spec:
+            hostNetwork: true
+            dnsPolicy: ClusterFirstWithHostNet
+            containers:
+            - name: agent
+              image: registry.example.com/monitoring/node-agent:0.12
+              args: [--collector=collector.monitoring.svc.cluster.local:4317]
+  negatives:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: DaemonSet
+      metadata:
+        name: node-agent
+        namespace: monitoring
+      spec:
+        selector:
+          matchLabels:
+            app: node-agent
+        template:
+          metadata:
+            labels:
+              app: node-agent
+          spec:
+            hostNetwork: true
+            dnsPolicy: ClusterFirst
+            containers:
+            - name: agent
+              image: registry.example.com/monitoring/node-agent:0.12
+              args: [--collector=collector.monitoring.svc.cluster.local:4317]
+    why: ClusterFirst is already the default; with hostNetwork it falls back to the Default policy, the node's resolv.conf.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: DaemonSet
+      metadata:
+        name: node-agent
+        namespace: monitoring
+      spec:
+        selector:
+          matchLabels:
+            app: node-agent
+        template:
+          metadata:
+            labels:
+              app: node-agent
+          spec:
+            containers:
+            - name: agent
+              image: registry.example.com/monitoring/node-agent:0.12
+              args: [--collector=collector.monitoring.svc.cluster.local:4317]
+    why: Removing hostNetwork fixes DNS but breaks the requirement that the agent keeps using the host network.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: DaemonSet
+      metadata:
+        name: node-agent
+        namespace: monitoring
+      spec:
+        selector:
+          matchLabels:
+            app: node-agent
+        template:
+          metadata:
+            labels:
+              app: node-agent
+          spec:
+            hostNetwork: true
+            dnsPolicy: None
+            dnsConfig:
+              nameservers:
+              - 10.96.0.10
+              searches:
+              - monitoring.svc.cluster.local
+              - svc.cluster.local
+              - cluster.local
+            containers:
+            - name: agent
+              image: registry.example.com/monitoring/node-agent:0.12
+              args: [--collector=collector.monitoring.svc.cluster.local:4317]
+    why: This hard-codes the cluster DNS address, which the task forbids; it breaks if the kube-dns Service IP changes.
+explanation:
+  correct:
+    en: >-
+      A Pod with `hostNetwork: true` and the default `dnsPolicy: ClusterFirst` falls back to the `Default` policy and
+      inherits the node's `/etc/resolv.conf`, which knows nothing of `cluster.local`. Set
+      `dnsPolicy: ClusterFirstWithHostNet` to give it the cluster DNS server and search list while it keeps the host
+      network. `None` with `dnsConfig` would work only by writing the server address by hand.
+references:
+- title: DNS for Services and Pods
+  url: https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/

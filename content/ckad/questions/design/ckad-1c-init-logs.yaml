@@ -1,0 +1,54 @@
+id: ckad-1c-init-logs
+objective: "1.3.1"
+difficulty: 1
+status: draft
+type: command
+stem:
+  en: |-
+    In namespace `shop`, Pod `web` has two init containers, `wait-db` then `fetch-config`, and one application container, `nginx`. `kubectl get pod web -n shop` has shown `Init:1/2` for ten minutes.
+
+    Print the logs of the init container that is still running. Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Uses kubectl logs
+    path: verb
+    op: equals
+    value: logs
+  - id: pod
+    label: Targets Pod web
+    path: names
+    op: contains
+    value: web
+  - id: container
+    label: Selects the init container fetch-config
+    path: flags.container
+    op: equals
+    value: fetch-config
+  - id: namespace
+    label: Runs in namespace shop
+    path: flags.namespace
+    op: equals
+    value: shop
+  solution:
+  - command: kubectl logs web -c fetch-config -n shop
+  - command: k -n shop logs pod/web --container=fetch-config
+  - command: kubectl logs -f web -n shop -c fetch-config
+  negatives:
+  - command: kubectl logs web -c wait-db -n shop
+    why: Init:1/2 means one of the two init containers has completed; wait-db finished, fetch-config is the one still running.
+  - command: kubectl logs web -n shop
+    why: Without -c, kubectl reads the application container (nginx), which has not started yet.
+  - command: kubectl logs web -c fetch-config
+    why: Without -n the command looks for web in the context namespace, default.
+explanation:
+  correct:
+    en: 'Init containers run in order, and `Init:1/2` means the first one (`wait-db`) has completed while the second (`fetch-config`) is running. `kubectl logs web -c fetch-config -n shop` reads that init container; `-c` (`--container`) works for init containers exactly as for application containers. Without `-c`, kubectl targets the application container, which is still waiting with reason `PodInitializing`.'
+references:
+- title: Init Containers
+  url: https://kubernetes.io/docs/concepts/workloads/pods/init-containers/
+- title: kubectl logs
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_logs/

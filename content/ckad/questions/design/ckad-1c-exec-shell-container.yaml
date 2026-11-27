@@ -1,0 +1,67 @@
+id: ckad-1c-exec-shell-container
+objective: "1.3.3"
+difficulty: 1
+status: draft
+type: command
+stem:
+  en: |-
+    In namespace `shop`, Pod `orders` has two containers, listed in this order: `envoy` (a service-mesh sidecar) and `app`.
+
+    Open an interactive `/bin/sh` shell in the `app` container. Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Uses kubectl exec
+    path: verb
+    op: equals
+    value: exec
+  - id: pod
+    label: Targets Pod orders
+    path: names
+    op: contains
+    value: orders
+  - id: container
+    label: Selects container app
+    path: flags.container
+    op: equals
+    value: app
+  - id: stdin
+    label: Keeps stdin open (-i)
+    path: flags.stdin
+    op: equals
+    value: true
+  - id: tty
+    label: Allocates a TTY (-t)
+    path: flags.tty
+    op: equals
+    value: true
+  - id: shell
+    label: Runs /bin/sh
+    path: rest[0]
+    op: oneOf
+    value: ["/bin/sh", "sh"]
+  - id: namespace
+    label: Runs in namespace shop
+    path: flags.namespace
+    op: equals
+    value: shop
+  solution:
+  - command: kubectl exec -it orders -c app -n shop -- /bin/sh
+  - command: k -n shop exec -i -t pod/orders --container=app -- sh
+  - command: kubectl exec --stdin --tty orders --container app --namespace shop -- /bin/sh
+  negatives:
+  - command: kubectl exec -it orders -n shop -- /bin/sh
+    why: Without -c, kubectl opens the shell in the first container, envoy.
+  - command: kubectl exec orders -c app -n shop -- /bin/sh
+    why: Without -i and -t there is no interactive terminal; sh reads an empty stdin and exits at once.
+  - command: kubectl attach -it orders -c app -n shop
+    why: attach connects to the main process of the container; it does not start a new shell.
+explanation:
+  correct:
+    en: 'In a multi-container Pod, `kubectl exec` needs `-c` (`--container`) to choose the container; otherwise it uses the default one, the first listed unless the `kubectl.kubernetes.io/default-container` annotation says otherwise. `-i` and `-t` are the short forms of `--stdin` and `--tty`, and everything after `--` is the command to run.'
+references:
+- title: Get a Shell to a Running Container
+  url: https://kubernetes.io/docs/tasks/debug/debug-application/get-shell-running-container/

@@ -1,0 +1,119 @@
+id: ckad-4d-configmap-env-optional-key
+objective: "4.4.2"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    Write the manifest of a Pod named `report` in namespace `finance` with one container named `report` running `registry.example.com/finance/report:3.1`.
+
+    - The environment variable `REPORT_FORMAT` takes the value of the key `format` of ConfigMap `report-settings`.
+    - Another team creates that ConfigMap later: the Pod must start even if the ConfigMap or its key does not exist yet.
+body:
+  starter: |
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: report
+      namespace: finance
+    spec:
+      containers:
+      - name: report
+        image: registry.example.com/finance/report:3.1
+answer:
+  checks:
+  - id: pod
+    label: A Pod named report in namespace finance
+    path: metadata
+    op: subset
+    value: {name: report, namespace: finance}
+  - id: image
+    label: Container report runs registry.example.com/finance/report:3.1
+    path: spec.containers[name=report].image
+    op: equals
+    value: registry.example.com/finance/report:3.1
+  - id: ref
+    label: REPORT_FORMAT reads key format of ConfigMap report-settings
+    path: spec.containers[name=report].env[name=REPORT_FORMAT].valueFrom.configMapKeyRef
+    op: subset
+    value: {name: report-settings, key: format}
+  - id: optional
+    label: The reference is optional
+    path: spec.containers[name=report].env[name=REPORT_FORMAT].valueFrom.configMapKeyRef.optional
+    op: equals
+    value: true
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: report
+        namespace: finance
+      spec:
+        containers:
+        - name: report
+          image: registry.example.com/finance/report:3.1
+          env:
+          - name: REPORT_FORMAT
+            valueFrom:
+              configMapKeyRef:
+                name: report-settings
+                key: format
+                optional: true
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: report
+        namespace: finance
+      spec:
+        containers:
+        - name: report
+          image: registry.example.com/finance/report:3.1
+          env:
+          - name: REPORT_FORMAT
+            valueFrom:
+              configMapKeyRef:
+                name: report-settings
+                key: format
+    why: A configMapKeyRef is required by default; the container cannot start (CreateContainerConfigError) until the ConfigMap and key exist.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: report
+        namespace: finance
+      spec:
+        containers:
+        - name: report
+          image: registry.example.com/finance/report:3.1
+          envFrom:
+          - configMapRef:
+              name: report-settings
+              optional: true
+    why: envFrom names the variable after the key, format, not REPORT_FORMAT.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: report
+        namespace: finance
+      spec:
+        containers:
+        - name: report
+          image: registry.example.com/finance/report:3.1
+          env:
+          - name: REPORT_FORMAT
+            valueFrom:
+              configMapKeyRef:
+                name: format
+                key: report-settings
+                optional: true
+    why: name and key are swapped; name is the ConfigMap, key is the entry inside it.
+explanation:
+  correct:
+    en: '`env[].valueFrom.configMapKeyRef` maps one key (`key: format`) of one ConfigMap (`name: report-settings`) to a variable whose name you choose. By default the ConfigMap and the key must exist or the container does not start; `optional: true` lets the Pod start and leaves the variable unset. `envFrom` cannot rename a single key.'
+references:
+- title: Configure a Pod to Use a ConfigMap
+  url: https://kubernetes.io/docs/tasks/configure-pod-container/configure-pod-configmap/

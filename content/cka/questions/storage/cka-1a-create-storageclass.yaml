@@ -1,0 +1,114 @@
+id: cka-1a-create-storageclass
+objective: "1.1.1"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    Write the manifest of a StorageClass named `fast-ssd` that provisions volumes with the CSI driver `csi.example.com` and passes it the parameter `type: ssd`.
+
+    - A volume must be provisioned only after a Pod that uses the claim has been scheduled, so that it is created in that node's topology.
+    - Claims of this class must be expandable later.
+body:
+  starter: |
+    apiVersion: storage.k8s.io/v1
+    kind: StorageClass
+    metadata:
+      name: fast-ssd
+answer:
+  checks:
+  - id: kind
+    label: The object is a storage.k8s.io/v1 StorageClass
+    path: apiVersion
+    op: equals
+    value: storage.k8s.io/v1
+  - id: kind-sc
+    label: The kind is StorageClass
+    path: kind
+    op: equals
+    value: StorageClass
+  - id: name
+    label: It is named fast-ssd
+    path: metadata.name
+    op: equals
+    value: fast-ssd
+  - id: provisioner
+    label: The provisioner is csi.example.com
+    path: provisioner
+    op: equals
+    value: csi.example.com
+  - id: parameters
+    label: The parameter type is ssd
+    path: parameters.type
+    op: equals
+    value: ssd
+  - id: binding
+    label: volumeBindingMode is WaitForFirstConsumer
+    path: volumeBindingMode
+    op: equals
+    value: WaitForFirstConsumer
+  - id: expansion
+    label: allowVolumeExpansion is true
+    path: allowVolumeExpansion
+    op: equals
+    value: true
+  solution:
+  - manifest: |
+      apiVersion: storage.k8s.io/v1
+      kind: StorageClass
+      metadata:
+        name: fast-ssd
+      provisioner: csi.example.com
+      parameters:
+        type: ssd
+      volumeBindingMode: WaitForFirstConsumer
+      allowVolumeExpansion: true
+  - manifest: |
+      apiVersion: storage.k8s.io/v1
+      kind: StorageClass
+      metadata:
+        name: fast-ssd
+      allowVolumeExpansion: true
+      parameters:
+        type: ssd
+      provisioner: csi.example.com
+      reclaimPolicy: Delete
+      volumeBindingMode: WaitForFirstConsumer
+  negatives:
+  - manifest: |
+      apiVersion: storage.k8s.io/v1
+      kind: StorageClass
+      metadata:
+        name: fast-ssd
+      provisioner: csi.example.com
+      parameters:
+        type: ssd
+      allowVolumeExpansion: true
+    why: Without volumeBindingMode the class uses Immediate, which provisions as soon as the claim exists, before the Pod is scheduled.
+  - manifest: |
+      apiVersion: storage.k8s.io/v1
+      kind: StorageClass
+      metadata:
+        name: fast-ssd
+      provisioner: csi.example.com
+      parameters:
+        type: ssd
+      volumeBindingMode: WaitForFirstConsumer
+    why: allowVolumeExpansion defaults to false, so claims of this class could not be resized.
+  - manifest: |
+      apiVersion: storage.k8s.io/v1
+      kind: StorageClass
+      metadata:
+        name: fast-ssd
+      provisioner: csi.example.com
+      type: ssd
+      volumeBindingMode: WaitForFirstConsumer
+      allowVolumeExpansion: true
+    why: Provisioner settings go under parameters; a top-level type field is not part of the StorageClass API.
+explanation:
+  correct:
+    en: |-
+      A StorageClass is a top-level object without `spec`: `provisioner` (required) names the CSI driver, `parameters` holds its settings, `volumeBindingMode: WaitForFirstConsumer` delays binding and provisioning until a Pod that uses the claim is scheduled, and `allowVolumeExpansion: true` lets claims of the class be resized. The defaults are `Immediate` and no expansion. `reclaimPolicy` is not asked for and defaults to `Delete`.
+references:
+- title: Storage Classes
+  url: https://kubernetes.io/docs/concepts/storage/storage-classes/

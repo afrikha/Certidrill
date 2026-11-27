@@ -1,0 +1,166 @@
+id: ckad-3e-fix-configmap-mount
+objective: "3.5.3"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    Pod `gateway` in namespace `edge` never starts. You collected this:
+
+    ```text
+    $ kubectl describe pod gateway -n edge
+    ...
+      Warning  FailedMount  kubelet  MountVolume.SetUp failed for volume "config" : configmap "gateway-conf" not found
+
+    $ kubectl get configmap -n edge
+    NAME               DATA   AGE
+    gateway-config     1      3d
+    kube-root-ca.crt   1      90d
+    ```
+
+    The ConfigMap's key is `default.conf`, and nginx reads its configuration from the directory `/etc/nginx/conf.d`. Fix the manifest below: keep the volume name `config`, mount the ConfigMap at `/etc/nginx/conf.d` in container `gateway`, read-only.
+body:
+  starter: |
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: gateway
+      namespace: edge
+    spec:
+      containers:
+      - name: gateway
+        image: nginx:1.27
+        volumeMounts:
+        - name: config
+          mountPath: /etc/nginx/conf
+      volumes:
+      - name: config
+        configMap:
+          name: gateway-conf
+answer:
+  checks:
+  - id: pod
+    label: A Pod named gateway in namespace edge
+    path: metadata
+    op: subset
+    value: {name: gateway, namespace: edge}
+  - id: image
+    label: Image is unchanged
+    path: spec.containers[name=gateway].image
+    op: equals
+    value: nginx:1.27
+  - id: cm-name
+    label: Volume config uses ConfigMap gateway-config
+    path: spec.volumes[name=config].configMap.name
+    op: equals
+    value: gateway-config
+  - id: mount-path
+    label: Volume config is mounted at /etc/nginx/conf.d
+    path: spec.containers[name=gateway].volumeMounts[name=config].mountPath
+    op: equals
+    value: /etc/nginx/conf.d
+  - id: read-only
+    label: The mount is read-only
+    path: spec.containers[name=gateway].volumeMounts[name=config].readOnly
+    op: equals
+    value: true
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: gateway
+        namespace: edge
+      spec:
+        containers:
+        - name: gateway
+          image: nginx:1.27
+          volumeMounts:
+          - name: config
+            mountPath: /etc/nginx/conf.d
+            readOnly: true
+        volumes:
+        - name: config
+          configMap:
+            name: gateway-config
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: gateway
+        namespace: edge
+      spec:
+        volumes:
+        - name: config
+          configMap:
+            name: gateway-config
+            optional: false
+        containers:
+        - name: gateway
+          image: nginx:1.27
+          volumeMounts:
+          - {name: config, mountPath: /etc/nginx/conf.d, readOnly: true}
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: gateway
+        namespace: edge
+      spec:
+        containers:
+        - name: gateway
+          image: nginx:1.27
+          volumeMounts:
+          - name: config
+            mountPath: /etc/nginx/conf.d
+            readOnly: true
+        volumes:
+        - name: config
+          configMap:
+            name: gateway-conf
+            optional: true
+    why: optional lets the Pod start with an empty directory, so nginx runs without the configuration; the name is still wrong.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: gateway
+        namespace: edge
+      spec:
+        containers:
+        - name: gateway
+          image: nginx:1.27
+          volumeMounts:
+          - name: config
+            mountPath: /etc/nginx/conf
+            readOnly: true
+        volumes:
+        - name: config
+          configMap:
+            name: gateway-config
+    why: The Pod starts, but the file lands in /etc/nginx/conf, a directory nginx does not read.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: gateway
+        namespace: edge
+      spec:
+        containers:
+        - name: gateway
+          image: nginx:1.27
+          volumeMounts:
+          - name: config
+            mountPath: /etc/nginx/conf.d
+        volumes:
+        - name: config
+          configMap:
+            name: gateway-config
+    why: The mount is read-write; the task asks for readOnly true.
+explanation:
+  correct:
+    en: 'A Pod that references a ConfigMap that does not exist, without `optional: true`, does not start: the kubelet reports a FailedMount event. The ConfigMap is `gateway-config`, so the volume must name it, and the mount must be the directory nginx reads, `/etc/nginx/conf.d`, where the key `default.conf` becomes a file. Marking the reference optional only hides the problem with an empty directory.'
+references:
+- title: Configure a Pod to Use a ConfigMap
+  url: https://kubernetes.io/docs/tasks/configure-pod-container/configure-pod-configmap/

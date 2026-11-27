@@ -1,0 +1,199 @@
+id: ckad-1d-projected-volume
+objective: "1.4.1"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    In namespace `ops`, write the manifest of a Pod named `agent` with label `app: agent` and one container named `agent` (`registry.example.com/agent:2.3`). The agent reads all its inputs from the single directory `/etc/agent`, mounted read-only:
+
+    - every key of the Secret `agent-creds`;
+    - every key of the ConfigMap `agent-config`;
+    - the Pod's labels, through the downward API, in a file named `labels`.
+
+    Use one volume named `bundle` that combines the three sources.
+body: {}
+answer:
+  checks:
+  - id: pod
+    label: A Pod named agent in namespace ops
+    path: metadata
+    op: subset
+    value: {name: agent, namespace: ops}
+  - id: image
+    label: Container agent runs registry.example.com/agent:2.3
+    path: spec.containers[name=agent].image
+    op: equals
+    value: registry.example.com/agent:2.3
+  - id: secret
+    label: bundle projects the Secret agent-creds
+    path: spec.volumes[name=bundle].projected.sources
+    op: contains
+    value: {secret: {name: agent-creds}}
+  - id: configmap
+    label: bundle projects the ConfigMap agent-config
+    path: spec.volumes[name=bundle].projected.sources
+    op: contains
+    value: {configMap: {name: agent-config}}
+  - id: labels
+    label: bundle writes metadata.labels to the file labels
+    path: spec.volumes[name=bundle].projected.sources
+    op: contains
+    value: {downwardAPI: {items: [{path: labels, fieldRef: {fieldPath: metadata.labels}}]}}
+  - id: mount
+    label: agent mounts bundle read-only at /etc/agent
+    path: spec.containers[name=agent].volumeMounts[name=bundle]
+    op: subset
+    value: {mountPath: /etc/agent, readOnly: true}
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: agent
+        namespace: ops
+        labels:
+          app: agent
+      spec:
+        containers:
+        - name: agent
+          image: registry.example.com/agent:2.3
+          volumeMounts:
+          - name: bundle
+            mountPath: /etc/agent
+            readOnly: true
+        volumes:
+        - name: bundle
+          projected:
+            sources:
+            - secret:
+                name: agent-creds
+            - configMap:
+                name: agent-config
+            - downwardAPI:
+                items:
+                - path: labels
+                  fieldRef:
+                    fieldPath: metadata.labels
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: agent
+        namespace: ops
+        labels:
+          app: agent
+      spec:
+        volumes:
+        - name: bundle
+          projected:
+            sources:
+            - downwardAPI:
+                items:
+                - path: "labels"
+                  fieldRef:
+                    apiVersion: v1
+                    fieldPath: metadata.labels
+            - configMap:
+                name: agent-config
+            - secret:
+                name: agent-creds
+        containers:
+        - name: agent
+          image: registry.example.com/agent:2.3
+          volumeMounts:
+          - {name: bundle, mountPath: /etc/agent, readOnly: true}
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: agent
+        namespace: ops
+        labels:
+          app: agent
+      spec:
+        containers:
+        - name: agent
+          image: registry.example.com/agent:2.3
+          volumeMounts:
+          - name: bundle
+            mountPath: /etc/agent
+            readOnly: true
+        volumes:
+        - name: bundle
+          projected:
+            sources:
+            - secret:
+                secretName: agent-creds
+            - configMap:
+                name: agent-config
+            - downwardAPI:
+                items:
+                - path: labels
+                  fieldRef:
+                    fieldPath: metadata.labels
+    why: In a projected source the Secret is named with name; secretName is the field of a plain secret volume and is rejected here.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: agent
+        namespace: ops
+        labels:
+          app: agent
+      spec:
+        containers:
+        - name: agent
+          image: registry.example.com/agent:2.3
+          volumeMounts:
+          - name: creds
+            mountPath: /etc/agent
+            readOnly: true
+          - name: config
+            mountPath: /etc/agent
+            readOnly: true
+        volumes:
+        - name: creds
+          secret:
+            secretName: agent-creds
+        - name: config
+          configMap:
+            name: agent-config
+    why: Two volumes cannot share one mount path (the API server rejects it), and the labels file is missing; one projected volume is needed.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: agent
+        namespace: ops
+        labels:
+          app: agent
+      spec:
+        containers:
+        - name: agent
+          image: registry.example.com/agent:2.3
+          volumeMounts:
+          - name: bundle
+            mountPath: /etc/agent
+            readOnly: true
+        volumes:
+        - name: bundle
+          projected:
+            sources:
+            - secret:
+                name: agent-creds
+            - configMap:
+                name: agent-config
+            - downwardAPI:
+                items:
+                - path: labels
+                  fieldRef:
+                    fieldPath: metadata.annotations
+    why: metadata.annotations writes the Pod's annotations, not its labels.
+explanation:
+  correct:
+    en: 'A `projected` volume maps several sources (secret, configMap, downwardAPI, serviceAccountToken and others) into the same directory; all sources must be in the Pod''s namespace. Inside `projected.sources`, Secrets and ConfigMaps are referenced with `name`, and a downward API item pairs a `path` with a `fieldRef.fieldPath` such as `metadata.labels`.'
+references:
+- title: Projected Volumes
+  url: https://kubernetes.io/docs/concepts/storage/projected-volumes/

@@ -1,0 +1,199 @@
+id: cka-5d-gateway-http-https-listeners
+objective: "5.4.1"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    The GatewayClass `edge` is installed; its controller is `example.com/edge-controller`. In namespace `infra`, the Secret `shop-tls` (type `kubernetes.io/tls`) holds the certificate of `shop.example.com`.
+
+    Write the manifest of a Gateway named `public` in namespace `infra` that uses this class and has two listeners for the hostname `shop.example.com`:
+
+    - `http`: plain HTTP on port 80;
+    - `https`: HTTPS on port 443, terminating TLS with the Secret `shop-tls`.
+body:
+  starter: |
+    apiVersion: gateway.networking.k8s.io/v1
+    kind: Gateway
+    metadata:
+      name: public
+      namespace: infra
+    spec:
+answer:
+  checks:
+  - id: gateway
+    label: A Gateway named public in namespace infra
+    path: metadata
+    op: subset
+    value: {name: public, namespace: infra}
+  - id: kind
+    label: The object is a Gateway
+    path: kind
+    op: equals
+    value: Gateway
+  - id: class
+    label: It uses the GatewayClass edge (by name)
+    path: spec.gatewayClassName
+    op: equals
+    value: edge
+  - id: http-listener
+    label: Listener http is HTTP on port 80 for shop.example.com
+    path: spec.listeners[name=http]
+    op: subset
+    value: {protocol: HTTP, port: 80, hostname: shop.example.com}
+  - id: http-no-tls
+    label: Listener http has no TLS block
+    path: spec.listeners[name=http].tls
+    op: absent
+  - id: https-listener
+    label: Listener https is HTTPS on port 443 for shop.example.com
+    path: spec.listeners[name=https]
+    op: subset
+    value: {protocol: HTTPS, port: 443, hostname: shop.example.com}
+  - id: certificate
+    label: Listener https terminates TLS with the Secret shop-tls
+    path: spec.listeners[name=https].tls.certificateRefs
+    op: contains
+    value: {name: shop-tls}
+  solution:
+  - manifest: |
+      apiVersion: gateway.networking.k8s.io/v1
+      kind: Gateway
+      metadata:
+        name: public
+        namespace: infra
+      spec:
+        gatewayClassName: edge
+        listeners:
+        - name: http
+          protocol: HTTP
+          port: 80
+          hostname: shop.example.com
+          allowedRoutes:
+            namespaces:
+              from: Same
+        - name: https
+          protocol: HTTPS
+          port: 443
+          hostname: shop.example.com
+          tls:
+            mode: Terminate
+            certificateRefs:
+            - kind: Secret
+              group: ""
+              name: shop-tls
+          allowedRoutes:
+            namespaces:
+              from: Same
+  - manifest: |
+      apiVersion: gateway.networking.k8s.io/v1
+      kind: Gateway
+      metadata:
+        name: public
+        namespace: infra
+      spec:
+        gatewayClassName: edge
+        listeners:
+        - name: https
+          hostname: shop.example.com
+          port: 443
+          protocol: HTTPS
+          tls:
+            certificateRefs:
+            - name: shop-tls
+        - name: http
+          hostname: shop.example.com
+          port: 80
+          protocol: HTTP
+  negatives:
+  - manifest: |
+      apiVersion: gateway.networking.k8s.io/v1
+      kind: Gateway
+      metadata:
+        name: public
+        namespace: infra
+      spec:
+        gatewayClassName: example.com/edge-controller
+        listeners:
+        - name: http
+          protocol: HTTP
+          port: 80
+          hostname: shop.example.com
+        - name: https
+          protocol: HTTPS
+          port: 443
+          hostname: shop.example.com
+          tls:
+            certificateRefs:
+            - name: shop-tls
+    why: gatewayClassName takes the name of the GatewayClass (edge), not its controllerName; no controller picks up this Gateway.
+  - manifest: |
+      apiVersion: gateway.networking.k8s.io/v1
+      kind: Gateway
+      metadata:
+        name: public
+        namespace: infra
+      spec:
+        gatewayClassName: edge
+        listeners:
+        - name: http
+          protocol: HTTP
+          port: 80
+          hostname: shop.example.com
+        - name: https
+          protocol: HTTP
+          port: 443
+          hostname: shop.example.com
+          tls:
+            certificateRefs:
+            - name: shop-tls
+    why: Protocol HTTP on port 443 does not terminate TLS, and a tls block is invalid on an HTTP listener; the protocol must be HTTPS.
+  - manifest: |
+      apiVersion: gateway.networking.k8s.io/v1
+      kind: Gateway
+      metadata:
+        name: public
+        namespace: infra
+      spec:
+        gatewayClassName: edge
+        listeners:
+        - name: http
+          protocol: HTTP
+          port: 80
+          hostname: shop.example.com
+        - name: https
+          protocol: HTTPS
+          port: 443
+          hostname: shop.example.com
+          tls:
+            mode: Terminate
+    why: Terminate mode requires certificateRefs; without the Secret shop-tls the listener has no certificate to present.
+  - manifest: |
+      apiVersion: gateway.networking.k8s.io/v1
+      kind: Gateway
+      metadata:
+        name: public
+        namespace: infra
+      spec:
+        gatewayClassName: edge
+        listeners:
+        - name: web
+          protocol: HTTP
+          port: 80
+          hostname: shop.example.com
+        - name: web-tls
+          protocol: HTTPS
+          port: 443
+          hostname: shop.example.com
+          tls:
+            certificateRefs:
+            - name: shop-tls
+    why: The listener names are part of the contract; HTTPRoutes attach to a listener with parentRefs sectionName, so routes that target http or https would find no listener.
+explanation:
+  correct:
+    en: '`spec.gatewayClassName` names the GatewayClass (`edge`). Each listener has a unique `name`, a `protocol`, a `port` and an optional `hostname`; an `HTTPS` listener needs a `tls` block whose `mode` defaults to `Terminate` and whose `certificateRefs` point to a `kubernetes.io/tls` Secret (`kind: Secret`, `group: ""` are the defaults). `allowedRoutes.namespaces.from` defaults to `Same`: without it, only routes of namespace `infra` can attach.'
+references:
+- title: TLS Configuration
+  url: https://gateway-api.sigs.k8s.io/guides/tls/
+- title: Gateway API
+  url: https://kubernetes.io/docs/concepts/services-networking/gateway/

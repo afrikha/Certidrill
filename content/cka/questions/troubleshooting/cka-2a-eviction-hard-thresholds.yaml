@@ -1,0 +1,147 @@
+id: cka-2a-eviction-hard-thresholds
+objective: "2.1.1"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    Node `node-5` reports `DiskPressure=True` and the kubelet keeps evicting Pods, although `df -h /var/lib/kubelet` shows the node filesystem only 40 % used. The editor contains `/var/lib/kubelet/config.yaml` of `node-5`.
+
+    Write the corrected file:
+
+    - the hard eviction threshold for the node filesystem (`nodefs.available`) must be 10 %;
+    - the three other hard eviction thresholds keep their current values and stay written explicitly in `evictionHard`;
+    - nothing else changes.
+body:
+  starter: |
+    apiVersion: kubelet.config.k8s.io/v1beta1
+    kind: KubeletConfiguration
+    authentication:
+      x509:
+        clientCAFile: /etc/kubernetes/pki/ca.crt
+    authorization:
+      mode: Webhook
+    cgroupDriver: systemd
+    clusterDNS:
+    - 10.96.0.10
+    clusterDomain: cluster.local
+    containerRuntimeEndpoint: unix:///var/run/containerd/containerd.sock
+    evictionHard:
+      imagefs.available: "15%"
+      memory.available: "200Mi"
+      nodefs.available: "70%"
+      nodefs.inodesFree: "5%"
+    staticPodPath: /etc/kubernetes/manifests
+answer:
+  checks:
+  - id: kind
+    label: The document is a KubeletConfiguration
+    path: kind
+    op: equals
+    value: KubeletConfiguration
+  - id: nodefs
+    label: nodefs.available threshold is 10%
+    path: evictionHard["nodefs.available"]
+    op: equals
+    value: 10%
+  - id: memory
+    label: memory.available threshold stays 200Mi
+    path: evictionHard["memory.available"]
+    op: quantity
+    value: 200Mi
+  - id: inodes
+    label: nodefs.inodesFree threshold stays 5%
+    path: evictionHard["nodefs.inodesFree"]
+    op: equals
+    value: 5%
+  - id: imagefs
+    label: imagefs.available threshold stays 15%
+    path: evictionHard["imagefs.available"]
+    op: equals
+    value: 15%
+  - id: endpoint
+    label: containerRuntimeEndpoint is unchanged
+    path: containerRuntimeEndpoint
+    op: equals
+    value: unix:///var/run/containerd/containerd.sock
+  solution:
+  - manifest: |
+      apiVersion: kubelet.config.k8s.io/v1beta1
+      kind: KubeletConfiguration
+      authentication:
+        x509:
+          clientCAFile: /etc/kubernetes/pki/ca.crt
+      authorization:
+        mode: Webhook
+      cgroupDriver: systemd
+      clusterDNS:
+      - 10.96.0.10
+      clusterDomain: cluster.local
+      containerRuntimeEndpoint: unix:///var/run/containerd/containerd.sock
+      evictionHard:
+        imagefs.available: "15%"
+        memory.available: "200Mi"
+        nodefs.available: "10%"
+        nodefs.inodesFree: "5%"
+      staticPodPath: /etc/kubernetes/manifests
+  negatives:
+  - manifest: |
+      apiVersion: kubelet.config.k8s.io/v1beta1
+      kind: KubeletConfiguration
+      authentication:
+        x509:
+          clientCAFile: /etc/kubernetes/pki/ca.crt
+      authorization:
+        mode: Webhook
+      cgroupDriver: systemd
+      clusterDNS:
+      - 10.96.0.10
+      clusterDomain: cluster.local
+      containerRuntimeEndpoint: unix:///var/run/containerd/containerd.sock
+      evictionHard:
+        nodefs.available: "10%"
+      staticPodPath: /etc/kubernetes/manifests
+    why: When evictionHard sets any signal, the signals it omits are set to 0 (mergeDefaultEvictionSettings is false by default), so the memory, inode and image filesystem thresholds are lost.
+  - manifest: |
+      apiVersion: kubelet.config.k8s.io/v1beta1
+      kind: KubeletConfiguration
+      authentication:
+        x509:
+          clientCAFile: /etc/kubernetes/pki/ca.crt
+      authorization:
+        mode: Webhook
+      cgroupDriver: systemd
+      clusterDNS:
+      - 10.96.0.10
+      clusterDomain: cluster.local
+      containerRuntimeEndpoint: unix:///var/run/containerd/containerd.sock
+      evictionHard:
+        imagefs.available: "15%"
+        memory.available: "200Mi"
+        nodefs.available: "90%"
+        nodefs.inodesFree: "5%"
+      staticPodPath: /etc/kubernetes/manifests
+    why: The signal is the space still available, not the space used. With 90% the kubelet evicts as soon as less than 90% is free, which makes the pressure worse.
+  - manifest: |
+      apiVersion: kubelet.config.k8s.io/v1beta1
+      kind: KubeletConfiguration
+      authentication:
+        x509:
+          clientCAFile: /etc/kubernetes/pki/ca.crt
+      authorization:
+        mode: Webhook
+      cgroupDriver: systemd
+      clusterDNS:
+      - 10.96.0.10
+      clusterDomain: cluster.local
+      containerRuntimeEndpoint: unix:///var/run/containerd/containerd.sock
+      staticPodPath: /etc/kubernetes/manifests
+    why: Removing evictionHard restores the defaults, so memory.available falls back to 100Mi instead of the required 200Mi.
+explanation:
+  correct:
+    en: '`nodefs.available: "70%"` makes the kubelet report `DiskPressure` and evict whenever less than 70 % of the node filesystem is free; with 60 % free the condition stays `True`. Set it to `10%` and keep the three other signals written out: if `evictionHard` sets any signal, the omitted ones are set to 0 unless `mergeDefaultEvictionSettings: true`. Restart the kubelet afterwards.'
+references:
+- title: Node-pressure Eviction
+  url: https://kubernetes.io/docs/concepts/scheduling-eviction/node-pressure-eviction/
+- title: Set Kubelet Parameters Via A Configuration File
+  url: https://kubernetes.io/docs/tasks/administer-cluster/kubelet-config-file/

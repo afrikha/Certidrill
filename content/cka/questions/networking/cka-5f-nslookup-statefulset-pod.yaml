@@ -1,0 +1,61 @@
+id: cka-5f-nslookup-statefulset-pod
+objective: "5.6.1"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    StatefulSet `db` of namespace `data` has 3 replicas and is governed by the headless Service `db-hl`. The cluster domain is `cluster.local`.
+
+    From the running Pod `client` of namespace `shop` (image `busybox:1.36`), check that the DNS name of the first replica of `db` resolves, using `nslookup`. Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Runs a command in the existing Pod with kubectl exec
+    path: verb
+    op: equals
+    value: exec
+  - id: pod
+    label: Targets Pod client
+    path: names
+    op: contains
+    value: client
+  - id: namespace
+    label: Targets namespace shop
+    path: flags.namespace
+    op: equals
+    value: shop
+  - id: nslookup
+    label: Runs nslookup after --
+    path: rest[0]
+    op: equals
+    value: nslookup
+  - id: name
+    label: Looks up db-0.db-hl.data(.svc.cluster.local)
+    path: rest
+    op: matches
+    value: '"db-0\.db-hl\.data(\.svc(\.cluster\.local\.?)?)?"'
+  solution:
+  - command: kubectl exec client -n shop -- nslookup db-0.db-hl.data.svc.cluster.local
+  - command: k -n shop exec -it client -- nslookup db-0.db-hl.data
+  - command: kubectl exec -n shop pod/client -- nslookup db-0.db-hl.data.svc
+  negatives:
+  - command: kubectl exec client -n shop -- nslookup db-0.db.data.svc.cluster.local
+    why: The Pod names live under the governing Service (db-hl), not under the StatefulSet name.
+  - command: kubectl exec client -n shop -- nslookup db-0.data.svc.cluster.local
+    why: The Service part is missing; Pod records of a StatefulSet are <pod>.<service>.<namespace>.svc.cluster.local.
+  - command: kubectl exec client -n shop -- nslookup db-1.db-hl.data.svc.cluster.local
+    why: Ordinals start at 0, so the first replica is db-0.
+  - command: kubectl exec client -- nslookup db-0.db-hl.data.svc.cluster.local
+    why: Without -n kubectl looks for Pod client in the context namespace, default.
+explanation:
+  correct:
+    en: 'Each StatefulSet Pod gets the DNS name `<statefulset>-<ordinal>.<governing service>.<namespace>.svc.<cluster domain>`, here `db-0.db-hl.data.svc.cluster.local`; ordinals start at 0. From another namespace you need at least `db-0.db-hl.data`; the search list of the Pod (`shop.svc.cluster.local svc.cluster.local cluster.local`) completes it. The record exists only while the Pod is ready, unless the Service sets `publishNotReadyAddresses: true`.'
+references:
+- title: DNS for Services and Pods
+  url: https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/
+- title: StatefulSets
+  url: https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/

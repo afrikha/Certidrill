@@ -1,0 +1,1101 @@
+chapter: 41-rbac-extensions
+questions:
+  # ------------------------------------------------------------------ 1
+  - id: cka-qz-41-01
+    objective: "4.1.1"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        The RoleBinding `ci-deploy` in namespace `shop` grants the Role `deployer` to the ServiceAccount `ci-bot`. You run `kubectl -n shop edit rolebinding ci-deploy`, change `roleRef.name` from `deployer` to `release-manager`, and save.
+
+        What happens?
+    body:
+      options:
+        - { id: a, text: { en: "The update is accepted, and `ci-bot` gets the rules of `release-manager` in place of those of `deployer`." } }
+        - { id: b, text: { en: "The update is accepted, and `ci-bot` keeps the rules of `deployer` and also gets those of `release-manager`." } }
+        - { id: c, text: { en: "The update is rejected with a validation error, and you must delete the binding and create it again." } }
+        - { id: d, text: { en: "The update is accepted, but it only takes effect once the Pods that use `ci-bot` are restarted." } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          The `roleRef` of a RoleBinding or ClusterRoleBinding is immutable: changing it returns a validation error. To bind the ServiceAccount to another role, delete the binding and create a new one (`kubectl auth reconcile` does this for you). Only the `subjects` list of an existing binding can be edited.
+      options:
+        a: { en: "This would be the result if `roleRef` could be changed, but the API server refuses any change to `roleRef` of an existing binding." }
+        b: { en: "RBAC is additive across bindings, but here no change is saved at all: the edit of `roleRef` is rejected." }
+        d: { en: "RBAC changes apply to the next request without restarting Pods; in any case this edit is rejected because `roleRef` is immutable." }
+    references:
+      - title: Using RBAC Authorization
+        url: https://kubernetes.io/docs/reference/access-authn-authz/rbac/
+
+  # ------------------------------------------------------------------ 2
+  - id: cka-qz-41-02
+    objective: "4.7.1"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        You are on a worker node of a kubeadm cluster that uses containerd. You need to read the configuration of the Pod network plugin installed on this node.
+
+        In which directory does the container runtime read the CNI configuration files by default?
+    body:
+      options:
+        - { id: a, text: "`/opt/cni/bin`" }
+        - { id: b, text: "`/etc/cni/net.d`" }
+        - { id: c, text: "`/etc/kubernetes/manifests`" }
+        - { id: d, text: "`/var/lib/kubelet`" }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          The container runtime, not the kubelet, loads the CNI plugins, and by default it reads their configuration files (for example `10-calico.conflist`) from `/etc/cni/net.d`. The `type` fields of that file name the plugins that run for each Pod sandbox.
+      options:
+        a: { en: "`/opt/cni/bin` holds the CNI plugin binaries (bridge, loopback, portmap...), not their configuration." }
+        c: { en: "`/etc/kubernetes/manifests` holds the static Pod manifests of the control plane components, not the CNI configuration." }
+        d: { en: "`/var/lib/kubelet` holds the kubelet's state and its `config.yaml`; since v1.24 the kubelet no longer manages CNI at all." }
+    references:
+      - title: Network Plugins
+        url: https://kubernetes.io/docs/concepts/extend-kubernetes/compute-storage-net/network-plugins/
+
+  # ------------------------------------------------------------------ 3
+  - id: cka-qz-41-03
+    objective: "4.8.2"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        An operator installed several CustomResourceDefinitions in the API group `media.example.com`. Before writing custom objects, you want one line per resource of this group showing its kind, its short names and whether it is namespaced.
+
+        Which command should you run?
+    body:
+      options:
+        - { id: a, text: "`kubectl describe crd media.example.com`" }
+        - { id: b, text: "`kubectl get --raw /apis/media.example.com`" }
+        - { id: c, text: "`kubectl get crd -o jsonpath='{.items[*].spec.names.shortNames}'`" }
+        - { id: d, text: "`kubectl api-resources --api-group=media.example.com`" }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          `kubectl api-resources --api-group=media.example.com` lists only the resources of that group, one line each, with the columns NAME, SHORTNAMES, APIVERSION, NAMESPACED and KIND. It reads the discovery information that the API server builds from the CRDs, so you do not have to open each CRD.
+      options:
+        a: { en: "A CRD is named `PLURAL.GROUP` (for example `videos.media.example.com`); no CRD is named after the group alone, so this command finds nothing." }
+        b: { en: "`/apis/media.example.com` returns the API group object, with its versions and preferred version only; the resources are listed one level lower, per version." }
+        c: { en: "This JSONPath prints the short names of every CRD of every group, without the kind, the scope or which resource each short name belongs to." }
+    references:
+      - title: kubectl api-resources
+        url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_api-resources/
+      - title: Extend the Kubernetes API with CustomResourceDefinitions
+        url: https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/
+
+  # ------------------------------------------------------------------ 4
+  - id: cka-qz-41-04
+    objective: "4.1.2"
+    difficulty: 2
+    status: draft
+    type: multi
+    stem:
+      en: |
+        The only binding that names the user `jane` is the following one. No other binding grants her, or any of her groups, access to these resources. You are allowed to impersonate.
+
+        ```yaml
+        apiVersion: rbac.authorization.k8s.io/v1
+        kind: RoleBinding
+        metadata:
+          name: qa-view
+          namespace: shop
+        roleRef:
+          apiGroup: rbac.authorization.k8s.io
+          kind: ClusterRole
+          name: view
+        subjects:
+        - kind: User
+          name: jane
+          apiGroup: rbac.authorization.k8s.io
+        ```
+
+        Which two commands answer `yes`?
+
+        NOTE: Each correct selection is worth one point.
+    body:
+      choose: 2
+      options:
+        - { id: a, text: "`kubectl auth can-i watch deployments.apps -n shop --as jane`" }
+        - { id: b, text: "`kubectl auth can-i get secrets -n shop --as jane`" }
+        - { id: c, text: "`kubectl auth can-i list pods -n dev --as jane`" }
+        - { id: d, text: "`kubectl auth can-i list nodes --as jane`" }
+        - { id: e, text: "`kubectl auth can-i list configmaps -n shop --as jane`" }
+    answer: { optionIds: [a, e] }
+    explanation:
+      correct:
+        en: |
+          A ClusterRole referenced by a RoleBinding grants its rules only in the namespace of the binding, here `shop`. The built-in `view` role allows read-only verbs (`get`, `list`, `watch`) on most namespaced objects, so watching Deployments and listing ConfigMaps in `shop` both answer `yes`.
+      options:
+        b: { en: "`view` deliberately excludes Secrets, because reading them would expose ServiceAccount tokens: the answer is `no`." }
+        c: { en: "The RoleBinding lives in `shop`, so `view` applies only there; in `dev` nothing grants `jane` access and the answer is `no`." }
+        d: { en: "Nodes are cluster-scoped: a RoleBinding can never grant them, even when it references a ClusterRole. The answer is `no`." }
+    references:
+      - title: Using RBAC Authorization
+        url: https://kubernetes.io/docs/reference/access-authn-authz/rbac/
+
+  # ------------------------------------------------------------------ 5
+  - id: cka-qz-41-05
+    objective: "4.7.2"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        A kubeadm cluster gives Pods their network through the reference CNI `bridge` plugin with `host-local` IPAM, configured on every node. You apply a NetworkPolicy in namespace `payments` that selects every Pod and allows no ingress. `kubectl -n payments get networkpolicy` lists it, but Pods of other namespaces still reach the `payments` Pods.
+
+        The policies of the cluster must be enforced. What should you do?
+    body:
+      options:
+        - { id: a, text: { en: "Add `policyTypes: [Ingress, Egress]` to the policy so that the API server starts to enforce it." } }
+        - { id: b, text: { en: "Add the `portmap` plugin with the `portMappings` capability to the CNI configuration of each node." } }
+        - { id: c, text: { en: "Replace the Pod network with a CNI plugin that implements NetworkPolicy, such as Calico or Cilium." } }
+        - { id: d, text: { en: "Start the kubelet of each node with `--network-plugin=cni` so that it applies the policies itself." } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          NetworkPolicies are implemented by the network plugin: the API server stores the object, but a policy without a plugin that enforces it has no effect. The `bridge` plugin only connects Pods, so the cluster needs a plugin that implements NetworkPolicy, such as Calico or Cilium, installed with a Pod CIDR that matches the cluster's.
+      options:
+        a: { en: "`policyTypes` only says which directions the policy restricts; the API server never enforces traffic rules, whatever the policy contains." }
+        b: { en: "`portmap` with `portMappings` is what `hostPort` needs; it does not filter traffic between Pods." }
+        d: { en: "`--network-plugin` was removed from the kubelet in v1.24, and the kubelet never enforced NetworkPolicies." }
+    references:
+      - title: Network Policies
+        url: https://kubernetes.io/docs/concepts/services-networking/network-policies/
+      - title: Network Plugins
+        url: https://kubernetes.io/docs/concepts/extend-kubernetes/compute-storage-net/network-plugins/
+
+  # ------------------------------------------------------------------ 6
+  - id: cka-qz-41-06
+    objective: "4.7.1"
+    difficulty: 3
+    status: draft
+    type: command
+    stem:
+      en: |-
+        The Pod `db-0` of namespace `orders` stays in `ContainerCreating` on node `worker-2`. Its events say that the driver `block.csi.example.com` is not found in the list of registered CSI drivers. You want to see which CSI drivers have really been registered on `worker-2`, as recorded by the kubelet of that node in the API.
+
+        Print only the names of these drivers, with a JSONPath output. Type the single command you would run.
+    body:
+      mode: invocation
+      namespace: default
+    answer:
+      checks:
+        - id: verb
+          label: The command is kubectl get
+          path: verb
+          op: equals
+          value: get
+        - id: resource
+          label: It reads a CSINode object
+          path: resource
+          op: matches
+          value: '^csinodes?(\.storage\.k8s\.io)?$'
+        - id: node
+          label: It reads the CSINode named worker-2, named after the node
+          path: names
+          op: contains
+          value: worker-2
+        - id: jsonpath
+          label: Its JSONPath prints the name of every entry of spec.drivers
+          path: flags.output
+          op: matches
+          value: '^jsonpath(-as-json)?=.*\.spec\.drivers\[\*\].*\.name'
+      solution:
+        - command: kubectl get csinode worker-2 -o jsonpath='{.spec.drivers[*].name}'
+        - command: |-
+            k get csinodes.storage.k8s.io worker-2 -o=jsonpath='{range .spec.drivers[*]}{.name}{"\n"}{end}'
+        - command: kubectl get csinode/worker-2 -o jsonpath="{.spec.drivers[*].name}"
+      negatives:
+        - command: kubectl get csidrivers -o jsonpath='{.items[*].metadata.name}'
+          why: CSIDriver objects describe drivers for the whole cluster and are created by the driver's installation; they do not show what worker-2 has registered.
+        - command: kubectl get csinode worker-2 -o jsonpath='{.spec.drivers[*].nodeID}'
+          why: nodeID is the identifier of the node for each storage system, not the driver name.
+        - command: kubectl describe csinode worker-2
+          why: describe prints the whole object in its own format, not only the driver names with a JSONPath.
+    explanation:
+      correct:
+        en: |
+          The kubelet records the CSI drivers registered on a node in a cluster-scoped `CSINode` object that has the same name as the node. Each entry of `spec.drivers` has the driver `name`, its `nodeID` and its `topologyKeys`, so `kubectl get csinode worker-2 -o jsonpath='{.spec.drivers[*].name}'` shows whether `block.csi.example.com` registered on `worker-2`. If it is missing, check the driver's node Pod on that node.
+    references:
+      - title: CSINode
+        url: https://kubernetes.io/docs/reference/kubernetes-api/config-and-storage-resources/csi-node-v1/
+
+  # ------------------------------------------------------------------ 7
+  - id: cka-qz-41-07
+    objective: "4.1.2"
+    difficulty: 3
+    status: draft
+    type: command
+    stem:
+      en: |-
+        A log shipper runs in namespace `monitoring` with the ServiceAccount `exporter`. It reads, through the API server, the container logs of the Pods of namespace `shop`. After a change of the RBAC rules of `shop`, you must prove that it can still do so. You are allowed to impersonate.
+
+        Check whether this ServiceAccount can read the logs of Pods in namespace `shop`. Type the single command you would run.
+    body:
+      mode: invocation
+      namespace: default
+    answer:
+      checks:
+        - id: verb
+          label: The command is kubectl auth can-i
+          path: subverb
+          op: equals
+          value: can-i
+        - id: action
+          label: It checks the verb get on the pods resource
+          path: args
+          op: matches
+          value: '^\["can-i","get","(pods|pod|po)"\]$'
+        - id: subresource
+          label: It checks the log subresource with --subresource=log
+          path: flags.subresource
+          op: equals
+          value: log
+        - id: namespace
+          label: It checks namespace shop, where the Pods run
+          path: flags.namespace
+          op: equals
+          value: shop
+        - id: as
+          label: It impersonates system:serviceaccount:monitoring:exporter
+          path: flags.as
+          op: equals
+          value: system:serviceaccount:monitoring:exporter
+      solution:
+        - command: kubectl auth can-i get pods --subresource=log -n shop --as=system:serviceaccount:monitoring:exporter
+        - command: k auth can-i get po --subresource log --namespace shop --as system:serviceaccount:monitoring:exporter
+        - command: kubectl auth can-i get pod -n shop --as system:serviceaccount:monitoring:exporter --subresource=log
+      negatives:
+        - command: kubectl auth can-i get pods/log -n shop --as=system:serviceaccount:monitoring:exporter
+          why: can-i reads TYPE/NAME, so pods/log checks get on a Pod named log, not on the log subresource.
+        - command: kubectl auth can-i get pods --subresource=log -n monitoring --as=system:serviceaccount:monitoring:exporter
+          why: monitoring is the namespace of the ServiceAccount; the Pods whose logs are read are in shop.
+        - command: kubectl auth can-i get pods --subresource=log -n shop --as=system:serviceaccounts:monitoring:exporter
+          why: system:serviceaccounts (plural) is the group prefix; as a user name it impersonates an unknown user, not the ServiceAccount.
+        - command: kubectl auth can-i get pods --subresource=log -n shop --as=exporter
+          why: exporter alone impersonates a user named exporter; a ServiceAccount's user name is system:serviceaccount:NAMESPACE:NAME.
+    explanation:
+      correct:
+        en: |
+          Reading logs is `get` on the `log` subresource of Pods, which `kubectl auth can-i` checks with `--subresource=log`. The ServiceAccount is impersonated by its user name `system:serviceaccount:monitoring:exporter`, and `-n shop` names the namespace of the Pods, not the one of the ServiceAccount. `pods/log` is a trap: in `can-i`, `TYPE/NAME` means the object named `log`.
+    references:
+      - title: kubectl auth can-i
+        url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_auth/kubectl_auth_can-i/
+      - title: Using RBAC Authorization
+        url: https://kubernetes.io/docs/reference/access-authn-authz/rbac/
+
+  # ------------------------------------------------------------------ 8
+  - id: cka-qz-41-08
+    objective: "4.1.1"
+    difficulty: 3
+    status: draft
+    type: command
+    stem:
+      en: |-
+        In namespace `shop`, an autoscaling bot must be able to read and change the replica count of the Deployment `checkout`, and of no other Deployment. It must not be able to change anything else in the Deployment, such as its image or its environment.
+
+        Create a Role named `checkout-scaler` in namespace `shop` that allows the verbs `get`, `update` and `patch` for exactly this. The binding will be created later. Your context's namespace is `default`.
+
+        Type the single command you would run.
+    body:
+      mode: object
+      namespace: default
+    answer:
+      checks:
+        - id: kind
+          label: The object is a Role
+          path: kind
+          op: equals
+          value: Role
+        - id: name
+          label: It is named checkout-scaler
+          path: metadata.name
+          op: equals
+          value: checkout-scaler
+        - id: namespace
+          label: It is in namespace shop
+          path: metadata.namespace
+          op: equals
+          value: shop
+        - id: one-rule
+          label: It has a single rule
+          path: rules
+          op: length
+          value: 1
+        - id: group
+          label: The rule is for the apps API group
+          path: rules[0].apiGroups
+          op: equals
+          value: [apps]
+        - id: scale
+          label: The rule covers only the scale subresource of Deployments
+          path: rules[0].resources
+          op: equals
+          value: [deployments/scale]
+        - id: resource-name
+          label: The rule is limited to the Deployment named checkout
+          path: rules[0].resourceNames
+          op: equals
+          value: [checkout]
+        - id: verbs
+          label: The verbs are get, update and patch
+          path: rules[0].verbs
+          op: subset
+          value: [get, update, patch]
+        - id: verbs-count
+          label: No other verb is allowed
+          path: rules[0].verbs
+          op: length
+          value: 3
+      solution:
+        - command: kubectl create role checkout-scaler -n shop --verb=get,update,patch --resource=deployments.apps/scale --resource-name=checkout
+          output: |
+            apiVersion: rbac.authorization.k8s.io/v1
+            kind: Role
+            metadata:
+              name: checkout-scaler
+              namespace: shop
+            rules:
+            - apiGroups:
+              - apps
+              resourceNames:
+              - checkout
+              resources:
+              - deployments/scale
+              verbs:
+              - get
+              - update
+              - patch
+        - command: k -n shop create role checkout-scaler --resource=deployments.apps/scale --resource-name=checkout --verb=patch --verb=get --verb=update --dry-run=client -o yaml
+          output: |
+            apiVersion: rbac.authorization.k8s.io/v1
+            kind: Role
+            metadata:
+              name: checkout-scaler
+              namespace: shop
+            rules:
+            - apiGroups:
+              - apps
+              resourceNames:
+              - checkout
+              resources:
+              - deployments/scale
+              verbs:
+              - patch
+              - get
+              - update
+      negatives:
+        - command: kubectl create role checkout-scaler -n shop --verb=get,update,patch --resource=deployments.apps --resource-name=checkout
+          why: Update and patch on the Deployment itself let the bot change its whole spec (image, environment), not only the replica count of the scale subresource.
+          output: |
+            apiVersion: rbac.authorization.k8s.io/v1
+            kind: Role
+            metadata:
+              name: checkout-scaler
+              namespace: shop
+            rules:
+            - apiGroups:
+              - apps
+              resourceNames:
+              - checkout
+              resources:
+              - deployments
+              verbs:
+              - get
+              - update
+              - patch
+        - command: kubectl create role checkout-scaler -n shop --verb=get,update,patch --resource=deployments.apps/scale
+          why: Without --resource-name the rule applies to the scale subresource of every Deployment of the namespace.
+          output: |
+            apiVersion: rbac.authorization.k8s.io/v1
+            kind: Role
+            metadata:
+              name: checkout-scaler
+              namespace: shop
+            rules:
+            - apiGroups:
+              - apps
+              resources:
+              - deployments/scale
+              verbs:
+              - get
+              - update
+              - patch
+        - command: kubectl create role checkout-scaler --verb=get,update,patch --resource=deployments.apps/scale --resource-name=checkout
+          why: Without -n the Role is created in the context's namespace, default, where it grants nothing on the Deployments of shop.
+          output: |
+            apiVersion: rbac.authorization.k8s.io/v1
+            kind: Role
+            metadata:
+              name: checkout-scaler
+            rules:
+            - apiGroups:
+              - apps
+              resourceNames:
+              - checkout
+              resources:
+              - deployments/scale
+              verbs:
+              - get
+              - update
+              - patch
+        - command: kubectl create role checkout-scaler -n shop --verb=get,update,patch --resource=deployments.apps/scale,deployments.apps --resource-name=checkout
+          why: Adding the deployments resource itself again allows changes to the image and the environment of checkout.
+          output: |
+            apiVersion: rbac.authorization.k8s.io/v1
+            kind: Role
+            metadata:
+              name: checkout-scaler
+              namespace: shop
+            rules:
+            - apiGroups:
+              - apps
+              resourceNames:
+              - checkout
+              resources:
+              - deployments/scale
+              - deployments
+              verbs:
+              - get
+              - update
+              - patch
+    explanation:
+      correct:
+        en: |
+          The replica count is exposed by the `scale` subresource, written `deployments/scale` in a rule; `--resource=deployments.apps/scale` gives kubectl the group (`apps`) and the subresource. `--resource-name=checkout` limits the rule to that Deployment, which works for `get`, `update` and `patch` (only `deletecollection` and top-level `create` cannot be restricted by name). `-n shop` is required because the context's namespace is `default`.
+    references:
+      - title: kubectl create role
+        url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_create/kubectl_create_role/
+      - title: Using RBAC Authorization
+        url: https://kubernetes.io/docs/reference/access-authn-authz/rbac/
+
+  # ------------------------------------------------------------------ 9
+  - id: cka-qz-41-09
+    objective: "4.8.2"
+    difficulty: 3
+    status: draft
+    type: manifest
+    stem:
+      en: |-
+        A teammate wrote the CustomResourceDefinition in the editor for the custom resource `CertRequest` (plural `certrequests`, group `pki.example.com`), but `kubectl apply` rejects it with three validation errors. The requirements are:
+
+        - teams create their `CertRequest` objects in their own namespaces;
+        - `v1` is the version in which objects are stored;
+        - old clients still read and write `v1beta1`;
+        - `kubectl get certrequests` and `kubectl get creq` keep working.
+
+        Fix the manifest so that the API server accepts it. Keep the group, the names and both schemas.
+    body:
+      starter: |
+        apiVersion: apiextensions.k8s.io/v1
+        kind: CustomResourceDefinition
+        metadata:
+          name: certrequest.pki.example.com
+        spec:
+          group: pki.example.com
+          scope: namespaced
+          names:
+            plural: certrequests
+            singular: certrequest
+            kind: CertRequest
+            shortNames: ["creq"]
+          versions:
+          - name: v1beta1
+            served: true
+            storage: true
+            schema:
+              openAPIV3Schema:
+                type: object
+                properties:
+                  spec:
+                    type: object
+                    properties:
+                      commonName:
+                        type: string
+          - name: v1
+            served: true
+            storage: true
+            schema:
+              openAPIV3Schema:
+                type: object
+                properties:
+                  spec:
+                    type: object
+                    properties:
+                      commonName:
+                        type: string
+                      dnsNames:
+                        type: array
+                        items:
+                          type: string
+    answer:
+      checks:
+        - id: name
+          label: The CRD is named certrequests.pki.example.com (PLURAL.GROUP)
+          path: metadata.name
+          op: equals
+          value: certrequests.pki.example.com
+        - id: group
+          label: The group is still pki.example.com
+          path: spec.group
+          op: equals
+          value: pki.example.com
+        - id: plural
+          label: The plural is still certrequests
+          path: spec.names.plural
+          op: equals
+          value: certrequests
+        - id: shortname
+          label: The short name creq is kept
+          path: spec.names.shortNames
+          op: contains
+          value: creq
+        - id: scope
+          label: The scope is Namespaced, spelled as the API requires
+          path: spec.scope
+          op: equals
+          value: Namespaced
+        - id: two-versions
+          label: Both versions are kept
+          path: spec.versions
+          op: length
+          value: 2
+        - id: v1-storage
+          label: v1 is the storage version
+          path: spec.versions[name=v1].storage
+          op: equals
+          value: true
+        - id: v1-served
+          label: v1 is served
+          path: spec.versions[name=v1].served
+          op: equals
+          value: true
+        - id: v1beta1-served
+          label: v1beta1 is still served
+          path: spec.versions[name=v1beta1].served
+          op: equals
+          value: true
+        - id: v1beta1-not-storage
+          label: v1beta1 is no longer a storage version
+          path: spec.versions[name=v1beta1]
+          op: matches
+          value: '^(?!.*"storage":true)'
+      solution:
+        - manifest: |
+            apiVersion: apiextensions.k8s.io/v1
+            kind: CustomResourceDefinition
+            metadata:
+              name: certrequests.pki.example.com
+            spec:
+              group: pki.example.com
+              scope: Namespaced
+              names:
+                plural: certrequests
+                singular: certrequest
+                kind: CertRequest
+                shortNames: ["creq"]
+              versions:
+              - name: v1beta1
+                served: true
+                storage: false
+                schema:
+                  openAPIV3Schema:
+                    type: object
+                    properties:
+                      spec:
+                        type: object
+                        properties:
+                          commonName:
+                            type: string
+              - name: v1
+                served: true
+                storage: true
+                schema:
+                  openAPIV3Schema:
+                    type: object
+                    properties:
+                      spec:
+                        type: object
+                        properties:
+                          commonName:
+                            type: string
+                          dnsNames:
+                            type: array
+                            items:
+                              type: string
+        - manifest: |
+            apiVersion: apiextensions.k8s.io/v1
+            kind: CustomResourceDefinition
+            metadata:
+              name: certrequests.pki.example.com
+            spec:
+              group: pki.example.com
+              scope: Namespaced
+              names:
+                kind: CertRequest
+                plural: certrequests
+                singular: certrequest
+                shortNames:
+                - creq
+              versions:
+              - name: v1
+                served: true
+                storage: true
+                schema:
+                  openAPIV3Schema:
+                    type: object
+                    properties:
+                      spec:
+                        type: object
+                        properties:
+                          commonName:
+                            type: string
+                          dnsNames:
+                            type: array
+                            items:
+                              type: string
+              - name: v1beta1
+                served: true
+                schema:
+                  openAPIV3Schema:
+                    type: object
+                    properties:
+                      spec:
+                        type: object
+                        properties:
+                          commonName:
+                            type: string
+      negatives:
+        - manifest: |
+            apiVersion: apiextensions.k8s.io/v1
+            kind: CustomResourceDefinition
+            metadata:
+              name: certrequest.pki.example.com
+            spec:
+              group: pki.example.com
+              scope: Namespaced
+              names:
+                plural: certrequests
+                singular: certrequest
+                kind: CertRequest
+                shortNames: ["creq"]
+              versions:
+              - name: v1beta1
+                served: true
+                storage: false
+                schema:
+                  openAPIV3Schema:
+                    type: object
+                    properties:
+                      spec:
+                        type: object
+                        properties:
+                          commonName:
+                            type: string
+              - name: v1
+                served: true
+                storage: true
+                schema:
+                  openAPIV3Schema:
+                    type: object
+                    properties:
+                      spec:
+                        type: object
+                        properties:
+                          commonName:
+                            type: string
+                          dnsNames:
+                            type: array
+                            items:
+                              type: string
+          why: The CRD name must be spec.names.plural + "." + spec.group; the singular certrequest.pki.example.com is still rejected.
+        - manifest: |
+            apiVersion: apiextensions.k8s.io/v1
+            kind: CustomResourceDefinition
+            metadata:
+              name: certrequests.pki.example.com
+            spec:
+              group: pki.example.com
+              scope: Namespaced
+              names:
+                plural: certrequests
+                singular: certrequest
+                kind: CertRequest
+                shortNames: ["creq"]
+              versions:
+              - name: v1beta1
+                served: true
+                storage: true
+                schema:
+                  openAPIV3Schema:
+                    type: object
+                    properties:
+                      spec:
+                        type: object
+                        properties:
+                          commonName:
+                            type: string
+              - name: v1
+                served: true
+                storage: false
+                schema:
+                  openAPIV3Schema:
+                    type: object
+                    properties:
+                      spec:
+                        type: object
+                        properties:
+                          commonName:
+                            type: string
+                          dnsNames:
+                            type: array
+                            items:
+                              type: string
+          why: Exactly one storage version is now set, but it is v1beta1, while the requirement is that objects are stored in v1.
+        - manifest: |
+            apiVersion: apiextensions.k8s.io/v1
+            kind: CustomResourceDefinition
+            metadata:
+              name: certrequests.pki.example.com
+            spec:
+              group: pki.example.com
+              scope: Namespaced
+              names:
+                plural: certrequests
+                singular: certrequest
+                kind: CertRequest
+                shortNames: ["creq"]
+              versions:
+              - name: v1beta1
+                served: false
+                storage: false
+                schema:
+                  openAPIV3Schema:
+                    type: object
+                    properties:
+                      spec:
+                        type: object
+                        properties:
+                          commonName:
+                            type: string
+              - name: v1
+                served: true
+                storage: true
+                schema:
+                  openAPIV3Schema:
+                    type: object
+                    properties:
+                      spec:
+                        type: object
+                        properties:
+                          commonName:
+                            type: string
+                          dnsNames:
+                            type: array
+                            items:
+                              type: string
+          why: With served false the API server no longer exposes v1beta1, so the old clients break.
+        - manifest: |
+            apiVersion: apiextensions.k8s.io/v1
+            kind: CustomResourceDefinition
+            metadata:
+              name: certrequests.pki.example.com
+            spec:
+              group: pki.example.com
+              scope: Cluster
+              names:
+                plural: certrequests
+                singular: certrequest
+                kind: CertRequest
+                shortNames: ["creq"]
+              versions:
+              - name: v1beta1
+                served: true
+                storage: false
+                schema:
+                  openAPIV3Schema:
+                    type: object
+                    properties:
+                      spec:
+                        type: object
+                        properties:
+                          commonName:
+                            type: string
+              - name: v1
+                served: true
+                storage: true
+                schema:
+                  openAPIV3Schema:
+                    type: object
+                    properties:
+                      spec:
+                        type: object
+                        properties:
+                          commonName:
+                            type: string
+                          dnsNames:
+                            type: array
+                            items:
+                              type: string
+          why: Cluster is a valid scope but makes the objects cluster-scoped, while teams create them in their own namespaces.
+    explanation:
+      correct:
+        en: |
+          Three fields break the CRD. `metadata.name` must be `PLURAL.GROUP`, so `certrequests.pki.example.com`. `spec.scope` accepts only `Namespaced` or `Cluster`, case included, and the objects live in team namespaces. Exactly one version may have `storage: true`: set it on `v1` and `storage: false` (or omit it) on `v1beta1`, which keeps `served: true` for the old clients.
+    references:
+      - title: Extend the Kubernetes API with CustomResourceDefinitions
+        url: https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/
+      - title: Versions in CustomResourceDefinitions
+        url: https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definition-versioning/
+
+  # ------------------------------------------------------------------ 10
+  - id: cka-qz-41-10
+    objective: "4.8.1"
+    difficulty: 3
+    status: draft
+    type: manifest
+    stem:
+      en: |-
+        A backup operator was installed from `operator.yaml`: its CRD, the namespace `ops-system`, the ServiceAccount `backup-operator` and the Deployment `backup-operator`, but no RBAC. The operator handles `Backup` objects in every namespace. Its logs show:
+
+        ```text
+        backups.ops.example.com is forbidden: User "system:serviceaccount:ops-system:backup-operator" cannot watch resource "backups" in API group "ops.example.com" at the cluster scope
+        backups.ops.example.com "nightly" is forbidden: User "system:serviceaccount:ops-system:backup-operator" cannot patch resource "backups/status" in API group "ops.example.com" in the namespace "shop"
+        jobs.batch is forbidden: User "system:serviceaccount:ops-system:backup-operator" cannot create resource "jobs" in API group "batch" in the namespace "shop"
+        ```
+
+        Write the manifests of a ClusterRole named `backup-operator` and of its binding, also named `backup-operator`, so that the operator can `get`, `list` and `watch` Backups, `update` and `patch` their status, and `create` Jobs, in every namespace.
+    body:
+      starter: ""
+    answer:
+      checks:
+        - id: cr-backups
+          label: The ClusterRole allows get, list and watch on backups in the ops.example.com group
+          select: { kind: ClusterRole, name: backup-operator }
+          path: rules
+          op: contains
+          value: { apiGroups: [ops.example.com], resources: [backups], verbs: [get, list, watch] }
+        - id: cr-status
+          label: The ClusterRole allows update and patch on the backups/status subresource
+          select: { kind: ClusterRole, name: backup-operator }
+          path: rules
+          op: contains
+          value: { apiGroups: [ops.example.com], resources: [backups/status], verbs: [update, patch] }
+        - id: cr-jobs
+          label: The ClusterRole allows create on jobs in the batch group
+          select: { kind: ClusterRole, name: backup-operator }
+          path: rules
+          op: contains
+          value: { apiGroups: [batch], resources: [jobs], verbs: [create] }
+        - id: crb-roleref
+          label: A ClusterRoleBinding backup-operator references the ClusterRole backup-operator
+          select: { kind: ClusterRoleBinding, name: backup-operator }
+          path: roleRef
+          op: subset
+          value: { apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: backup-operator }
+        - id: crb-subject
+          label: Its subject is the ServiceAccount backup-operator of namespace ops-system
+          select: { kind: ClusterRoleBinding, name: backup-operator }
+          path: subjects
+          op: contains
+          value: { kind: ServiceAccount, name: backup-operator, namespace: ops-system }
+      solution:
+        - manifest: |
+            apiVersion: rbac.authorization.k8s.io/v1
+            kind: ClusterRole
+            metadata:
+              name: backup-operator
+            rules:
+            - apiGroups: ["ops.example.com"]
+              resources: ["backups"]
+              verbs: ["get", "list", "watch"]
+            - apiGroups: ["ops.example.com"]
+              resources: ["backups/status"]
+              verbs: ["update", "patch"]
+            - apiGroups: ["batch"]
+              resources: ["jobs"]
+              verbs: ["create"]
+            ---
+            apiVersion: rbac.authorization.k8s.io/v1
+            kind: ClusterRoleBinding
+            metadata:
+              name: backup-operator
+            roleRef:
+              apiGroup: rbac.authorization.k8s.io
+              kind: ClusterRole
+              name: backup-operator
+            subjects:
+            - kind: ServiceAccount
+              name: backup-operator
+              namespace: ops-system
+        - manifest: |
+            apiVersion: rbac.authorization.k8s.io/v1
+            kind: ClusterRoleBinding
+            metadata:
+              name: backup-operator
+            subjects:
+            - kind: ServiceAccount
+              namespace: ops-system
+              name: backup-operator
+            roleRef:
+              kind: ClusterRole
+              name: backup-operator
+              apiGroup: rbac.authorization.k8s.io
+            ---
+            apiVersion: rbac.authorization.k8s.io/v1
+            kind: ClusterRole
+            metadata:
+              name: backup-operator
+            rules:
+            - apiGroups:
+              - batch
+              resources:
+              - jobs
+              verbs:
+              - create
+            - apiGroups:
+              - ops.example.com
+              resources:
+              - backups/status
+              verbs:
+              - patch
+              - update
+            - apiGroups:
+              - ops.example.com
+              resources:
+              - backups
+              verbs:
+              - watch
+              - list
+              - get
+      negatives:
+        - manifest: |
+            apiVersion: rbac.authorization.k8s.io/v1
+            kind: ClusterRole
+            metadata:
+              name: backup-operator
+            rules:
+            - apiGroups: ["ops.example.com"]
+              resources: ["backups"]
+              verbs: ["get", "list", "watch", "update", "patch"]
+            - apiGroups: ["batch"]
+              resources: ["jobs"]
+              verbs: ["create"]
+            ---
+            apiVersion: rbac.authorization.k8s.io/v1
+            kind: ClusterRoleBinding
+            metadata:
+              name: backup-operator
+            roleRef:
+              apiGroup: rbac.authorization.k8s.io
+              kind: ClusterRole
+              name: backup-operator
+            subjects:
+            - kind: ServiceAccount
+              name: backup-operator
+              namespace: ops-system
+          why: Update and patch on backups do not cover the status subresource; RBAC authorizes backups/status as a separate resource.
+        - manifest: |
+            apiVersion: rbac.authorization.k8s.io/v1
+            kind: ClusterRole
+            metadata:
+              name: backup-operator
+            rules:
+            - apiGroups: [""]
+              resources: ["backups", "backups/status"]
+              verbs: ["get", "list", "watch", "update", "patch"]
+            - apiGroups: ["batch"]
+              resources: ["jobs"]
+              verbs: ["create"]
+            ---
+            apiVersion: rbac.authorization.k8s.io/v1
+            kind: ClusterRoleBinding
+            metadata:
+              name: backup-operator
+            roleRef:
+              apiGroup: rbac.authorization.k8s.io
+              kind: ClusterRole
+              name: backup-operator
+            subjects:
+            - kind: ServiceAccount
+              name: backup-operator
+              namespace: ops-system
+          why: The custom resource is in the API group ops.example.com, not in the core group "".
+        - manifest: |
+            apiVersion: rbac.authorization.k8s.io/v1
+            kind: ClusterRole
+            metadata:
+              name: backup-operator
+            rules:
+            - apiGroups: ["ops.example.com"]
+              resources: ["backups"]
+              verbs: ["get", "list", "watch"]
+            - apiGroups: ["ops.example.com"]
+              resources: ["backups/status"]
+              verbs: ["update", "patch"]
+            - apiGroups: ["batch"]
+              resources: ["jobs"]
+              verbs: ["create"]
+            ---
+            apiVersion: rbac.authorization.k8s.io/v1
+            kind: RoleBinding
+            metadata:
+              name: backup-operator
+              namespace: ops-system
+            roleRef:
+              apiGroup: rbac.authorization.k8s.io
+              kind: ClusterRole
+              name: backup-operator
+            subjects:
+            - kind: ServiceAccount
+              name: backup-operator
+              namespace: ops-system
+          why: A RoleBinding grants the ClusterRole only in ops-system; the operator watches at the cluster scope and works in shop.
+        - manifest: |
+            apiVersion: rbac.authorization.k8s.io/v1
+            kind: ClusterRole
+            metadata:
+              name: backup-operator
+            rules:
+            - apiGroups: ["ops.example.com"]
+              resources: ["backups"]
+              verbs: ["get", "list", "watch"]
+            - apiGroups: ["ops.example.com"]
+              resources: ["backups/status"]
+              verbs: ["update", "patch"]
+            - apiGroups: ["apps"]
+              resources: ["jobs"]
+              verbs: ["create"]
+            ---
+            apiVersion: rbac.authorization.k8s.io/v1
+            kind: ClusterRoleBinding
+            metadata:
+              name: backup-operator
+            roleRef:
+              apiGroup: rbac.authorization.k8s.io
+              kind: ClusterRole
+              name: backup-operator
+            subjects:
+            - kind: ServiceAccount
+              name: backup-operator
+              namespace: ops-system
+          why: Jobs are in the batch API group, as the error message says, not in apps.
+    explanation:
+      correct:
+        en: |
+          Each forbidden line gives the verb, the resource and the API group to grant: `backups` and the subresource `backups/status` in `ops.example.com`, `jobs` in `batch`. A status subresource is authorized separately from its parent, so it needs its own entry. "At the cluster scope" and the work in `shop` call for a ClusterRoleBinding, whose ServiceAccount subject must carry `namespace: ops-system`.
+    references:
+      - title: Using RBAC Authorization
+        url: https://kubernetes.io/docs/reference/access-authn-authz/rbac/
+      - title: Extend the Kubernetes API with CustomResourceDefinitions
+        url: https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/

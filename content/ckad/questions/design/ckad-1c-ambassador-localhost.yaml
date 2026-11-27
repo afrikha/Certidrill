@@ -1,0 +1,129 @@
+id: ckad-1c-ambassador-localhost
+objective: "1.3.3"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    In namespace `shop`, Pod `cart` runs the container `app` (`registry.example.com/cart:1.9`), which reads the Redis address from the environment variable `REDIS_ADDR`. The Redis cluster has one write primary and several read replicas, and the team wants an **ambassador** container that splits reads and writes so that the application needs no service discovery.
+
+    Complete the manifest:
+
+    - add a second entry in `containers`: name `redis-ambassador`, image `registry.example.com/redis-proxy:1.2`, `args: ["--listen=127.0.0.1:6379", "--upstream=redis.data.svc.cluster.local:6379"]`;
+    - set `REDIS_ADDR` in `app` so that it connects through the ambassador.
+body:
+  starter: |
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: cart
+      namespace: shop
+    spec:
+      containers:
+      - name: app
+        image: registry.example.com/cart:1.9
+answer:
+  checks:
+  - id: pod
+    label: A Pod named cart in namespace shop
+    path: metadata
+    op: subset
+    value: {name: cart, namespace: shop}
+  - id: app
+    label: Container app runs registry.example.com/cart:1.9
+    path: spec.containers[name=app].image
+    op: equals
+    value: registry.example.com/cart:1.9
+  - id: ambassador-image
+    label: Container redis-ambassador runs registry.example.com/redis-proxy:1.2
+    path: spec.containers[name=redis-ambassador].image
+    op: equals
+    value: registry.example.com/redis-proxy:1.2
+  - id: ambassador-args
+    label: redis-ambassador listens on 127.0.0.1:6379 and forwards to the Redis cluster
+    path: spec.containers[name=redis-ambassador].args
+    op: equals
+    value: ["--listen=127.0.0.1:6379", "--upstream=redis.data.svc.cluster.local:6379"]
+  - id: redis-addr
+    label: REDIS_ADDR points to the ambassador on localhost:6379
+    path: spec.containers[name=app].env[name=REDIS_ADDR].value
+    op: oneOf
+    value: ["localhost:6379", "127.0.0.1:6379"]
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: cart
+        namespace: shop
+      spec:
+        containers:
+        - name: app
+          image: registry.example.com/cart:1.9
+          env:
+          - name: REDIS_ADDR
+            value: localhost:6379
+        - name: redis-ambassador
+          image: registry.example.com/redis-proxy:1.2
+          args: ["--listen=127.0.0.1:6379", "--upstream=redis.data.svc.cluster.local:6379"]
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: cart
+        namespace: shop
+      spec:
+        containers:
+        - name: redis-ambassador
+          image: registry.example.com/redis-proxy:1.2
+          args:
+          - --listen=127.0.0.1:6379
+          - --upstream=redis.data.svc.cluster.local:6379
+        - name: app
+          image: registry.example.com/cart:1.9
+          env:
+          - name: REDIS_ADDR
+            value: "127.0.0.1:6379"
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: cart
+        namespace: shop
+      spec:
+        containers:
+        - name: app
+          image: registry.example.com/cart:1.9
+          env:
+          - name: REDIS_ADDR
+            value: redis-ambassador:6379
+        - name: redis-ambassador
+          image: registry.example.com/redis-proxy:1.2
+          args: ["--listen=127.0.0.1:6379", "--upstream=redis.data.svc.cluster.local:6379"]
+    why: A container name is not a DNS name; containers in the same Pod reach each other on localhost.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: cart
+        namespace: shop
+      spec:
+        containers:
+        - name: app
+          image: registry.example.com/cart:1.9
+          env:
+          - name: REDIS_ADDR
+            value: redis.data.svc.cluster.local:6379
+        - name: redis-ambassador
+          image: registry.example.com/redis-proxy:1.2
+          args: ["--listen=127.0.0.1:6379", "--upstream=redis.data.svc.cluster.local:6379"]
+    why: The application talks to Redis directly and bypasses the ambassador, so reads and writes are not split.
+explanation:
+  correct:
+    en: 'An ambassador proxies a local connection to the outside world: the application connects to `localhost:6379`, and the `redis-ambassador` container, which shares the Pod network namespace, forwards each request to the right Redis server. A sidecar extends the main container (log shipping, content sync) and an adapter normalizes its output (for example metrics formats) for an external system.'
+references:
+- title: 'The Distributed System ToolKit: Patterns for Composite Containers'
+  url: https://kubernetes.io/blog/2015/06/the-distributed-system-toolkit-patterns/
+- title: Pods
+  url: https://kubernetes.io/docs/concepts/workloads/pods/

@@ -1,0 +1,205 @@
+id: cka-5a-cross-node-test-pods
+objective: "5.1.2"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    To test Pod-to-Pod traffic between nodes `worker-1` and `worker-2`, you need two long-running test Pods in namespace `netcheck`, one on each node, that you will then use with `kubectl exec`.
+
+    Write one file with two Pods:
+
+    - `probe-a` on node `worker-1`, `probe-b` on node `worker-2`;
+    - each runs one container named `probe`, image `busybox:1.36`, with the command `sleep 3600`.
+body:
+  starter: ""
+answer:
+  checks:
+  - id: a-ns
+    label: Pod probe-a is in namespace netcheck
+    select: {kind: Pod, name: probe-a}
+    path: metadata.namespace
+    op: equals
+    value: netcheck
+  - id: a-node
+    label: Pod probe-a is placed on worker-1
+    select: {kind: Pod, name: probe-a}
+    path: spec
+    op: matches
+    value: '"nodeName":"worker-1"|"kubernetes.io/hostname":"worker-1"|"values":\["worker-1"\]'
+  - id: a-image
+    label: Container probe of probe-a runs busybox:1.36
+    select: {kind: Pod, name: probe-a}
+    path: spec.containers[name=probe].image
+    op: equals
+    value: busybox:1.36
+  - id: a-sleep
+    label: probe-a runs sleep 3600
+    select: {kind: Pod, name: probe-a}
+    path: spec.containers[name=probe]
+    op: matches
+    value: 'sleep\W+3600'
+  - id: b-ns
+    label: Pod probe-b is in namespace netcheck
+    select: {kind: Pod, name: probe-b}
+    path: metadata.namespace
+    op: equals
+    value: netcheck
+  - id: b-node
+    label: Pod probe-b is placed on worker-2
+    select: {kind: Pod, name: probe-b}
+    path: spec
+    op: matches
+    value: '"nodeName":"worker-2"|"kubernetes.io/hostname":"worker-2"|"values":\["worker-2"\]'
+  - id: b-image
+    label: Container probe of probe-b runs busybox:1.36
+    select: {kind: Pod, name: probe-b}
+    path: spec.containers[name=probe].image
+    op: equals
+    value: busybox:1.36
+  - id: b-sleep
+    label: probe-b runs sleep 3600
+    select: {kind: Pod, name: probe-b}
+    path: spec.containers[name=probe]
+    op: matches
+    value: 'sleep\W+3600'
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: probe-a
+        namespace: netcheck
+      spec:
+        nodeName: worker-1
+        containers:
+        - name: probe
+          image: busybox:1.36
+          command: ["sleep", "3600"]
+      ---
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: probe-b
+        namespace: netcheck
+      spec:
+        nodeName: worker-2
+        containers:
+        - name: probe
+          image: busybox:1.36
+          command: ["sleep", "3600"]
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: probe-a
+        namespace: netcheck
+      spec:
+        nodeSelector:
+          kubernetes.io/hostname: worker-1
+        containers:
+        - name: probe
+          image: busybox:1.36
+          command:
+          - sh
+          - -c
+          - sleep 3600
+      ---
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: probe-b
+        namespace: netcheck
+      spec:
+        affinity:
+          nodeAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              nodeSelectorTerms:
+              - matchExpressions:
+                - key: kubernetes.io/hostname
+                  operator: In
+                  values: ["worker-2"]
+        containers:
+        - name: probe
+          image: busybox:1.36
+          args: ["sleep", "3600"]
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: probe-a
+        namespace: netcheck
+      spec:
+        containers:
+        - name: probe
+          image: busybox:1.36
+          command: ["sleep", "3600"]
+      ---
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: probe-b
+        namespace: netcheck
+      spec:
+        containers:
+        - name: probe
+          image: busybox:1.36
+          command: ["sleep", "3600"]
+    why: Without nodeName, nodeSelector or node affinity the scheduler may put both Pods on the same node, and the test would not cross nodes.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: probe-a
+        namespace: netcheck
+      spec:
+        nodeName: worker-1
+        containers:
+        - name: probe
+          image: busybox:1.36
+      ---
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: probe-b
+        namespace: netcheck
+      spec:
+        nodeName: worker-2
+        containers:
+        - name: probe
+          image: busybox:1.36
+    why: Without sleep the busybox container runs its default shell, which exits at once, so the Pods do not stay running for kubectl exec.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: probe-a
+        namespace: netcheck
+      spec:
+        nodeName: worker-1
+        containers:
+        - name: probe
+          image: busybox:1.36
+          command: ["sleep", "3600"]
+      ---
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: probe-b
+        namespace: netcheck
+      spec:
+        nodeName: worker-1
+        containers:
+        - name: probe
+          image: busybox:1.36
+          command: ["sleep", "3600"]
+    why: Both Pods are pinned to worker-1, so their traffic never leaves the node.
+explanation:
+  correct:
+    en: 'Two Pods pinned to different nodes (`nodeName`, or a `kubernetes.io/hostname` nodeSelector or node affinity) let you test the cross-node path of the Pod network: `kubectl get pods -n netcheck -o wide` gives their IPs, then `kubectl exec -n netcheck probe-a -- ping` or `wget` toward the IP of `probe-b`. `sleep 3600` keeps the containers running; busybox alone would exit at once. Same-node success with cross-node failure points to the CNI plugin or the routing between nodes.'
+references:
+- title: Assigning Pods to Nodes
+  url: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/
+- title: Services, Load Balancing, and Networking
+  url: https://kubernetes.io/docs/concepts/services-networking/

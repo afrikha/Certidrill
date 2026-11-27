@@ -1,0 +1,169 @@
+id: ckad-2b-change-cause-manifest
+objective: "2.2.1"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    The editor contains the current manifest of Deployment `orders` in namespace `payments`. Update it so that applying it:
+
+    - rolls out the image `registry.example.com/payments/orders:2.4` in container `orders`;
+    - records the change cause `upgrade orders to 2.4`, so that `kubectl rollout history` shows it in the CHANGE-CAUSE column of the new revision.
+body:
+  starter: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: orders
+      namespace: payments
+    spec:
+      replicas: 3
+      selector:
+        matchLabels:
+          app: orders
+      template:
+        metadata:
+          labels:
+            app: orders
+        spec:
+          containers:
+          - name: orders
+            image: registry.example.com/payments/orders:2.3
+answer:
+  checks:
+  - id: meta
+    label: Deployment orders in namespace payments
+    path: metadata
+    op: subset
+    value: {name: orders, namespace: payments}
+  - id: image
+    label: Container orders runs orders:2.4
+    path: spec.template.spec.containers[name=orders].image
+    op: equals
+    value: registry.example.com/payments/orders:2.4
+  - id: cause
+    label: The Deployment annotation kubernetes.io/change-cause is "upgrade orders to 2.4"
+    path: metadata.annotations["kubernetes.io/change-cause"]
+    op: equals
+    value: upgrade orders to 2.4
+  - id: replicas
+    label: Replicas are unchanged (3)
+    path: spec.replicas
+    op: equals
+    value: 3
+  solution:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: orders
+        namespace: payments
+        annotations:
+          kubernetes.io/change-cause: upgrade orders to 2.4
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: orders
+        template:
+          metadata:
+            labels:
+              app: orders
+          spec:
+            containers:
+            - name: orders
+              image: registry.example.com/payments/orders:2.4
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        annotations:
+          kubernetes.io/change-cause: "upgrade orders to 2.4"
+        name: orders
+        namespace: payments
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: orders
+        template:
+          metadata:
+            labels:
+              app: orders
+          spec:
+            containers:
+            - image: registry.example.com/payments/orders:2.4
+              name: orders
+  negatives:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: orders
+        namespace: payments
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: orders
+        template:
+          metadata:
+            labels:
+              app: orders
+            annotations:
+              kubernetes.io/change-cause: upgrade orders to 2.4
+          spec:
+            containers:
+            - name: orders
+              image: registry.example.com/payments/orders:2.4
+    why: In the Pod template the annotation lands on the Pods, not on the Deployment. CHANGE-CAUSE is copied from the Deployment's own annotation to its revisions.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: orders
+        namespace: payments
+        annotations:
+          change-cause: upgrade orders to 2.4
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: orders
+        template:
+          metadata:
+            labels:
+              app: orders
+          spec:
+            containers:
+            - name: orders
+              image: registry.example.com/payments/orders:2.4
+    why: The key must be kubernetes.io/change-cause; a plain change-cause annotation is not read by rollout history.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: orders
+        namespace: payments
+        annotations:
+          kubernetes.io/change-cause: upgrade orders to 2.4
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: orders
+        template:
+          metadata:
+            labels:
+              app: orders
+          spec:
+            containers:
+            - name: orders
+              image: registry.example.com/payments/orders:2.3
+    why: Only a change of the Pod template triggers a rollout. With the image left at 2.3, no new revision is created.
+explanation:
+  correct:
+    en: 'A rollout is triggered only by a change of `.spec.template`, here the image of container `orders`. `rollout history` shows in CHANGE-CAUSE the Deployment annotation `kubernetes.io/change-cause`, copied to the revision when it is created, so the annotation goes in the Deployment''s `metadata.annotations`, not in the Pod template. The imperative equivalent is `kubectl annotate deployment/orders kubernetes.io/change-cause="upgrade orders to 2.4"`; `--record` is deprecated.'
+references:
+- title: Deployments
+  url: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/

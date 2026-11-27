@@ -1,0 +1,105 @@
+id: cka-3e-label-node-overwrite
+objective: "3.5.1"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    The Pod `etl` in namespace `analytics` has `nodeSelector: {disktype: ssd}` and stays Pending with the event:
+
+    `0/4 nodes are available: 1 node(s) had untolerated taint {node-role.kubernetes.io/control-plane: }, 3 node(s) didn't match Pod's node affinity/selector.`
+
+    The disks of `worker-2` were replaced with SSDs, but the node still carries the label shown in `worker-2.yaml`. Fix the label of `worker-2` so the Pod can be scheduled there. Type the single command you would run.
+body:
+  mode: object
+  namespace: default
+  files:
+  - name: worker-2.yaml
+    content: |
+      apiVersion: v1
+      kind: Node
+      metadata:
+        name: worker-2
+        labels:
+          disktype: hdd
+          kubernetes.io/hostname: worker-2
+          kubernetes.io/os: linux
+answer:
+  checks:
+  - id: node
+    label: The object is node worker-2
+    path: metadata.name
+    op: equals
+    value: worker-2
+  - id: label
+    label: worker-2 carries disktype=ssd
+    path: metadata.labels.disktype
+    op: equals
+    value: ssd
+  - id: hostname
+    label: The other labels are unchanged
+    path: metadata.labels
+    op: subset
+    value: {kubernetes.io/hostname: worker-2, kubernetes.io/os: linux}
+  solution:
+  - command: kubectl label node worker-2 disktype=ssd --overwrite
+    output: |
+      apiVersion: v1
+      kind: Node
+      metadata:
+        labels:
+          disktype: ssd
+          kubernetes.io/hostname: worker-2
+          kubernetes.io/os: linux
+        name: worker-2
+  - command: k label --overwrite nodes/worker-2 disktype=ssd
+    output: |
+      apiVersion: v1
+      kind: Node
+      metadata:
+        labels:
+          disktype: ssd
+          kubernetes.io/hostname: worker-2
+          kubernetes.io/os: linux
+        name: worker-2
+  negatives:
+  - command: kubectl label node worker-2 disktype=ssd
+    why: worker-2 already has a disktype label; without --overwrite kubectl refuses the change ("already has a value (hdd), and --overwrite is false") and the node keeps disktype=hdd.
+    output: |
+      apiVersion: v1
+      kind: Node
+      metadata:
+        labels:
+          disktype: hdd
+          kubernetes.io/hostname: worker-2
+          kubernetes.io/os: linux
+        name: worker-2
+  - command: kubectl label node worker-2 disktype-
+    why: This removes the label; a node without disktype still does not match nodeSelector disktype=ssd.
+    output: |
+      apiVersion: v1
+      kind: Node
+      metadata:
+        labels:
+          kubernetes.io/hostname: worker-2
+          kubernetes.io/os: linux
+        name: worker-2
+  - command: kubectl label node worker-2 disktype=SSD --overwrite
+    why: Label values are case-sensitive; SSD does not match the selector value ssd.
+    output: |
+      apiVersion: v1
+      kind: Node
+      metadata:
+        labels:
+          disktype: SSD
+          kubernetes.io/hostname: worker-2
+          kubernetes.io/os: linux
+        name: worker-2
+explanation:
+  correct:
+    en: '`nodeSelector` schedules a Pod only on nodes that have every listed label with the exact value. `kubectl label node worker-2 disktype=ssd --overwrite` replaces the existing value `hdd`; without `--overwrite` kubectl rejects an update that would change an existing label. Removing a label (`disktype-`) needs no `--overwrite`. The scheduler retries the Pending Pod once the node matches.'
+references:
+- title: Assigning Pods to Nodes
+  url: https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/
+- title: kubectl label
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_label/

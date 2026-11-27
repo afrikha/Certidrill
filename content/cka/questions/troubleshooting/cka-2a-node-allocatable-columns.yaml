@@ -1,0 +1,67 @@
+id: cka-2a-node-allocatable-columns
+objective: "2.1.3"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    Before scheduling a large batch job, you need a table of every node with three columns: `NAME` (the node name), `CPU` and `MEMORY`, where CPU and memory are the resources the scheduler can give to Pods on the node, not its total hardware.
+
+    Print it with `kubectl get` and custom columns. Type the single command you would run.
+body:
+  mode: invocation
+answer:
+  checks:
+  - id: get
+    label: Uses kubectl get on nodes
+    path: resource
+    op: equals
+    value: node
+  - id: verb
+    label: Uses kubectl get
+    path: verb
+    op: equals
+    value: get
+  - id: all
+    label: Lists every node (no node name)
+    path: names
+    op: length
+    value: 0
+  - id: columns
+    label: Uses custom-columns output
+    path: flags.output
+    op: matches
+    value: '^custom-columns='
+  - id: name
+    label: NAME column is .metadata.name
+    path: flags.output
+    op: matches
+    value: 'NAME:\{?\.metadata\.name\}?(,|$)'
+  - id: cpu
+    label: CPU column is .status.allocatable.cpu
+    path: flags.output
+    op: matches
+    value: 'CPU:\{?\.status\.allocatable\.cpu\}?(,|$)'
+  - id: memory
+    label: MEMORY column is .status.allocatable.memory
+    path: flags.output
+    op: matches
+    value: 'MEMORY:\{?\.status\.allocatable\.memory\}?(,|$)'
+  solution:
+  - command: kubectl get nodes -o custom-columns=NAME:.metadata.name,CPU:.status.allocatable.cpu,MEMORY:.status.allocatable.memory
+  - command: k get no --output=custom-columns='NAME:.metadata.name,MEMORY:.status.allocatable.memory,CPU:.status.allocatable.cpu'
+  negatives:
+  - command: kubectl get nodes -o custom-columns=NAME:.metadata.name,CPU:.status.capacity.cpu,MEMORY:.status.capacity.memory
+    why: capacity is the node's total; the scheduler compares requests with allocatable, which excludes system reservations and eviction thresholds.
+  - command: kubectl top nodes
+    why: top shows current usage from metrics-server, not allocatable resources.
+  - command: kubectl describe nodes
+    why: describe shows allocatable among many other fields, not the requested three-column table.
+explanation:
+  correct:
+    en: '`status.capacity` is the total CPU, memory and Pod count of the node; `status.allocatable` is what remains for normal Pods after `kubeReserved`, `systemReserved` and the hard eviction thresholds. `-o custom-columns=NAME:.metadata.name,CPU:.status.allocatable.cpu,MEMORY:.status.allocatable.memory` prints one row per node.'
+references:
+- title: Node Status
+  url: https://kubernetes.io/docs/reference/node/node-status/
+- title: Reserve Compute Resources for System Daemons
+  url: https://kubernetes.io/docs/tasks/administer-cluster/reserve-compute-resources/

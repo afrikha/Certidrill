@@ -1,0 +1,206 @@
+id: ckad-5c-ingress-path-fanout
+objective: "5.3.1"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    Write the manifest of an Ingress named `api-gateway` in namespace `api`, handled by the IngressClass `nginx`, for host `api.example.com`:
+
+    - requests whose path starts with the segment `/v1` (`/v1`, `/v1/orders`…) go to Service `orders-v1` on port 8080;
+    - requests whose path starts with the segment `/v2` go to Service `orders-v2` on port 8080.
+
+    Use the paths `/v1` and `/v2`.
+body:
+  starter: |
+    apiVersion: networking.k8s.io/v1
+    kind: Ingress
+    metadata:
+      name: api-gateway
+      namespace: api
+    spec:
+answer:
+  checks:
+  - id: ingress
+    label: An Ingress named api-gateway in namespace api
+    path: metadata
+    op: subset
+    value: {name: api-gateway, namespace: api}
+  - id: kind
+    label: The object is an Ingress
+    path: kind
+    op: equals
+    value: Ingress
+  - id: class
+    label: It uses the IngressClass nginx
+    path: spec.ingressClassName
+    op: equals
+    value: nginx
+  - id: v1-type
+    label: Path /v1 uses pathType Prefix
+    path: spec.rules[host=api.example.com].http.paths[path=/v1].pathType
+    op: equals
+    value: Prefix
+  - id: v1-backend
+    label: Path /v1 goes to Service orders-v1
+    path: spec.rules[host=api.example.com].http.paths[path=/v1].backend.service.name
+    op: equals
+    value: orders-v1
+  - id: v1-port
+    label: Path /v1 uses port 8080
+    path: spec.rules[host=api.example.com].http.paths[path=/v1].backend.service.port.number
+    op: equals
+    value: 8080
+  - id: v2-type
+    label: Path /v2 uses pathType Prefix
+    path: spec.rules[host=api.example.com].http.paths[path=/v2].pathType
+    op: equals
+    value: Prefix
+  - id: v2-backend
+    label: Path /v2 goes to Service orders-v2
+    path: spec.rules[host=api.example.com].http.paths[path=/v2].backend.service.name
+    op: equals
+    value: orders-v2
+  - id: v2-port
+    label: Path /v2 uses port 8080
+    path: spec.rules[host=api.example.com].http.paths[path=/v2].backend.service.port.number
+    op: equals
+    value: 8080
+  solution:
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: api-gateway
+        namespace: api
+      spec:
+        ingressClassName: nginx
+        rules:
+        - host: api.example.com
+          http:
+            paths:
+            - path: /v1
+              pathType: Prefix
+              backend:
+                service:
+                  name: orders-v1
+                  port:
+                    number: 8080
+            - path: /v2
+              pathType: Prefix
+              backend:
+                service:
+                  name: orders-v2
+                  port:
+                    number: 8080
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: api-gateway
+        namespace: api
+      spec:
+        ingressClassName: nginx
+        rules:
+        - host: api.example.com
+          http:
+            paths:
+            - backend:
+                service:
+                  name: orders-v2
+                  port:
+                    number: 8080
+              path: /v2
+              pathType: Prefix
+            - backend:
+                service:
+                  name: orders-v1
+                  port:
+                    number: 8080
+              path: /v1
+              pathType: Prefix
+  negatives:
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: api-gateway
+        namespace: api
+      spec:
+        ingressClassName: nginx
+        rules:
+        - host: api.example.com
+          http:
+            paths:
+            - path: /v1
+              pathType: Exact
+              backend:
+                service:
+                  name: orders-v1
+                  port:
+                    number: 8080
+            - path: /v2
+              pathType: Exact
+              backend:
+                service:
+                  name: orders-v2
+                  port:
+                    number: 8080
+    why: Exact matches only /v1 and /v2 themselves; /v1/orders would not be routed.
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: api-gateway
+        namespace: api
+      spec:
+        ingressClassName: nginx
+        rules:
+        - host: api.example.com
+          http:
+            paths:
+            - path: /v1
+              pathType: Prefix
+              backend:
+                serviceName: orders-v1
+                servicePort: 8080
+            - path: /v2
+              pathType: Prefix
+              backend:
+                serviceName: orders-v2
+                servicePort: 8080
+    why: serviceName and servicePort belong to the removed v1beta1 API; networking.k8s.io/v1 uses backend.service.name and backend.service.port.number.
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: api-gateway
+        namespace: api
+        annotations:
+          kubernetes.io/ingress.class: nginx
+      spec:
+        rules:
+        - host: api.example.com
+          http:
+            paths:
+            - path: /v1
+              pathType: Prefix
+              backend:
+                service:
+                  name: orders-v1
+                  port:
+                    number: 8080
+            - path: /v2
+              pathType: Prefix
+              backend:
+                service:
+                  name: orders-v2
+                  port:
+                    number: 8080
+    why: The kubernetes.io/ingress.class annotation is deprecated; the class is set with spec.ingressClassName.
+explanation:
+  correct:
+    en: '`pathType: Prefix` matches element by element on `/`, so `/v1` matches `/v1` and `/v1/orders` but not `/v1beta`; `Exact` matches only the path itself. In `networking.k8s.io/v1` each path has a backend `service.name` and `service.port.number` (or `port.name`), and `spec.ingressClassName` chooses the controller, replacing the deprecated `kubernetes.io/ingress.class` annotation.'
+references:
+- title: Ingress
+  url: https://kubernetes.io/docs/concepts/services-networking/ingress/

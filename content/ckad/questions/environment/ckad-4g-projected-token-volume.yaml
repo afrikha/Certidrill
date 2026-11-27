@@ -1,0 +1,189 @@
+id: ckad-4g-projected-token-volume
+objective: "4.7.2"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    Write the manifest of a Pod `sync` in namespace `vault-sync` with one container `app` running `registry.example.com/sync/agent:1.4`. The Pod runs with the ServiceAccount `syncer`.
+
+    - The Pod must **not** get the default Kubernetes API token mounted automatically.
+    - Instead, the app reads a ServiceAccount token issued for the audience `vault`, valid for 15 minutes, from the file `/var/run/secrets/tokens/vault-token`.
+    - Name the volume `vault-token` and mount it at `/var/run/secrets/tokens`.
+body:
+  starter: |
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: sync
+      namespace: vault-sync
+    spec:
+      serviceAccountName: syncer
+      containers:
+      - name: app
+        image: registry.example.com/sync/agent:1.4
+answer:
+  checks:
+  - id: pod
+    label: A Pod named sync in namespace vault-sync
+    path: metadata
+    op: subset
+    value: {name: sync, namespace: vault-sync}
+  - id: sa
+    label: The Pod runs with ServiceAccount syncer
+    path: spec.serviceAccountName
+    op: equals
+    value: syncer
+  - id: no-automount
+    label: The default API token is not mounted automatically
+    path: spec.automountServiceAccountToken
+    op: equals
+    value: false
+  - id: audience
+    label: The projected token is issued for the audience vault
+    path: spec.volumes[name=vault-token].projected.sources
+    op: contains
+    value: {serviceAccountToken: {audience: vault}}
+  - id: expiration
+    label: The projected token is valid for 900 seconds
+    path: spec.volumes[name=vault-token].projected.sources
+    op: contains
+    value: {serviceAccountToken: {expirationSeconds: 900}}
+  - id: path
+    label: The token file is named vault-token in the volume
+    path: spec.volumes[name=vault-token].projected.sources
+    op: contains
+    value: {serviceAccountToken: {path: vault-token}}
+  - id: mount
+    label: Container app mounts the volume at /var/run/secrets/tokens
+    path: spec.containers[name=app].volumeMounts[name=vault-token].mountPath
+    op: oneOf
+    value: [/var/run/secrets/tokens, /var/run/secrets/tokens/]
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: sync
+        namespace: vault-sync
+      spec:
+        serviceAccountName: syncer
+        automountServiceAccountToken: false
+        containers:
+        - name: app
+          image: registry.example.com/sync/agent:1.4
+          volumeMounts:
+          - name: vault-token
+            mountPath: /var/run/secrets/tokens
+            readOnly: true
+        volumes:
+        - name: vault-token
+          projected:
+            sources:
+            - serviceAccountToken:
+                path: vault-token
+                expirationSeconds: 900
+                audience: vault
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: sync
+        namespace: vault-sync
+      spec:
+        serviceAccountName: syncer
+        containers:
+        - name: app
+          image: registry.example.com/sync/agent:1.4
+          volumeMounts:
+          - name: vault-token
+            mountPath: /var/run/secrets/tokens
+        volumes:
+        - name: vault-token
+          projected:
+            sources:
+            - serviceAccountToken:
+                path: vault-token
+                expirationSeconds: 900
+                audience: vault
+    why: Without automountServiceAccountToken false the API token is still mounted at /var/run/secrets/kubernetes.io/serviceaccount.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: sync
+        namespace: vault-sync
+      spec:
+        serviceAccountName: syncer
+        automountServiceAccountToken: false
+        containers:
+        - name: app
+          image: registry.example.com/sync/agent:1.4
+          volumeMounts:
+          - name: vault-token
+            mountPath: /var/run/secrets/tokens
+        volumes:
+        - name: vault-token
+          projected:
+            sources:
+            - serviceAccountToken:
+                path: vault-token
+                expirationSeconds: 15
+                audience: vault
+    why: expirationSeconds is in seconds; 15 is below the 600-second minimum and is rejected. 15 minutes is 900.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: sync
+        namespace: vault-sync
+      spec:
+        serviceAccountName: syncer
+        automountServiceAccountToken: false
+        containers:
+        - name: app
+          image: registry.example.com/sync/agent:1.4
+          volumeMounts:
+          - name: vault-token
+            mountPath: /var/run/secrets/tokens/vault-token
+        volumes:
+        - name: vault-token
+          projected:
+            sources:
+            - serviceAccountToken:
+                path: vault-token
+                expirationSeconds: 900
+                audience: vault
+    why: mountPath is the directory of the volume; with path vault-token the file would be /var/run/secrets/tokens/vault-token/vault-token.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: sync
+        namespace: vault-sync
+      spec:
+        serviceAccountName: syncer
+        automountServiceAccountToken: false
+        containers:
+        - name: app
+          image: registry.example.com/sync/agent:1.4
+          volumeMounts:
+          - name: vault-token
+            mountPath: /var/run/secrets/tokens
+        volumes:
+        - name: vault-token
+          projected:
+            sources:
+            - serviceAccountToken:
+                path: vault-token
+                expirationSeconds: 900
+    why: Without audience the token is issued for the API server, and Vault, expecting the audience vault, rejects it.
+explanation:
+  correct:
+    en: '`spec.automountServiceAccountToken: false` removes the automatic API token. A `projected` volume with a `serviceAccountToken` source asks the kubelet for a token of the Pod''s ServiceAccount with the given `audience`, `expirationSeconds` (default 3600, minimum 600; 15 minutes = 900) and file `path` relative to the mount point, so the file is `/var/run/secrets/tokens/vault-token`. The kubelet rotates the token before it expires; the app must reread the file.'
+references:
+- title: Configure Service Accounts for Pods
+  url: https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/
+- title: Projected Volumes
+  url: https://kubernetes.io/docs/concepts/storage/projected-volumes/

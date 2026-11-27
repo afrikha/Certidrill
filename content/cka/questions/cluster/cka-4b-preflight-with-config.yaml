@@ -1,0 +1,54 @@
+id: cka-4b-preflight-with-config
+objective: "4.2.1"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    Node `cp1` will become the first control plane node. The file `/root/kubeadm-config.yaml` holds the `InitConfiguration` and `ClusterConfiguration` you will use for `kubeadm init`.
+
+    Before initializing anything, run only the kubeadm init pre-flight checks (for example the `Swap` check) against this configuration file, without running any other phase of `kubeadm init`. Type the single command you would run.
+body:
+  mode: invocation
+  tools: [kubeadm, systemctl, crictl]
+  namespace: default
+answer:
+  checks:
+  - id: tool
+    label: Uses kubeadm
+    path: tool
+    op: equals
+    value: kubeadm
+  - id: verb
+    label: It is a kubeadm init command
+    path: verb
+    op: equals
+    value: init
+  - id: phase
+    label: Runs only the preflight phase (init phase preflight)
+    path: args
+    op: equals
+    value: [phase, preflight]
+  - id: config
+    label: Uses the configuration file /root/kubeadm-config.yaml
+    path: flags.config
+    op: equals
+    value: /root/kubeadm-config.yaml
+  solution:
+  - command: kubeadm init phase preflight --config /root/kubeadm-config.yaml
+  - command: sudo kubeadm init phase preflight --config=/root/kubeadm-config.yaml
+  negatives:
+  - command: kubeadm init --config /root/kubeadm-config.yaml
+    why: Without "phase preflight", kubeadm runs every phase and initializes the control plane.
+  - command: kubeadm join phase preflight --config /root/kubeadm-config.yaml
+    why: These are the pre-flight checks of kubeadm join, which expects a JoinConfiguration, not those of kubeadm init.
+  - command: kubeadm init phase preflight
+    why: Without --config the checks run with default values (auto-detected CRI socket, default version), not with this configuration.
+explanation:
+  correct:
+    en: '`kubeadm init` is made of phases, the first being `preflight` ("Run pre-flight checks"). `kubeadm init phase preflight --config /root/kubeadm-config.yaml` runs only these checks with the settings of the file and changes nothing else. Errors can be turned into warnings with `--ignore-preflight-errors` (for example `Swap`), but fixing the node is better. Plain `kubeadm init` would run all phases.'
+references:
+- title: kubeadm init phase
+  url: https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-init-phase/
+- title: kubeadm init
+  url: https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-init/

@@ -1,0 +1,79 @@
+id: ckad-5b-test-from-temp-pod
+objective: "5.2.2"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    Service `web` in namespace `shop` listens on port 80 and forwards to port 8080 of its Pods.
+
+    Test it from inside the cluster: start a temporary Pod named `tmp` in namespace `shop`, image `busybox:1.36`, that fetches `/healthz` through the Service with `wget` and prints the response in your terminal. The Pod must never be restarted and must be deleted when the command exits.
+
+    Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Uses kubectl run
+    path: verb
+    op: equals
+    value: run
+  - id: name
+    label: The Pod is named tmp
+    path: args
+    op: contains
+    value: tmp
+  - id: image
+    label: It runs busybox:1.36
+    path: flags.image
+    op: equals
+    value: busybox:1.36
+  - id: namespace
+    label: It runs in namespace shop
+    path: flags.namespace
+    op: equals
+    value: shop
+  - id: rm
+    label: The Pod is deleted on exit (--rm)
+    path: flags.rm
+    op: equals
+    value: true
+  - id: attach
+    label: The session is attached (-i), as --rm requires
+    path: flags.stdin
+    op: equals
+    value: true
+  - id: restart
+    label: The Pod is never restarted (--restart=Never)
+    path: flags.restart
+    op: equals
+    value: Never
+  - id: wget
+    label: The container runs wget
+    path: rest
+    op: matches
+    value: wget
+  - id: url
+    label: It calls the Service on port 80 at /healthz
+    path: rest
+    op: matches
+    value: '//web(\.shop(\.svc(\.cluster\.local)?)?)?(:80)?/healthz'
+  solution:
+  - command: kubectl run tmp --rm -it --restart=Never --image=busybox:1.36 -n shop -- wget -qO- http://web/healthz
+  - command: k -n shop run tmp -i --rm --image busybox:1.36 --restart Never -- wget -O- http://web.shop.svc.cluster.local:80/healthz
+  - command: kubectl run tmp --image=busybox:1.36 --restart=Never --rm -it -n shop -- sh -c "wget -qO- http://web.shop/healthz"
+  negatives:
+  - command: kubectl run tmp --rm -it --restart=Never --image=busybox:1.36 -n shop -- wget -qO- http://web:8080/healthz
+    why: 8080 is the targetPort of the Pods; the Service itself listens on port 80.
+  - command: kubectl run tmp -it --restart=Never --image=busybox:1.36 -n shop -- wget -qO- http://web/healthz
+    why: Without --rm the Pod stays in the namespace after the command exits.
+  - command: kubectl run tmp --rm -it --restart=Never --image=busybox:1.36 -- wget -qO- http://web/healthz
+    why: Without -n the Pod runs in namespace default, where the short name web does not resolve to the Service of shop.
+explanation:
+  correct:
+    en: '`kubectl run tmp --rm -it --restart=Never --image=busybox:1.36 -n shop -- wget -qO- http://web/healthz` starts a one-shot Pod, attaches to it and deletes it on exit; `--rm` only works on an attached session (`-i`). Inside namespace `shop` the short name `web` resolves to the Service, and the URL uses the Service port 80, not the targetPort 8080.'
+references:
+- title: Debug Services
+  url: https://kubernetes.io/docs/tasks/debug/debug-application/debug-service/

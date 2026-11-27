@@ -1,0 +1,1502 @@
+chapter: 31-probes-api-versions
+questions:
+  # ------------------------------------------------------------------ 1
+  - id: ckad-qz-31-01
+    objective: "3.1.1"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        You run `kubectl api-versions` on a v1.37 cluster.
+
+        What does the command print?
+    body:
+      options:
+        - { id: a, text: { en: "One line per resource type, with its short names, API version, scope and kind" } }
+        - { id: b, text: { en: "One line per served API group and version, such as `apps/v1` or `autoscaling/v2`" } }
+        - { id: c, text: { en: "The fields of a kind with their types, read from the OpenAPI schema of the server" } }
+        - { id: d, text: { en: "The Kubernetes version of the kubectl client and of the API server, such as `v1.37`" } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          `kubectl api-versions` prints the API versions the server supports, one `group/version` string per line (`apps/v1`, `networking.k8s.io/v1`, and plain `v1` for the core group). It does not list kinds: a served group/version says nothing about which kinds it contains.
+      options:
+        a: { en: "That table (NAME, SHORTNAMES, APIVERSION, NAMESPACED, KIND) is the output of `kubectl api-resources`." }
+        c: { en: "Field documentation comes from `kubectl explain <kind>.<field>`, which reads the schema served by the API server." }
+        d: { en: "Client and server versions are printed by `kubectl version`, not by `kubectl api-versions`." }
+    references:
+      - title: kubectl api-versions
+        url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_api-versions/
+
+  # ------------------------------------------------------------------ 2
+  - id: ckad-qz-31-02
+    objective: "3.2.2"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        A container declares only the following probe, with no timing or threshold field:
+
+        ```yaml
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+        ```
+
+        Which timing does the kubelet apply to this probe?
+    body:
+      options:
+        - { id: a, text: { en: "First check 10 seconds after start, then every 10 seconds, 1-second timeout, restart after 1 failure" } }
+        - { id: b, text: { en: "First check right after start, then every 10 seconds, 10-second timeout, restart after 3 failures" } }
+        - { id: c, text: { en: "First check right after start, then every 30 seconds, 1-second timeout, restart after 3 failures" } }
+        - { id: d, text: { en: "First check right after start, then every 10 seconds, 1-second timeout, restart after 3 failures" } }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          The probe defaults are `initialDelaySeconds: 0`, `periodSeconds: 10`, `timeoutSeconds: 1`, `failureThreshold: 3` and `successThreshold: 1`. A container whose `/healthz` stops answering is therefore restarted after about 3 × 10 = 30 seconds of failed checks.
+      options:
+        a: { en: "`initialDelaySeconds` defaults to 0, not 10, and `failureThreshold` defaults to 3, not 1." }
+        b: { en: "`timeoutSeconds` defaults to 1 second, not to the value of `periodSeconds`." }
+        c: { en: "`periodSeconds` defaults to 10 seconds, not 30 (30 is the default Pod termination grace period)." }
+    references:
+      - title: Liveness, Readiness, and Startup Probes
+        url: https://kubernetes.io/docs/concepts/configuration/liveness-readiness-startup-probes/
+
+  # ------------------------------------------------------------------ 3
+  - id: ckad-qz-31-03
+    objective: "3.1.2"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        In 2022, PodDisruptionBudget `web-pdb` was created in namespace `shop` from the file `pdb.yaml`, which declares `apiVersion: policy/v1beta1`. The cluster has since been upgraded, one minor version at a time, from v1.24 to v1.37. Nobody has touched the PodDisruptionBudget or the file.
+
+        Which statement describes the situation now?
+    body:
+      options:
+        - { id: a, text: { en: "`web-pdb` was deleted when `policy/v1beta1` was removed, and `kubectl apply -f pdb.yaml` recreates it in `policy/v1`" } }
+        - { id: b, text: { en: "`web-pdb` is still served only as `policy/v1beta1`, and `kubectl apply -f pdb.yaml` succeeds with a deprecation warning" } }
+        - { id: c, text: { en: "`web-pdb` still exists and is served as `policy/v1`, and `kubectl apply -f pdb.yaml` fails with a `no matches for kind` error" } }
+        - { id: d, text: { en: "`web-pdb` still exists and is served as `policy/v1`, and `kubectl apply -f pdb.yaml` succeeds because kubectl converts the file" } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          `policy/v1beta1` stopped being served in v1.25. Objects already stored are not lost: the API server serves them through the current version, `policy/v1`. What breaks is every client that still names the removed version, so applying `pdb.yaml` fails with `no matches for kind "PodDisruptionBudget" in version "policy/v1beta1"` until the file is updated.
+      options:
+        a: { en: "Removing an API version does not delete stored objects; they remain readable and writable through the replacement version." }
+        b: { en: "A removed version is not served at all: deprecation warnings exist only while the version is still served, before v1.25 here." }
+        d: { en: "kubectl does not rewrite manifests; the `kubectl convert` plugin is a separate tool, and `apply` sends the version written in the file." }
+    references:
+      - title: Deprecated API Migration Guide
+        url: https://kubernetes.io/docs/reference/using-api/deprecation-guide/
+
+  # ------------------------------------------------------------------ 4
+  - id: ckad-qz-31-04
+    objective: "3.2.1"
+    difficulty: 2
+    status: draft
+    type: multi
+    stem:
+      en: |
+        You are choosing probe handlers for several containers of the `payments` namespace and review what each handler treats as a success.
+
+        Which two statements are true?
+
+        NOTE: Each correct selection is worth one point.
+    body:
+      choose: 2
+      options:
+        - { id: a, text: { en: "An `httpGet` probe whose endpoint answers `304 Not Modified` counts as a successful check." } }
+        - { id: b, text: { en: "A `grpc` probe can refer to a named container port, for example `port: grpc`." } }
+        - { id: c, text: { en: "An `exec` probe runs its command through `/bin/sh -c`, so `[\"cat /tmp/healthy\"]` works." } }
+        - { id: d, text: { en: "A `tcpSocket` probe succeeds as soon as the kubelet can open a TCP connection to the port." } }
+        - { id: e, text: { en: "An `httpGet` probe with `scheme: HTTPS` fails when the server certificate is self-signed." } }
+    answer: { optionIds: [a, d] }
+    explanation:
+      correct:
+        en: |
+          An HTTP probe succeeds for any status code from 200 to 399, so `304 Not Modified` is a success. A TCP probe only needs the connection to open; it sends no request. The other handlers have restrictions: gRPC needs a numeric port, and `exec` runs the command list directly, without a shell.
+      options:
+        b: { en: "Unlike HTTP and TCP probes, gRPC probes do not accept a named port: `grpc.port` must be a number." }
+        c: { en: "The command is executed directly, not through a shell; `[\"cat /tmp/healthy\"]` looks for a binary named `cat /tmp/healthy`. Split the arguments or call `sh -c` yourself." }
+        e: { en: "With `scheme: HTTPS` the kubelet skips certificate verification, so a self-signed certificate does not make the probe fail." }
+    references:
+      - title: Liveness, Readiness, and Startup Probes
+        url: https://kubernetes.io/docs/concepts/configuration/liveness-readiness-startup-probes/
+      - title: Configure Liveness, Readiness and Startup Probes
+        url: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/
+
+  # ------------------------------------------------------------------ 5
+  - id: ckad-qz-31-05
+    objective: "3.2.2"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Pod `quotes` in namespace `sales` has this probe and no other probe field:
+
+        ```yaml
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          periodSeconds: 20
+        ```
+
+        Under load, `/healthz` takes about 1.5 seconds to answer, always with status 200. During busy hours the RESTARTS count of the container keeps increasing although the application works. What should you change?
+    body:
+      options:
+        - { id: a, text: { en: "Set `periodSeconds: 60`, so that the slow endpoint is checked less often" } }
+        - { id: b, text: { en: "Set `initialDelaySeconds: 60`, so that the first check waits for the load" } }
+        - { id: c, text: { en: "Set `successThreshold: 3`, so that a single slow answer is tolerated" } }
+        - { id: d, text: { en: "Set `timeoutSeconds: 3`, so that a 1.5-second answer is not a failure" } }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          `timeoutSeconds` defaults to 1 second: an answer that takes 1.5 seconds counts as a failed check even with status 200. After 3 consecutive failures (the default `failureThreshold`), about 60 seconds here, the kubelet restarts the container. Raising `timeoutSeconds` above the real response time removes the false failures.
+      options:
+        a: { en: "Every check still times out after 1 second; a longer period only delays the restart (3 × 60 s instead of 3 × 20 s)." }
+        b: { en: "`initialDelaySeconds` only delays the first check after the container starts; checks made under load still time out." }
+        c: { en: "The API server rejects a `successThreshold` other than 1 on a liveness probe, and the problem is failed checks, not successes." }
+    references:
+      - title: Liveness, Readiness, and Startup Probes
+        url: https://kubernetes.io/docs/concepts/configuration/liveness-readiness-startup-probes/
+
+  # ------------------------------------------------------------------ 6
+  - id: ckad-qz-31-06
+    objective: "3.1.1"
+    difficulty: 3
+    status: draft
+    type: command
+    stem:
+      en: |-
+        In namespace `shop`, the HorizontalPodAutoscaler `web` scales on CPU. The cluster serves the `autoscaling` group in `autoscaling/v1` and `autoscaling/v2`, and `autoscaling/v2` is the preferred version. A legacy report reads `spec.targetCPUUtilizationPercentage`, a field that exists only in the `autoscaling/v1` representation of the object.
+
+        Print HorizontalPodAutoscaler `web` as YAML, read through the API version `autoscaling/v1`.
+
+        Type the single command you would run.
+    body:
+      mode: invocation
+      namespace: default
+    answer:
+      checks:
+        - id: verb
+          label: Uses kubectl get
+          path: verb
+          op: equals
+          value: get
+        - id: version
+          label: Names the resource with version and group (horizontalpodautoscalers.v1.autoscaling)
+          path: args[0]
+          op: matches
+          value: ^(hpa|horizontalpodautoscalers?)\.v1\.autoscaling(/web)?$
+        - id: name
+          label: Reads the object web
+          path: names
+          op: contains
+          value: web
+        - id: namespace
+          label: Runs in namespace shop
+          path: flags.namespace
+          op: equals
+          value: shop
+        - id: output
+          label: Prints YAML (-o yaml)
+          path: flags.output
+          op: equals
+          value: yaml
+      solution:
+        - command: kubectl get horizontalpodautoscalers.v1.autoscaling web -n shop -o yaml
+        - command: k get hpa.v1.autoscaling/web --namespace shop -o yaml
+        - command: kubectl -n shop get horizontalpodautoscaler.v1.autoscaling web --output=yaml
+      negatives:
+        - command: kubectl get hpa web -n shop -o yaml
+          why: Without a version, kubectl reads the object through the preferred version, autoscaling/v2, which has spec.metrics and no targetCPUUtilizationPercentage.
+        - command: kubectl get hpa.autoscaling web -n shop -o yaml
+          why: Naming only the group still uses its preferred version, autoscaling/v2; the version must come between the resource and the group.
+        - command: kubectl get hpa web -n shop -o yaml --api-version=autoscaling/v1
+          why: kubectl get has no --api-version flag (that flag belongs to kubectl explain); the version is part of the resource argument.
+        - command: kubectl get hpa.v1.autoscaling web -o yaml
+          why: Without -n the command looks for web in the context namespace, default, not in shop.
+    explanation:
+      correct:
+        en: |
+          `kubectl get` accepts a fully qualified resource `TYPE.VERSION.GROUP`, as in the reference example `kubectl get deployments.v1.apps`. `horizontalpodautoscalers.v1.autoscaling` asks the API server for the `autoscaling/v1` representation of the same stored object, which carries `spec.targetCPUUtilizationPercentage`. Without a version, or with the group alone, kubectl uses the preferred version `autoscaling/v2`.
+    references:
+      - title: kubectl get
+        url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_get/
+
+  # ------------------------------------------------------------------ 7
+  - id: ckad-qz-31-07
+    objective: "3.1.2"
+    difficulty: 3
+    status: draft
+    type: manifest
+    stem:
+      en: |-
+        A team copied the Ingress in the editor from an old wiki. On the v1.37 cluster, `kubectl apply` rejects it because its apiVersion is no longer served.
+
+        Rewrite it for the API version the cluster serves, with the same routing:
+
+        - requests that match no rule still go to Service `fallback` on port 80;
+        - on host `api.example.com`, every path that starts with `/v1` goes to Service `api-v1` on its Service port named `http`, and every path that starts with `/v2` goes to Service `api-v2` on port 8080.
+
+        Keep the name and namespace.
+    body:
+      starter: |
+        apiVersion: networking.k8s.io/v1beta1
+        kind: Ingress
+        metadata:
+          name: api
+          namespace: shop
+        spec:
+          backend:
+            serviceName: fallback
+            servicePort: 80
+          rules:
+          - host: api.example.com
+            http:
+              paths:
+              - path: /v1
+                backend:
+                  serviceName: api-v1
+                  servicePort: http
+              - path: /v2
+                backend:
+                  serviceName: api-v2
+                  servicePort: 8080
+    answer:
+      checks:
+        - id: api-version
+          label: Uses apiVersion networking.k8s.io/v1
+          path: apiVersion
+          op: equals
+          value: networking.k8s.io/v1
+        - id: kind
+          label: The object is an Ingress
+          path: kind
+          op: equals
+          value: Ingress
+        - id: metadata
+          label: Named api in namespace shop
+          path: metadata
+          op: subset
+          value: { name: api, namespace: shop }
+        - id: default-backend
+          label: spec.defaultBackend sends unmatched requests to Service fallback, port number 80
+          path: spec.defaultBackend.service
+          op: subset
+          value: { name: fallback, port: { number: 80 } }
+        - id: old-backend
+          label: The old field spec.backend is gone
+          path: spec.backend
+          op: absent
+        - id: v1-backend
+          label: /v1 goes to Service api-v1 on the port named http (port.name)
+          path: spec.rules[host=api.example.com].http.paths[path=/v1].backend.service
+          op: subset
+          value: { name: api-v1, port: { name: http } }
+        - id: v1-path-type
+          label: /v1 uses pathType Prefix
+          path: spec.rules[host=api.example.com].http.paths[path=/v1].pathType
+          op: equals
+          value: Prefix
+        - id: v2-backend
+          label: /v2 goes to Service api-v2 on port number 8080
+          path: spec.rules[host=api.example.com].http.paths[path=/v2].backend.service
+          op: subset
+          value: { name: api-v2, port: { number: 8080 } }
+        - id: v2-path-type
+          label: /v2 uses pathType Prefix
+          path: spec.rules[host=api.example.com].http.paths[path=/v2].pathType
+          op: equals
+          value: Prefix
+      solution:
+        - manifest: |
+            apiVersion: networking.k8s.io/v1
+            kind: Ingress
+            metadata:
+              name: api
+              namespace: shop
+            spec:
+              defaultBackend:
+                service:
+                  name: fallback
+                  port:
+                    number: 80
+              rules:
+              - host: api.example.com
+                http:
+                  paths:
+                  - path: /v1
+                    pathType: Prefix
+                    backend:
+                      service:
+                        name: api-v1
+                        port:
+                          name: http
+                  - path: /v2
+                    pathType: Prefix
+                    backend:
+                      service:
+                        name: api-v2
+                        port:
+                          number: 8080
+        - manifest: |
+            apiVersion: networking.k8s.io/v1
+            kind: Ingress
+            metadata:
+              namespace: shop
+              name: api
+            spec:
+              rules:
+              - host: api.example.com
+                http:
+                  paths:
+                  - backend:
+                      service:
+                        name: api-v2
+                        port: { number: 8080 }
+                    path: /v2
+                    pathType: Prefix
+                  - backend:
+                      service:
+                        name: api-v1
+                        port: { name: http }
+                    path: /v1
+                    pathType: Prefix
+              defaultBackend:
+                service:
+                  name: fallback
+                  port: { number: 80 }
+      negatives:
+        - manifest: |
+            apiVersion: networking.k8s.io/v1
+            kind: Ingress
+            metadata:
+              name: api
+              namespace: shop
+            spec:
+              backend:
+                serviceName: fallback
+                servicePort: 80
+              rules:
+              - host: api.example.com
+                http:
+                  paths:
+                  - path: /v1
+                    pathType: Prefix
+                    backend:
+                      serviceName: api-v1
+                      servicePort: http
+                  - path: /v2
+                    pathType: Prefix
+                    backend:
+                      serviceName: api-v2
+                      servicePort: 8080
+          why: Only the apiVersion and pathType were changed. In networking.k8s.io/v1, spec.backend is spec.defaultBackend, and serviceName/servicePort become service.name and service.port.number or service.port.name.
+        - manifest: |
+            apiVersion: networking.k8s.io/v1
+            kind: Ingress
+            metadata:
+              name: api
+              namespace: shop
+            spec:
+              backend:
+                service:
+                  name: fallback
+                  port:
+                    number: 80
+              rules:
+              - host: api.example.com
+                http:
+                  paths:
+                  - path: /v1
+                    pathType: Prefix
+                    backend:
+                      service:
+                        name: api-v1
+                        port:
+                          name: http
+                  - path: /v2
+                    pathType: Prefix
+                    backend:
+                      service:
+                        name: api-v2
+                        port:
+                          number: 8080
+          why: The default backend kept the old field name spec.backend; in networking.k8s.io/v1 it is spec.defaultBackend, so unmatched requests have no backend.
+        - manifest: |
+            apiVersion: networking.k8s.io/v1
+            kind: Ingress
+            metadata:
+              name: api
+              namespace: shop
+            spec:
+              defaultBackend:
+                service:
+                  name: fallback
+                  port:
+                    number: 80
+              rules:
+              - host: api.example.com
+                http:
+                  paths:
+                  - path: /v1
+                    pathType: Exact
+                    backend:
+                      service:
+                        name: api-v1
+                        port:
+                          name: http
+                  - path: /v2
+                    pathType: Exact
+                    backend:
+                      service:
+                        name: api-v2
+                        port:
+                          number: 8080
+          why: pathType Exact matches only /v1 and /v2 themselves; /v1/orders would fall to the default backend. Prefix matching needs pathType Prefix.
+        - manifest: |
+            apiVersion: networking.k8s.io/v1
+            kind: Ingress
+            metadata:
+              name: api
+              namespace: shop
+            spec:
+              defaultBackend:
+                service:
+                  name: fallback
+                  port:
+                    number: 80
+              rules:
+              - host: api.example.com
+                http:
+                  paths:
+                  - path: /v1
+                    pathType: Prefix
+                    backend:
+                      service:
+                        name: api-v1
+                        port:
+                          number: 80
+                  - path: /v2
+                    pathType: Prefix
+                    backend:
+                      service:
+                        name: api-v2
+                        port:
+                          number: 8080
+          why: The old servicePort was the string http, a Service port name; it becomes service.port.name, not a guessed port number.
+    explanation:
+      correct:
+        en: |
+          Ingress in `networking.k8s.io/v1beta1` has not been served since v1.22. In `networking.k8s.io/v1`, `spec.backend` is renamed `spec.defaultBackend`, `serviceName` becomes `service.name`, a numeric `servicePort` becomes `service.port.number` and a named one `service.port.name`. `pathType` is now required, and paths that must match everything below `/v1` or `/v2` need `Prefix`.
+    references:
+      - title: Deprecated API Migration Guide
+        url: https://kubernetes.io/docs/reference/using-api/deprecation-guide/
+
+  # ------------------------------------------------------------------ 8
+  - id: ckad-qz-31-08
+    objective: "3.2.1"
+    difficulty: 3
+    status: draft
+    type: manifest
+    stem:
+      en: |-
+        Write the manifest of a Pod named `gateway` in namespace `edge` with one container named `proxy` running `registry.example.com/edge-proxy:3.0`, declaring container port 8443 with the name `https`. The proxy serves HTTPS only, with a self-signed certificate, and routes requests by virtual host. The image contains `/bin/sh`.
+
+        - Startup: a TCP connection to the container port, referring to it by its name.
+        - Liveness: `GET /livez` over HTTPS on port 8443. The request must reach the Pod's own IP address and carry the HTTP header `Host: edge.example.com`, because the proxy answers `/livez` only for that virtual host.
+        - Readiness: the container is ready only while the shell condition `test -f /tmp/ready && test ! -f /tmp/draining` is true inside the container.
+    body:
+      starter: |
+        apiVersion: v1
+        kind: Pod
+        metadata:
+          name: gateway
+          namespace: edge
+        spec:
+          containers:
+          - name: proxy
+            image: registry.example.com/edge-proxy:3.0
+    answer:
+      checks:
+        - id: pod
+          label: A Pod named gateway in namespace edge
+          path: metadata
+          op: subset
+          value: { name: gateway, namespace: edge }
+        - id: image
+          label: Container proxy runs registry.example.com/edge-proxy:3.0
+          path: spec.containers[name=proxy].image
+          op: equals
+          value: registry.example.com/edge-proxy:3.0
+        - id: port
+          label: Container port 8443 is named https
+          path: spec.containers[name=proxy].ports[name=https].containerPort
+          op: equals
+          value: 8443
+        - id: startup
+          label: The startup probe opens a TCP connection to the port named https
+          path: spec.containers[name=proxy].startupProbe.tcpSocket.port
+          op: equals
+          value: https
+        - id: liveness-get
+          label: The liveness probe is an HTTPS GET on /livez
+          path: spec.containers[name=proxy].livenessProbe.httpGet
+          op: subset
+          value: { path: /livez, scheme: HTTPS }
+        - id: liveness-port
+          label: The liveness probe targets port 8443
+          path: spec.containers[name=proxy].livenessProbe.httpGet.port
+          op: oneOf
+          value: [8443, https]
+        - id: liveness-header
+          label: The liveness probe sends the header Host edge.example.com
+          path: spec.containers[name=proxy].livenessProbe.httpGet.httpHeaders
+          op: matches
+          value: '("name":"[Hh][Oo][Ss][Tt]","value":"edge\.example\.com"|"value":"edge\.example\.com","name":"[Hh][Oo][Ss][Tt]")'
+        - id: liveness-host
+          label: The liveness probe keeps connecting to the Pod IP (no host field)
+          path: spec.containers[name=proxy].livenessProbe.httpGet.host
+          op: absent
+        - id: readiness-shell
+          label: The readiness probe runs the condition through a shell (sh -c as separate list items)
+          path: spec.containers[name=proxy].readinessProbe.exec.command
+          op: matches
+          value: '^\["((/usr)?/bin/)?(ba|da|a)?sh","-c","[^"]+"\]$'
+        - id: readiness-ready
+          label: The readiness condition tests /tmp/ready
+          path: spec.containers[name=proxy].readinessProbe.exec.command
+          op: matches
+          value: /tmp/ready
+        - id: readiness-draining
+          label: The readiness condition tests /tmp/draining
+          path: spec.containers[name=proxy].readinessProbe.exec.command
+          op: matches
+          value: /tmp/draining
+      solution:
+        - manifest: |
+            apiVersion: v1
+            kind: Pod
+            metadata:
+              name: gateway
+              namespace: edge
+            spec:
+              containers:
+              - name: proxy
+                image: registry.example.com/edge-proxy:3.0
+                ports:
+                - name: https
+                  containerPort: 8443
+                startupProbe:
+                  tcpSocket:
+                    port: https
+                livenessProbe:
+                  httpGet:
+                    path: /livez
+                    port: 8443
+                    scheme: HTTPS
+                    httpHeaders:
+                    - name: Host
+                      value: edge.example.com
+                readinessProbe:
+                  exec:
+                    command:
+                    - /bin/sh
+                    - -c
+                    - test -f /tmp/ready && test ! -f /tmp/draining
+        - manifest: |
+            apiVersion: v1
+            kind: Pod
+            metadata:
+              name: gateway
+              namespace: edge
+            spec:
+              containers:
+              - name: proxy
+                image: registry.example.com/edge-proxy:3.0
+                ports:
+                - containerPort: 8443
+                  name: https
+                readinessProbe:
+                  exec:
+                    command: ["sh", "-c", "[ -f /tmp/ready ] && [ ! -f /tmp/draining ]"]
+                livenessProbe:
+                  httpGet:
+                    scheme: HTTPS
+                    port: https
+                    path: /livez
+                    httpHeaders:
+                    - value: edge.example.com
+                      name: host
+                startupProbe:
+                  tcpSocket:
+                    port: https
+      negatives:
+        - manifest: |
+            apiVersion: v1
+            kind: Pod
+            metadata:
+              name: gateway
+              namespace: edge
+            spec:
+              containers:
+              - name: proxy
+                image: registry.example.com/edge-proxy:3.0
+                ports:
+                - name: https
+                  containerPort: 8443
+                startupProbe:
+                  tcpSocket:
+                    port: https
+                livenessProbe:
+                  httpGet:
+                    host: edge.example.com
+                    path: /livez
+                    port: 8443
+                    scheme: HTTPS
+                readinessProbe:
+                  exec:
+                    command: ["/bin/sh", "-c", "test -f /tmp/ready && test ! -f /tmp/draining"]
+          why: The host field changes the address the kubelet connects to (default the Pod IP); edge.example.com is not this Pod. A virtual host is selected with a Host entry in httpHeaders.
+        - manifest: |
+            apiVersion: v1
+            kind: Pod
+            metadata:
+              name: gateway
+              namespace: edge
+            spec:
+              containers:
+              - name: proxy
+                image: registry.example.com/edge-proxy:3.0
+                ports:
+                - name: https
+                  containerPort: 8443
+                startupProbe:
+                  tcpSocket:
+                    port: https
+                livenessProbe:
+                  httpGet:
+                    path: /livez
+                    port: 8443
+                    scheme: HTTPS
+                    httpHeaders:
+                    - name: Host
+                      value: edge.example.com
+                readinessProbe:
+                  exec:
+                    command: ["test -f /tmp/ready && test ! -f /tmp/draining"]
+          why: exec does not use a shell; the single string is taken as the name of a binary, which does not exist, so the container never becomes ready.
+        - manifest: |
+            apiVersion: v1
+            kind: Pod
+            metadata:
+              name: gateway
+              namespace: edge
+            spec:
+              containers:
+              - name: proxy
+                image: registry.example.com/edge-proxy:3.0
+                ports:
+                - name: https
+                  containerPort: 8443
+                startupProbe:
+                  tcpSocket:
+                    port: https
+                livenessProbe:
+                  httpGet:
+                    path: /livez
+                    port: 8443
+                    httpHeaders:
+                    - name: Host
+                      value: edge.example.com
+                readinessProbe:
+                  exec:
+                    command: ["/bin/sh", "-c", "test -f /tmp/ready && test ! -f /tmp/draining"]
+          why: Without scheme HTTPS the kubelet sends plain HTTP to a port that speaks only TLS, so every liveness check fails and the container is restarted in a loop.
+        - manifest: |
+            apiVersion: v1
+            kind: Pod
+            metadata:
+              name: gateway
+              namespace: edge
+            spec:
+              containers:
+              - name: proxy
+                image: registry.example.com/edge-proxy:3.0
+                ports:
+                - name: https
+                  containerPort: 8443
+                startupProbe:
+                  httpGet:
+                    path: /
+                    port: https
+                livenessProbe:
+                  httpGet:
+                    path: /livez
+                    port: 8443
+                    scheme: HTTPS
+                    httpHeaders:
+                    - name: Host
+                      value: edge.example.com
+                readinessProbe:
+                  exec:
+                    command: ["/bin/sh", "-c", "test -f /tmp/ready && test ! -f /tmp/draining"]
+          why: The startup probe must only open a TCP connection; an HTTP GET without scheme HTTPS on the TLS port fails until the kubelet kills the container.
+    explanation:
+      correct:
+        en: |
+          `tcpSocket.port` accepts a port name, so the startup probe can use `https`. For the liveness probe, `scheme: HTTPS` makes the kubelet use TLS without verifying the certificate, and the virtual host goes in `httpHeaders` as `Host`: the `host` field would change the address the kubelet connects to instead of the Pod IP. `exec.command` is run without a shell, so shell syntax such as `&&` needs `sh -c` with the expression as a separate list item.
+    references:
+      - title: Liveness, Readiness, and Startup Probes
+        url: https://kubernetes.io/docs/concepts/configuration/liveness-readiness-startup-probes/
+      - title: Configure Liveness, Readiness and Startup Probes
+        url: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/
+
+  # ------------------------------------------------------------------ 9
+  - id: ckad-qz-31-09
+    objective: "3.1.2"
+    difficulty: 3
+    status: draft
+    type: manifest
+    stem:
+      en: |-
+        The file in the editor gives the ServiceAccount `deployer` of namespace `ci` the right to manage three kinds of objects in namespace `shop`: Deployments, Ingresses and NetworkPolicies. It was written for Kubernetes v1.15, and `kubectl apply` now fails on the v1.37 cluster.
+
+        Migrate both objects so that the cluster accepts them and `deployer` can really use the same five verbs on the same three resource types as v1.37 serves them. Keep the names, namespace, subject and verbs.
+    body:
+      starter: |
+        apiVersion: rbac.authorization.k8s.io/v1beta1
+        kind: Role
+        metadata:
+          name: release-manager
+          namespace: shop
+        rules:
+        - apiGroups: ["extensions"]
+          resources: ["deployments", "ingresses", "networkpolicies"]
+          verbs: ["get", "list", "watch", "update", "patch"]
+        ---
+        apiVersion: rbac.authorization.k8s.io/v1beta1
+        kind: RoleBinding
+        metadata:
+          name: release-manager
+          namespace: shop
+        subjects:
+        - kind: ServiceAccount
+          name: deployer
+          namespace: ci
+        roleRef:
+          apiGroup: rbac.authorization.k8s.io
+          kind: Role
+          name: release-manager
+    answer:
+      checks:
+        - id: role-version
+          label: The Role uses rbac.authorization.k8s.io/v1
+          select: { kind: Role, name: release-manager }
+          path: apiVersion
+          op: equals
+          value: rbac.authorization.k8s.io/v1
+        - id: role-namespace
+          label: The Role is in namespace shop
+          select: { kind: Role, name: release-manager }
+          path: metadata.namespace
+          op: equals
+          value: shop
+        - id: rule-deployments
+          label: A rule grants the five verbs on deployments in the group apps
+          select: { kind: Role, name: release-manager }
+          path: rules
+          op: contains
+          value: { apiGroups: [apps], resources: [deployments], verbs: [get, list, watch, update, patch] }
+        - id: rule-ingresses
+          label: A rule grants the five verbs on ingresses in the group networking.k8s.io
+          select: { kind: Role, name: release-manager }
+          path: rules
+          op: contains
+          value: { apiGroups: [networking.k8s.io], resources: [ingresses], verbs: [get, list, watch, update, patch] }
+        - id: rule-networkpolicies
+          label: A rule grants the five verbs on networkpolicies in the group networking.k8s.io
+          select: { kind: Role, name: release-manager }
+          path: rules
+          op: contains
+          value: { apiGroups: [networking.k8s.io], resources: [networkpolicies], verbs: [get, list, watch, update, patch] }
+        - id: binding-version
+          label: The RoleBinding uses rbac.authorization.k8s.io/v1
+          select: { kind: RoleBinding, name: release-manager }
+          path: apiVersion
+          op: equals
+          value: rbac.authorization.k8s.io/v1
+        - id: binding-namespace
+          label: The RoleBinding is in namespace shop
+          select: { kind: RoleBinding, name: release-manager }
+          path: metadata.namespace
+          op: equals
+          value: shop
+        - id: binding-subject
+          label: The RoleBinding keeps the subject ServiceAccount ci/deployer
+          select: { kind: RoleBinding, name: release-manager }
+          path: subjects
+          op: contains
+          value: { kind: ServiceAccount, name: deployer, namespace: ci }
+        - id: binding-roleref
+          label: roleRef points to Role release-manager in the group rbac.authorization.k8s.io
+          select: { kind: RoleBinding, name: release-manager }
+          path: roleRef
+          op: subset
+          value: { apiGroup: rbac.authorization.k8s.io, kind: Role, name: release-manager }
+      solution:
+        - manifest: |
+            apiVersion: rbac.authorization.k8s.io/v1
+            kind: Role
+            metadata:
+              name: release-manager
+              namespace: shop
+            rules:
+            - apiGroups: ["apps"]
+              resources: ["deployments"]
+              verbs: ["get", "list", "watch", "update", "patch"]
+            - apiGroups: ["networking.k8s.io"]
+              resources: ["ingresses", "networkpolicies"]
+              verbs: ["get", "list", "watch", "update", "patch"]
+            ---
+            apiVersion: rbac.authorization.k8s.io/v1
+            kind: RoleBinding
+            metadata:
+              name: release-manager
+              namespace: shop
+            subjects:
+            - kind: ServiceAccount
+              name: deployer
+              namespace: ci
+            roleRef:
+              apiGroup: rbac.authorization.k8s.io
+              kind: Role
+              name: release-manager
+        - manifest: |
+            apiVersion: rbac.authorization.k8s.io/v1
+            kind: RoleBinding
+            metadata:
+              name: release-manager
+              namespace: shop
+            roleRef:
+              kind: Role
+              name: release-manager
+              apiGroup: rbac.authorization.k8s.io
+            subjects:
+            - kind: ServiceAccount
+              namespace: ci
+              name: deployer
+            ---
+            apiVersion: rbac.authorization.k8s.io/v1
+            kind: Role
+            metadata:
+              name: release-manager
+              namespace: shop
+            rules:
+            - apiGroups: ["networking.k8s.io"]
+              resources: ["networkpolicies"]
+              verbs: ["get", "list", "watch", "update", "patch"]
+            - apiGroups: ["networking.k8s.io"]
+              resources: ["ingresses"]
+              verbs: ["get", "list", "watch", "update", "patch"]
+            - apiGroups: ["apps"]
+              resources: ["deployments"]
+              verbs: ["get", "list", "watch", "update", "patch"]
+      negatives:
+        - manifest: |
+            apiVersion: rbac.authorization.k8s.io/v1
+            kind: Role
+            metadata:
+              name: release-manager
+              namespace: shop
+            rules:
+            - apiGroups: ["extensions"]
+              resources: ["deployments", "ingresses", "networkpolicies"]
+              verbs: ["get", "list", "watch", "update", "patch"]
+            ---
+            apiVersion: rbac.authorization.k8s.io/v1
+            kind: RoleBinding
+            metadata:
+              name: release-manager
+              namespace: shop
+            subjects:
+            - kind: ServiceAccount
+              name: deployer
+              namespace: ci
+            roleRef:
+              apiGroup: rbac.authorization.k8s.io
+              kind: Role
+              name: release-manager
+          why: The cluster accepts it, but the rule still names the extensions group, which no longer serves these resources; requests to apps and networking.k8s.io are forbidden.
+        - manifest: |
+            apiVersion: rbac.authorization.k8s.io/v1
+            kind: Role
+            metadata:
+              name: release-manager
+              namespace: shop
+            rules:
+            - apiGroups: ["apps"]
+              resources: ["deployments", "ingresses", "networkpolicies"]
+              verbs: ["get", "list", "watch", "update", "patch"]
+            ---
+            apiVersion: rbac.authorization.k8s.io/v1
+            kind: RoleBinding
+            metadata:
+              name: release-manager
+              namespace: shop
+            subjects:
+            - kind: ServiceAccount
+              name: deployer
+              namespace: ci
+            roleRef:
+              apiGroup: rbac.authorization.k8s.io
+              kind: Role
+              name: release-manager
+          why: Only Deployments moved to apps; Ingress and NetworkPolicy are served by networking.k8s.io, so this rule grants nothing on them.
+        - manifest: |
+            apiVersion: rbac.authorization.k8s.io/v1
+            kind: Role
+            metadata:
+              name: release-manager
+              namespace: shop
+            rules:
+            - apiGroups: ["apps"]
+              resources: ["deployments"]
+              verbs: ["get", "list", "watch", "update", "patch"]
+            - apiGroups: ["networking.k8s.io"]
+              resources: ["ingresses", "networkpolicies"]
+              verbs: ["get", "list", "watch", "update", "patch"]
+            ---
+            apiVersion: rbac.authorization.k8s.io/v1
+            kind: RoleBinding
+            metadata:
+              name: release-manager
+              namespace: shop
+            subjects:
+            - kind: ServiceAccount
+              name: deployer
+              namespace: ci
+            roleRef:
+              apiGroup: rbac.authorization.k8s.io/v1
+              kind: Role
+              name: release-manager
+          why: roleRef.apiGroup takes the group only, rbac.authorization.k8s.io, without a version; the API server rejects the binding.
+        - manifest: |
+            apiVersion: rbac.authorization.k8s.io/v1
+            kind: Role
+            metadata:
+              name: release-manager
+              namespace: shop
+            rules:
+            - apiGroups: ["apps"]
+              resources: ["deployments"]
+              verbs: ["get", "list", "watch", "update", "patch"]
+            - apiGroups: ["networking.k8s.io"]
+              resources: ["ingresses", "networkpolicies"]
+              verbs: ["get", "list", "watch", "update", "patch"]
+            ---
+            apiVersion: rbac.authorization.k8s.io/v1beta1
+            kind: RoleBinding
+            metadata:
+              name: release-manager
+              namespace: shop
+            subjects:
+            - kind: ServiceAccount
+              name: deployer
+              namespace: ci
+            roleRef:
+              apiGroup: rbac.authorization.k8s.io
+              kind: Role
+              name: release-manager
+          why: The RoleBinding still uses rbac.authorization.k8s.io/v1beta1, removed in v1.22 for every RBAC kind, so kubectl apply fails on it.
+    explanation:
+      correct:
+        en: |
+          `rbac.authorization.k8s.io/v1beta1` was removed in v1.22 for Role, RoleBinding, ClusterRole and ClusterRoleBinding; `v1` has the same fields. Changing the apiVersion is not enough here: a rule's `apiGroups` names the group that serves the resource, and `extensions` no longer serves anything. Deployments are in `apps` and Ingresses and NetworkPolicies in `networking.k8s.io`. `roleRef.apiGroup` stays the group name alone.
+    references:
+      - title: Deprecated API Migration Guide
+        url: https://kubernetes.io/docs/reference/using-api/deprecation-guide/
+      - title: Using RBAC Authorization
+        url: https://kubernetes.io/docs/reference/access-authn-authz/rbac/
+
+  # ------------------------------------------------------------------ 10
+  - id: ckad-qz-31-10
+    objective: "3.2.2"
+    difficulty: 3
+    status: draft
+    type: manifest
+    stem:
+      en: |-
+        The Deployment in the editor has three problems: the API server rejects it, all its replicas restarted together during the last database outage, and the `agent` container restarts about every 30 seconds although it is healthy. Facts about container `api`:
+
+        - `/ready` returns 503 while the database is unreachable; `/healthz` checks only the process and can take up to 2.5 seconds to answer.
+        - The application needs up to 5 minutes to start; neither endpoint answers before that.
+
+        Fix the manifest so that:
+
+        - a database outage never restarts `api`: a Pod leaves the Service endpoints after 2 consecutive failures of `GET /ready`, checked every 5 seconds;
+        - the liveness probe of `api` checks `GET /healthz` every 10 seconds with the default thresholds, allows each attempt 3 seconds, and starts checking as soon as the application has started;
+        - a startup probe on `GET /healthz` checks every 15 seconds from the moment the container starts and gives the application its 5 minutes before the kubelet kills it;
+        - the liveness probe of `agent` succeeds while the file `/var/run/agent.ok` exists.
+    body:
+      starter: |
+        apiVersion: apps/v1
+        kind: Deployment
+        metadata:
+          name: reports
+          namespace: analytics
+        spec:
+          replicas: 3
+          selector:
+            matchLabels:
+              app: reports
+          template:
+            metadata:
+              labels:
+                app: reports
+            spec:
+              containers:
+              - name: api
+                image: registry.example.com/reports-api:5.4
+                ports:
+                - name: http
+                  containerPort: 8080
+                livenessProbe:
+                  httpGet:
+                    path: /ready
+                    port: http
+                  initialDelaySeconds: 300
+                  periodSeconds: 10
+                  successThreshold: 2
+              - name: agent
+                image: registry.example.com/metrics-agent:1.9
+                livenessProbe:
+                  exec:
+                    command: ["cat /var/run/agent.ok"]
+    answer:
+      checks:
+        - id: readiness-path
+          label: The readiness probe of api is GET /ready
+          path: spec.template.spec.containers[name=api].readinessProbe.httpGet.path
+          op: equals
+          value: /ready
+        - id: readiness-period
+          label: The readiness probe runs every 5 seconds
+          path: spec.template.spec.containers[name=api].readinessProbe.periodSeconds
+          op: equals
+          value: 5
+        - id: readiness-failure
+          label: The readiness failureThreshold is 2
+          path: spec.template.spec.containers[name=api].readinessProbe.failureThreshold
+          op: equals
+          value: 2
+        - id: liveness-path
+          label: The liveness probe of api is GET /healthz (no database check)
+          path: spec.template.spec.containers[name=api].livenessProbe.httpGet.path
+          op: equals
+          value: /healthz
+        - id: liveness-port
+          label: The liveness probe targets port http (8080)
+          path: spec.template.spec.containers[name=api].livenessProbe.httpGet.port
+          op: oneOf
+          value: [http, 8080]
+        - id: liveness-timeout
+          label: Each liveness attempt may take 3 seconds (timeoutSeconds 3)
+          path: spec.template.spec.containers[name=api].livenessProbe.timeoutSeconds
+          op: equals
+          value: 3
+        - id: liveness-period
+          label: The liveness probe runs every 10 seconds
+          path: spec.template.spec.containers[name=api].livenessProbe
+          op: matches
+          value: '^(?!.*"periodSeconds":(?!10[,}])).*$'
+        - id: liveness-failure
+          label: The liveness probe keeps the default failureThreshold (absent or 3)
+          path: spec.template.spec.containers[name=api].livenessProbe
+          op: matches
+          value: '^(?!.*"failureThreshold":(?!3[,}])).*$'
+        - id: liveness-success
+          label: The liveness successThreshold is absent or 1 (the API server rejects other values)
+          path: spec.template.spec.containers[name=api].livenessProbe
+          op: matches
+          value: '^(?!.*"successThreshold":(?!1[,}])).*$'
+        - id: liveness-delay
+          label: The liveness probe has no initial delay (the startup probe covers the start)
+          path: spec.template.spec.containers[name=api].livenessProbe
+          op: matches
+          value: '^(?!.*"initialDelaySeconds":(?!0[,}])).*$'
+        - id: startup-path
+          label: The startup probe of api is GET /healthz
+          path: spec.template.spec.containers[name=api].startupProbe.httpGet.path
+          op: equals
+          value: /healthz
+        - id: startup-period
+          label: The startup probe runs every 15 seconds
+          path: spec.template.spec.containers[name=api].startupProbe.periodSeconds
+          op: equals
+          value: 15
+        - id: startup-budget
+          label: The startup probe allows 20 failures (20 x 15 s = 300 s)
+          path: spec.template.spec.containers[name=api].startupProbe.failureThreshold
+          op: equals
+          value: 20
+        - id: startup-delay
+          label: The startup probe checks from the start of the container (no initial delay)
+          path: spec.template.spec.containers[name=api].startupProbe
+          op: matches
+          value: '^(?!.*"initialDelaySeconds":(?!0[,}])).*$'
+        - id: agent-exec
+          label: The agent liveness command is a list whose arguments are separate items, testing /var/run/agent.ok
+          path: spec.template.spec.containers[name=agent].livenessProbe.exec.command
+          op: matches
+          value: '^\["[^" ]+",.*/var/run/agent\.ok'
+      solution:
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: reports
+              namespace: analytics
+            spec:
+              replicas: 3
+              selector:
+                matchLabels:
+                  app: reports
+              template:
+                metadata:
+                  labels:
+                    app: reports
+                spec:
+                  containers:
+                  - name: api
+                    image: registry.example.com/reports-api:5.4
+                    ports:
+                    - name: http
+                      containerPort: 8080
+                    startupProbe:
+                      httpGet:
+                        path: /healthz
+                        port: http
+                      periodSeconds: 15
+                      failureThreshold: 20
+                    livenessProbe:
+                      httpGet:
+                        path: /healthz
+                        port: http
+                      periodSeconds: 10
+                      timeoutSeconds: 3
+                    readinessProbe:
+                      httpGet:
+                        path: /ready
+                        port: http
+                      periodSeconds: 5
+                      failureThreshold: 2
+                  - name: agent
+                    image: registry.example.com/metrics-agent:1.9
+                    livenessProbe:
+                      exec:
+                        command: ["cat", "/var/run/agent.ok"]
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: reports
+              namespace: analytics
+            spec:
+              replicas: 3
+              selector:
+                matchLabels:
+                  app: reports
+              template:
+                metadata:
+                  labels:
+                    app: reports
+                spec:
+                  containers:
+                  - name: api
+                    image: registry.example.com/reports-api:5.4
+                    ports:
+                    - name: http
+                      containerPort: 8080
+                    livenessProbe:
+                      httpGet:
+                        path: /healthz
+                        port: 8080
+                      initialDelaySeconds: 0
+                      timeoutSeconds: 3
+                      failureThreshold: 3
+                      successThreshold: 1
+                    readinessProbe:
+                      httpGet:
+                        path: /ready
+                        port: 8080
+                      failureThreshold: 2
+                      periodSeconds: 5
+                    startupProbe:
+                      httpGet:
+                        path: /healthz
+                        port: 8080
+                      failureThreshold: 20
+                      periodSeconds: 15
+                      timeoutSeconds: 3
+                  - name: agent
+                    image: registry.example.com/metrics-agent:1.9
+                    livenessProbe:
+                      exec:
+                        command:
+                        - test
+                        - -f
+                        - /var/run/agent.ok
+      negatives:
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: reports
+              namespace: analytics
+            spec:
+              replicas: 3
+              selector:
+                matchLabels:
+                  app: reports
+              template:
+                metadata:
+                  labels:
+                    app: reports
+                spec:
+                  containers:
+                  - name: api
+                    image: registry.example.com/reports-api:5.4
+                    ports:
+                    - name: http
+                      containerPort: 8080
+                    startupProbe:
+                      httpGet:
+                        path: /healthz
+                        port: http
+                      periodSeconds: 15
+                      failureThreshold: 20
+                    livenessProbe:
+                      httpGet:
+                        path: /healthz
+                        port: http
+                      initialDelaySeconds: 300
+                      periodSeconds: 10
+                      timeoutSeconds: 3
+                    readinessProbe:
+                      httpGet:
+                        path: /ready
+                        port: http
+                      periodSeconds: 5
+                      failureThreshold: 2
+                  - name: agent
+                    image: registry.example.com/metrics-agent:1.9
+                    livenessProbe:
+                      exec:
+                        command: ["cat", "/var/run/agent.ok"]
+          why: With a startup probe, the liveness initialDelaySeconds counts from the moment the startup probe succeeds, so a deadlock in the first 5 minutes after start would go unnoticed.
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: reports
+              namespace: analytics
+            spec:
+              replicas: 3
+              selector:
+                matchLabels:
+                  app: reports
+              template:
+                metadata:
+                  labels:
+                    app: reports
+                spec:
+                  containers:
+                  - name: api
+                    image: registry.example.com/reports-api:5.4
+                    ports:
+                    - name: http
+                      containerPort: 8080
+                    startupProbe:
+                      httpGet:
+                        path: /healthz
+                        port: http
+                      initialDelaySeconds: 255
+                      periodSeconds: 15
+                      failureThreshold: 3
+                    livenessProbe:
+                      httpGet:
+                        path: /healthz
+                        port: http
+                      timeoutSeconds: 3
+                    readinessProbe:
+                      httpGet:
+                        path: /ready
+                        port: http
+                      periodSeconds: 5
+                      failureThreshold: 2
+                  - name: agent
+                    image: registry.example.com/metrics-agent:1.9
+                    livenessProbe:
+                      exec:
+                        command: ["cat", "/var/run/agent.ok"]
+          why: The startup probe must check from the start of the container; a 255-second delay makes a fast start wait more than 4 minutes before the Pod can become ready.
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: reports
+              namespace: analytics
+            spec:
+              replicas: 3
+              selector:
+                matchLabels:
+                  app: reports
+              template:
+                metadata:
+                  labels:
+                    app: reports
+                spec:
+                  containers:
+                  - name: api
+                    image: registry.example.com/reports-api:5.4
+                    ports:
+                    - name: http
+                      containerPort: 8080
+                    startupProbe:
+                      httpGet:
+                        path: /healthz
+                        port: http
+                      periodSeconds: 15
+                      failureThreshold: 20
+                    livenessProbe:
+                      httpGet:
+                        path: /ready
+                        port: http
+                      periodSeconds: 10
+                      timeoutSeconds: 3
+                    readinessProbe:
+                      httpGet:
+                        path: /healthz
+                        port: http
+                      periodSeconds: 5
+                      failureThreshold: 2
+                  - name: agent
+                    image: registry.example.com/metrics-agent:1.9
+                    livenessProbe:
+                      exec:
+                        command: ["cat", "/var/run/agent.ok"]
+          why: The endpoints are swapped. Liveness on /ready still restarts every replica during a database outage, and readiness on /healthz keeps the Pods in the endpoints.
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: reports
+              namespace: analytics
+            spec:
+              replicas: 3
+              selector:
+                matchLabels:
+                  app: reports
+              template:
+                metadata:
+                  labels:
+                    app: reports
+                spec:
+                  containers:
+                  - name: api
+                    image: registry.example.com/reports-api:5.4
+                    ports:
+                    - name: http
+                      containerPort: 8080
+                    startupProbe:
+                      httpGet:
+                        path: /healthz
+                        port: http
+                      periodSeconds: 15
+                      failureThreshold: 20
+                    livenessProbe:
+                      httpGet:
+                        path: /healthz
+                        port: http
+                      periodSeconds: 10
+                    readinessProbe:
+                      httpGet:
+                        path: /ready
+                        port: http
+                      periodSeconds: 5
+                      failureThreshold: 2
+                  - name: agent
+                    image: registry.example.com/metrics-agent:1.9
+                    livenessProbe:
+                      exec:
+                        command: ["cat /var/run/agent.ok"]
+          why: Two faults remain. Without timeoutSeconds the liveness attempts time out after the default 1 second while /healthz can take 2.5 seconds, and the agent command is still one string, run as a binary named "cat /var/run/agent.ok".
+        - manifest: |
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata:
+              name: reports
+              namespace: analytics
+            spec:
+              replicas: 3
+              selector:
+                matchLabels:
+                  app: reports
+              template:
+                metadata:
+                  labels:
+                    app: reports
+                spec:
+                  containers:
+                  - name: api
+                    image: registry.example.com/reports-api:5.4
+                    ports:
+                    - name: http
+                      containerPort: 8080
+                    startupProbe:
+                      httpGet:
+                        path: /healthz
+                        port: http
+                      periodSeconds: 15
+                      failureThreshold: 20
+                    livenessProbe:
+                      httpGet:
+                        path: /healthz
+                        port: http
+                      periodSeconds: 10
+                      timeoutSeconds: 3
+                      successThreshold: 2
+                    readinessProbe:
+                      httpGet:
+                        path: /ready
+                        port: http
+                      periodSeconds: 5
+                      failureThreshold: 2
+                  - name: agent
+                    image: registry.example.com/metrics-agent:1.9
+                    livenessProbe:
+                      exec:
+                        command: ["cat", "/var/run/agent.ok"]
+          why: successThreshold must be 1 on a liveness probe; the API server still rejects the Deployment.
+    explanation:
+      correct:
+        en: |
+          Dependencies belong in the readiness probe: a failing readiness probe removes the Pod from the endpoints without restarting it, after `failureThreshold` × `periodSeconds` (2 × 5 s). The liveness probe checks only the process, with `timeoutSeconds: 3` because the default is 1 second, and `successThreshold` must stay 1. A startup probe gives `failureThreshold` × `periodSeconds` = 20 × 15 = 300 seconds to start and holds the liveness probe until it succeeds, so the liveness `initialDelaySeconds` must go. `exec.command` needs its arguments as separate list items.
+    references:
+      - title: Liveness, Readiness, and Startup Probes
+        url: https://kubernetes.io/docs/concepts/configuration/liveness-readiness-startup-probes/
+      - title: Configure Liveness, Readiness and Startup Probes
+        url: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/

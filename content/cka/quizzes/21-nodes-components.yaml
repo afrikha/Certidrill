@@ -1,0 +1,1201 @@
+chapter: 21-nodes-components
+questions:
+  # ------------------------------------------------------------------ 1
+  - id: cka-qz-21-01
+    objective: "2.1.1"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        `kubectl get nodes` shows `node-3` as `NotReady`. In `kubectl describe node node-3`, the `Ready` condition has the status `Unknown`.
+
+        What does the status `Unknown` tell you?
+    body:
+      options:
+        - { id: a, text: { en: "The kubelet on node-3 reported that the node is unhealthy and does not accept new Pods." } }
+        - { id: b, text: { en: "The node has been cordoned, so the scheduler no longer places new Pods on node-3." } }
+        - { id: c, text: { en: "The node controller has received no status from the kubelet on node-3 for longer than the grace period." } }
+        - { id: d, text: { en: "The kubelet on node-3 is running, but its MemoryPressure or DiskPressure condition is True." } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          `Unknown` means the node controller has not heard from the node during the last `node-monitor-grace-period` (50 seconds by default): the kubelet is typically stopped, crashing or unable to reach the API server. The next step is on the node itself: `systemctl status kubelet`, then `journalctl -u kubelet`.
+      options:
+        a: { en: "A kubelet that reports the node as unhealthy sets `Ready` to `False`, not `Unknown`: it is still sending status updates." }
+        b: { en: "Cordoning sets `spec.unschedulable` and shows `SchedulingDisabled` in `kubectl get nodes`; it does not change the `Ready` condition." }
+        d: { en: "Pressure conditions are separate conditions reported by a working kubelet; they do not turn `Ready` into `Unknown`." }
+    references:
+      - title: Node Status
+        url: https://kubernetes.io/docs/reference/node/node-status/
+
+  # ------------------------------------------------------------------ 2
+  - id: cka-qz-21-02
+    objective: "2.2.1"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        On control plane node `cp-1` (kubeadm), you run `kubectl -n kube-system delete pod kube-scheduler-cp-1`. The file `/etc/kubernetes/manifests/kube-scheduler.yaml` is not changed.
+
+        What happens?
+    body:
+      options:
+        - { id: a, text: { en: "The scheduler stays stopped until you run `kubectl apply -f` on the manifest file again." } }
+        - { id: b, text: { en: "The kubelet keeps running the scheduler from the file, and the Pod object appears again in the API." } }
+        - { id: c, text: { en: "The kubelet removes the manifest file, so the scheduler does not come back after the next reboot." } }
+        - { id: d, text: { en: "The scheduler's Deployment in kube-system creates a replacement Pod on another control plane node." } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          `kube-scheduler-cp-1` is the mirror Pod of a static Pod: the API object only reflects what the kubelet runs from `/etc/kubernetes/manifests`. Deleting it does not stop the static Pod, and the kubelet recreates the mirror Pod. To change or stop a control plane component, edit or move its file on the node.
+      options:
+        a: { en: "Static Pods are not created through the API: the kubelet reads the file directly, so no `kubectl apply` is needed (or useful)." }
+        c: { en: "The kubelet never deletes files in its static Pod directory; deleting the mirror Pod does not touch the manifest." }
+        d: { en: "kubeadm runs the scheduler as a static Pod on each control plane node, not as a Deployment." }
+    references:
+      - title: Create static Pods
+        url: https://kubernetes.io/docs/tasks/configure-pod-container/static-pod/
+
+  # ------------------------------------------------------------------ 3
+  - id: cka-qz-21-03
+    objective: "2.1.2"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Worker node `node-2` was joined with kubeadm and uses the DEB packages. Its `/var/lib/kubelet/config.yaml` contains `maxPods: 110`. A colleague added the line `KUBELET_EXTRA_ARGS=--max-pods=60` to `/etc/default/kubelet`.
+
+        You restart the kubelet. What is the maximum number of Pods on `node-2`?
+    body:
+      options:
+        - { id: a, text: { en: "110, because the file given with `--config` takes precedence over command-line flags." } }
+        - { id: b, text: { en: "60, because a command-line flag overrides the same setting in the configuration file." } }
+        - { id: c, text: { en: "None, because the kubelet refuses to start when a setting is both a flag and in the file." } }
+        - { id: d, text: { en: "110, until the `kubelet-config` ConfigMap in kube-system is updated with the new value." } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          Command-line flags that target the same value as the kubelet configuration file override it, and `KUBELET_EXTRA_ARGS` from `/etc/default/kubelet` comes last in the kubeadm drop-in's `ExecStart`, so it wins on conflicts. The node reports 60 allocatable Pods. `--max-pods` is deprecated in favour of the file, which is why such an override is easy to forget.
+      options:
+        a: { en: "The precedence is the other way round: flags (other than feature gates) have the highest priority over the configuration file." }
+        c: { en: "A duplicated setting is not an error: the kubelet merges the sources and the flag value wins." }
+        d: { en: "The `kubelet-config` ConfigMap is only read when kubeadm writes `config.yaml` (join, upgrade); the running kubelet reads its local file and flags." }
+    references:
+      - title: Set Kubelet Parameters Via A Configuration File
+        url: https://kubernetes.io/docs/tasks/administer-cluster/kubelet-config-file/
+      - title: Configuring each kubelet in your cluster using kubeadm
+        url: https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/kubelet-integration/
+
+  # ------------------------------------------------------------------ 4
+  - id: cka-qz-21-04
+    objective: "2.1.3"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        `kubectl describe node node-7` shows the condition `DiskPressure` with the status `True`. The Deployment `web` in namespace `shop` has no tolerations, and the ReplicaSet is creating a new `web` Pod.
+
+        What does the control plane do because of this condition, and what happens to the new Pod?
+    body:
+      options:
+        - { id: a, text: { en: "It adds the taint `node.kubernetes.io/disk-pressure:NoSchedule`, so the scheduler does not place the new Pod on node-7." } }
+        - { id: b, text: { en: "It adds the taint `node.kubernetes.io/disk-pressure:NoExecute`, which also evicts every running Pod without a toleration." } }
+        - { id: c, text: { en: "It adds the taint `node.kubernetes.io/not-ready:NoExecute`, because a pressure condition sets the Ready condition to False." } }
+        - { id: d, text: { en: "It adds no taint: the scheduler reads the DiskPressure condition itself and skips node-7 for the new Pod." } }
+    answer: { optionId: a }
+    explanation:
+      correct:
+        en: |
+          The node controller turns node conditions into taints with the `NoSchedule` effect: `DiskPressure=True` gives `node.kubernetes.io/disk-pressure:NoSchedule`. The scheduler checks taints, not conditions, so a Pod without a matching toleration is not placed on node-7. Running Pods are not evicted by a `NoSchedule` taint (the kubelet may still evict some to reclaim disk).
+      options:
+        b: { en: "Condition taints for pressure use `NoSchedule`; only `not-ready` and `unreachable` use `NoExecute`." }
+        c: { en: "A pressure condition does not make `Ready` False; `not-ready` appears only when the kubelet reports the node unhealthy." }
+        d: { en: "The scheduler deliberately reads taints rather than conditions; the control plane adds the taint for it." }
+    references:
+      - title: Taints and Tolerations
+        url: https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/
+
+  # ------------------------------------------------------------------ 5
+  - id: cka-qz-21-05
+    objective: "2.2.3"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        Three control plane nodes run kube-apiserver behind a TCP load balancer that sends an HTTPS health check to port 6443 of each node. When an instance is running but temporarily unable to serve requests, for example while it waits for etcd, the load balancer must route traffic away from it. A failed health check must not mean that the instance needs a restart.
+
+        Which path should the health check request?
+    body:
+      options:
+        - { id: a, text: "`/livez`" }
+        - { id: b, text: "`/healthz`" }
+        - { id: c, text: "`/version`" }
+        - { id: d, text: "`/readyz`" }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          `/readyz` tells whether the API server is ready to accept traffic: it fails while the server initializes or cannot serve requests (for example while waiting for etcd), and traffic should then be routed away. Machines should rely on the HTTP status code (200 = ready), not on the `?verbose` output, which is meant for humans.
+      options:
+        a: { en: "`/livez` tells whether the API server should be restarted (deadlock, non-recoverable state); it is the liveness signal, not the traffic signal." }
+        b: { en: "`/healthz` has been deprecated since v1.16 in favour of the more specific `/livez` and `/readyz`; only `/readyz` is the endpoint meant to say whether traffic should be sent (it also starts failing first during a graceful shutdown)." }
+        c: { en: "`/version` only returns build information; it answers even when the server cannot serve requests that need etcd." }
+    references:
+      - title: Kubernetes API health endpoints
+        url: https://kubernetes.io/docs/reference/using-api/health-checks/
+
+  # ------------------------------------------------------------------ 6
+  - id: cka-qz-21-06
+    objective: "2.1.3"
+    difficulty: 3
+    status: draft
+    type: command
+    stem:
+      en: |-
+        Node `node-5` was reserved for the batch team. `kubectl describe node node-5` shows:
+
+        ```text
+        Taints:             dedicated=batch:NoExecute
+                            dedicated=batch:NoSchedule
+                            gpu=true:NoSchedule
+        ```
+
+        The reservation policy changes: the scheduler must still never place a Pod that does not tolerate `dedicated=batch` on `node-5`, but Pods bound to `node-5` (for example with `spec.nodeName`) must no longer be evicted because of the reservation. The `gpu` taint stays as it is.
+
+        Remove only what is needed. Type the single command you would run.
+    body:
+      mode: invocation
+      tools: [kubectl]
+    answer:
+      checks:
+        - id: tool
+          label: Uses kubectl
+          path: tool
+          op: equals
+          value: kubectl
+        - id: verb
+          label: Uses kubectl taint
+          path: verb
+          op: equals
+          value: taint
+        - id: resource
+          label: Targets a node
+          path: resource
+          op: equals
+          value: node
+        - id: node
+          label: Targets node-5
+          path: names
+          op: contains
+          value: node-5
+        - id: remove-noexecute
+          label: Removes the dedicated taint with the NoExecute effect (trailing dash)
+          path: args
+          op: matches
+          value: '"dedicated(=batch)?:NoExecute-"'
+        - id: keep-others
+          label: Keeps the dedicated NoSchedule taint and the gpu taint
+          path: args
+          op: matches
+          value: '^(?!.*(NoSchedule-|"dedicated-"|"gpu-"))'
+      solution:
+        - command: kubectl taint nodes node-5 dedicated=batch:NoExecute-
+        - command: kubectl taint node node-5 dedicated:NoExecute-
+        - command: k taint nodes node-5 dedicated:NoExecute-
+      negatives:
+        - command: kubectl taint nodes node-5 dedicated-
+          why: A key alone with a dash removes every taint with that key, so the NoSchedule reservation disappears too and the scheduler may place any Pod on node-5.
+        - command: kubectl taint nodes node-5 dedicated=batch:NoSchedule-
+          why: This removes the scheduling barrier and keeps the NoExecute taint, which is the one that evicts Pods that do not tolerate it.
+        - command: kubectl taint nodes node-5 dedicated=batch:NoExecute
+          why: Without the trailing dash kubectl tries to add the taint (and fails because it already exists); nothing is removed.
+        - command: kubectl uncordon node-5
+          why: uncordon only clears spec.unschedulable and its node.kubernetes.io/unschedulable taint; taints added with kubectl taint stay.
+    explanation:
+      correct:
+        en: 'A `NoExecute` taint evicts running Pods that do not tolerate it, while `NoSchedule` only keeps new Pods away from the scheduler. Removing just `dedicated=batch:NoExecute` meets both requirements: `kubectl taint nodes node-5 dedicated=batch:NoExecute-` (or `dedicated:NoExecute-`, key and effect) deletes that taint only, whereas `dedicated-` would delete every taint with the key.'
+    references:
+      - title: kubectl taint
+        url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_taint/
+      - title: Taints and Tolerations
+        url: https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/
+
+  # ------------------------------------------------------------------ 7
+  - id: cka-qz-21-07
+    objective: "2.1.2"
+    difficulty: 3
+    status: draft
+    type: command
+    stem:
+      en: |-
+        The disk controller of node `node-4` is failing and the node must be emptied now. It runs:
+
+        - Pods of the DaemonSets `kube-proxy` (namespace `kube-system`) and `log-agent` (namespace `monitoring`);
+        - both replicas of the Deployment `ledger` in namespace `payments`, which mount an `emptyDir` volume and are covered by the PodDisruptionBudget `ledger-pdb` (`minAvailable: 2`).
+
+        Every Pod on the node has a controller. A first drain attempt kept retrying with `Cannot evict pod as it would violate the pod's disruption budget`. The owner of `ledger` accepts a short outage.
+
+        With a single command, mark `node-4` unschedulable and remove its Pods without the PodDisruptionBudget check, and give up if the operation has not finished after 5 minutes. Type the single command you would run.
+    body:
+      mode: invocation
+      tools: [kubectl]
+    answer:
+      checks:
+        - id: tool
+          label: Uses kubectl
+          path: tool
+          op: equals
+          value: kubectl
+        - id: verb
+          label: Uses kubectl drain
+          path: verb
+          op: equals
+          value: drain
+        - id: node
+          label: Drains node-4
+          path: args
+          op: contains
+          value: node-4
+        - id: daemonsets
+          label: Ignores DaemonSet-managed Pods (--ignore-daemonsets)
+          path: flags.ignore-daemonsets
+          op: equals
+          value: true
+        - id: emptydir
+          label: Accepts deleting emptyDir data (--delete-emptydir-data)
+          path: flags.delete-emptydir-data
+          op: equals
+          value: true
+        - id: no-eviction
+          label: Deletes instead of evicting, bypassing PodDisruptionBudgets (--disable-eviction)
+          path: flags.disable-eviction
+          op: equals
+          value: true
+        - id: timeout
+          label: Gives up after 5 minutes (--timeout)
+          path: flags.timeout
+          op: oneOf
+          value: ["5m", "300s", "5m0s"]
+      solution:
+        - command: kubectl drain node-4 --ignore-daemonsets --delete-emptydir-data --disable-eviction --timeout=5m
+        - command: k drain node-4 --disable-eviction --ignore-daemonsets --delete-emptydir-data --timeout 300s
+        - command: kubectl drain --ignore-daemonsets --delete-emptydir-data --disable-eviction --timeout=5m0s node-4
+      negatives:
+        - command: kubectl drain node-4 --ignore-daemonsets --delete-emptydir-data --force --timeout=5m
+          why: --force only allows deleting Pods that have no controller; the Pods are still evicted through the Eviction API, so the PodDisruptionBudget keeps blocking.
+        - command: kubectl drain node-4 --ignore-daemonsets --disable-eviction --timeout=5m
+          why: Without --delete-emptydir-data, drain refuses to remove the ledger Pods because they use emptyDir volumes.
+        - command: kubectl drain node-4 --ignore-daemonsets --delete-emptydir-data --disable-eviction --grace-period=300
+          why: --grace-period sets how long each Pod gets to terminate; it does not limit how long drain waits before giving up (that is --timeout).
+        - command: kubectl drain node-4 --delete-emptydir-data --disable-eviction --timeout=5m
+          why: Without --ignore-daemonsets, drain does not proceed while DaemonSet Pods run on the node.
+    explanation:
+      correct:
+        en: '`kubectl drain` cordons the node, then evicts Pods through the Eviction API, which honours PodDisruptionBudgets: with `minAvailable: 2` and both replicas on node-4, eviction is refused forever. `--disable-eviction` makes drain use plain DELETE and skips the budget check; `--ignore-daemonsets` and `--delete-emptydir-data` are still needed for the DaemonSet Pods and the emptyDir volumes, and `--timeout=5m` bounds the wait.'
+    references:
+      - title: kubectl drain
+        url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_drain/
+      - title: Safely Drain a Node
+        url: https://kubernetes.io/docs/tasks/administer-cluster/safely-drain-node/
+
+  # ------------------------------------------------------------------ 8
+  - id: cka-qz-21-08
+    objective: "2.2.1"
+    difficulty: 3
+    status: draft
+    type: manifest
+    stem:
+      en: |-
+        On control plane node `cp-1` (IP 10.0.0.10, single control plane created by kubeadm), a colleague edited the CA-related flags of `/etc/kubernetes/manifests/kube-apiserver.yaml` this morning. Since then the `kube-apiserver` container is `Running`, but `kubectl --kubeconfig /etc/kubernetes/admin.conf get nodes` answers `error: You must be logged in to the server (Unauthorized)` and the nodes are turning `NotReady`. `apiserver-log.txt` is an extract of `crictl logs` for the API server container, and `ls-pki.txt` lists `/etc/kubernetes/pki`.
+
+        The editor contains the manifest (the probes are left out). Write the corrected manifest: every CA flag must point to the CA file that kubeadm configures for it. Change nothing else.
+    body:
+      starter: |
+        apiVersion: v1
+        kind: Pod
+        metadata:
+          labels:
+            component: kube-apiserver
+            tier: control-plane
+          name: kube-apiserver
+          namespace: kube-system
+        spec:
+          containers:
+          - command:
+            - kube-apiserver
+            - --advertise-address=10.0.0.10
+            - --allow-privileged=true
+            - --authorization-mode=Node,RBAC
+            - --client-ca-file=/etc/kubernetes/pki/front-proxy-ca.crt
+            - --enable-admission-plugins=NodeRestriction
+            - --enable-bootstrap-token-auth=true
+            - --etcd-cafile=/etc/kubernetes/pki/etcd/ca.crt
+            - --etcd-certfile=/etc/kubernetes/pki/apiserver-etcd-client.crt
+            - --etcd-keyfile=/etc/kubernetes/pki/apiserver-etcd-client.key
+            - --etcd-servers=https://127.0.0.1:2379
+            - --kubelet-client-certificate=/etc/kubernetes/pki/apiserver-kubelet-client.crt
+            - --kubelet-client-key=/etc/kubernetes/pki/apiserver-kubelet-client.key
+            - --proxy-client-cert-file=/etc/kubernetes/pki/front-proxy-client.crt
+            - --proxy-client-key-file=/etc/kubernetes/pki/front-proxy-client.key
+            - --requestheader-allowed-names=front-proxy-client
+            - --requestheader-client-ca-file=/etc/kubernetes/pki/ca.crt
+            - --requestheader-extra-headers-prefix=X-Remote-Extra-
+            - --requestheader-group-headers=X-Remote-Group
+            - --requestheader-username-headers=X-Remote-User
+            - --secure-port=6443
+            - --service-account-issuer=https://kubernetes.default.svc.cluster.local
+            - --service-account-key-file=/etc/kubernetes/pki/sa.pub
+            - --service-account-signing-key-file=/etc/kubernetes/pki/sa.key
+            - --service-cluster-ip-range=10.96.0.0/12
+            - --tls-cert-file=/etc/kubernetes/pki/apiserver.crt
+            - --tls-private-key-file=/etc/kubernetes/pki/apiserver.key
+            image: registry.k8s.io/kube-apiserver:v1.37.1
+            imagePullPolicy: IfNotPresent
+            name: kube-apiserver
+            volumeMounts:
+            - mountPath: /etc/ssl/certs
+              name: ca-certs
+              readOnly: true
+            - mountPath: /etc/kubernetes/pki
+              name: k8s-certs
+              readOnly: true
+          hostNetwork: true
+          priorityClassName: system-node-critical
+          volumes:
+          - hostPath:
+              path: /etc/ssl/certs
+              type: DirectoryOrCreate
+            name: ca-certs
+          - hostPath:
+              path: /etc/kubernetes/pki
+              type: DirectoryOrCreate
+            name: k8s-certs
+      files:
+        - name: apiserver-log.txt
+          content: |
+            E1127 09:02:17.481920       1 authentication.go:75] "Unable to authenticate the request" err="[x509: certificate signed by unknown authority, verifying certificate SN=5807213369210754023, SKID=, AKID=3C:1A:9E:57:0B:44:D2:81 failed: x509: certificate signed by unknown authority]"
+            E1127 09:02:17.903355       1 authentication.go:75] "Unable to authenticate the request" err="[x509: certificate signed by unknown authority, verifying certificate SN=2214978530146812297, SKID=, AKID=3C:1A:9E:57:0B:44:D2:81 failed: x509: certificate signed by unknown authority]"
+        - name: ls-pki.txt
+          content: |
+            # ls /etc/kubernetes/pki
+            apiserver-etcd-client.crt     apiserver.crt  ca.key  front-proxy-ca.crt      front-proxy-client.key
+            apiserver-etcd-client.key     apiserver.key  etcd    front-proxy-ca.key      sa.key
+            apiserver-kubelet-client.crt  ca.crt         front-proxy-client.crt      sa.pub
+            apiserver-kubelet-client.key
+    answer:
+      checks:
+        - id: client-ca
+          label: --client-ca-file is the cluster CA /etc/kubernetes/pki/ca.crt
+          path: spec.containers[name=kube-apiserver].command
+          op: contains
+          value: --client-ca-file=/etc/kubernetes/pki/ca.crt
+        - id: client-ca-last
+          label: The effective (last) --client-ca-file is the cluster CA
+          path: spec.containers[name=kube-apiserver].command
+          op: matches
+          value: '"--client-ca-file=/etc/kubernetes/pki/ca\.crt"(?!.*"--client-ca-file=)'
+        - id: requestheader-ca
+          label: --requestheader-client-ca-file is the front-proxy CA /etc/kubernetes/pki/front-proxy-ca.crt
+          path: spec.containers[name=kube-apiserver].command
+          op: contains
+          value: --requestheader-client-ca-file=/etc/kubernetes/pki/front-proxy-ca.crt
+        - id: requestheader-ca-last
+          label: The effective (last) --requestheader-client-ca-file is the front-proxy CA
+          path: spec.containers[name=kube-apiserver].command
+          op: matches
+          value: '"--requestheader-client-ca-file=/etc/kubernetes/pki/front-proxy-ca\.crt"(?!.*"--requestheader-client-ca-file=)'
+        - id: etcd-ca
+          label: --etcd-cafile stays the etcd CA
+          path: spec.containers[name=kube-apiserver].command
+          op: contains
+          value: --etcd-cafile=/etc/kubernetes/pki/etcd/ca.crt
+        - id: tls-cert
+          label: The serving certificate is unchanged
+          path: spec.containers[name=kube-apiserver].command
+          op: contains
+          value: --tls-cert-file=/etc/kubernetes/pki/apiserver.crt
+        - id: proxy-client
+          label: The front-proxy client certificate is unchanged
+          path: spec.containers[name=kube-apiserver].command
+          op: contains
+          value: --proxy-client-cert-file=/etc/kubernetes/pki/front-proxy-client.crt
+        - id: kubelet-client
+          label: The kubelet client certificate is unchanged
+          path: spec.containers[name=kube-apiserver].command
+          op: contains
+          value: --kubelet-client-certificate=/etc/kubernetes/pki/apiserver-kubelet-client.crt
+        - id: image
+          label: The image is unchanged
+          path: spec.containers[name=kube-apiserver].image
+          op: equals
+          value: registry.k8s.io/kube-apiserver:v1.37.1
+        - id: certs-volume
+          label: /etc/kubernetes/pki is still mounted from the host
+          path: spec.volumes[name=k8s-certs].hostPath.path
+          op: equals
+          value: /etc/kubernetes/pki
+      solution:
+        - manifest: |
+            apiVersion: v1
+            kind: Pod
+            metadata:
+              labels:
+                component: kube-apiserver
+                tier: control-plane
+              name: kube-apiserver
+              namespace: kube-system
+            spec:
+              containers:
+              - command:
+                - kube-apiserver
+                - --advertise-address=10.0.0.10
+                - --allow-privileged=true
+                - --authorization-mode=Node,RBAC
+                - --client-ca-file=/etc/kubernetes/pki/ca.crt
+                - --enable-admission-plugins=NodeRestriction
+                - --enable-bootstrap-token-auth=true
+                - --etcd-cafile=/etc/kubernetes/pki/etcd/ca.crt
+                - --etcd-certfile=/etc/kubernetes/pki/apiserver-etcd-client.crt
+                - --etcd-keyfile=/etc/kubernetes/pki/apiserver-etcd-client.key
+                - --etcd-servers=https://127.0.0.1:2379
+                - --kubelet-client-certificate=/etc/kubernetes/pki/apiserver-kubelet-client.crt
+                - --kubelet-client-key=/etc/kubernetes/pki/apiserver-kubelet-client.key
+                - --proxy-client-cert-file=/etc/kubernetes/pki/front-proxy-client.crt
+                - --proxy-client-key-file=/etc/kubernetes/pki/front-proxy-client.key
+                - --requestheader-allowed-names=front-proxy-client
+                - --requestheader-client-ca-file=/etc/kubernetes/pki/front-proxy-ca.crt
+                - --requestheader-extra-headers-prefix=X-Remote-Extra-
+                - --requestheader-group-headers=X-Remote-Group
+                - --requestheader-username-headers=X-Remote-User
+                - --secure-port=6443
+                - --service-account-issuer=https://kubernetes.default.svc.cluster.local
+                - --service-account-key-file=/etc/kubernetes/pki/sa.pub
+                - --service-account-signing-key-file=/etc/kubernetes/pki/sa.key
+                - --service-cluster-ip-range=10.96.0.0/12
+                - --tls-cert-file=/etc/kubernetes/pki/apiserver.crt
+                - --tls-private-key-file=/etc/kubernetes/pki/apiserver.key
+                image: registry.k8s.io/kube-apiserver:v1.37.1
+                imagePullPolicy: IfNotPresent
+                name: kube-apiserver
+                volumeMounts:
+                - mountPath: /etc/ssl/certs
+                  name: ca-certs
+                  readOnly: true
+                - mountPath: /etc/kubernetes/pki
+                  name: k8s-certs
+                  readOnly: true
+              hostNetwork: true
+              priorityClassName: system-node-critical
+              volumes:
+              - hostPath:
+                  path: /etc/ssl/certs
+                  type: DirectoryOrCreate
+                name: ca-certs
+              - hostPath:
+                  path: /etc/kubernetes/pki
+                  type: DirectoryOrCreate
+                name: k8s-certs
+      negatives:
+        - manifest: |
+            apiVersion: v1
+            kind: Pod
+            metadata:
+              name: kube-apiserver
+              namespace: kube-system
+            spec:
+              containers:
+              - command:
+                - kube-apiserver
+                - --advertise-address=10.0.0.10
+                - --client-ca-file=/etc/kubernetes/pki/ca.crt
+                - --etcd-cafile=/etc/kubernetes/pki/etcd/ca.crt
+                - --etcd-servers=https://127.0.0.1:2379
+                - --kubelet-client-certificate=/etc/kubernetes/pki/apiserver-kubelet-client.crt
+                - --proxy-client-cert-file=/etc/kubernetes/pki/front-proxy-client.crt
+                - --requestheader-client-ca-file=/etc/kubernetes/pki/ca.crt
+                - --tls-cert-file=/etc/kubernetes/pki/apiserver.crt
+                image: registry.k8s.io/kube-apiserver:v1.37.1
+                name: kube-apiserver
+                volumeMounts:
+                - mountPath: /etc/kubernetes/pki
+                  name: k8s-certs
+                  readOnly: true
+              hostNetwork: true
+              volumes:
+              - hostPath:
+                  path: /etc/kubernetes/pki
+                  type: DirectoryOrCreate
+                name: k8s-certs
+          why: kubectl works again, but the request header CA is still the cluster CA; kubeadm uses front-proxy-ca.crt, which signed the front-proxy client certificate used for aggregated APIs.
+        - manifest: |
+            apiVersion: v1
+            kind: Pod
+            metadata:
+              name: kube-apiserver
+              namespace: kube-system
+            spec:
+              containers:
+              - command:
+                - kube-apiserver
+                - --advertise-address=10.0.0.10
+                - --client-ca-file=/etc/kubernetes/pki/etcd/ca.crt
+                - --etcd-cafile=/etc/kubernetes/pki/etcd/ca.crt
+                - --etcd-servers=https://127.0.0.1:2379
+                - --kubelet-client-certificate=/etc/kubernetes/pki/apiserver-kubelet-client.crt
+                - --proxy-client-cert-file=/etc/kubernetes/pki/front-proxy-client.crt
+                - --requestheader-client-ca-file=/etc/kubernetes/pki/front-proxy-ca.crt
+                - --tls-cert-file=/etc/kubernetes/pki/apiserver.crt
+                image: registry.k8s.io/kube-apiserver:v1.37.1
+                name: kube-apiserver
+                volumeMounts:
+                - mountPath: /etc/kubernetes/pki
+                  name: k8s-certs
+                  readOnly: true
+              hostNetwork: true
+              volumes:
+              - hostPath:
+                  path: /etc/kubernetes/pki
+                  type: DirectoryOrCreate
+                name: k8s-certs
+          why: The etcd CA only signs etcd certificates; admin.conf, the kubelets and the control plane components present certificates signed by the cluster CA ca.crt.
+        - manifest: |
+            apiVersion: v1
+            kind: Pod
+            metadata:
+              name: kube-apiserver
+              namespace: kube-system
+            spec:
+              containers:
+              - command:
+                - kube-apiserver
+                - --advertise-address=10.0.0.10
+                - --client-ca-file=/etc/kubernetes/pki/ca.crt
+                - --client-ca-file=/etc/kubernetes/pki/front-proxy-ca.crt
+                - --etcd-cafile=/etc/kubernetes/pki/etcd/ca.crt
+                - --etcd-servers=https://127.0.0.1:2379
+                - --kubelet-client-certificate=/etc/kubernetes/pki/apiserver-kubelet-client.crt
+                - --proxy-client-cert-file=/etc/kubernetes/pki/front-proxy-client.crt
+                - --requestheader-client-ca-file=/etc/kubernetes/pki/front-proxy-ca.crt
+                - --tls-cert-file=/etc/kubernetes/pki/apiserver.crt
+                image: registry.k8s.io/kube-apiserver:v1.37.1
+                name: kube-apiserver
+                volumeMounts:
+                - mountPath: /etc/kubernetes/pki
+                  name: k8s-certs
+                  readOnly: true
+              hostNetwork: true
+              volumes:
+              - hostPath:
+                  path: /etc/kubernetes/pki
+                  type: DirectoryOrCreate
+                name: k8s-certs
+          why: The correct --client-ca-file line was added but the wrong one is still below it; when a flag is repeated the last value wins, so the API server still uses front-proxy-ca.crt.
+        - manifest: |
+            apiVersion: v1
+            kind: Pod
+            metadata:
+              name: kube-apiserver
+              namespace: kube-system
+            spec:
+              containers:
+              - command:
+                - kube-apiserver
+                - --advertise-address=10.0.0.10
+                - --client-ca-file=/etc/kubernetes/pki/ca.crt
+                - --etcd-cafile=/etc/kubernetes/pki/etcd/ca.crt
+                - --etcd-servers=https://127.0.0.1:2379
+                - --kubelet-client-certificate=/etc/kubernetes/pki/apiserver-kubelet-client.crt
+                - --proxy-client-cert-file=/etc/kubernetes/pki/front-proxy-client.crt
+                - --requestheader-client-ca-file=/etc/kubernetes/pki/front-proxy-client.crt
+                - --tls-cert-file=/etc/kubernetes/pki/apiserver.crt
+                image: registry.k8s.io/kube-apiserver:v1.37.1
+                name: kube-apiserver
+                volumeMounts:
+                - mountPath: /etc/kubernetes/pki
+                  name: k8s-certs
+                  readOnly: true
+              hostNetwork: true
+              volumes:
+              - hostPath:
+                  path: /etc/kubernetes/pki
+                  type: DirectoryOrCreate
+                name: k8s-certs
+          why: front-proxy-client.crt is the client certificate the API server presents to aggregated API servers, not a CA bundle that can verify it.
+    explanation:
+      correct:
+        en: 'The colleague swapped the two client CA flags. Every client certificate of the cluster (admin.conf, kubelets, scheduler, controller manager) is signed by the cluster CA, so `--client-ca-file` must be `/etc/kubernetes/pki/ca.crt`; the request header (aggregation layer) CA is `--requestheader-client-ca-file=/etc/kubernetes/pki/front-proxy-ca.crt`, the CA of `front-proxy-client.crt`. A certificate that fails verification makes the request fail with 401 instead of falling back to anonymous, hence `Unauthorized`.'
+    references:
+      - title: PKI certificates and requirements
+        url: https://kubernetes.io/docs/setup/best-practices/certificates/
+      - title: Implementation details
+        url: https://kubernetes.io/docs/reference/setup-tools/kubeadm/implementation-details/
+
+  # ------------------------------------------------------------------ 9
+  - id: cka-qz-21-09
+    objective: "2.1.1"
+    difficulty: 3
+    status: draft
+    type: manifest
+    stem:
+      en: |-
+        Worker node `node-6` is `NotReady` and its kubelet restarts in a loop. Yesterday a colleague edited `/var/lib/kubelet/config.yaml` so that a monitoring tool could read the kubelet API on port 10250 without credentials, and "tidied up" a path at the same time. `kubelet-journal.txt` shows the first error after the last start, and `ls-pki.txt` lists `/etc/kubernetes/pki` on `node-6`.
+
+        The editor contains the file. Write the corrected file so that the kubelet starts and its API is protected again as kubeadm configures it:
+
+        - requests that present a client certificate signed by the cluster CA, or a bearer token the API server validates, are authenticated;
+        - requests without such credentials are rejected;
+        - every request is authorized by the API server.
+
+        Keep the other settings (you restart the kubelet afterwards).
+    body:
+      starter: |
+        apiVersion: kubelet.config.k8s.io/v1beta1
+        kind: KubeletConfiguration
+        authentication:
+          anonymous:
+            enabled: true
+          webhook:
+            cacheTTL: 0s
+            enabled: true
+          x509:
+            clientCAFile: /etc/kubernetes/pki/ca.pem
+        authorization:
+          mode: AlwaysAllow
+          webhook:
+            cacheAuthorizedTTL: 0s
+            cacheUnauthorizedTTL: 0s
+        cgroupDriver: systemd
+        clusterDNS:
+        - 10.96.0.10
+        clusterDomain: cluster.local
+        containerRuntimeEndpoint: unix:///var/run/containerd/containerd.sock
+        rotateCertificates: true
+        staticPodPath: /etc/kubernetes/manifests
+      files:
+        - name: kubelet-journal.txt
+          content: |
+            node-6 kubelet[3120]: E1127 07:41:09.553120    3120 run.go:72] "command failed" err="failed to construct kubelet dependencies: unable to load client CA file /etc/kubernetes/pki/ca.pem: open /etc/kubernetes/pki/ca.pem: no such file or directory"
+            node-6 systemd[1]: kubelet.service: Main process exited, code=exited, status=1/FAILURE
+        - name: ls-pki.txt
+          content: |
+            # ls /etc/kubernetes/pki
+            ca.crt
+    answer:
+      checks:
+        - id: kind
+          label: The document is a KubeletConfiguration
+          path: kind
+          op: equals
+          value: KubeletConfiguration
+        - id: client-ca
+          label: clientCAFile is the cluster CA /etc/kubernetes/pki/ca.crt
+          path: authentication.x509.clientCAFile
+          op: equals
+          value: /etc/kubernetes/pki/ca.crt
+        - id: no-anonymous
+          label: Anonymous requests are not enabled (enabled false, or left to the file default false)
+          path: authentication
+          op: matches
+          value: '^(?!.*"anonymous":\{"enabled":(true|"true")\})'
+        - id: webhook-authn
+          label: Bearer token (webhook) authentication is not disabled
+          path: authentication
+          op: matches
+          value: '^(?!.*"webhook":\{[^{}]*"enabled":(false|"false"))'
+        - id: webhook-authz
+          label: Authorization is not AlwaysAllow (Webhook, the file default)
+          path: .
+          op: matches
+          value: '^(?!.*"mode":"AlwaysAllow")'
+        - id: endpoint
+          label: containerRuntimeEndpoint is unchanged
+          path: containerRuntimeEndpoint
+          op: equals
+          value: unix:///var/run/containerd/containerd.sock
+        - id: static-pods
+          label: staticPodPath is unchanged
+          path: staticPodPath
+          op: equals
+          value: /etc/kubernetes/manifests
+        - id: dns
+          label: clusterDNS is unchanged
+          path: clusterDNS
+          op: contains
+          value: 10.96.0.10
+      solution:
+        - manifest: |
+            apiVersion: kubelet.config.k8s.io/v1beta1
+            kind: KubeletConfiguration
+            authentication:
+              anonymous:
+                enabled: false
+              webhook:
+                cacheTTL: 0s
+                enabled: true
+              x509:
+                clientCAFile: /etc/kubernetes/pki/ca.crt
+            authorization:
+              mode: Webhook
+              webhook:
+                cacheAuthorizedTTL: 0s
+                cacheUnauthorizedTTL: 0s
+            cgroupDriver: systemd
+            clusterDNS:
+            - 10.96.0.10
+            clusterDomain: cluster.local
+            containerRuntimeEndpoint: unix:///var/run/containerd/containerd.sock
+            rotateCertificates: true
+            staticPodPath: /etc/kubernetes/manifests
+        - manifest: |
+            apiVersion: kubelet.config.k8s.io/v1beta1
+            kind: KubeletConfiguration
+            authentication:
+              webhook:
+                enabled: true
+              x509:
+                clientCAFile: /etc/kubernetes/pki/ca.crt
+            cgroupDriver: systemd
+            clusterDNS:
+            - 10.96.0.10
+            clusterDomain: cluster.local
+            containerRuntimeEndpoint: unix:///var/run/containerd/containerd.sock
+            rotateCertificates: true
+            staticPodPath: /etc/kubernetes/manifests
+      negatives:
+        - manifest: |
+            apiVersion: kubelet.config.k8s.io/v1beta1
+            kind: KubeletConfiguration
+            authentication:
+              anonymous:
+                enabled: true
+              webhook:
+                cacheTTL: 0s
+                enabled: true
+              x509:
+                clientCAFile: /etc/kubernetes/pki/ca.crt
+            authorization:
+              mode: AlwaysAllow
+            cgroupDriver: systemd
+            clusterDNS:
+            - 10.96.0.10
+            clusterDomain: cluster.local
+            containerRuntimeEndpoint: unix:///var/run/containerd/containerd.sock
+            rotateCertificates: true
+            staticPodPath: /etc/kubernetes/manifests
+          why: The kubelet starts, but anyone who reaches port 10250 can still read logs or run commands in containers without credentials.
+        - manifest: |
+            apiVersion: kubelet.config.k8s.io/v1beta1
+            kind: KubeletConfiguration
+            authentication:
+              anonymous:
+                enabled: false
+              webhook:
+                cacheTTL: 0s
+                enabled: true
+              x509:
+                clientCAFile: /etc/kubernetes/pki/ca.crt
+            authorization:
+              mode: AlwaysAllow
+            cgroupDriver: systemd
+            clusterDNS:
+            - 10.96.0.10
+            clusterDomain: cluster.local
+            containerRuntimeEndpoint: unix:///var/run/containerd/containerd.sock
+            rotateCertificates: true
+            staticPodPath: /etc/kubernetes/manifests
+          why: AlwaysAllow lets every authenticated identity do anything on the kubelet API; Webhook mode asks the API server (SubjectAccessReview) for each request.
+        - manifest: |
+            apiVersion: kubelet.config.k8s.io/v1beta1
+            kind: KubeletConfiguration
+            authentication:
+              anonymous:
+                enabled: false
+              webhook:
+                enabled: true
+            authorization:
+              mode: Webhook
+            cgroupDriver: systemd
+            clusterDNS:
+            - 10.96.0.10
+            clusterDomain: cluster.local
+            containerRuntimeEndpoint: unix:///var/run/containerd/containerd.sock
+            rotateCertificates: true
+            staticPodPath: /etc/kubernetes/manifests
+          why: Without clientCAFile the kubelet no longer accepts client certificates, so the API server (apiserver-kubelet-client certificate) gets 401 and kubectl logs or exec fail on this node.
+        - manifest: |
+            apiVersion: kubelet.config.k8s.io/v1beta1
+            kind: KubeletConfiguration
+            authentication:
+              anonymous:
+                enabled: false
+              webhook:
+                enabled: false
+              x509:
+                clientCAFile: /etc/kubernetes/pki/ca.crt
+            authorization:
+              mode: Webhook
+            cgroupDriver: systemd
+            clusterDNS:
+            - 10.96.0.10
+            clusterDomain: cluster.local
+            containerRuntimeEndpoint: unix:///var/run/containerd/containerd.sock
+            rotateCertificates: true
+            staticPodPath: /etc/kubernetes/manifests
+          why: With webhook authentication disabled, bearer tokens such as ServiceAccount tokens (used by metrics and monitoring agents) are no longer validated, so those requests are rejected.
+    explanation:
+      correct:
+        en: 'The kubelet exits because `clientCAFile` names a file that does not exist: the cluster CA on the node is `/etc/kubernetes/pki/ca.crt`. Then remove the relaxations: anonymous authentication disabled (the file default is also `false`), webhook token authentication enabled, and `authorization.mode: Webhook` (the file default; the flag default is `AlwaysAllow`). A changed `config.yaml` only needs `systemctl restart kubelet`.'
+    references:
+      - title: Kubelet Configuration (v1beta1)
+        url: https://kubernetes.io/docs/reference/config-api/kubelet-config.v1beta1/
+      - title: Kubelet authentication/authorization
+        url: https://kubernetes.io/docs/reference/access-authn-authz/kubelet-authn-authz/
+
+  # ------------------------------------------------------------------ 10
+  - id: cka-qz-21-10
+    objective: "2.2.2"
+    difficulty: 3
+    status: draft
+    type: manifest
+    stem:
+      en: |-
+        On control plane node `cp-1` (IP 10.0.0.10, stacked etcd created by kubeadm), every `kubectl` command fails with `The connection to the server 10.0.0.10:6443 was refused` since a colleague "tidied up" the static Pod manifests. As root on `cp-1` you collected:
+
+        - `crictl-ps.txt`: the output of `crictl ps -a`;
+        - `apiserver-log.txt`: the end of `crictl logs` for the latest `kube-apiserver` container;
+        - `etcd-log.txt`: the end of `crictl logs` for the latest `etcd` container;
+        - `ls-pki-etcd.txt`: the content of `/etc/kubernetes/pki/etcd`.
+
+        The editor contains `/etc/kubernetes/manifests/etcd.yaml` (the image line and the probes are left out). Write the corrected manifest. Fix only the cause: do not move files on the node, do not change etcd's flags, and give etcd access to its own certificate directory only, as kubeadm does.
+    body:
+      starter: |
+        apiVersion: v1
+        kind: Pod
+        metadata:
+          labels:
+            component: etcd
+            tier: control-plane
+          name: etcd
+          namespace: kube-system
+        spec:
+          containers:
+          - command:
+            - etcd
+            - --advertise-client-urls=https://10.0.0.10:2379
+            - --cert-file=/etc/kubernetes/pki/etcd/server.crt
+            - --client-cert-auth=true
+            - --data-dir=/var/lib/etcd
+            - --initial-advertise-peer-urls=https://10.0.0.10:2380
+            - --initial-cluster=cp-1=https://10.0.0.10:2380
+            - --key-file=/etc/kubernetes/pki/etcd/server.key
+            - --listen-client-urls=https://127.0.0.1:2379,https://10.0.0.10:2379
+            - --listen-metrics-urls=http://127.0.0.1:2381
+            - --listen-peer-urls=https://10.0.0.10:2380
+            - --name=cp-1
+            - --peer-cert-file=/etc/kubernetes/pki/etcd/peer.crt
+            - --peer-client-cert-auth=true
+            - --peer-key-file=/etc/kubernetes/pki/etcd/peer.key
+            - --peer-trusted-ca-file=/etc/kubernetes/pki/etcd/ca.crt
+            - --snapshot-count=10000
+            - --trusted-ca-file=/etc/kubernetes/pki/etcd/ca.crt
+            imagePullPolicy: IfNotPresent
+            name: etcd
+            volumeMounts:
+            - mountPath: /var/lib/etcd
+              name: etcd-data
+            - mountPath: /etc/kubernetes/pki/etcd
+              name: etcd-certs
+          hostNetwork: true
+          priorityClassName: system-node-critical
+          volumes:
+          - hostPath:
+              path: /etc/kubernetes/etcd/pki
+              type: DirectoryOrCreate
+            name: etcd-certs
+          - hostPath:
+              path: /var/lib/etcd
+              type: DirectoryOrCreate
+            name: etcd-data
+      files:
+        - name: crictl-ps.txt
+          content: |
+            CONTAINER       IMAGE           CREATED          STATE     NAME                      ATTEMPT   POD ID          POD
+            4c2d81f0e7a93   9b1f6e2d7c40a   12 seconds ago   Exited    etcd                      7         a83e5c9d1b2f4   etcd-cp-1
+            e91b7a3c5d602   5d3a8c1f9e27b   48 seconds ago   Exited    kube-apiserver            9         2f6b0d8e4c1a7   kube-apiserver-cp-1
+            1a7f3e9c2b8d5   7e2c9a4b6d1f8   3 hours ago      Running   kube-scheduler            0         c4d9e1f7a3b20   kube-scheduler-cp-1
+            b5e8d2a6f1c39   3f8a1d7c5e9b2   3 hours ago      Running   kube-controller-manager   0         d7a2c5e9b1f46   kube-controller-manager-cp-1
+        - name: apiserver-log.txt
+          content: |
+            W1127 08:15:40.102331       1 logging.go:55] [core] [Channel #5 SubChannel #6]grpc: addrConn.createTransport failed to connect to {Addr: "127.0.0.1:2379", ServerName: "127.0.0.1:2379", }. Err: connection error: desc = "transport: Error while dialing: dial tcp 127.0.0.1:2379: connect: connection refused"
+            F1127 08:15:59.873210       1 instance.go:226] Error creating leases: error creating storage factory: context deadline exceeded
+        - name: etcd-log.txt
+          content: |
+            {"level":"info","ts":"2026-11-27T08:16:27.311Z","msg":"configuring peer listeners","listen-peer-urls":["https://10.0.0.10:2380"]}
+            {"level":"error","ts":"2026-11-27T08:16:27.312Z","msg":"creating peer listener failed","error":"open /etc/kubernetes/pki/etcd/peer.crt: no such file or directory"}
+            {"level":"fatal","ts":"2026-11-27T08:16:27.312Z","msg":"discovery failed","error":"open /etc/kubernetes/pki/etcd/peer.crt: no such file or directory"}
+        - name: ls-pki-etcd.txt
+          content: |
+            # ls -l /etc/kubernetes/pki/etcd
+            -rw-r--r-- 1 root root 1094 Nov 27 06:58 ca.crt
+            -rw------- 1 root root 1679 Nov 27 06:58 ca.key
+            -rw-r--r-- 1 root root 1123 Nov 27 06:58 healthcheck-client.crt
+            -rw------- 1 root root 1675 Nov 27 06:58 healthcheck-client.key
+            -rw-r--r-- 1 root root 1196 Nov 27 06:58 peer.crt
+            -rw------- 1 root root 1679 Nov 27 06:58 peer.key
+            -rw-r--r-- 1 root root 1196 Nov 27 06:58 server.crt
+            -rw------- 1 root root 1675 Nov 27 06:58 server.key
+    answer:
+      checks:
+        - id: certs-host
+          label: The etcd-certs volume mounts /etc/kubernetes/pki/etcd from the node
+          path: spec.volumes[name=etcd-certs].hostPath.path
+          op: matches
+          value: '^/etc/kubernetes/pki/etcd/?$'
+        - id: certs-mount
+          label: The etcd-certs volume is mounted at /etc/kubernetes/pki/etcd in the container
+          path: spec.containers[name=etcd].volumeMounts[name=etcd-certs].mountPath
+          op: matches
+          value: '^/etc/kubernetes/pki/etcd/?$'
+        - id: data-host
+          label: The data volume still comes from /var/lib/etcd
+          path: spec.volumes[name=etcd-data].hostPath.path
+          op: equals
+          value: /var/lib/etcd
+        - id: data-dir
+          label: --data-dir is unchanged
+          path: spec.containers[name=etcd].command
+          op: contains
+          value: --data-dir=/var/lib/etcd
+        - id: server-cert
+          label: --cert-file is unchanged
+          path: spec.containers[name=etcd].command
+          op: contains
+          value: --cert-file=/etc/kubernetes/pki/etcd/server.crt
+        - id: peer-cert
+          label: --peer-cert-file is unchanged
+          path: spec.containers[name=etcd].command
+          op: contains
+          value: --peer-cert-file=/etc/kubernetes/pki/etcd/peer.crt
+        - id: trusted-ca
+          label: --trusted-ca-file is unchanged
+          path: spec.containers[name=etcd].command
+          op: contains
+          value: --trusted-ca-file=/etc/kubernetes/pki/etcd/ca.crt
+        - id: client-urls
+          label: --listen-client-urls still includes 127.0.0.1:2379
+          path: spec.containers[name=etcd].command
+          op: contains
+          value: --listen-client-urls=https://127.0.0.1:2379,https://10.0.0.10:2379
+      solution:
+        - manifest: |
+            apiVersion: v1
+            kind: Pod
+            metadata:
+              labels:
+                component: etcd
+                tier: control-plane
+              name: etcd
+              namespace: kube-system
+            spec:
+              containers:
+              - command:
+                - etcd
+                - --advertise-client-urls=https://10.0.0.10:2379
+                - --cert-file=/etc/kubernetes/pki/etcd/server.crt
+                - --client-cert-auth=true
+                - --data-dir=/var/lib/etcd
+                - --initial-advertise-peer-urls=https://10.0.0.10:2380
+                - --initial-cluster=cp-1=https://10.0.0.10:2380
+                - --key-file=/etc/kubernetes/pki/etcd/server.key
+                - --listen-client-urls=https://127.0.0.1:2379,https://10.0.0.10:2379
+                - --listen-metrics-urls=http://127.0.0.1:2381
+                - --listen-peer-urls=https://10.0.0.10:2380
+                - --name=cp-1
+                - --peer-cert-file=/etc/kubernetes/pki/etcd/peer.crt
+                - --peer-client-cert-auth=true
+                - --peer-key-file=/etc/kubernetes/pki/etcd/peer.key
+                - --peer-trusted-ca-file=/etc/kubernetes/pki/etcd/ca.crt
+                - --snapshot-count=10000
+                - --trusted-ca-file=/etc/kubernetes/pki/etcd/ca.crt
+                imagePullPolicy: IfNotPresent
+                name: etcd
+                volumeMounts:
+                - mountPath: /var/lib/etcd
+                  name: etcd-data
+                - mountPath: /etc/kubernetes/pki/etcd
+                  name: etcd-certs
+              hostNetwork: true
+              priorityClassName: system-node-critical
+              volumes:
+              - hostPath:
+                  path: /etc/kubernetes/pki/etcd
+                  type: DirectoryOrCreate
+                name: etcd-certs
+              - hostPath:
+                  path: /var/lib/etcd
+                  type: DirectoryOrCreate
+                name: etcd-data
+        - manifest: |
+            apiVersion: v1
+            kind: Pod
+            metadata:
+              labels:
+                component: etcd
+                tier: control-plane
+              name: etcd
+              namespace: kube-system
+            spec:
+              hostNetwork: true
+              priorityClassName: system-node-critical
+              volumes:
+              - name: etcd-certs
+                hostPath:
+                  path: /etc/kubernetes/pki/etcd/
+                  type: Directory
+              - name: etcd-data
+                hostPath:
+                  path: /var/lib/etcd
+                  type: DirectoryOrCreate
+              containers:
+              - name: etcd
+                imagePullPolicy: IfNotPresent
+                command:
+                - etcd
+                - --advertise-client-urls=https://10.0.0.10:2379
+                - --cert-file=/etc/kubernetes/pki/etcd/server.crt
+                - --client-cert-auth=true
+                - --data-dir=/var/lib/etcd
+                - --initial-advertise-peer-urls=https://10.0.0.10:2380
+                - --initial-cluster=cp-1=https://10.0.0.10:2380
+                - --key-file=/etc/kubernetes/pki/etcd/server.key
+                - --listen-client-urls=https://127.0.0.1:2379,https://10.0.0.10:2379
+                - --listen-metrics-urls=http://127.0.0.1:2381
+                - --listen-peer-urls=https://10.0.0.10:2380
+                - --name=cp-1
+                - --peer-cert-file=/etc/kubernetes/pki/etcd/peer.crt
+                - --peer-client-cert-auth=true
+                - --peer-key-file=/etc/kubernetes/pki/etcd/peer.key
+                - --peer-trusted-ca-file=/etc/kubernetes/pki/etcd/ca.crt
+                - --snapshot-count=10000
+                - --trusted-ca-file=/etc/kubernetes/pki/etcd/ca.crt
+                volumeMounts:
+                - name: etcd-data
+                  mountPath: /var/lib/etcd
+                - name: etcd-certs
+                  mountPath: /etc/kubernetes/pki/etcd
+      negatives:
+        - manifest: |
+            apiVersion: v1
+            kind: Pod
+            metadata:
+              name: etcd
+              namespace: kube-system
+            spec:
+              containers:
+              - command:
+                - etcd
+                - --cert-file=/etc/kubernetes/etcd/pki/server.crt
+                - --data-dir=/var/lib/etcd
+                - --key-file=/etc/kubernetes/etcd/pki/server.key
+                - --listen-client-urls=https://127.0.0.1:2379,https://10.0.0.10:2379
+                - --peer-cert-file=/etc/kubernetes/etcd/pki/peer.crt
+                - --peer-key-file=/etc/kubernetes/etcd/pki/peer.key
+                - --peer-trusted-ca-file=/etc/kubernetes/etcd/pki/ca.crt
+                - --trusted-ca-file=/etc/kubernetes/etcd/pki/ca.crt
+                name: etcd
+                volumeMounts:
+                - mountPath: /var/lib/etcd
+                  name: etcd-data
+                - mountPath: /etc/kubernetes/etcd/pki
+                  name: etcd-certs
+              hostNetwork: true
+              volumes:
+              - hostPath:
+                  path: /etc/kubernetes/etcd/pki
+                  type: DirectoryOrCreate
+                name: etcd-certs
+              - hostPath:
+                  path: /var/lib/etcd
+                  type: DirectoryOrCreate
+                name: etcd-data
+          why: The flags now follow the broken volume, but /etc/kubernetes/etcd/pki on the node is the empty directory that DirectoryOrCreate created; the certificates are still in /etc/kubernetes/pki/etcd.
+        - manifest: |
+            apiVersion: v1
+            kind: Pod
+            metadata:
+              name: etcd
+              namespace: kube-system
+            spec:
+              containers:
+              - command:
+                - etcd
+                - --cert-file=/etc/kubernetes/pki/etcd/server.crt
+                - --data-dir=/var/lib/etcd
+                - --listen-client-urls=https://127.0.0.1:2379,https://10.0.0.10:2379
+                - --peer-cert-file=/etc/kubernetes/pki/etcd/peer.crt
+                - --trusted-ca-file=/etc/kubernetes/pki/etcd/ca.crt
+                name: etcd
+                volumeMounts:
+                - mountPath: /var/lib/etcd
+                  name: etcd-data
+                - mountPath: /etc/kubernetes/pki
+                  name: etcd-certs
+              hostNetwork: true
+              volumes:
+              - hostPath:
+                  path: /etc/kubernetes/pki
+                  type: DirectoryOrCreate
+                name: etcd-certs
+              - hostPath:
+                  path: /var/lib/etcd
+                  type: DirectoryOrCreate
+                name: etcd-data
+          why: etcd would start, but the whole /etc/kubernetes/pki (cluster CA key, service account key) is exposed to the etcd container; kubeadm mounts only /etc/kubernetes/pki/etcd.
+        - manifest: |
+            apiVersion: v1
+            kind: Pod
+            metadata:
+              name: etcd
+              namespace: kube-system
+            spec:
+              containers:
+              - command:
+                - etcd
+                - --cert-file=/etc/kubernetes/pki/etcd/server.crt
+                - --data-dir=/var/lib/etcd
+                - --listen-client-urls=https://127.0.0.1:2379,https://10.0.0.10:2379
+                - --peer-cert-file=/etc/kubernetes/pki/etcd/peer.crt
+                - --trusted-ca-file=/etc/kubernetes/pki/etcd/ca.crt
+                name: etcd
+                volumeMounts:
+                - mountPath: /var/lib/etcd
+                  name: etcd-data
+                - mountPath: /etc/kubernetes/etcd/pki
+                  name: etcd-certs
+              hostNetwork: true
+              volumes:
+              - hostPath:
+                  path: /etc/kubernetes/pki/etcd
+                  type: DirectoryOrCreate
+                name: etcd-certs
+              - hostPath:
+                  path: /var/lib/etcd
+                  type: DirectoryOrCreate
+                name: etcd-data
+          why: The node directory is right, but it is now mounted at /etc/kubernetes/etcd/pki in the container, while the flags read /etc/kubernetes/pki/etcd.
+    explanation:
+      correct:
+        en: 'Follow the chain: the API server exits because nothing answers on 127.0.0.1:2379, etcd exits because it cannot open `/etc/kubernetes/pki/etcd/peer.crt`, yet the file exists on the node. The flags are right; the `etcd-certs` volume mounts `/etc/kubernetes/etcd/pki`, an empty directory created by `DirectoryOrCreate`, over `/etc/kubernetes/pki/etcd` in the container. Set its `hostPath.path` back to `/etc/kubernetes/pki/etcd`; when the file is saved the kubelet recreates etcd, then the API server.'
+    references:
+      - title: Debugging Kubernetes nodes with crictl
+        url: https://kubernetes.io/docs/tasks/debug/debug-cluster/crictl/
+      - title: PKI certificates and requirements
+        url: https://kubernetes.io/docs/setup/best-practices/certificates/

@@ -1,0 +1,190 @@
+id: cka-3a-recreate-rwo-volume
+objective: "3.1.2"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    Deployment `ledger` in namespace `payments` runs 1 replica that mounts the ReadWriteOnce claim `ledger-data`. During each update, the new Pod stays in `ContainerCreating` with a `FailedAttachVolume` event (Multi-Attach error) while the old Pod still holds the volume on another node.
+
+    Change the update strategy so that all existing Pods are killed before new ones are created. Keep everything else.
+body:
+  starter: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: ledger
+      namespace: payments
+    spec:
+      replicas: 1
+      strategy:
+        type: RollingUpdate
+        rollingUpdate:
+          maxSurge: 25%
+          maxUnavailable: 25%
+      selector:
+        matchLabels:
+          app: ledger
+      template:
+        metadata:
+          labels:
+            app: ledger
+        spec:
+          containers:
+          - name: ledger
+            image: registry.example.com/payments/ledger:4.0
+            volumeMounts:
+            - name: data
+              mountPath: /var/lib/ledger
+          volumes:
+          - name: data
+            persistentVolumeClaim:
+              claimName: ledger-data
+answer:
+  checks:
+  - id: meta
+    label: A Deployment named ledger in namespace payments
+    path: metadata
+    op: subset
+    value: {name: ledger, namespace: payments}
+  - id: type
+    label: Strategy type is Recreate
+    path: spec.strategy.type
+    op: equals
+    value: Recreate
+  - id: no-rolling
+    label: No rollingUpdate block remains
+    path: spec.strategy.rollingUpdate
+    op: absent
+  - id: claim
+    label: The Pod still mounts claim ledger-data
+    path: spec.template.spec.volumes[name=data].persistentVolumeClaim.claimName
+    op: equals
+    value: ledger-data
+  - id: image
+    label: Container ledger still runs ledger:4.0
+    path: spec.template.spec.containers[name=ledger].image
+    op: equals
+    value: registry.example.com/payments/ledger:4.0
+  solution:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: ledger
+        namespace: payments
+      spec:
+        replicas: 1
+        strategy:
+          type: Recreate
+        selector:
+          matchLabels:
+            app: ledger
+        template:
+          metadata:
+            labels:
+              app: ledger
+          spec:
+            containers:
+            - name: ledger
+              image: registry.example.com/payments/ledger:4.0
+              volumeMounts:
+              - name: data
+                mountPath: /var/lib/ledger
+            volumes:
+            - name: data
+              persistentVolumeClaim:
+                claimName: ledger-data
+  negatives:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: ledger
+        namespace: payments
+      spec:
+        replicas: 1
+        strategy:
+          type: Recreate
+          rollingUpdate:
+            maxSurge: 25%
+            maxUnavailable: 25%
+        selector:
+          matchLabels:
+            app: ledger
+        template:
+          metadata:
+            labels:
+              app: ledger
+          spec:
+            containers:
+            - name: ledger
+              image: registry.example.com/payments/ledger:4.0
+              volumeMounts:
+              - name: data
+                mountPath: /var/lib/ledger
+            volumes:
+            - name: data
+              persistentVolumeClaim:
+                claimName: ledger-data
+    why: The API server rejects rollingUpdate when the strategy type is Recreate; the block must be removed.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: ledger
+        namespace: payments
+      spec:
+        replicas: 1
+        strategy:
+          type: RollingUpdate
+          rollingUpdate:
+            maxSurge: 1
+            maxUnavailable: 0
+        selector:
+          matchLabels:
+            app: ledger
+        template:
+          metadata:
+            labels:
+              app: ledger
+          spec:
+            containers:
+            - name: ledger
+              image: registry.example.com/payments/ledger:4.0
+              volumeMounts:
+              - name: data
+                mountPath: /var/lib/ledger
+            volumes:
+            - name: data
+              persistentVolumeClaim:
+                claimName: ledger-data
+    why: maxSurge 1 with maxUnavailable 0 starts the new Pod while the old one still runs, which is exactly what causes the Multi-Attach error.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: ledger
+        namespace: payments
+      spec:
+        replicas: 1
+        strategy:
+          type: Recreate
+        selector:
+          matchLabels:
+            app: ledger
+        template:
+          metadata:
+            labels:
+              app: ledger
+          spec:
+            containers:
+            - name: ledger
+              image: registry.example.com/payments/ledger:4.0
+    why: The volume and its mount were removed; the Pod would lose its persistent data.
+explanation:
+  correct:
+    en: 'With `strategy.type: Recreate`, the controller kills all Pods of the old revision and waits for their removal before creating any Pod of the new revision, so the ReadWriteOnce volume is detached before the new Pod needs it. The `rollingUpdate` block is only allowed with `RollingUpdate`. Recreate implies a short downtime on every update.'
+references:
+- title: Deployments
+  url: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/

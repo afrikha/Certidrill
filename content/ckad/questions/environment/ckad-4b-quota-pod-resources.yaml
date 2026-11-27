@@ -1,0 +1,153 @@
+id: ckad-4b-quota-pod-resources
+objective: "4.2.3"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    Namespace `reports` has the ResourceQuota shown in `quota.yaml` and no LimitRange. A Pod without a `resources` section was rejected with `403 Forbidden` by the quota. `kubectl describe quota compute -n reports` shows:
+
+    ```text
+    Resource         Used   Hard
+    --------         ----   ----
+    limits.cpu       1500m  2
+    limits.memory    1536Mi 2Gi
+    requests.cpu     750m   1
+    requests.memory  768Mi  1Gi
+    ```
+
+    Write the Pod `report` in namespace `reports` with one container `gen` running `registry.example.com/report-gen:1.4`. It must be admitted, request 250m of CPU and 256Mi of memory, and have limits of 500m of CPU and 512Mi of memory.
+body:
+  starter: ""
+  files:
+  - name: quota.yaml
+    content: |
+      apiVersion: v1
+      kind: ResourceQuota
+      metadata:
+        name: compute
+        namespace: reports
+      spec:
+        hard:
+          requests.cpu: "1"
+          requests.memory: 1Gi
+          limits.cpu: "2"
+          limits.memory: 2Gi
+answer:
+  checks:
+  - id: pod
+    label: Pod report in namespace reports
+    path: metadata
+    op: subset
+    value: {name: report, namespace: reports}
+  - id: image
+    label: Container gen runs registry.example.com/report-gen:1.4
+    path: spec.containers[name=gen].image
+    op: equals
+    value: registry.example.com/report-gen:1.4
+  - id: req-cpu
+    label: Requests 250m of CPU
+    path: spec.containers[name=gen].resources.requests.cpu
+    op: quantity
+    value: 250m
+  - id: req-mem
+    label: Requests 256Mi of memory
+    path: spec.containers[name=gen].resources.requests.memory
+    op: quantity
+    value: 256Mi
+  - id: lim-cpu
+    label: CPU limit is 500m
+    path: spec.containers[name=gen].resources.limits.cpu
+    op: quantity
+    value: 500m
+  - id: lim-mem
+    label: Memory limit is 512Mi
+    path: spec.containers[name=gen].resources.limits.memory
+    op: quantity
+    value: 512Mi
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: report
+        namespace: reports
+      spec:
+        containers:
+        - name: gen
+          image: registry.example.com/report-gen:1.4
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: report
+        namespace: reports
+      spec:
+        containers:
+        - name: gen
+          image: registry.example.com/report-gen:1.4
+          resources:
+            limits: {cpu: "0.5", memory: 512Mi}
+            requests: {cpu: "0.25", memory: 256Mi}
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: report
+        namespace: reports
+      spec:
+        containers:
+        - name: gen
+          image: registry.example.com/report-gen:1.4
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+    why: The quota tracks limits.cpu and limits.memory, so a Pod without limits is rejected by the quota admission check.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: report
+        namespace: reports
+      spec:
+        containers:
+        - name: gen
+          image: registry.example.com/report-gen:1.4
+          resources:
+            limits:
+              cpu: 500m
+              memory: 512Mi
+    why: With limits only, the requests default to the limits (500m and 512Mi), double what the task asks and above the 250m of requests.cpu left in the quota, so the Pod is rejected.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: report
+        namespace: reports
+      spec:
+        containers:
+        - name: gen
+          image: registry.example.com/report-gen:1.4
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+    why: Only 512Mi of limits.memory is left in the quota (1536Mi used of 2Gi); a 1Gi limit exceeds it and the Pod is rejected.
+explanation:
+  correct:
+    en: 'When a ResourceQuota tracks `requests.cpu`, `requests.memory`, `limits.cpu` and `limits.memory`, every new Pod must declare those values (or receive them from a LimitRange), otherwise admission fails with 403 Forbidden. The Pod must also fit in what is left: 250m and 256Mi of requests, 500m and 512Mi of limits fit exactly. If only limits are set, requests default to the limits.'
+references:
+- title: Resource Quotas
+  url: https://kubernetes.io/docs/concepts/policy/resource-quotas/

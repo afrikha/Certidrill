@@ -1,0 +1,130 @@
+id: cka-1c-label-pv-selector
+objective: "1.3.1"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    The claim `logs` in namespace `shop` stays `Pending`. Its spec contains:
+
+    ```yaml
+    selector:
+      matchLabels:
+        tier: logs
+        env: prod
+    ```
+
+    The PersistentVolume `pv-logs`, saved in `pv-logs.yaml`, has the right class, size and access mode but no labels. Add the labels the claim selects to `pv-logs` with a single `kubectl label` command. Type the command you would run.
+body:
+  mode: object
+  namespace: default
+  files:
+  - name: pv-logs.yaml
+    content: |
+      apiVersion: v1
+      kind: PersistentVolume
+      metadata:
+        name: pv-logs
+      spec:
+        accessModes:
+        - ReadWriteMany
+        capacity:
+          storage: 2Gi
+        hostPath:
+          path: /srv/logs
+        storageClassName: manual
+answer:
+  checks:
+  - id: kind
+    label: The object is a PersistentVolume
+    path: kind
+    op: equals
+    value: PersistentVolume
+  - id: name
+    label: It is pv-logs
+    path: metadata.name
+    op: equals
+    value: pv-logs
+  - id: labels
+    label: It carries the labels tier=logs and env=prod
+    path: metadata.labels
+    op: subset
+    value: {tier: logs, env: prod}
+  solution:
+  - command: kubectl label pv pv-logs tier=logs env=prod
+    output: |
+      apiVersion: v1
+      kind: PersistentVolume
+      metadata:
+        labels:
+          env: prod
+          tier: logs
+        name: pv-logs
+      spec:
+        accessModes:
+        - ReadWriteMany
+        capacity:
+          storage: 2Gi
+        hostPath:
+          path: /srv/logs
+        storageClassName: manual
+  - command: k label persistentvolume/pv-logs env=prod tier=logs
+    output: |
+      apiVersion: v1
+      kind: PersistentVolume
+      metadata:
+        labels:
+          env: prod
+          tier: logs
+        name: pv-logs
+      spec:
+        accessModes:
+        - ReadWriteMany
+        capacity:
+          storage: 2Gi
+        hostPath:
+          path: /srv/logs
+        storageClassName: manual
+  negatives:
+  - command: kubectl label pv pv-logs tier=logs
+    why: matchLabels entries are ANDed; without env=prod the PV still does not match the selector.
+    output: |
+      apiVersion: v1
+      kind: PersistentVolume
+      metadata:
+        labels:
+          tier: logs
+        name: pv-logs
+      spec:
+        accessModes:
+        - ReadWriteMany
+        capacity:
+          storage: 2Gi
+        hostPath:
+          path: /srv/logs
+        storageClassName: manual
+  - command: kubectl annotate pv pv-logs tier=logs env=prod
+    why: A selector matches labels, not annotations.
+    output: |
+      apiVersion: v1
+      kind: PersistentVolume
+      metadata:
+        annotations:
+          env: prod
+          tier: logs
+        name: pv-logs
+      spec:
+        accessModes:
+        - ReadWriteMany
+        capacity:
+          storage: 2Gi
+        hostPath:
+          path: /srv/logs
+        storageClassName: manual
+explanation:
+  correct:
+    en: |-
+      A claim with a `selector` binds only to a PV whose labels satisfy every `matchLabels` entry and every `matchExpressions` rule (they are ANDed), on top of the usual class, size, access-mode and volume-mode checks. `kubectl label pv pv-logs tier=logs env=prod` adds both labels; PVs are cluster-scoped, so no namespace is needed. A claim with a selector is never provisioned dynamically.
+references:
+- title: Persistent Volumes
+  url: https://kubernetes.io/docs/concepts/storage/persistent-volumes/

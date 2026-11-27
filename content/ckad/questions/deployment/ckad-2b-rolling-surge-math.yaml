@@ -1,0 +1,187 @@
+id: ckad-2b-rolling-surge-math
+objective: "2.2.2"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    The editor contains Deployment `api` in namespace `payments` (10 replicas). Configure it so that during a rolling update:
+
+    - there are never more than **12** Pods in total;
+    - at least **9** Pods are always available;
+    - a new Pod counts as available only once it has been ready for **15 seconds**.
+
+    Use absolute numbers, not percentages.
+body:
+  starter: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: api
+      namespace: payments
+    spec:
+      replicas: 10
+      selector:
+        matchLabels:
+          app: api
+      template:
+        metadata:
+          labels:
+            app: api
+        spec:
+          containers:
+          - name: api
+            image: registry.example.com/payments/api:3.3
+            readinessProbe:
+              httpGet:
+                path: /healthz
+                port: 8443
+                scheme: HTTPS
+answer:
+  checks:
+  - id: meta
+    label: Deployment api in namespace payments
+    path: metadata
+    op: subset
+    value: {name: api, namespace: payments}
+  - id: replicas
+    label: Still 10 replicas
+    path: spec.replicas
+    op: equals
+    value: 10
+  - id: surge
+    label: maxSurge is 2 (10 + 2 = 12 Pods at most)
+    path: spec.strategy.rollingUpdate.maxSurge
+    op: equals
+    value: 2
+  - id: unavailable
+    label: maxUnavailable is 1 (10 - 1 = 9 available at least)
+    path: spec.strategy.rollingUpdate.maxUnavailable
+    op: equals
+    value: 1
+  - id: min-ready
+    label: minReadySeconds is 15 on the Deployment spec
+    path: spec.minReadySeconds
+    op: equals
+    value: 15
+  solution:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: api
+        namespace: payments
+      spec:
+        replicas: 10
+        minReadySeconds: 15
+        strategy:
+          type: RollingUpdate
+          rollingUpdate:
+            maxSurge: 2
+            maxUnavailable: 1
+        selector:
+          matchLabels:
+            app: api
+        template:
+          metadata:
+            labels:
+              app: api
+          spec:
+            containers:
+            - name: api
+              image: registry.example.com/payments/api:3.3
+              readinessProbe:
+                httpGet:
+                  path: /healthz
+                  port: 8443
+                  scheme: HTTPS
+  negatives:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: api
+        namespace: payments
+      spec:
+        replicas: 10
+        minReadySeconds: 15
+        strategy:
+          type: RollingUpdate
+          rollingUpdate:
+            maxSurge: 12
+            maxUnavailable: 9
+        selector:
+          matchLabels:
+            app: api
+        template:
+          metadata:
+            labels:
+              app: api
+          spec:
+            containers:
+            - name: api
+              image: registry.example.com/payments/api:3.3
+    why: maxSurge and maxUnavailable are offsets from the desired count, not totals. 12 and 9 would allow 22 Pods and only 1 available.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: api
+        namespace: payments
+      spec:
+        replicas: 10
+        strategy:
+          type: RollingUpdate
+          rollingUpdate:
+            maxSurge: 2
+            maxUnavailable: 1
+        selector:
+          matchLabels:
+            app: api
+        template:
+          metadata:
+            labels:
+              app: api
+          spec:
+            containers:
+            - name: api
+              image: registry.example.com/payments/api:3.3
+              readinessProbe:
+                initialDelaySeconds: 15
+                httpGet:
+                  path: /healthz
+                  port: 8443
+                  scheme: HTTPS
+    why: initialDelaySeconds only delays the first probe. A Pod counts as available after being ready for minReadySeconds, a field of the Deployment spec.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: api
+        namespace: payments
+      spec:
+        replicas: 10
+        minReadySeconds: 15
+        strategy:
+          type: RollingUpdate
+          rollingUpdate:
+            maxSurge: 1
+            maxUnavailable: 2
+        selector:
+          matchLabels:
+            app: api
+        template:
+          metadata:
+            labels:
+              app: api
+          spec:
+            containers:
+            - name: api
+              image: registry.example.com/payments/api:3.3
+    why: The values are swapped. maxUnavailable 2 lets availability drop to 8 Pods.
+explanation:
+  correct:
+    en: '`maxSurge` is how many Pods may exist above `replicas` (10 + 2 = 12) and `maxUnavailable` how many may be missing below it (10 - 1 = 9 available). `minReadySeconds: 15`, on the Deployment spec, is how long a new Pod must stay ready before it counts as available; the default is 0. As percentages, maxSurge would round up and maxUnavailable round down.'
+references:
+- title: Deployments
+  url: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/

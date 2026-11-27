@@ -1,0 +1,63 @@
+id: ckad-2a-canary-even-split-scale
+objective: "2.1.2"
+difficulty: 1
+status: draft
+type: command
+stem:
+  en: |-
+    In namespace `catalog`, Service `search` selects `app: search`. Deployment `search-stable` runs 9 replicas and the canary Deployment `search-canary` runs 1 replica; both sets of Pods carry `app: search`, so the canary gets about 10 % of the traffic.
+
+    The canary is healthy. Move to an even split, about 50 % of the traffic for each version, keeping **10 Pods in total**. Do it with a single command that changes both Deployments.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Uses kubectl scale
+    path: verb
+    op: equals
+    value: scale
+  - id: resource
+    label: Scales Deployments
+    path: resource
+    op: equals
+    value: deployment
+  - id: stable
+    label: Scales search-stable
+    path: args
+    op: matches
+    value: '"((deploy|deployment|deployments)(\.apps)?/)?search-stable"'
+  - id: canary
+    label: Scales search-canary
+    path: args
+    op: matches
+    value: '"((deploy|deployment|deployments)(\.apps)?/)?search-canary"'
+  - id: replicas
+    label: Sets 5 replicas on each Deployment
+    path: flags.replicas
+    op: equals
+    value: "5"
+  - id: namespace
+    label: Runs in namespace catalog
+    path: flags.namespace
+    op: equals
+    value: catalog
+  solution:
+  - command: kubectl scale deployment search-stable search-canary --replicas=5 -n catalog
+  - command: k -n catalog scale --replicas 5 deploy/search-stable deploy/search-canary
+  negatives:
+  - command: kubectl scale deployment search-canary --replicas=5 -n catalog
+    why: Stable keeps 9 Pods, so there are 14 Pods in total and the canary gets 5/14, about 36 %.
+  - command: kubectl scale deployment search-stable search-canary --replicas=10 -n catalog
+    why: The split is even, but 20 Pods run instead of 10.
+  - command: kubectl scale deployment search-stable search-canary --replicas=5
+    why: Without -n the command looks for the two Deployments in the context namespace, default.
+explanation:
+  correct:
+    en: 'With a Service that selects only the shared label `app: search`, traffic splits roughly in proportion to the Ready Pods of each Deployment. 5 stable and 5 canary Pods give about 50 % each with 10 Pods in total. `kubectl scale` accepts several resources in one command (`deployment a b`, or `deploy/a deploy/b`), all set to the same `--replicas` value.'
+references:
+- title: kubectl scale
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_scale/
+- title: Deployments
+  url: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/

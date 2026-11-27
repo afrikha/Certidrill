@@ -1,0 +1,192 @@
+id: ckad-4e-qos-guaranteed
+objective: "4.5.2"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    Write the manifest of a Pod named `ledger` in namespace `payments` with two containers:
+
+    - `app` running `registry.example.com/ledger:4.2`, which needs 500m CPU and 256Mi of memory;
+    - `metrics` running `registry.example.com/metrics-exporter:0.8`, which needs 100m CPU and 64Mi of memory.
+
+    The Pod must get the QoS class `Guaranteed`. Set both requests and limits on every container.
+body:
+  starter: ""
+answer:
+  checks:
+  - id: pod
+    label: A Pod named ledger in namespace payments
+    path: metadata
+    op: subset
+    value: {name: ledger, namespace: payments}
+  - id: app-req-cpu
+    label: app requests 500m CPU
+    path: spec.containers[name=app].resources.requests.cpu
+    op: quantity
+    value: 500m
+  - id: app-lim-cpu
+    label: app CPU limit equals its request (500m)
+    path: spec.containers[name=app].resources.limits.cpu
+    op: quantity
+    value: 500m
+  - id: app-req-mem
+    label: app requests 256Mi of memory
+    path: spec.containers[name=app].resources.requests.memory
+    op: quantity
+    value: 256Mi
+  - id: app-lim-mem
+    label: app memory limit equals its request (256Mi)
+    path: spec.containers[name=app].resources.limits.memory
+    op: quantity
+    value: 256Mi
+  - id: metrics-req-cpu
+    label: metrics requests 100m CPU
+    path: spec.containers[name=metrics].resources.requests.cpu
+    op: quantity
+    value: 100m
+  - id: metrics-lim-cpu
+    label: metrics CPU limit equals its request (100m)
+    path: spec.containers[name=metrics].resources.limits.cpu
+    op: quantity
+    value: 100m
+  - id: metrics-req-mem
+    label: metrics requests 64Mi of memory
+    path: spec.containers[name=metrics].resources.requests.memory
+    op: quantity
+    value: 64Mi
+  - id: metrics-lim-mem
+    label: metrics memory limit equals its request (64Mi)
+    path: spec.containers[name=metrics].resources.limits.memory
+    op: quantity
+    value: 64Mi
+  - id: metrics-image
+    label: metrics runs registry.example.com/metrics-exporter:0.8
+    path: spec.containers[name=metrics].image
+    op: equals
+    value: registry.example.com/metrics-exporter:0.8
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: ledger
+        namespace: payments
+      spec:
+        containers:
+        - name: app
+          image: registry.example.com/ledger:4.2
+          resources:
+            requests:
+              cpu: 500m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+        - name: metrics
+          image: registry.example.com/metrics-exporter:0.8
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: ledger
+        namespace: payments
+      spec:
+        containers:
+        - name: metrics
+          image: registry.example.com/metrics-exporter:0.8
+          resources:
+            limits: {cpu: 0.1, memory: 64Mi}
+            requests: {cpu: 0.1, memory: 64Mi}
+        - name: app
+          image: registry.example.com/ledger:4.2
+          resources:
+            limits: {cpu: 0.5, memory: 256Mi}
+            requests: {cpu: 0.5, memory: 256Mi}
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: ledger
+        namespace: payments
+      spec:
+        containers:
+        - name: app
+          image: registry.example.com/ledger:4.2
+          resources:
+            requests:
+              cpu: 500m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+        - name: metrics
+          image: registry.example.com/metrics-exporter:0.8
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              memory: 64Mi
+    why: metrics has no CPU limit, so not every container has CPU limit = request; the Pod is Burstable.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: ledger
+        namespace: payments
+      spec:
+        containers:
+        - name: app
+          image: registry.example.com/ledger:4.2
+          resources:
+            requests:
+              cpu: 500m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+        - name: metrics
+          image: registry.example.com/metrics-exporter:0.8
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+    why: app's limits are higher than its requests; Guaranteed needs limit = request for CPU and memory in every container, so the Pod is Burstable.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: ledger
+        namespace: payments
+      spec:
+        containers:
+        - name: app
+          image: registry.example.com/ledger:4.2
+          resources:
+            requests:
+              cpu: 500m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+        - name: metrics
+          image: registry.example.com/metrics-exporter:0.8
+    why: metrics sets no requests or limits; one container without them is enough to make the Pod Burstable.
+explanation:
+  correct:
+    en: 'A Pod is `Guaranteed` only if every container has CPU and memory requests and limits, both greater than zero, with limit equal to request for each resource. If any container misses one of them or sets a higher limit, the Pod is `Burstable`; with no CPU or memory requests or limits anywhere it is `BestEffort`. Under node pressure the kubelet evicts BestEffort Pods first, then Burstable, then Guaranteed.'
+references:
+- title: Pod Quality of Service Classes
+  url: https://kubernetes.io/docs/concepts/workloads/pods/pod-qos/

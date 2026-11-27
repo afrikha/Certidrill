@@ -1,0 +1,197 @@
+id: cka-4g-flannel-pod-cidr-fix
+objective: "4.7.2"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    The cluster was initialized with `kubeadm init --pod-network-cidr=10.50.0.0/16`, then Flannel was installed from its stock `kube-flannel.yml`. The `kube-flannel-ds` Pods crash: their logs say that the subnet `10.244.0.0/16` of the flannel net config does not contain the PodCIDR `10.50.0.0/24` of node `cp-1`.
+
+    Write the corrected ConfigMap `kube-flannel-cfg` (pre-filled with its current content) so that Flannel uses the cluster's Pod network. Keep the VXLAN backend.
+body:
+  starter: |
+    apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: kube-flannel-cfg
+      namespace: kube-flannel
+      labels:
+        tier: node
+        k8s-app: flannel
+        app: flannel
+    data:
+      cni-conf.json: |
+        {
+          "name": "cbr0",
+          "cniVersion": "1.0.0",
+          "plugins": [
+            {
+              "type": "flannel",
+              "delegate": {
+                "hairpinMode": true,
+                "isDefaultGateway": true
+              }
+            },
+            {
+              "type": "portmap",
+              "capabilities": {
+                "portMappings": true
+              }
+            }
+          ]
+        }
+      net-conf.json: |
+        {
+          "Network": "10.244.0.0/16",
+          "EnableNFTables": false,
+          "Backend": {
+            "Type": "vxlan"
+          }
+        }
+answer:
+  checks:
+  - id: name
+    label: ConfigMap kube-flannel-cfg in namespace kube-flannel
+    path: metadata
+    op: subset
+    value: {name: kube-flannel-cfg, namespace: kube-flannel}
+  - id: network
+    label: net-conf.json sets Network to 10.50.0.0/16
+    path: data["net-conf.json"]
+    op: matches
+    value: '"Network"\s*:\s*"10\.50\.0\.0/16"'
+  - id: backend
+    label: net-conf.json keeps the vxlan backend
+    path: data["net-conf.json"]
+    op: matches
+    value: '"Type"\s*:\s*"vxlan"'
+  - id: cni
+    label: cni-conf.json still configures the flannel plugin
+    path: data["cni-conf.json"]
+    op: matches
+    value: '"type"\s*:\s*"flannel"'
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: kube-flannel-cfg
+        namespace: kube-flannel
+        labels:
+          tier: node
+          k8s-app: flannel
+          app: flannel
+      data:
+        cni-conf.json: |
+          {
+            "name": "cbr0",
+            "cniVersion": "1.0.0",
+            "plugins": [
+              {
+                "type": "flannel",
+                "delegate": {
+                  "hairpinMode": true,
+                  "isDefaultGateway": true
+                }
+              },
+              {
+                "type": "portmap",
+                "capabilities": {
+                  "portMappings": true
+                }
+              }
+            ]
+          }
+        net-conf.json: |
+          {
+            "Network": "10.50.0.0/16",
+            "EnableNFTables": false,
+            "Backend": {
+              "Type": "vxlan"
+            }
+          }
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: kube-flannel-cfg
+        namespace: kube-flannel
+      data:
+        cni-conf.json: |
+          {
+            "name": "cbr0",
+            "cniVersion": "1.0.0",
+            "plugins": [
+              {"type": "flannel", "delegate": {"hairpinMode": true, "isDefaultGateway": true}},
+              {"type": "portmap", "capabilities": {"portMappings": true}}
+            ]
+          }
+        net-conf.json: |
+          {
+            "Network": "10.50.0.0/24",
+            "EnableNFTables": false,
+            "Backend": {
+              "Type": "vxlan"
+            }
+          }
+    why: 10.50.0.0/24 is only the PodCIDR of cp-1; Network must be the whole cluster Pod network, 10.50.0.0/16, which contains every node's PodCIDR.
+  - manifest: |
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: kube-flannel-cfg
+        namespace: kube-system
+      data:
+        cni-conf.json: |
+          {
+            "name": "cbr0",
+            "cniVersion": "1.0.0",
+            "plugins": [
+              {"type": "flannel", "delegate": {"hairpinMode": true, "isDefaultGateway": true}},
+              {"type": "portmap", "capabilities": {"portMappings": true}}
+            ]
+          }
+        net-conf.json: |
+          {
+            "Network": "10.50.0.0/16",
+            "EnableNFTables": false,
+            "Backend": {
+              "Type": "vxlan"
+            }
+          }
+    why: The stock manifest runs Flannel in namespace kube-flannel; a ConfigMap in kube-system is a new object that the DaemonSet does not read.
+  - manifest: |
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: kube-flannel-cfg
+        namespace: kube-flannel
+      data:
+        cni-conf.json: |
+          {
+            "name": "cbr0",
+            "cniVersion": "1.0.0",
+            "Network": "10.50.0.0/16",
+            "plugins": [
+              {"type": "flannel", "delegate": {"hairpinMode": true, "isDefaultGateway": true}},
+              {"type": "portmap", "capabilities": {"portMappings": true}}
+            ]
+          }
+        net-conf.json: |
+          {
+            "Network": "10.244.0.0/16",
+            "EnableNFTables": false,
+            "Backend": {
+              "Type": "vxlan"
+            }
+          }
+    why: The Pod network is read from net-conf.json; adding Network to cni-conf.json changes nothing.
+explanation:
+  correct:
+    en: 'Flannel reads the cluster Pod network from `Network` in the `net-conf.json` key of the ConfigMap `kube-flannel-cfg` (namespace `kube-flannel` in the stock manifest), and every node''s PodCIDR, allocated from `--pod-network-cidr`, must fall inside it. Set `"Network": "10.50.0.0/16"`, apply the ConfigMap, then restart the DaemonSet with `kubectl rollout restart daemonset kube-flannel-ds -n kube-flannel`.'
+references:
+- title: kube-flannel.yml
+  url: https://github.com/flannel-io/flannel/blob/master/Documentation/kube-flannel.yml
+- title: Installing Addons
+  url: https://kubernetes.io/docs/concepts/cluster-administration/addons/

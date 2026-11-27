@@ -1,0 +1,254 @@
+id: ckad-3b-readiness-thresholds
+objective: "3.2.2"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    Write the manifest of a Deployment named `search` in namespace `shop` with 3 replicas and the Pod label `app=search`, one container named `search` running `registry.example.com/search:3.3` on port 8080.
+
+    - Readiness: `GET /ready` on port 8080 every 5 seconds, each attempt timing out after 2 seconds. A Pod must leave the Service endpoints after 2 consecutive failures and come back only after 3 consecutive successes.
+    - Liveness: a TCP connection to port 8080 every 20 seconds, with the default thresholds.
+body:
+  starter: ""
+answer:
+  checks:
+  - id: deployment
+    label: An apps/v1 Deployment named search in namespace shop
+    path: metadata
+    op: subset
+    value: {name: search, namespace: shop}
+  - id: api-version
+    label: Uses apiVersion apps/v1
+    path: apiVersion
+    op: equals
+    value: apps/v1
+  - id: replicas
+    label: Runs 3 replicas
+    path: spec.replicas
+    op: equals
+    value: 3
+  - id: selector
+    label: Selector and Pod template use app=search
+    path: spec
+    op: subset
+    value: {selector: {matchLabels: {app: search}}, template: {metadata: {labels: {app: search}}}}
+  - id: image
+    label: Container search runs registry.example.com/search:3.3
+    path: spec.template.spec.containers[name=search].image
+    op: equals
+    value: registry.example.com/search:3.3
+  - id: readiness-http
+    label: The readiness probe is an HTTP GET on /ready port 8080
+    path: spec.template.spec.containers[name=search].readinessProbe.httpGet
+    op: subset
+    value: {path: /ready, port: 8080}
+  - id: readiness-period
+    label: The readiness probe runs every 5 seconds
+    path: spec.template.spec.containers[name=search].readinessProbe.periodSeconds
+    op: equals
+    value: 5
+  - id: readiness-timeout
+    label: Each readiness attempt times out after 2 seconds
+    path: spec.template.spec.containers[name=search].readinessProbe.timeoutSeconds
+    op: equals
+    value: 2
+  - id: readiness-failure
+    label: The readiness failureThreshold is 2
+    path: spec.template.spec.containers[name=search].readinessProbe.failureThreshold
+    op: equals
+    value: 2
+  - id: readiness-success
+    label: The readiness successThreshold is 3
+    path: spec.template.spec.containers[name=search].readinessProbe.successThreshold
+    op: equals
+    value: 3
+  - id: liveness-tcp
+    label: The liveness probe opens a TCP connection to 8080
+    path: spec.template.spec.containers[name=search].livenessProbe.tcpSocket.port
+    op: equals
+    value: 8080
+  - id: liveness-period
+    label: The liveness probe runs every 20 seconds
+    path: spec.template.spec.containers[name=search].livenessProbe.periodSeconds
+    op: equals
+    value: 20
+  - id: liveness-success
+    label: The liveness probe keeps successThreshold 1
+    path: spec.template.spec.containers[name=search].livenessProbe
+    op: matches
+    value: ^(?!.*"successThreshold":(?!1[,}])).*$
+  solution:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: search
+        namespace: shop
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: search
+        template:
+          metadata:
+            labels:
+              app: search
+          spec:
+            containers:
+            - name: search
+              image: registry.example.com/search:3.3
+              ports:
+              - containerPort: 8080
+              readinessProbe:
+                httpGet:
+                  path: /ready
+                  port: 8080
+                periodSeconds: 5
+                timeoutSeconds: 2
+                failureThreshold: 2
+                successThreshold: 3
+              livenessProbe:
+                tcpSocket:
+                  port: 8080
+                periodSeconds: 20
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: search
+        namespace: shop
+        labels:
+          app: search
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: search
+        template:
+          metadata:
+            labels:
+              app: search
+          spec:
+            containers:
+            - name: search
+              image: registry.example.com/search:3.3
+              livenessProbe:
+                tcpSocket:
+                  port: 8080
+                periodSeconds: 20
+                successThreshold: 1
+                failureThreshold: 3
+              readinessProbe:
+                successThreshold: 3
+                failureThreshold: 2
+                timeoutSeconds: 2
+                periodSeconds: 5
+                httpGet:
+                  path: /ready
+                  port: 8080
+  negatives:
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: search
+        namespace: shop
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: search
+        template:
+          metadata:
+            labels:
+              app: search
+          spec:
+            containers:
+            - name: search
+              image: registry.example.com/search:3.3
+              readinessProbe:
+                httpGet:
+                  path: /ready
+                  port: 8080
+                periodSeconds: 5
+                timeoutSeconds: 2
+                failureThreshold: 3
+                successThreshold: 2
+              livenessProbe:
+                tcpSocket:
+                  port: 8080
+                periodSeconds: 20
+    why: The thresholds are swapped; the Pod would leave the endpoints after 3 failures and return after 2 successes.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: search
+        namespace: shop
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: search
+        template:
+          metadata:
+            labels:
+              app: search
+          spec:
+            containers:
+            - name: search
+              image: registry.example.com/search:3.3
+              readinessProbe:
+                httpGet:
+                  path: /ready
+                  port: 8080
+                periodSeconds: 5
+                timeoutSeconds: 2
+                failureThreshold: 2
+                successThreshold: 3
+              livenessProbe:
+                tcpSocket:
+                  port: 8080
+                periodSeconds: 20
+                successThreshold: 3
+    why: successThreshold must be 1 for liveness and startup probes; the API server rejects successThreshold 3 on the liveness probe.
+  - manifest: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: search
+        namespace: shop
+      spec:
+        replicas: 3
+        selector:
+          matchLabels:
+            app: search
+        template:
+          metadata:
+            labels:
+              app: search
+          spec:
+            containers:
+            - name: search
+              image: registry.example.com/search:3.3
+              readinessProbe:
+                httpGet:
+                  path: /ready
+                  port: 8080
+                periodSeconds: 5
+                failureThreshold: 2
+                successThreshold: 3
+              livenessProbe:
+                tcpSocket:
+                  port: 8080
+                periodSeconds: 20
+    why: Without timeoutSeconds each readiness attempt times out after 1 second (the default), not 2.
+explanation:
+  correct:
+    en: 'For a readiness probe, `failureThreshold: 2` marks the Pod not ready after 2 consecutive failures, which removes it from the Service endpoints without restarting it, and `successThreshold: 3` requires 3 consecutive successes before it receives traffic again. `successThreshold` must stay 1 on liveness and startup probes. `timeoutSeconds` defaults to 1 second and `periodSeconds` to 10.'
+references:
+- title: Configure Liveness, Readiness and Startup Probes
+  url: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/
+- title: Pod
+  url: https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/pod-v1/

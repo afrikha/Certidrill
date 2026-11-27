@@ -1,0 +1,143 @@
+id: cka-1b-local-pv-node-affinity
+objective: "1.2.3"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    The node `worker-2` has an SSD mounted at `/mnt/disks/ssd1`. The StorageClass `local-storage` (provisioner `kubernetes.io/no-provisioner`, `WaitForFirstConsumer`) already exists.
+
+    Write the PersistentVolume `local-ssd-w2` that exposes this disk as a 100Gi `local` volume, read-write by one node, in class `local-storage`, with reclaim policy `Retain`. Pods that use it must be scheduled on `worker-2` only.
+body:
+  starter: ""
+answer:
+  checks:
+  - id: kind
+    label: A PersistentVolume named local-ssd-w2
+    path: metadata.name
+    op: equals
+    value: local-ssd-w2
+  - id: kind-pv
+    label: The kind is PersistentVolume
+    path: kind
+    op: equals
+    value: PersistentVolume
+  - id: local
+    label: Uses a local volume source at /mnt/disks/ssd1
+    path: spec.local.path
+    op: equals
+    value: /mnt/disks/ssd1
+  - id: affinity
+    label: nodeAffinity requires kubernetes.io/hostname In [worker-2]
+    path: spec.nodeAffinity.required.nodeSelectorTerms
+    op: contains
+    value: {matchExpressions: [{key: kubernetes.io/hostname, operator: In, values: [worker-2]}]}
+  - id: capacity
+    label: Capacity is 100Gi
+    path: spec.capacity.storage
+    op: quantity
+    value: 100Gi
+  - id: mode
+    label: Access mode ReadWriteOnce
+    path: spec.accessModes
+    op: contains
+    value: ReadWriteOnce
+  - id: class
+    label: storageClassName is local-storage
+    path: spec.storageClassName
+    op: equals
+    value: local-storage
+  - id: reclaim
+    label: Reclaim policy is Retain
+    path: spec.persistentVolumeReclaimPolicy
+    op: equals
+    value: Retain
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: PersistentVolume
+      metadata:
+        name: local-ssd-w2
+      spec:
+        capacity:
+          storage: 100Gi
+        volumeMode: Filesystem
+        accessModes:
+        - ReadWriteOnce
+        persistentVolumeReclaimPolicy: Retain
+        storageClassName: local-storage
+        local:
+          path: /mnt/disks/ssd1
+        nodeAffinity:
+          required:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/hostname
+                operator: In
+                values:
+                - worker-2
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: PersistentVolume
+      metadata:
+        name: local-ssd-w2
+      spec:
+        capacity:
+          storage: 100Gi
+        accessModes:
+        - ReadWriteOnce
+        persistentVolumeReclaimPolicy: Retain
+        storageClassName: local-storage
+        local:
+          path: /mnt/disks/ssd1
+    why: A local PV must set nodeAffinity; without it the PV is rejected and the scheduler could not find the disk's node.
+  - manifest: |
+      apiVersion: v1
+      kind: PersistentVolume
+      metadata:
+        name: local-ssd-w2
+      spec:
+        capacity:
+          storage: 100Gi
+        accessModes:
+        - ReadWriteOnce
+        persistentVolumeReclaimPolicy: Retain
+        storageClassName: local-storage
+        hostPath:
+          path: /mnt/disks/ssd1
+        nodeAffinity:
+          required:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/hostname
+                operator: In
+                values:
+                - worker-2
+    why: The task asks for a local volume source; hostPath is meant for single-node testing.
+  - manifest: |
+      apiVersion: v1
+      kind: PersistentVolume
+      metadata:
+        name: local-ssd-w2
+      spec:
+        capacity:
+          storage: 100Gi
+        accessModes:
+        - ReadWriteOnce
+        persistentVolumeReclaimPolicy: Retain
+        storageClassName: local-storage
+        local:
+          path: /mnt/disks/ssd1
+        nodeSelector:
+          kubernetes.io/hostname: worker-2
+    why: A PersistentVolume has no nodeSelector field; node constraints go in spec.nodeAffinity.required.nodeSelectorTerms.
+explanation:
+  correct:
+    en: |-
+      A `local` volume (a disk, partition or directory of one node) exists only as a static PV and must set `spec.nodeAffinity`: the scheduler reads it to place Pods that use the PV on `worker-2`. Its class uses `kubernetes.io/no-provisioner`, because local volumes are not provisioned dynamically, and `WaitForFirstConsumer`, so binding also respects the Pod's own constraints.
+references:
+- title: Volume Types
+  url: https://kubernetes.io/docs/reference/storage/volume-types/
+- title: Storage Classes
+  url: https://kubernetes.io/docs/concepts/storage/storage-classes/

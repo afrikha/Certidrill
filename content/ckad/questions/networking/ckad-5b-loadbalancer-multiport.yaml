@@ -1,0 +1,194 @@
+id: ckad-5b-loadbalancer-multiport
+objective: "5.2.1"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    In namespace `checkout`, the backend Pods carry the labels `app=checkout` and `tier=backend`. Their container declares two named ports: `http` (8080) and `metrics` (9100). The frontend Pods of the same namespace are labelled `app=checkout` and `tier=frontend`.
+
+    Write the manifest of a Service named `checkout-public` of type LoadBalancer that sends traffic only to the backend Pods, with two ports:
+
+    - a port named `web` that listens on 80 and forwards to the container port `http`, referenced by name;
+    - a port named `metrics` that listens on 9100 and forwards to the container port `metrics`, referenced by name.
+body:
+  starter: |
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: checkout-public
+      namespace: checkout
+    spec:
+answer:
+  checks:
+  - id: service
+    label: A Service named checkout-public in namespace checkout
+    path: metadata
+    op: subset
+    value: {name: checkout-public, namespace: checkout}
+  - id: kind
+    label: The object is a Service
+    path: kind
+    op: equals
+    value: Service
+  - id: type
+    label: Its type is LoadBalancer
+    path: spec.type
+    op: equals
+    value: LoadBalancer
+  - id: selector-app
+    label: The selector includes app=checkout
+    path: spec.selector.app
+    op: equals
+    value: checkout
+  - id: selector-tier
+    label: The selector includes tier=backend
+    path: spec.selector.tier
+    op: equals
+    value: backend
+  - id: ports-count
+    label: The Service has exactly two ports
+    path: spec.ports
+    op: length
+    value: 2
+  - id: web-port
+    label: Port web listens on 80
+    path: spec.ports[name=web].port
+    op: equals
+    value: 80
+  - id: web-target
+    label: Port web targets the container port named http
+    path: spec.ports[name=web].targetPort
+    op: equals
+    value: http
+  - id: metrics-port
+    label: Port metrics listens on 9100
+    path: spec.ports[name=metrics].port
+    op: equals
+    value: 9100
+  - id: metrics-target
+    label: Port metrics targets the container port named metrics
+    path: spec.ports[name=metrics].targetPort
+    op: equals
+    value: metrics
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: checkout-public
+        namespace: checkout
+      spec:
+        type: LoadBalancer
+        selector:
+          app: checkout
+          tier: backend
+        ports:
+        - name: web
+          port: 80
+          targetPort: http
+        - name: metrics
+          port: 9100
+          targetPort: metrics
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: checkout-public
+        namespace: checkout
+        labels:
+          app: checkout
+      spec:
+        ports:
+        - name: metrics
+          protocol: TCP
+          port: 9100
+          targetPort: metrics
+        - name: web
+          protocol: TCP
+          port: 80
+          targetPort: http
+        selector:
+          tier: backend
+          app: checkout
+        type: LoadBalancer
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: checkout-public
+        namespace: checkout
+      spec:
+        type: LoadBalancer
+        selector:
+          app: checkout
+        ports:
+        - name: web
+          port: 80
+          targetPort: http
+        - name: metrics
+          port: 9100
+          targetPort: metrics
+    why: The selector app=checkout alone also matches the frontend Pods. Both labels are needed to select only the backend.
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: checkout-public
+        namespace: checkout
+      spec:
+        type: LoadBalancer
+        selector:
+          app: checkout
+          tier: backend
+        ports:
+        - port: 80
+          targetPort: http
+        - port: 9100
+          targetPort: metrics
+    why: A Service with several ports must name every port; the API server rejects unnamed ports here.
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: checkout-public
+        namespace: checkout
+      spec:
+        type: NodePort
+        selector:
+          app: checkout
+          tier: backend
+        ports:
+        - name: web
+          port: 80
+          targetPort: http
+        - name: metrics
+          port: 9100
+          targetPort: metrics
+    why: NodePort opens a port on every node but does not provision an external load balancer.
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: checkout-public
+        namespace: checkout
+      spec:
+        type: LoadBalancer
+        selector:
+          app: checkout
+          tier: backend
+        ports:
+        - name: web
+          port: 80
+          targetPort: 8080
+        - name: metrics
+          port: 9100
+          targetPort: 9100
+    why: The target ports are numbers, not the container port names the task requires.
+explanation:
+  correct:
+    en: 'A Service with more than one port must give every port a unique name; each `targetPort` can be the name of a container port (`http`, `metrics`), which keeps working if the numbers change. The selector is a plain label map and all its labels must match, so `app: checkout` plus `tier: backend` excludes the frontend Pods. `type: LoadBalancer` asks the cloud integration for an external load balancer, on top of the node ports it allocates.'
+references:
+- title: Service
+  url: https://kubernetes.io/docs/concepts/services-networking/service/

@@ -1,0 +1,136 @@
+id: cka-2c-quota-hard-sized
+objective: "2.3.2"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    Deployment `forecast` in namespace `planning` must run 6 replicas. Each of its Pods requests `250m` CPU and `256Mi` of memory. It is currently scaled to 0, and `kubectl describe quota compute-quota -n planning` shows the usage of the other workloads (`quota.txt`).
+
+    Change the ResourceQuota `compute-quota` so that the 6 Pods of `forecast` are admitted: set `requests.cpu` and `requests.memory` to the smallest values that fit the current usage plus the 6 Pods. Keep the other hard values unchanged. Write the corrected manifest.
+body:
+  starter: |
+    apiVersion: v1
+    kind: ResourceQuota
+    metadata:
+      name: compute-quota
+      namespace: planning
+    spec:
+      hard:
+        pods: "12"
+        requests.cpu: "2"
+        requests.memory: 2Gi
+        limits.memory: 8Gi
+  files:
+  - name: quota.txt
+    content: |
+      Name:            compute-quota
+      Namespace:       planning
+      Resource         Used  Hard
+      --------         ----  ----
+      limits.memory    2Gi   8Gi
+      pods             4     12
+      requests.cpu     1     2
+      requests.memory  1Gi   2Gi
+answer:
+  checks:
+  - id: quota
+    label: The ResourceQuota compute-quota in namespace planning
+    path: metadata
+    op: subset
+    value: {name: compute-quota, namespace: planning}
+  - id: cpu
+    label: requests.cpu is 2.5 CPU (1 used + 6 x 250m)
+    path: spec.hard["requests.cpu"]
+    op: quantity
+    value: 2500m
+  - id: memory
+    label: requests.memory is 2.5Gi (1Gi used + 6 x 256Mi)
+    path: spec.hard["requests.memory"]
+    op: quantity
+    value: 2560Mi
+  - id: pods
+    label: The pods limit stays at 12
+    path: spec.hard.pods
+    op: equals
+    value: 12
+  - id: limits-memory
+    label: limits.memory stays at 8Gi
+    path: spec.hard["limits.memory"]
+    op: quantity
+    value: 8Gi
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: ResourceQuota
+      metadata:
+        name: compute-quota
+        namespace: planning
+      spec:
+        hard:
+          pods: "12"
+          requests.cpu: 2500m
+          requests.memory: 2560Mi
+          limits.memory: 8Gi
+  - manifest: |
+      apiVersion: v1
+      kind: ResourceQuota
+      metadata:
+        name: compute-quota
+        namespace: planning
+      spec:
+        hard:
+          limits.memory: 8Gi
+          pods: 12
+          requests.cpu: "2.5"
+          requests.memory: 2.5Gi
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: ResourceQuota
+      metadata:
+        name: compute-quota
+        namespace: planning
+      spec:
+        hard:
+          pods: "12"
+          requests.cpu: 1500m
+          requests.memory: 1536Mi
+          limits.memory: 8Gi
+    why: These values only cover the 6 new Pods; the 1 CPU and 1Gi already requested by the other workloads count too.
+  - manifest: |
+      apiVersion: v1
+      kind: ResourceQuota
+      metadata:
+        name: compute-quota
+        namespace: planning
+      spec:
+        hard:
+          pods: "12"
+          requests.cpu: "2.5"
+          requests.memory: 2.5G
+          limits.memory: 8Gi
+    why: 2.5G is decimal (2,500,000,000 bytes), below the 2.5Gi (2,684,354,560 bytes) that the Pods need.
+  - manifest: |
+      apiVersion: v1
+      kind: ResourceQuota
+      metadata:
+        name: compute-quota
+        namespace: planning
+      spec:
+        hard:
+          pods: "10"
+          requests.cpu: 2500m
+          requests.memory: 2560Mi
+          limits.memory: 8Gi
+    why: The pods value was changed although the task says to keep the other hard values; 10 also leaves no room for any other new Pod.
+explanation:
+  correct:
+    en: >-
+      A ResourceQuota adds the requests of every non-terminal Pod in the namespace. The other workloads already request
+      1 CPU and 1Gi, and the 6 new Pods add 6 × 250m = 1500m and 6 × 256Mi = 1536Mi, so the smallest hard values are
+      `requests.cpu: 2500m` (or `"2.5"`) and `requests.memory: 2560Mi` (or `2.5Gi`). The 4 + 6 Pods stay under `pods: 12`.
+      Beware of decimal suffixes: `2.5G` is smaller than `2.5Gi`.
+references:
+- title: Resource Quotas
+  url: https://kubernetes.io/docs/concepts/policy/resource-quotas/

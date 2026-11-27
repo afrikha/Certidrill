@@ -1,0 +1,86 @@
+id: ckad-5a-test-as-labeled-client
+objective: "5.1.2"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    In namespace `shop`, a default-deny policy isolates every Pod for ingress, and the NetworkPolicy `api-allow` lets the Pods labeled `app=frontend` reach the `app=api` Pods on TCP port 8080. Service `api` listens on port 80 and forwards to port 8080 of the api Pods. Egress is not restricted.
+
+    Check that the allowed flow works: start a temporary Pod named `probe` in namespace `shop`, image `busybox:1.36`, that `api-allow` treats as a frontend client. It fetches `http://api` through the Service with `wget`, gives up after 2 seconds, is never restarted and is deleted when the command exits. Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Uses kubectl run
+    path: verb
+    op: equals
+    value: run
+  - id: name
+    label: The Pod is named probe
+    path: args
+    op: contains
+    value: probe
+  - id: namespace
+    label: It runs in namespace shop
+    path: flags.namespace
+    op: equals
+    value: shop
+  - id: labels
+    label: The Pod carries the label app=frontend, so api-allow admits it
+    path: flags.labels
+    op: matches
+    value: '(^|,)app=frontend(,|$)'
+  - id: image
+    label: It runs busybox:1.36
+    path: flags.image
+    op: equals
+    value: busybox:1.36
+  - id: rm
+    label: The Pod is deleted on exit (--rm)
+    path: flags.rm
+    op: equals
+    value: true
+  - id: attach
+    label: The session is attached (-i), as --rm requires
+    path: flags.stdin
+    op: equals
+    value: true
+  - id: restart
+    label: The Pod is never restarted (--restart=Never)
+    path: flags.restart
+    op: equals
+    value: Never
+  - id: url
+    label: wget calls Service api on its port 80
+    path: rest
+    op: matches
+    value: '"(http://)?api(\.shop(\.svc(\.cluster\.local)?)?)?(:80)?/?"'
+  - id: timeout
+    label: wget gives up after 2 seconds
+    path: rest
+    op: matches
+    value: '"(-T2|--timeout=2)"|"(-T|--timeout)","2"'
+  solution:
+  - command: kubectl run probe -n shop --labels=app=frontend --rm -it --restart=Never --image=busybox:1.36 -- wget -qO- -T 2 http://api
+  - command: k -n shop run probe -l app=frontend -i --rm --image busybox:1.36 --restart Never -- wget -O- --timeout=2 http://api.shop.svc.cluster.local:80
+  - command: kubectl run probe --image=busybox:1.36 --restart=Never --labels="app=frontend" --rm -it -n shop -- wget -q -T2 -O - api
+  negatives:
+  - command: kubectl run probe -n shop --rm -it --restart=Never --image=busybox:1.36 -- wget -qO- -T 2 http://api
+    why: Without the label the Pod carries only run=probe; api-allow does not match it, so the request times out although the flow for real frontend Pods works.
+  - command: kubectl run probe -n shop --env=app=frontend --rm -it --restart=Never --image=busybox:1.36 -- wget -qO- -T 2 http://api
+    why: --env sets an environment variable in the container; NetworkPolicy selectors only read Pod labels.
+  - command: kubectl run probe -n shop --labels=app=frontend --rm -it --restart=Never --image=busybox:1.36 -- wget -qO- -T 2 http://api:8080
+    why: 8080 is the port of the api Pods; Service api only listens on port 80.
+  - command: kubectl run probe -n shop --labels=app=api --rm -it --restart=Never --image=busybox:1.36 -- wget -qO- -T 2 http://api
+    why: app=api is the label of the protected Pods, not of the clients that api-allow admits.
+explanation:
+  correct:
+    en: 'NetworkPolicies select clients by Pod labels, so the test Pod must carry `app=frontend` (`--labels` or `-l`) to be treated like a frontend Pod; without it, `kubectl run` gives the Pod only `run=probe` and the deny policy drops the request. `--rm -i --restart=Never` makes a one-shot Pod that is deleted on exit. The URL uses the Service port 80: the Service forwards to 8080, the port that `api-allow` opens on the Pods.'
+references:
+- title: Network Policies
+  url: https://kubernetes.io/docs/concepts/services-networking/network-policies/
+- title: kubectl run
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_run/

@@ -1,0 +1,73 @@
+id: cka-4d-certs-renew-apiserver
+objective: "4.4.3"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    On the single control plane node `cp1`, `kubeadm certs check-expiration` printed the lines in `expiration.txt` (shortened). Only one certificate is close to expiry.
+
+    Renew **only** the certificate that kube-apiserver presents to its clients (its serving certificate). The other certificates must keep their current validity. You will restart the kube-apiserver static Pod afterwards.
+
+    Type the single command you would run.
+body:
+  mode: invocation
+  tools: [kubeadm]
+  namespace: default
+  files:
+  - name: expiration.txt
+    content: |
+      CERTIFICATE                EXPIRES                  RESIDUAL TIME   CERTIFICATE AUTHORITY   EXTERNALLY MANAGED
+      admin.conf                 Oct 14, 2027 09:12 UTC   321d                                    no
+      apiserver                  Dec 03, 2026 09:12 UTC   5d              ca                      no
+      apiserver-etcd-client      Oct 14, 2027 09:12 UTC   321d            etcd-ca                 no
+      apiserver-kubelet-client   Oct 14, 2027 09:12 UTC   321d            ca                      no
+      controller-manager.conf    Oct 14, 2027 09:12 UTC   321d                                    no
+      etcd-server                Oct 14, 2027 09:12 UTC   321d            etcd-ca                 no
+      front-proxy-client         Oct 14, 2027 09:12 UTC   321d            front-proxy-ca          no
+      scheduler.conf             Oct 14, 2027 09:12 UTC   321d                                    no
+answer:
+  checks:
+  - id: tool
+    label: Uses kubeadm
+    path: tool
+    op: equals
+    value: kubeadm
+  - id: certs
+    label: Runs kubeadm certs renew
+    path: args[0]
+    op: equals
+    value: renew
+  - id: verb
+    label: The kubeadm command is certs
+    path: verb
+    op: equals
+    value: certs
+  - id: apiserver
+    label: Renews the certificate named apiserver
+    path: args[1]
+    op: equals
+    value: apiserver
+  - id: only-one
+    label: Renews a single certificate
+    path: args
+    op: length
+    value: 2
+  solution:
+  - command: kubeadm certs renew apiserver
+  - command: sudo kubeadm certs renew apiserver
+  negatives:
+  - command: kubeadm certs renew all
+    why: all renews every certificate, which the task forbids.
+  - command: kubeadm certs renew apiserver-kubelet-client
+    why: apiserver-kubelet-client is the client certificate that kube-apiserver uses to call the kubelets, not its serving certificate.
+  - command: kubeadm certs renew kube-apiserver
+    why: The certificate is named apiserver in kubeadm, as check-expiration shows; kube-apiserver is the component name.
+  - command: kubeadm certs renew apiserver-etcd-client
+    why: apiserver-etcd-client is the client certificate kube-apiserver uses to reach etcd.
+explanation:
+  correct:
+    en: '`kubeadm certs renew NAME` renews one certificate, with the names that `check-expiration` prints; `apiserver` is the serving certificate of kube-apiserver, signed by `ca`. kubeadm uses the CA in `/etc/kubernetes/pki` and keeps the attributes (CN, SANs) of the existing certificate. Components do not all reload certificates, so restart the static Pod by moving `/etc/kubernetes/manifests/kube-apiserver.yaml` out of the directory, waiting about 20 seconds, and moving it back.'
+references:
+- title: Certificate Management with kubeadm
+  url: https://kubernetes.io/docs/tasks/administer-cluster/kubeadm/kubeadm-certs/

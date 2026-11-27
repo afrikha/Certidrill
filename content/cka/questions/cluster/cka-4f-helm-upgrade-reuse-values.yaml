@@ -1,0 +1,71 @@
+id: cka-4f-helm-upgrade-reuse-values
+objective: "4.6.1"
+difficulty: 3
+status: draft
+type: command
+stem:
+  en: |-
+    The release `metrics-server` in namespace `kube-system` runs chart `metrics-server/metrics-server` version `3.13.0`. It was installed with a values file that set `args` and `hostNetwork.enabled`; that file is no longer available. `helm get values metrics-server -n kube-system` still shows those values.
+
+    Run metrics-server with 2 replicas by changing the chart value `replicas` to `2`. Every value supplied at install time must be kept, and the chart must stay at version `3.13.0` even though the repository now offers newer versions.
+
+    Type the single command you would run.
+body:
+  mode: invocation
+  tools: [helm]
+  namespace: default
+answer:
+  checks:
+  - id: upgrade
+    label: Uses helm upgrade
+    path: verb
+    op: equals
+    value: upgrade
+  - id: release
+    label: Upgrades the release metrics-server
+    path: args[0]
+    op: equals
+    value: metrics-server
+  - id: chart
+    label: Uses the chart metrics-server/metrics-server
+    path: args[1]
+    op: equals
+    value: metrics-server/metrics-server
+  - id: namespace
+    label: Targets namespace kube-system
+    path: flags.namespace
+    op: equals
+    value: kube-system
+  - id: version
+    label: Keeps chart version 3.13.0
+    path: flags.version
+    op: equals
+    value: 3.13.0
+  - id: reuse
+    label: Keeps the values of the last release (--reuse-values or --reset-then-reuse-values)
+    path: flags
+    op: matches
+    value: '"(reuse-values|reset-then-reuse-values)":(true|"true")'
+  - id: replicas
+    label: Sets replicas=2
+    path: flags.set
+    op: contains
+    value: replicas=2
+  solution:
+  - command: helm upgrade metrics-server metrics-server/metrics-server -n kube-system --version 3.13.0 --reuse-values --set replicas=2
+  - command: helm upgrade metrics-server metrics-server/metrics-server --namespace kube-system --version=3.13.0 --reset-then-reuse-values --set replicas=2
+  negatives:
+  - command: helm upgrade metrics-server metrics-server/metrics-server -n kube-system --version 3.13.0 --set replicas=2
+    why: When values are given on the command line without --reuse-values, Helm starts again from the chart defaults, so args and hostNetwork.enabled are lost.
+  - command: helm upgrade metrics-server metrics-server/metrics-server -n kube-system --version 3.13.0 --reset-values --set replicas=2
+    why: --reset-values explicitly resets the values to the ones built into the chart.
+  - command: helm upgrade metrics-server metrics-server/metrics-server -n kube-system --reuse-values --set replicas=2
+    why: Without --version, helm upgrade uses the latest chart version of the repository.
+  - command: helm upgrade metrics-server metrics-server/metrics-server --version 3.13.0 --reuse-values --set replicas=2
+    why: Without -n, Helm looks for the release in the namespace of the context, default.
+explanation:
+  correct:
+    en: '`--reuse-values` reuses the values of the last release and merges the overrides given with `--set` and `-f`; `--reset-then-reuse-values` starts from the chart defaults, applies the last release values, then the overrides, which gives the same result here. Without either flag, an upgrade that receives new values uses the chart defaults plus those values only. `--version 3.13.0` keeps the chart version, and `-n kube-system` selects the release.'
+references:
+- title: helm upgrade
+  url: https://helm.sh/docs/helm/helm_upgrade/

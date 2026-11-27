@@ -1,0 +1,206 @@
+id: cka-2a-reserved-allocatable
+objective: "2.1.3"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    Node `node-8` has a capacity of 8 CPUs and 32Gi of memory, and Pods currently get almost all of it: the kubelet and containerd are starved. The editor contains `/var/lib/kubelet/config.yaml` of `node-8`.
+
+    Write the corrected file so that:
+
+    - Kubernetes daemons (kubelet, container runtime) get 500m CPU and 1Gi of memory;
+    - operating system daemons get 500m CPU and 1536Mi of memory;
+    - the hard eviction thresholds are `memory.available` 512Mi, `nodefs.available` 10 %, `nodefs.inodesFree` 5 % and `imagefs.available` 15 %, all written in `evictionHard`;
+    - nothing else changes.
+
+    Allocatable must then become 7 CPUs and 29Gi of memory.
+body:
+  starter: |
+    apiVersion: kubelet.config.k8s.io/v1beta1
+    kind: KubeletConfiguration
+    authentication:
+      x509:
+        clientCAFile: /etc/kubernetes/pki/ca.crt
+    authorization:
+      mode: Webhook
+    cgroupDriver: systemd
+    clusterDNS:
+    - 10.96.0.10
+    clusterDomain: cluster.local
+    containerRuntimeEndpoint: unix:///var/run/containerd/containerd.sock
+    staticPodPath: /etc/kubernetes/manifests
+answer:
+  checks:
+  - id: kube-cpu
+    label: kubeReserved CPU is 500m
+    path: kubeReserved.cpu
+    op: quantity
+    value: 500m
+  - id: kube-memory
+    label: kubeReserved memory is 1Gi
+    path: kubeReserved.memory
+    op: quantity
+    value: 1Gi
+  - id: system-cpu
+    label: systemReserved CPU is 500m
+    path: systemReserved.cpu
+    op: quantity
+    value: 500m
+  - id: system-memory
+    label: systemReserved memory is 1536Mi
+    path: systemReserved.memory
+    op: quantity
+    value: 1536Mi
+  - id: evict-memory
+    label: evictionHard memory.available is 512Mi
+    path: evictionHard["memory.available"]
+    op: quantity
+    value: 512Mi
+  - id: evict-nodefs
+    label: evictionHard nodefs.available is 10%
+    path: evictionHard["nodefs.available"]
+    op: equals
+    value: 10%
+  - id: evict-inodes
+    label: evictionHard nodefs.inodesFree is 5%
+    path: evictionHard["nodefs.inodesFree"]
+    op: equals
+    value: 5%
+  - id: evict-imagefs
+    label: evictionHard imagefs.available is 15%
+    path: evictionHard["imagefs.available"]
+    op: equals
+    value: 15%
+  - id: endpoint
+    label: containerRuntimeEndpoint is unchanged
+    path: containerRuntimeEndpoint
+    op: equals
+    value: unix:///var/run/containerd/containerd.sock
+  solution:
+  - manifest: |
+      apiVersion: kubelet.config.k8s.io/v1beta1
+      kind: KubeletConfiguration
+      authentication:
+        x509:
+          clientCAFile: /etc/kubernetes/pki/ca.crt
+      authorization:
+        mode: Webhook
+      cgroupDriver: systemd
+      clusterDNS:
+      - 10.96.0.10
+      clusterDomain: cluster.local
+      containerRuntimeEndpoint: unix:///var/run/containerd/containerd.sock
+      staticPodPath: /etc/kubernetes/manifests
+      kubeReserved:
+        cpu: 500m
+        memory: 1Gi
+      systemReserved:
+        cpu: 500m
+        memory: 1536Mi
+      evictionHard:
+        memory.available: "512Mi"
+        nodefs.available: "10%"
+        nodefs.inodesFree: "5%"
+        imagefs.available: "15%"
+  - manifest: |
+      apiVersion: kubelet.config.k8s.io/v1beta1
+      kind: KubeletConfiguration
+      authentication:
+        x509:
+          clientCAFile: /etc/kubernetes/pki/ca.crt
+      authorization:
+        mode: Webhook
+      cgroupDriver: systemd
+      clusterDNS:
+      - 10.96.0.10
+      clusterDomain: cluster.local
+      containerRuntimeEndpoint: unix:///var/run/containerd/containerd.sock
+      staticPodPath: /etc/kubernetes/manifests
+      kubeReserved: {cpu: "0.5", memory: 1024Mi}
+      systemReserved: {cpu: "0.5", memory: 1.5Gi}
+      evictionHard: {memory.available: 512Mi, nodefs.available: 10%, nodefs.inodesFree: 5%, imagefs.available: 15%}
+  negatives:
+  - manifest: |
+      apiVersion: kubelet.config.k8s.io/v1beta1
+      kind: KubeletConfiguration
+      authentication:
+        x509:
+          clientCAFile: /etc/kubernetes/pki/ca.crt
+      authorization:
+        mode: Webhook
+      cgroupDriver: systemd
+      clusterDNS:
+      - 10.96.0.10
+      clusterDomain: cluster.local
+      containerRuntimeEndpoint: unix:///var/run/containerd/containerd.sock
+      staticPodPath: /etc/kubernetes/manifests
+      kubeReserved:
+        cpu: 500m
+        memory: 1536Mi
+      systemReserved:
+        cpu: 500m
+        memory: 1Gi
+      evictionHard:
+        memory.available: "512Mi"
+        nodefs.available: "10%"
+        nodefs.inodesFree: "5%"
+        imagefs.available: "15%"
+    why: The reservations are swapped; kubeReserved is for the kubelet and the container runtime, systemReserved for operating system daemons.
+  - manifest: |
+      apiVersion: kubelet.config.k8s.io/v1beta1
+      kind: KubeletConfiguration
+      authentication:
+        x509:
+          clientCAFile: /etc/kubernetes/pki/ca.crt
+      authorization:
+        mode: Webhook
+      cgroupDriver: systemd
+      clusterDNS:
+      - 10.96.0.10
+      clusterDomain: cluster.local
+      containerRuntimeEndpoint: unix:///var/run/containerd/containerd.sock
+      staticPodPath: /etc/kubernetes/manifests
+      kubeReserved:
+        cpu: 500m
+        memory: 1Gi
+      systemReserved:
+        cpu: 500m
+        memory: 1536Mi
+      evictionHard:
+        memory.available: "512Mi"
+    why: Setting only memory.available sets the other hard eviction signals to 0, so the node no longer evicts on disk or inode pressure.
+  - manifest: |
+      apiVersion: kubelet.config.k8s.io/v1beta1
+      kind: KubeletConfiguration
+      authentication:
+        x509:
+          clientCAFile: /etc/kubernetes/pki/ca.crt
+      authorization:
+        mode: Webhook
+      cgroupDriver: systemd
+      clusterDNS:
+      - 10.96.0.10
+      clusterDomain: cluster.local
+      containerRuntimeEndpoint: unix:///var/run/containerd/containerd.sock
+      staticPodPath: /etc/kubernetes/manifests
+      kube-reserved:
+        cpu: 500m
+        memory: 1Gi
+      system-reserved:
+        cpu: 500m
+        memory: 1536Mi
+      evictionHard:
+        memory.available: "512Mi"
+        nodefs.available: "10%"
+        nodefs.inodesFree: "5%"
+        imagefs.available: "15%"
+    why: kube-reserved and system-reserved are the command-line flag names; the configuration file fields are kubeReserved and systemReserved.
+explanation:
+  correct:
+    en: 'Allocatable = capacity − `kubeReserved` − `systemReserved` − hard eviction threshold. CPU: 8 − 0.5 − 0.5 = 7; memory: 32Gi − 1Gi − 1.5Gi − 0.5Gi = 29Gi. `kubeReserved` covers the kubelet and the runtime, `systemReserved` the operating system daemons, and `evictionHard` must list every signal, because omitted ones are set to 0. Restart the kubelet, then check `kubectl describe node node-8`.'
+references:
+- title: Reserve Compute Resources for System Daemons
+  url: https://kubernetes.io/docs/tasks/administer-cluster/reserve-compute-resources/
+- title: Kubelet Configuration (v1beta1)
+  url: https://kubernetes.io/docs/reference/config-api/kubelet-config.v1beta1/

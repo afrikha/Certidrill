@@ -1,0 +1,211 @@
+id: ckad-3d-streaming-sidecars-two-files
+objective: "3.4.1"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    The container `app` of image `registry.example.com/legacy-app:5.0` does not log to stdout: it writes `/var/log/app/access.log` and `/var/log/app/error.log`.
+
+    Write the manifest of a Pod named `legacy` in namespace `shop` so that `kubectl logs legacy -c access-log -n shop` shows the access log and `kubectl logs legacy -c error-log -n shop` shows the error log:
+
+    - an `emptyDir` volume named `logs` is mounted at `/var/log/app` in every container;
+    - two more entries of `containers`, `access-log` and `error-log`, run `busybox:1.36` and stream their file with `tail -n+1 -F <file>`.
+body:
+  starter: |
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: legacy
+      namespace: shop
+    spec:
+      containers:
+      - name: app
+        image: registry.example.com/legacy-app:5.0
+answer:
+  checks:
+  - id: pod
+    label: A Pod named legacy in namespace shop
+    path: metadata
+    op: subset
+    value: {name: legacy, namespace: shop}
+  - id: app-image
+    label: Container app runs registry.example.com/legacy-app:5.0
+    path: spec.containers[name=app].image
+    op: equals
+    value: registry.example.com/legacy-app:5.0
+  - id: volume
+    label: Volume logs is an emptyDir
+    path: spec.volumes[name=logs].emptyDir
+    op: exists
+  - id: app-mount
+    label: Container app mounts logs at /var/log/app
+    path: spec.containers[name=app].volumeMounts[name=logs].mountPath
+    op: equals
+    value: /var/log/app
+  - id: access-image
+    label: Container access-log runs busybox:1.36
+    path: spec.containers[name=access-log].image
+    op: equals
+    value: busybox:1.36
+  - id: access-mount
+    label: Container access-log mounts logs at /var/log/app
+    path: spec.containers[name=access-log].volumeMounts[name=logs].mountPath
+    op: equals
+    value: /var/log/app
+  - id: access-tail
+    label: Container access-log tails /var/log/app/access.log
+    path: spec.containers[name=access-log]
+    op: matches
+    value: 'tail.*/var/log/app/access\.log'
+  - id: error-image
+    label: Container error-log runs busybox:1.36
+    path: spec.containers[name=error-log].image
+    op: equals
+    value: busybox:1.36
+  - id: error-mount
+    label: Container error-log mounts logs at /var/log/app
+    path: spec.containers[name=error-log].volumeMounts[name=logs].mountPath
+    op: equals
+    value: /var/log/app
+  - id: error-tail
+    label: Container error-log tails /var/log/app/error.log
+    path: spec.containers[name=error-log]
+    op: matches
+    value: 'tail.*/var/log/app/error\.log'
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: legacy
+        namespace: shop
+      spec:
+        containers:
+        - name: app
+          image: registry.example.com/legacy-app:5.0
+          volumeMounts:
+          - name: logs
+            mountPath: /var/log/app
+        - name: access-log
+          image: busybox:1.36
+          args: [/bin/sh, -c, 'tail -n+1 -F /var/log/app/access.log']
+          volumeMounts:
+          - name: logs
+            mountPath: /var/log/app
+        - name: error-log
+          image: busybox:1.36
+          args: [/bin/sh, -c, 'tail -n+1 -F /var/log/app/error.log']
+          volumeMounts:
+          - name: logs
+            mountPath: /var/log/app
+        volumes:
+        - name: logs
+          emptyDir: {}
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: legacy
+        namespace: shop
+      spec:
+        volumes:
+        - name: logs
+          emptyDir: {}
+        containers:
+        - name: app
+          image: registry.example.com/legacy-app:5.0
+          volumeMounts:
+          - {name: logs, mountPath: /var/log/app}
+        - name: access-log
+          image: busybox:1.36
+          command: ["tail", "-n+1", "-F", "/var/log/app/access.log"]
+          volumeMounts:
+          - {name: logs, mountPath: /var/log/app}
+        - name: error-log
+          image: busybox:1.36
+          command: ["tail", "-n+1", "-F", "/var/log/app/error.log"]
+          volumeMounts:
+          - {name: logs, mountPath: /var/log/app}
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: legacy
+        namespace: shop
+      spec:
+        containers:
+        - name: app
+          image: registry.example.com/legacy-app:5.0
+          volumeMounts:
+          - name: logs
+            mountPath: /var/log/app
+        - name: access-log
+          image: busybox:1.36
+          args: [/bin/sh, -c, 'tail -n+1 -F /var/log/app/access.log']
+        - name: error-log
+          image: busybox:1.36
+          args: [/bin/sh, -c, 'tail -n+1 -F /var/log/app/error.log']
+        volumes:
+        - name: logs
+          emptyDir: {}
+    why: The sidecars do not mount the volume, so the files the app writes are not visible to them.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: legacy
+        namespace: shop
+      spec:
+        containers:
+        - name: app
+          image: registry.example.com/legacy-app:5.0
+          volumeMounts:
+          - name: logs
+            mountPath: /var/log/app
+        - name: access-log
+          image: busybox:1.36
+          args: [/bin/sh, -c, 'tail -n+1 -F /var/log/app/error.log']
+          volumeMounts:
+          - name: logs
+            mountPath: /var/log/app
+        - name: error-log
+          image: busybox:1.36
+          args: [/bin/sh, -c, 'tail -n+1 -F /var/log/app/access.log']
+          volumeMounts:
+          - name: logs
+            mountPath: /var/log/app
+        volumes:
+        - name: logs
+          emptyDir: {}
+    why: The files are swapped, so kubectl logs -c access-log would show the error log.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: legacy
+        namespace: shop
+      spec:
+        containers:
+        - name: app
+          image: registry.example.com/legacy-app:5.0
+          volumeMounts:
+          - name: logs
+            mountPath: /var/log/app
+        - name: log-tail
+          image: busybox:1.36
+          args: [/bin/sh, -c, 'tail -n+1 -F /var/log/app/access.log /var/log/app/error.log']
+          volumeMounts:
+          - name: logs
+            mountPath: /var/log/app
+        volumes:
+        - name: logs
+          emptyDir: {}
+    why: One sidecar mixes both files in a single stream and there is no access-log or error-log container to target with -c.
+explanation:
+  correct:
+    en: 'With the streaming sidecar pattern, each helper container reads one log file from a shared volume and writes it to its own stdout, so the kubelet captures it and `kubectl logs POD -c CONTAINER` shows that stream. Every container that writes or reads the files must mount the shared `emptyDir`. One sidecar per file keeps the two formats in separate streams.'
+references:
+- title: Logging Architecture
+  url: https://kubernetes.io/docs/concepts/cluster-administration/logging/

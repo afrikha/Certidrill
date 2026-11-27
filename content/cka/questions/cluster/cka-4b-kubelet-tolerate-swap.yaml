@@ -1,0 +1,124 @@
+id: cka-4b-kubelet-tolerate-swap
+objective: "4.2.1"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    Worker `node05` has swap enabled, and the team wants to keep it. Since the last reboot, `journalctl -u kubelet` shows that the kubelet exits at startup because swap is on.
+
+    Fix the kubelet configuration file `/var/lib/kubelet/config.yaml` (below) so that:
+
+    - the kubelet starts on this node with swap enabled;
+    - Burstable Pods may use swap, within the limit the kubelet computes from their memory requests.
+
+    Keep the other settings.
+body:
+  starter: |
+    apiVersion: kubelet.config.k8s.io/v1beta1
+    kind: KubeletConfiguration
+    cgroupDriver: systemd
+    clusterDNS:
+    - 10.96.0.10
+    clusterDomain: cluster.local
+    containerRuntimeEndpoint: unix:///run/containerd/containerd.sock
+    staticPodPath: /etc/kubernetes/manifests
+    authentication:
+      x509:
+        clientCAFile: /etc/kubernetes/pki/ca.crt
+answer:
+  checks:
+  - id: kind
+    label: The file is a KubeletConfiguration (kubelet.config.k8s.io/v1beta1)
+    path: apiVersion
+    op: equals
+    value: kubelet.config.k8s.io/v1beta1
+  - id: fail-swap-on
+    label: failSwapOn is false, so the kubelet starts with swap on
+    path: failSwapOn
+    op: equals
+    value: false
+  - id: swap-behavior
+    label: memorySwap.swapBehavior is LimitedSwap
+    path: memorySwap.swapBehavior
+    op: equals
+    value: LimitedSwap
+  - id: static-pods
+    label: staticPodPath is kept
+    path: staticPodPath
+    op: equals
+    value: /etc/kubernetes/manifests
+  - id: runtime
+    label: containerRuntimeEndpoint is kept
+    path: containerRuntimeEndpoint
+    op: equals
+    value: unix:///run/containerd/containerd.sock
+  solution:
+  - manifest: |
+      apiVersion: kubelet.config.k8s.io/v1beta1
+      kind: KubeletConfiguration
+      cgroupDriver: systemd
+      clusterDNS:
+      - 10.96.0.10
+      clusterDomain: cluster.local
+      containerRuntimeEndpoint: unix:///run/containerd/containerd.sock
+      staticPodPath: /etc/kubernetes/manifests
+      authentication:
+        x509:
+          clientCAFile: /etc/kubernetes/pki/ca.crt
+      failSwapOn: false
+      memorySwap:
+        swapBehavior: LimitedSwap
+  negatives:
+  - manifest: |
+      apiVersion: kubelet.config.k8s.io/v1beta1
+      kind: KubeletConfiguration
+      cgroupDriver: systemd
+      clusterDNS:
+      - 10.96.0.10
+      clusterDomain: cluster.local
+      containerRuntimeEndpoint: unix:///run/containerd/containerd.sock
+      staticPodPath: /etc/kubernetes/manifests
+      authentication:
+        x509:
+          clientCAFile: /etc/kubernetes/pki/ca.crt
+      failSwapOn: false
+    why: The kubelet starts, but the default swap behavior is NoSwap, so no workload can use swap.
+  - manifest: |
+      apiVersion: kubelet.config.k8s.io/v1beta1
+      kind: KubeletConfiguration
+      cgroupDriver: systemd
+      clusterDNS:
+      - 10.96.0.10
+      clusterDomain: cluster.local
+      containerRuntimeEndpoint: unix:///run/containerd/containerd.sock
+      staticPodPath: /etc/kubernetes/manifests
+      authentication:
+        x509:
+          clientCAFile: /etc/kubernetes/pki/ca.crt
+      memorySwap:
+        swapBehavior: LimitedSwap
+    why: failSwapOn defaults to true, so the kubelet still refuses to start while swap is on.
+  - manifest: |
+      apiVersion: kubelet.config.k8s.io/v1beta1
+      kind: KubeletConfiguration
+      cgroupDriver: systemd
+      clusterDNS:
+      - 10.96.0.10
+      clusterDomain: cluster.local
+      containerRuntimeEndpoint: unix:///run/containerd/containerd.sock
+      staticPodPath: /etc/kubernetes/manifests
+      authentication:
+        x509:
+          clientCAFile: /etc/kubernetes/pki/ca.crt
+      failSwapOn: false
+      swapBehavior: LimitedSwap
+    why: swapBehavior is a field of the memorySwap object, not a top-level KubeletConfiguration field.
+explanation:
+  correct:
+    en: 'By default (`failSwapOn: true`) the kubelet fails to start when swap is detected. `failSwapOn: false` lets it start, but workloads still get no swap: the default `memorySwap.swapBehavior` is `NoSwap`. `LimitedSwap` lets Burstable Pods use swap in proportion to their memory request; BestEffort and Guaranteed Pods cannot. Restart the kubelet (`systemctl restart kubelet`) after editing the file.'
+references:
+- title: Swap memory management
+  url: https://kubernetes.io/docs/concepts/cluster-administration/swap-memory-management/
+- title: Kubelet Configuration (v1beta1)
+  url: https://kubernetes.io/docs/reference/config-api/kubelet-config.v1beta1/

@@ -1,0 +1,154 @@
+id: cka-4g-kubelet-cri-endpoint-fix
+objective: "4.7.1"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    Worker `node-4` was moved from containerd to CRI-O and is now `NotReady`. `systemctl status crio` shows the service active on its default socket `/var/run/crio/crio.sock`; containerd is uninstalled. `journalctl -u kubelet` shows that the kubelet cannot connect to `/run/containerd/containerd.sock` (no such file or directory). On this node the kubelet reads its runtime endpoints only from `/var/lib/kubelet/config.yaml` (no endpoint flag in `kubeadm-flags.env`).
+
+    Rewrite `/var/lib/kubelet/config.yaml` (pre-filled) so that the kubelet uses CRI-O for containers and images. Keep every other setting.
+body:
+  starter: |
+    apiVersion: kubelet.config.k8s.io/v1beta1
+    kind: KubeletConfiguration
+    authentication:
+      anonymous:
+        enabled: false
+      webhook:
+        enabled: true
+      x509:
+        clientCAFile: /etc/kubernetes/pki/ca.crt
+    authorization:
+      mode: Webhook
+    cgroupDriver: systemd
+    clusterDNS:
+    - 10.96.0.10
+    clusterDomain: cluster.local
+    containerRuntimeEndpoint: unix:///run/containerd/containerd.sock
+    imageServiceEndpoint: unix:///run/containerd/containerd.sock
+    rotateCertificates: true
+    staticPodPath: /etc/kubernetes/manifests
+answer:
+  checks:
+  - id: kind
+    label: The file is still a KubeletConfiguration (kubelet.config.k8s.io/v1beta1)
+    path: apiVersion
+    op: equals
+    value: kubelet.config.k8s.io/v1beta1
+  - id: runtime
+    label: containerRuntimeEndpoint is unix:///var/run/crio/crio.sock
+    path: containerRuntimeEndpoint
+    op: matches
+    value: '^unix:///(var/)?run/crio/crio\.sock$'
+  - id: no-containerd
+    label: No endpoint still points to the containerd socket (imageServiceEndpoint fixed or removed)
+    path: .
+    op: matches
+    value: '^((?!containerd\.sock).)*$'
+  - id: static-pods
+    label: staticPodPath is kept
+    path: staticPodPath
+    op: equals
+    value: /etc/kubernetes/manifests
+  - id: dns
+    label: clusterDNS is kept
+    path: clusterDNS
+    op: contains
+    value: 10.96.0.10
+  solution:
+  - manifest: |
+      apiVersion: kubelet.config.k8s.io/v1beta1
+      kind: KubeletConfiguration
+      authentication:
+        anonymous:
+          enabled: false
+        webhook:
+          enabled: true
+        x509:
+          clientCAFile: /etc/kubernetes/pki/ca.crt
+      authorization:
+        mode: Webhook
+      cgroupDriver: systemd
+      clusterDNS:
+      - 10.96.0.10
+      clusterDomain: cluster.local
+      containerRuntimeEndpoint: unix:///var/run/crio/crio.sock
+      imageServiceEndpoint: unix:///var/run/crio/crio.sock
+      rotateCertificates: true
+      staticPodPath: /etc/kubernetes/manifests
+  - manifest: |
+      apiVersion: kubelet.config.k8s.io/v1beta1
+      kind: KubeletConfiguration
+      authentication:
+        anonymous:
+          enabled: false
+        webhook:
+          enabled: true
+        x509:
+          clientCAFile: /etc/kubernetes/pki/ca.crt
+      authorization:
+        mode: Webhook
+      cgroupDriver: systemd
+      clusterDNS:
+      - 10.96.0.10
+      clusterDomain: cluster.local
+      containerRuntimeEndpoint: unix:///var/run/crio/crio.sock
+      rotateCertificates: true
+      staticPodPath: /etc/kubernetes/manifests
+  negatives:
+  - manifest: |
+      apiVersion: kubelet.config.k8s.io/v1beta1
+      kind: KubeletConfiguration
+      authentication:
+        anonymous:
+          enabled: false
+        webhook:
+          enabled: true
+        x509:
+          clientCAFile: /etc/kubernetes/pki/ca.crt
+      authorization:
+        mode: Webhook
+      cgroupDriver: systemd
+      clusterDNS:
+      - 10.96.0.10
+      clusterDomain: cluster.local
+      containerRuntimeEndpoint: unix:///var/run/crio/crio.sock
+      imageServiceEndpoint: unix:///run/containerd/containerd.sock
+      rotateCertificates: true
+      staticPodPath: /etc/kubernetes/manifests
+    why: imageServiceEndpoint still points to containerd, so image pulls and image garbage collection fail.
+  - manifest: |
+      apiVersion: kubelet.config.k8s.io/v1beta1
+      kind: KubeletConfiguration
+      authentication:
+        anonymous:
+          enabled: false
+        webhook:
+          enabled: true
+        x509:
+          clientCAFile: /etc/kubernetes/pki/ca.crt
+      authorization:
+        mode: Webhook
+      cgroupDriver: systemd
+      clusterDNS:
+      - 10.96.0.10
+      clusterDomain: cluster.local
+      container-runtime-endpoint: unix:///var/run/crio/crio.sock
+      rotateCertificates: true
+      staticPodPath: /etc/kubernetes/manifests
+    why: container-runtime-endpoint is the command-line flag name; the config file field is containerRuntimeEndpoint, so the endpoint is not set.
+  - manifest: |
+      apiVersion: kubelet.config.k8s.io/v1beta1
+      kind: KubeletConfiguration
+      cgroupDriver: systemd
+      containerRuntimeEndpoint: unix:///var/run/crio/crio.sock
+    why: The other settings were dropped (static Pods, cluster DNS, authentication), which breaks the node in other ways.
+explanation:
+  correct:
+    en: 'The kubelet reaches the runtime through `containerRuntimeEndpoint`, and images through `imageServiceEndpoint`, which falls back to `containerRuntimeEndpoint` when unset. Both must point to `unix:///var/run/crio/crio.sock`, or `imageServiceEndpoint` must be removed. The YAML keys are camelCase field names, not flag names. Then run `systemctl restart kubelet` and check that the node becomes Ready.'
+references:
+- title: Kubelet Configuration (v1beta1)
+  url: https://kubernetes.io/docs/reference/config-api/kubelet-config.v1beta1/
+- title: Container Runtimes
+  url: https://kubernetes.io/docs/setup/production-environment/container-runtimes/

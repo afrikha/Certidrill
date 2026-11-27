@@ -1,0 +1,282 @@
+id: cka-4h-crd-cluster-scoped-status
+objective: "4.8.1"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    Install the CustomResourceDefinition that a storage operator needs:
+
+    - group `platform.example.com`, kind `StorageTier`, plural `storagetiers`, singular `storagetier`, short name `stier`;
+    - the objects are cluster-scoped, not namespaced;
+    - one version, `v1`, served and stored, whose `spec` has an integer field `iops` and a string field `class` that accepts only `gold`, `silver` or `bronze`;
+    - the operator writes `.status` through the status subresource.
+
+    Write the manifest of the CRD.
+body:
+  starter: |
+    apiVersion: apiextensions.k8s.io/v1
+    kind: CustomResourceDefinition
+    metadata:
+      name:
+    spec:
+      group:
+      names: {}
+      scope:
+      versions: []
+answer:
+  checks:
+  - id: name
+    label: metadata.name is storagetiers.platform.example.com
+    path: metadata.name
+    op: equals
+    value: storagetiers.platform.example.com
+  - id: group
+    label: spec.group is platform.example.com
+    path: spec.group
+    op: equals
+    value: platform.example.com
+  - id: scope
+    label: spec.scope is Cluster
+    path: spec.scope
+    op: equals
+    value: Cluster
+  - id: names
+    label: names are storagetiers, storagetier, StorageTier and short name stier
+    path: spec.names
+    op: subset
+    value: {plural: storagetiers, singular: storagetier, kind: StorageTier, shortNames: [stier]}
+  - id: served
+    label: Version v1 is served and is the storage version
+    path: spec.versions[name=v1]
+    op: subset
+    value: {served: true, storage: true}
+  - id: status
+    label: Version v1 enables the status subresource
+    path: spec.versions[name=v1].subresources.status
+    op: exists
+  - id: iops
+    label: spec.iops is an integer
+    path: spec.versions[name=v1].schema.openAPIV3Schema.properties.spec.properties.iops.type
+    op: equals
+    value: integer
+  - id: class-type
+    label: spec.class is a string
+    path: spec.versions[name=v1].schema.openAPIV3Schema.properties.spec.properties.class.type
+    op: equals
+    value: string
+  - id: class-enum
+    label: spec.class accepts gold, silver and bronze
+    path: spec.versions[name=v1].schema.openAPIV3Schema.properties.spec.properties.class.enum
+    op: subset
+    value: [gold, silver, bronze]
+  - id: class-enum-size
+    label: spec.class accepts only these three values
+    path: spec.versions[name=v1].schema.openAPIV3Schema.properties.spec.properties.class.enum
+    op: length
+    value: 3
+  solution:
+  - manifest: |
+      apiVersion: apiextensions.k8s.io/v1
+      kind: CustomResourceDefinition
+      metadata:
+        name: storagetiers.platform.example.com
+      spec:
+        group: platform.example.com
+        names:
+          plural: storagetiers
+          singular: storagetier
+          kind: StorageTier
+          shortNames:
+          - stier
+        scope: Cluster
+        versions:
+        - name: v1
+          served: true
+          storage: true
+          subresources:
+            status: {}
+          schema:
+            openAPIV3Schema:
+              type: object
+              properties:
+                spec:
+                  type: object
+                  properties:
+                    iops:
+                      type: integer
+                    class:
+                      type: string
+                      enum: ["gold", "silver", "bronze"]
+                status:
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
+  - manifest: |
+      apiVersion: apiextensions.k8s.io/v1
+      kind: CustomResourceDefinition
+      metadata:
+        name: storagetiers.platform.example.com
+      spec:
+        group: platform.example.com
+        scope: Cluster
+        names:
+          kind: StorageTier
+          plural: storagetiers
+          singular: storagetier
+          shortNames: [stier]
+        versions:
+        - name: v1
+          served: true
+          storage: true
+          schema:
+            openAPIV3Schema:
+              type: object
+              properties:
+                spec:
+                  type: object
+                  properties:
+                    class:
+                      type: string
+                      enum:
+                      - bronze
+                      - silver
+                      - gold
+                    iops:
+                      type: integer
+                      minimum: 0
+          subresources:
+            status: {}
+  negatives:
+  - manifest: |
+      apiVersion: apiextensions.k8s.io/v1
+      kind: CustomResourceDefinition
+      metadata:
+        name: storagetier.platform.example.com
+      spec:
+        group: platform.example.com
+        names:
+          plural: storagetiers
+          singular: storagetier
+          kind: StorageTier
+          shortNames: [stier]
+        scope: Cluster
+        versions:
+        - name: v1
+          served: true
+          storage: true
+          subresources:
+            status: {}
+          schema:
+            openAPIV3Schema:
+              type: object
+              properties:
+                spec:
+                  type: object
+                  properties:
+                    iops:
+                      type: integer
+                    class:
+                      type: string
+                      enum: ["gold", "silver", "bronze"]
+    why: metadata.name must be <plural>.<group>, storagetiers.platform.example.com; the API server rejects the singular.
+  - manifest: |
+      apiVersion: apiextensions.k8s.io/v1
+      kind: CustomResourceDefinition
+      metadata:
+        name: storagetiers.platform.example.com
+      spec:
+        group: platform.example.com
+        names:
+          plural: storagetiers
+          singular: storagetier
+          kind: StorageTier
+          shortNames: [stier]
+        scope: Namespaced
+        versions:
+        - name: v1
+          served: true
+          storage: true
+          subresources:
+            status: {}
+          schema:
+            openAPIV3Schema:
+              type: object
+              properties:
+                spec:
+                  type: object
+                  properties:
+                    iops:
+                      type: integer
+                    class:
+                      type: string
+                      enum: ["gold", "silver", "bronze"]
+    why: Namespaced makes StorageTier objects live in namespaces; the task asks for cluster-scoped objects (scope Cluster).
+  - manifest: |
+      apiVersion: apiextensions.k8s.io/v1
+      kind: CustomResourceDefinition
+      metadata:
+        name: storagetiers.platform.example.com
+      spec:
+        group: platform.example.com
+        names:
+          plural: storagetiers
+          singular: storagetier
+          kind: StorageTier
+          shortNames: [stier]
+        scope: Cluster
+        subresources:
+          status: {}
+        versions:
+        - name: v1
+          served: true
+          storage: true
+          schema:
+            openAPIV3Schema:
+              type: object
+              properties:
+                spec:
+                  type: object
+                  properties:
+                    iops:
+                      type: integer
+                    class:
+                      type: string
+                      enum: ["gold", "silver", "bronze"]
+    why: In apiextensions.k8s.io/v1, subresources are set per version, under spec.versions[].subresources, not at spec level.
+  - manifest: |
+      apiVersion: apiextensions.k8s.io/v1
+      kind: CustomResourceDefinition
+      metadata:
+        name: storagetiers.platform.example.com
+      spec:
+        group: platform.example.com
+        names:
+          plural: storagetiers
+          singular: storagetier
+          kind: StorageTier
+          shortNames: [stier]
+        scope: Cluster
+        versions:
+        - name: v1
+          served: true
+          storage: true
+          subresources:
+            status: {}
+          schema:
+            openAPIV3Schema:
+              type: object
+              properties:
+                spec:
+                  type: object
+                  properties:
+                    iops:
+                      type: string
+                    class:
+                      type: string
+    why: iops must be an integer and class must be limited to gold, silver and bronze with an enum.
+explanation:
+  correct:
+    en: 'A CRD (`apiextensions.k8s.io/v1`, itself cluster-scoped) is named `<plural>.<group>`; `spec.scope: Cluster` makes its objects cluster-scoped. Each entry of `spec.versions` sets `served`, `storage` (exactly one storage version), its own `subresources` (`status: {}` exposes `/status`) and its `schema.openAPIV3Schema`, where `type: integer` and `enum` constrain the fields. After `kubectl apply -f`, `kubectl get stier` works without `-n`.'
+references:
+- title: Extend the Kubernetes API with CustomResourceDefinitions
+  url: https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/

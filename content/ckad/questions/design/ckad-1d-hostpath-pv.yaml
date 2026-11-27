@@ -1,0 +1,118 @@
+id: ckad-1d-hostpath-pv
+objective: "1.4.3"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    On a single-node practice cluster, write the manifest of a PersistentVolume named `pv-logs`:
+
+    - capacity `2Gi`, access mode ReadWriteOnce, StorageClass name `manual`;
+    - backed by the node directory `/mnt/data/logs`, which the kubelet must create if it does not exist yet.
+body: {}
+answer:
+  checks:
+  - id: kind
+    label: A v1 PersistentVolume
+    path: kind
+    op: equals
+    value: PersistentVolume
+  - id: name
+    label: Named pv-logs
+    path: metadata.name
+    op: equals
+    value: pv-logs
+  - id: capacity
+    label: Capacity is 2Gi
+    path: spec.capacity.storage
+    op: quantity
+    value: 2Gi
+  - id: mode
+    label: Access mode ReadWriteOnce
+    path: spec.accessModes
+    op: contains
+    value: ReadWriteOnce
+  - id: class
+    label: StorageClass name is manual
+    path: spec.storageClassName
+    op: equals
+    value: manual
+  - id: path
+    label: hostPath is /mnt/data/logs
+    path: spec.hostPath.path
+    op: equals
+    value: /mnt/data/logs
+  - id: type
+    label: hostPath type DirectoryOrCreate
+    path: spec.hostPath.type
+    op: equals
+    value: DirectoryOrCreate
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: PersistentVolume
+      metadata:
+        name: pv-logs
+      spec:
+        storageClassName: manual
+        capacity:
+          storage: 2Gi
+        accessModes:
+        - ReadWriteOnce
+        hostPath:
+          path: /mnt/data/logs
+          type: DirectoryOrCreate
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: PersistentVolume
+      metadata:
+        name: pv-logs
+      spec:
+        storageClassName: manual
+        resources:
+          requests:
+            storage: 2Gi
+        accessModes:
+        - ReadWriteOnce
+        hostPath:
+          path: /mnt/data/logs
+          type: DirectoryOrCreate
+    why: resources.requests is the claim syntax; a PersistentVolume declares its size in spec.capacity.storage.
+  - manifest: |
+      apiVersion: v1
+      kind: PersistentVolume
+      metadata:
+        name: pv-logs
+      spec:
+        storageClassName: manual
+        capacity:
+          storage: 2Gi
+        accessModes:
+        - ReadWriteOnce
+        hostPath:
+          path: /mnt/data/logs
+          type: Directory
+    why: type Directory requires the directory to exist already; DirectoryOrCreate creates it.
+  - manifest: |
+      apiVersion: v1
+      kind: PersistentVolume
+      metadata:
+        name: pv-logs
+      spec:
+        capacity:
+          storage: 2Gi
+        accessModes:
+        - ReadWriteOnce
+        hostPath:
+          path: /mnt/data/logs
+          type: DirectoryOrCreate
+    why: Without storageClassName the volume has no class and a claim that asks for class manual will never bind to it.
+explanation:
+  correct:
+    en: 'A PersistentVolume is cluster-scoped and declares what it offers: `capacity.storage`, `accessModes` and `storageClassName`, which a claim must match to bind. `hostPath` with `type: DirectoryOrCreate` creates the directory (mode 0755) if needed. hostPath ties the data to one node and carries security risks: it is for single-node practice, not production.'
+references:
+- title: Configure a Pod to Use a PersistentVolume for Storage
+  url: https://kubernetes.io/docs/tasks/configure-pod-container/configure-persistent-volume-storage/
+- title: Volume Types
+  url: https://kubernetes.io/docs/reference/storage/volume-types/

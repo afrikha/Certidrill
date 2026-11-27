@@ -1,0 +1,176 @@
+id: ckad-5c-create-ingress-prefix
+objective: "5.3.1"
+difficulty: 1
+status: draft
+type: command
+stem:
+  en: |-
+    In namespace `shop`, create an Ingress named `shop` with the IngressClass `nginx` that sends every request for host `shop.example.com`, whatever its path, to Service `storefront` on port 80.
+
+    Type the single command you would run.
+body:
+  mode: object
+  namespace: default
+answer:
+  checks:
+  - id: kind
+    label: The object is an Ingress
+    path: kind
+    op: equals
+    value: Ingress
+  - id: name
+    label: It is named shop
+    path: metadata.name
+    op: equals
+    value: shop
+  - id: namespace
+    label: It is created in namespace shop
+    path: metadata.namespace
+    op: equals
+    value: shop
+  - id: class
+    label: It uses the IngressClass nginx
+    path: spec.ingressClassName
+    op: equals
+    value: nginx
+  - id: path
+    label: The rule for shop.example.com matches the path /
+    path: spec.rules[host=shop.example.com].http.paths[0].path
+    op: equals
+    value: /
+  - id: path-type
+    label: The path type is Prefix, so every path matches
+    path: spec.rules[host=shop.example.com].http.paths[0].pathType
+    op: equals
+    value: Prefix
+  - id: backend-service
+    label: The backend is Service storefront
+    path: spec.rules[host=shop.example.com].http.paths[0].backend.service.name
+    op: equals
+    value: storefront
+  - id: backend-port
+    label: The backend port is 80
+    path: spec.rules[host=shop.example.com].http.paths[0].backend.service.port.number
+    op: equals
+    value: 80
+  solution:
+  - command: kubectl create ingress shop --class=nginx --rule="shop.example.com/*=storefront:80" -n shop
+    output: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: shop
+        namespace: shop
+      spec:
+        ingressClassName: nginx
+        rules:
+        - host: shop.example.com
+          http:
+            paths:
+            - backend:
+                service:
+                  name: storefront
+                  port:
+                    number: 80
+              path: /
+              pathType: Prefix
+      status:
+        loadBalancer: {}
+  - command: k -n shop create ingress shop --rule 'shop.example.com/*=storefront:80' --class nginx --dry-run=client -o yaml
+    output: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: shop
+        namespace: shop
+      spec:
+        ingressClassName: nginx
+        rules:
+        - host: shop.example.com
+          http:
+            paths:
+            - backend:
+                service:
+                  name: storefront
+                  port:
+                    number: 80
+              path: /
+              pathType: Prefix
+      status:
+        loadBalancer: {}
+  negatives:
+  - command: kubectl create ingress shop --class=nginx --rule="shop.example.com/=storefront:80" -n shop
+    why: Without the trailing * kubectl sets pathType Exact, which matches only the path / itself.
+    output: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: shop
+        namespace: shop
+      spec:
+        ingressClassName: nginx
+        rules:
+        - host: shop.example.com
+          http:
+            paths:
+            - backend:
+                service:
+                  name: storefront
+                  port:
+                    number: 80
+              path: /
+              pathType: Exact
+      status:
+        loadBalancer: {}
+  - command: kubectl create ingress shop --rule="shop.example.com/*=storefront:80" -n shop
+    why: Without --class the Ingress has no ingressClassName and is handled only if a default IngressClass exists.
+    output: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: shop
+        namespace: shop
+      spec:
+        rules:
+        - host: shop.example.com
+          http:
+            paths:
+            - backend:
+                service:
+                  name: storefront
+                  port:
+                    number: 80
+              path: /
+              pathType: Prefix
+      status:
+        loadBalancer: {}
+  - command: kubectl create ingress shop --class=nginx --rule="/*=storefront:80" -n shop
+    why: Without a host the rule matches requests for every host, not only shop.example.com.
+    output: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: shop
+        namespace: shop
+      spec:
+        ingressClassName: nginx
+        rules:
+        - http:
+            paths:
+            - backend:
+                service:
+                  name: storefront
+                  port:
+                    number: 80
+              path: /
+              pathType: Prefix
+      status:
+        loadBalancer: {}
+explanation:
+  correct:
+    en: '`kubectl create ingress shop --class=nginx --rule="shop.example.com/*=storefront:80" -n shop` writes one rule for the host. A path ending in `*` gives `pathType: Prefix` (here `/`, which matches every path); without `*` kubectl uses `Exact`. `--class` sets `spec.ingressClassName`. Quote the rule so the shell does not expand `*`.'
+references:
+- title: kubectl create ingress
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_create/kubectl_create_ingress/
+- title: Ingress
+  url: https://kubernetes.io/docs/concepts/services-networking/ingress/

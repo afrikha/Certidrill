@@ -1,0 +1,233 @@
+id: ckad-5a-egress-db-and-dns
+objective: "5.1.2"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    In namespace `jobs`, the Pods labeled `app: worker` must be restricted for egress. They may only:
+
+    - connect to the Pods labeled `app: postgres` of namespace `jobs` on TCP port 5432;
+    - send DNS queries to the Pods labeled `k8s-app: kube-dns` in namespace `kube-system`, on port 53 over both UDP and TCP.
+
+    Ingress traffic to the worker Pods must not be affected. Write a NetworkPolicy named `worker-egress` in namespace `jobs`, and write `protocol` on every port entry.
+body:
+  starter: ""
+answer:
+  checks:
+  - id: meta
+    label: A NetworkPolicy named worker-egress in namespace jobs
+    path: metadata
+    op: subset
+    value: {name: worker-egress, namespace: jobs}
+  - id: kind
+    label: The object is a NetworkPolicy
+    path: kind
+    op: equals
+    value: NetworkPolicy
+  - id: target
+    label: The policy selects the app=worker Pods
+    path: spec.podSelector.matchLabels
+    op: equals
+    value: {app: worker}
+  - id: types
+    label: policyTypes is Egress only, so ingress is not isolated
+    path: spec.policyTypes
+    op: equals
+    value: [Egress]
+  - id: db
+    label: Egress to the app=postgres Pods on TCP 5432
+    path: spec.egress
+    op: contains
+    value: {to: [{podSelector: {matchLabels: {app: postgres}}}], ports: [{protocol: TCP, port: 5432}]}
+  - id: dns-udp
+    label: Egress to kube-dns Pods of kube-system on UDP 53
+    path: spec.egress
+    op: contains
+    value:
+      to:
+      - namespaceSelector:
+          matchLabels: {kubernetes.io/metadata.name: kube-system}
+        podSelector:
+          matchLabels: {k8s-app: kube-dns}
+      ports:
+      - {protocol: UDP, port: 53}
+  - id: dns-tcp
+    label: Egress to kube-dns Pods of kube-system on TCP 53
+    path: spec.egress
+    op: contains
+    value:
+      to:
+      - namespaceSelector:
+          matchLabels: {kubernetes.io/metadata.name: kube-system}
+        podSelector:
+          matchLabels: {k8s-app: kube-dns}
+      ports:
+      - {protocol: TCP, port: 53}
+  solution:
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: worker-egress
+        namespace: jobs
+      spec:
+        podSelector:
+          matchLabels:
+            app: worker
+        policyTypes:
+        - Egress
+        egress:
+        - to:
+          - podSelector:
+              matchLabels:
+                app: postgres
+          ports:
+          - protocol: TCP
+            port: 5432
+        - to:
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: kube-system
+            podSelector:
+              matchLabels:
+                k8s-app: kube-dns
+          ports:
+          - protocol: UDP
+            port: 53
+          - protocol: TCP
+            port: 53
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: worker-egress
+        namespace: jobs
+      spec:
+        podSelector:
+          matchLabels: {app: worker}
+        policyTypes: [Egress]
+        egress:
+        - to:
+          - podSelector:
+              matchLabels: {k8s-app: kube-dns}
+            namespaceSelector:
+              matchLabels: {kubernetes.io/metadata.name: kube-system}
+          ports:
+          - {protocol: UDP, port: 53}
+        - to:
+          - podSelector:
+              matchLabels: {k8s-app: kube-dns}
+            namespaceSelector:
+              matchLabels: {kubernetes.io/metadata.name: kube-system}
+          ports:
+          - {protocol: TCP, port: 53}
+        - to:
+          - podSelector:
+              matchLabels: {app: postgres}
+          ports:
+          - {protocol: TCP, port: 5432}
+  negatives:
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: worker-egress
+        namespace: jobs
+      spec:
+        podSelector:
+          matchLabels:
+            app: worker
+        egress:
+        - to:
+          - podSelector:
+              matchLabels:
+                app: postgres
+          ports:
+          - protocol: TCP
+            port: 5432
+        - to:
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: kube-system
+            podSelector:
+              matchLabels:
+                k8s-app: kube-dns
+          ports:
+          - protocol: UDP
+            port: 53
+          - protocol: TCP
+            port: 53
+    why: Without policyTypes, Ingress is always set by default (and Egress because there are egress rules), so the worker Pods also lose all ingress traffic.
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: worker-egress
+        namespace: jobs
+      spec:
+        podSelector:
+          matchLabels:
+            app: worker
+        policyTypes:
+        - Egress
+        egress:
+        - to:
+          - podSelector:
+              matchLabels:
+                app: postgres
+          ports:
+          - protocol: TCP
+            port: 5432
+        - to:
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: kube-system
+            podSelector:
+              matchLabels:
+                k8s-app: kube-dns
+          ports:
+          - protocol: UDP
+            port: 53
+    why: DNS over TCP (used for large responses) stays blocked; the task asks for UDP and TCP 53.
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: worker-egress
+        namespace: jobs
+      spec:
+        podSelector:
+          matchLabels:
+            app: worker
+        policyTypes:
+        - Egress
+        egress:
+        - to:
+          - podSelector:
+              matchLabels:
+                app: postgres
+          ports:
+          - protocol: TCP
+            port: 5432
+        - to:
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: kube-system
+          - podSelector:
+              matchLabels:
+                k8s-app: kube-dns
+          ports:
+          - protocol: UDP
+            port: 53
+          - protocol: TCP
+            port: 53
+    why: Two separate to elements are ORed. Port 53 is then open to every Pod of kube-system, and the podSelector alone looks for kube-dns Pods in namespace jobs.
+explanation:
+  correct:
+    en: 'A policy that selects Pods for Egress blocks every outgoing connection that no rule allows, DNS included, so name resolution needs its own rule: UDP and TCP 53 to the `k8s-app: kube-dns` Pods, with `namespaceSelector` (`kubernetes.io/metadata.name: kube-system`) and `podSelector` in the same `to` element. `policyTypes: [Egress]` must be explicit: when it is omitted, `Ingress` is always set, which would also isolate the workers for ingress.'
+references:
+- title: Network Policies
+  url: https://kubernetes.io/docs/concepts/services-networking/network-policies/
+- title: Debugging DNS Resolution
+  url: https://kubernetes.io/docs/tasks/administer-cluster/dns-debugging-resolution/

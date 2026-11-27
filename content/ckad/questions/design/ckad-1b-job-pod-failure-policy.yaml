@@ -1,0 +1,198 @@
+id: ckad-1b-job-pod-failure-policy
+objective: "1.2.3"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    Write the manifest of a Job named `ingest` in namespace `data` with one container named `ingest` running `registry.example.com/data/ingest:1.7`:
+
+    - exit code 42 from container `ingest` means the input file is invalid: the Job must fail at once, without any retry;
+    - a Pod failure caused by a disruption (the Pod has the condition `DisruptionTarget`, for example after a node drain) must not count towards the retry limit;
+    - any other failure is retried, up to 3 retries.
+body:
+  starter: ""
+answer:
+  checks:
+  - id: metadata
+    label: A Job named ingest in namespace data
+    path: metadata
+    op: subset
+    value: {name: ingest, namespace: data}
+  - id: image
+    label: Container ingest runs registry.example.com/data/ingest:1.7
+    path: spec.template.spec.containers[name=ingest].image
+    op: equals
+    value: registry.example.com/data/ingest:1.7
+  - id: restart
+    label: restartPolicy is Never, as podFailurePolicy requires
+    path: spec.template.spec.restartPolicy
+    op: equals
+    value: Never
+  - id: backoff
+    label: backoffLimit is 3
+    path: spec.backoffLimit
+    op: equals
+    value: 3
+  - id: fail-job
+    label: A FailJob rule matches exit code 42
+    path: spec.podFailurePolicy.rules
+    op: contains
+    value: {action: FailJob, onExitCodes: {operator: In, values: [42]}}
+  - id: ignore
+    label: An Ignore rule matches the DisruptionTarget condition
+    path: spec.podFailurePolicy.rules
+    op: contains
+    value: {action: Ignore, onPodConditions: [{type: DisruptionTarget}]}
+  solution:
+  - manifest: |
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: ingest
+        namespace: data
+      spec:
+        backoffLimit: 3
+        podFailurePolicy:
+          rules:
+          - action: FailJob
+            onExitCodes:
+              containerName: ingest
+              operator: In
+              values: [42]
+          - action: Ignore
+            onPodConditions:
+            - type: DisruptionTarget
+        template:
+          spec:
+            restartPolicy: Never
+            containers:
+            - name: ingest
+              image: registry.example.com/data/ingest:1.7
+  - manifest: |
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: ingest
+        namespace: data
+      spec:
+        backoffLimit: 3
+        podFailurePolicy:
+          rules:
+          - action: Ignore
+            onPodConditions:
+            - type: DisruptionTarget
+              status: "True"
+          - action: FailJob
+            onExitCodes:
+              operator: In
+              values:
+              - 42
+        template:
+          spec:
+            containers:
+            - image: registry.example.com/data/ingest:1.7
+              name: ingest
+            restartPolicy: Never
+  negatives:
+  - manifest: |
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: ingest
+        namespace: data
+      spec:
+        backoffLimit: 3
+        podFailurePolicy:
+          rules:
+          - action: FailJob
+            onExitCodes:
+              operator: In
+              values: [42]
+          - action: Ignore
+            onPodConditions:
+            - type: DisruptionTarget
+        template:
+          spec:
+            restartPolicy: OnFailure
+            containers:
+            - name: ingest
+              image: registry.example.com/data/ingest:1.7
+    why: A Job with podFailurePolicy must use restartPolicy Never; OnFailure is rejected.
+  - manifest: |
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: ingest
+        namespace: data
+      spec:
+        backoffLimit: 3
+        podFailurePolicy:
+          rules:
+          - action: Count
+            onExitCodes:
+              operator: In
+              values: [42]
+          - action: Ignore
+            onPodConditions:
+            - type: DisruptionTarget
+        template:
+          spec:
+            restartPolicy: Never
+            containers:
+            - name: ingest
+              image: registry.example.com/data/ingest:1.7
+    why: Count handles exit code 42 like any failure, so the Job retries it up to backoffLimit.
+  - manifest: |
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: ingest
+        namespace: data
+      spec:
+        backoffLimit: 3
+        podFailurePolicy:
+          rules:
+          - action: FailJob
+            onExitCodes:
+              operator: NotIn
+              values: [42]
+          - action: Ignore
+            onPodConditions:
+            - type: DisruptionTarget
+        template:
+          spec:
+            restartPolicy: Never
+            containers:
+            - name: ingest
+              image: registry.example.com/data/ingest:1.7
+    why: NotIn fails the Job on every exit code except 42, the opposite of the requirement.
+  - manifest: |
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: ingest
+        namespace: data
+      spec:
+        backoffLimit: 3
+        podFailurePolicy:
+          rules:
+          - action: FailJob
+            onExitCodes:
+              operator: In
+              values: [42]
+        template:
+          spec:
+            restartPolicy: Never
+            containers:
+            - name: ingest
+              image: registry.example.com/data/ingest:1.7
+    why: Without the Ignore rule, Pods evicted by a drain count towards backoffLimit.
+explanation:
+  correct:
+    en: '`spec.podFailurePolicy.rules` are evaluated in order and the first match wins: `FailJob` with `onExitCodes` (`operator: In`, `values: [42]`) fails the Job immediately, and `Ignore` with `onPodConditions: [{type: DisruptionTarget}]` does not count the failure towards `backoffLimit`. Other failures are counted as usual. A pod failure policy requires `restartPolicy: Never`.'
+references:
+- title: Jobs
+  url: https://kubernetes.io/docs/concepts/workloads/controllers/job/
+- title: Handling retriable and non-retriable pod failures with Pod failure policy
+  url: https://kubernetes.io/docs/tasks/job/pod-failure-policy/

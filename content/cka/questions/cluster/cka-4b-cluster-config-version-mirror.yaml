@@ -1,0 +1,89 @@
+id: cka-4b-cluster-config-version-mirror
+objective: "4.2.2"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    The nodes of a new cluster have no Internet access. On every node, `kubeadm`, `kubelet` and `kubectl` are installed and held at `1.37.1`, and the control plane images of `v1.37.1` were copied to the internal registry `registry.example.com/k8s`.
+
+    Fix the `ClusterConfiguration` (below) that will be passed to `kubeadm init --config` so that:
+
+    - the control plane version is pinned to the installed version;
+    - kubeadm pulls the control plane images from the internal registry.
+
+    Keep the networking settings.
+body:
+  starter: |
+    apiVersion: kubeadm.k8s.io/v1beta4
+    kind: ClusterConfiguration
+    kubernetesVersion: v1.35.4
+    networking:
+      podSubnet: 10.244.0.0/16
+      serviceSubnet: 10.96.0.0/12
+answer:
+  checks:
+  - id: kind
+    label: The document is a ClusterConfiguration (kubeadm.k8s.io/v1beta4)
+    path: apiVersion
+    op: equals
+    value: kubeadm.k8s.io/v1beta4
+  - id: version
+    label: kubernetesVersion is v1.37.1
+    path: kubernetesVersion
+    op: oneOf
+    value: [v1.37.1, 1.37.1]
+  - id: registry
+    label: imageRepository is registry.example.com/k8s
+    path: imageRepository
+    op: equals
+    value: registry.example.com/k8s
+  - id: pod-subnet
+    label: The Pod subnet is kept
+    path: networking.podSubnet
+    op: equals
+    value: 10.244.0.0/16
+  solution:
+  - manifest: |
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: ClusterConfiguration
+      kubernetesVersion: v1.37.1
+      imageRepository: registry.example.com/k8s
+      networking:
+        podSubnet: 10.244.0.0/16
+        serviceSubnet: 10.96.0.0/12
+  negatives:
+  - manifest: |
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: ClusterConfiguration
+      kubernetesVersion: v1.35.4
+      imageRepository: registry.example.com/k8s
+      networking:
+        podSubnet: 10.244.0.0/16
+        serviceSubnet: 10.96.0.0/12
+    why: kubeadm 1.37 supports a control plane at 1.37 or 1.36 only; v1.35.4 is two minor versions older, and its images are not in the registry.
+  - manifest: |
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: ClusterConfiguration
+      kubernetesVersion: v1.37.1
+      networking:
+        podSubnet: 10.244.0.0/16
+        serviceSubnet: 10.96.0.0/12
+    why: Without imageRepository, kubeadm pulls from registry.k8s.io, which the nodes cannot reach.
+  - manifest: |
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: ClusterConfiguration
+      kubernetesVersion: v1.38.0
+      imageRepository: registry.example.com/k8s
+      networking:
+        podSubnet: 10.244.0.0/16
+        serviceSubnet: 10.96.0.0/12
+    why: A control plane newer than kubeadm (1.37.1) is not supported, and these images were not mirrored.
+explanation:
+  correct:
+    en: '`kubernetesVersion` sets the control plane version; kubeadm 1.37 can deploy 1.37 or 1.36, and pinning `v1.37.1` matches the held packages and the mirrored images. `imageRepository` replaces the default `registry.k8s.io`. The same values can be passed as `--kubernetes-version` and `--image-repository` to `kubeadm config images pull` to check the mirror before `kubeadm init`.'
+references:
+- title: kubeadm Configuration (v1beta4)
+  url: https://kubernetes.io/docs/reference/config-api/kubeadm-config.v1beta4/
+- title: Creating a cluster with kubeadm
+  url: https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm/

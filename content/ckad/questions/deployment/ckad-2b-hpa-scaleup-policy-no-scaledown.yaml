@@ -1,0 +1,234 @@
+id: ckad-2b-hpa-scaleup-policy-no-scaledown
+objective: "2.2.4"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    Write the manifest of an `autoscaling/v2` HorizontalPodAutoscaler named `api` in namespace `payments` for Deployment `api`:
+
+    - between **2** and **20** replicas, targeting an average CPU utilization of **65 %** of the Pods' CPU requests;
+    - when scaling up, it adds at most **3 Pods per 60 seconds**, with a single scaling policy;
+    - it must **never scale down** on its own: the team reduces the replica count by hand after each sales event.
+body:
+  starter: ""
+answer:
+  checks:
+  - id: api
+    label: Uses the autoscaling/v2 API
+    path: apiVersion
+    op: equals
+    value: autoscaling/v2
+  - id: hpa
+    label: A HorizontalPodAutoscaler named api in namespace payments
+    path: metadata
+    op: subset
+    value: {name: api, namespace: payments}
+  - id: target
+    label: It scales Deployment api
+    path: spec.scaleTargetRef
+    op: subset
+    value: {apiVersion: apps/v1, kind: Deployment, name: api}
+  - id: min
+    label: minReplicas is 2
+    path: spec.minReplicas
+    op: equals
+    value: 2
+  - id: max
+    label: maxReplicas is 20
+    path: spec.maxReplicas
+    op: equals
+    value: 20
+  - id: cpu
+    label: Targets 65 % average CPU utilization
+    path: spec.metrics
+    op: contains
+    value: {type: Resource, resource: {name: cpu, target: {type: Utilization, averageUtilization: 65}}}
+  - id: up-policy
+    label: Scale-up policy adds at most 3 Pods per 60 seconds
+    path: spec.behavior.scaleUp.policies
+    op: contains
+    value: {type: Pods, value: 3, periodSeconds: 60}
+  - id: up-single
+    label: Scale-up uses a single policy
+    path: spec.behavior.scaleUp.policies
+    op: length
+    value: 1
+  - id: up-enabled
+    label: Scale-up is not disabled
+    path: spec.behavior.scaleUp
+    op: matches
+    value: '^(?!.*"selectPolicy":"Disabled")'
+  - id: down-disabled
+    label: Scale-down is disabled (selectPolicy Disabled)
+    path: spec.behavior.scaleDown.selectPolicy
+    op: equals
+    value: Disabled
+  solution:
+  - manifest: |
+      apiVersion: autoscaling/v2
+      kind: HorizontalPodAutoscaler
+      metadata:
+        name: api
+        namespace: payments
+      spec:
+        scaleTargetRef:
+          apiVersion: apps/v1
+          kind: Deployment
+          name: api
+        minReplicas: 2
+        maxReplicas: 20
+        metrics:
+        - type: Resource
+          resource:
+            name: cpu
+            target:
+              type: Utilization
+              averageUtilization: 65
+        behavior:
+          scaleUp:
+            policies:
+            - type: Pods
+              value: 3
+              periodSeconds: 60
+          scaleDown:
+            selectPolicy: Disabled
+  - manifest: |
+      apiVersion: autoscaling/v2
+      kind: HorizontalPodAutoscaler
+      metadata:
+        name: api
+        namespace: payments
+      spec:
+        minReplicas: 2
+        maxReplicas: 20
+        scaleTargetRef:
+          kind: Deployment
+          name: api
+          apiVersion: apps/v1
+        behavior:
+          scaleDown:
+            selectPolicy: Disabled
+          scaleUp:
+            selectPolicy: Max
+            stabilizationWindowSeconds: 0
+            policies:
+            - periodSeconds: 60
+              type: Pods
+              value: 3
+        metrics:
+        - type: Resource
+          resource:
+            name: cpu
+            target:
+              averageUtilization: 65
+              type: Utilization
+  negatives:
+  - manifest: |
+      apiVersion: autoscaling/v2
+      kind: HorizontalPodAutoscaler
+      metadata:
+        name: api
+        namespace: payments
+      spec:
+        scaleTargetRef:
+          apiVersion: apps/v1
+          kind: Deployment
+          name: api
+        minReplicas: 2
+        maxReplicas: 20
+        metrics:
+        - type: Resource
+          resource:
+            name: cpu
+            target:
+              type: Utilization
+              averageUtilization: 65
+        behavior:
+          scaleUp:
+            policies:
+            - type: Percent
+              value: 3
+              periodSeconds: 60
+          scaleDown:
+            selectPolicy: Disabled
+    why: type Percent limits the change to 3 % of the current replicas per period, not to 3 Pods.
+  - manifest: |
+      apiVersion: autoscaling/v2
+      kind: HorizontalPodAutoscaler
+      metadata:
+        name: api
+        namespace: payments
+      spec:
+        scaleTargetRef:
+          apiVersion: apps/v1
+          kind: Deployment
+          name: api
+        minReplicas: 2
+        maxReplicas: 20
+        metrics:
+        - type: Resource
+          resource:
+            name: cpu
+            target:
+              type: Utilization
+              averageUtilization: 65
+        behavior:
+          scaleUp:
+            policies:
+            - type: Pods
+              value: 3
+              periodSeconds: 60
+          scaleDown:
+            stabilizationWindowSeconds: 3600
+    why: A stabilization window only delays scale-down (here by one hour); the HPA still removes Pods afterwards. selectPolicy Disabled turns it off.
+  - manifest: |
+      apiVersion: autoscaling/v2
+      kind: HorizontalPodAutoscaler
+      metadata:
+        name: api
+        namespace: payments
+      spec:
+        scaleTargetRef:
+          apiVersion: apps/v1
+          kind: Deployment
+          name: api
+        minReplicas: 2
+        maxReplicas: 20
+        metrics:
+        - type: Resource
+          resource:
+            name: cpu
+            target:
+              type: Utilization
+              averageUtilization: 65
+        behavior:
+          scaleUp:
+            selectPolicy: Disabled
+          scaleDown:
+            policies:
+            - type: Pods
+              value: 3
+              periodSeconds: 60
+    why: The two directions are swapped; this HPA never scales up and removes up to 3 Pods per minute.
+  - manifest: |
+      apiVersion: autoscaling/v1
+      kind: HorizontalPodAutoscaler
+      metadata:
+        name: api
+        namespace: payments
+      spec:
+        scaleTargetRef:
+          apiVersion: apps/v1
+          kind: Deployment
+          name: api
+        minReplicas: 2
+        maxReplicas: 20
+        targetCPUUtilizationPercentage: 65
+    why: autoscaling/v1 has no behavior field, so neither the scale-up limit nor the disabled scale-down can be expressed.
+explanation:
+  correct:
+    en: 'Scaling behavior is set per direction under `spec.behavior` of an `autoscaling/v2` HPA. `scaleUp.policies` with `type: Pods`, `value: 3`, `periodSeconds: 60` allows at most 3 new Pods in any 60-second window; with one policy there is nothing else to select. `scaleDown.selectPolicy: Disabled` turns off scaling down completely, whereas `stabilizationWindowSeconds` only delays it. `type: Percent` would count a percentage of the current replicas.'
+references:
+- title: Horizontal Pod Autoscaling
+  url: https://kubernetes.io/docs/concepts/workloads/autoscaling/horizontal-pod-autoscale/

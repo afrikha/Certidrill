@@ -1,0 +1,245 @@
+id: cka-5f-pod-hostname-subdomain
+objective: "5.6.1"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    A legacy LDAP client of namespace `auth` must reach the directory server by the fixed name `primary.directory.auth.svc.cluster.local`, and that name must resolve to the IP of the server Pod itself.
+
+    Write one file with, in namespace `auth`:
+
+    - a Pod `ldap-primary` labelled `app=ldap`, one container `ldap` running `registry.example.com/auth/ldap:1.5` on port 389, configured so that its fully qualified name is `primary.directory.auth.svc.cluster.local`;
+    - the Service that makes the cluster DNS publish that name for the Pod, selecting `app=ldap` on port 389.
+body:
+  starter: ""
+answer:
+  checks:
+  - id: pod-ns
+    label: Pod ldap-primary is in namespace auth
+    select: {kind: Pod, name: ldap-primary}
+    path: metadata.namespace
+    op: equals
+    value: auth
+  - id: pod-label
+    label: Pod ldap-primary is labelled app=ldap
+    select: {kind: Pod, name: ldap-primary}
+    path: metadata.labels
+    op: subset
+    value: {app: ldap}
+  - id: hostname
+    label: spec.hostname is primary
+    select: {kind: Pod, name: ldap-primary}
+    path: spec.hostname
+    op: equals
+    value: primary
+  - id: subdomain
+    label: spec.subdomain is directory
+    select: {kind: Pod, name: ldap-primary}
+    path: spec.subdomain
+    op: equals
+    value: directory
+  - id: image
+    label: Container ldap runs registry.example.com/auth/ldap:1.5
+    select: {kind: Pod, name: ldap-primary}
+    path: spec.containers[name=ldap].image
+    op: equals
+    value: registry.example.com/auth/ldap:1.5
+  - id: svc-ns
+    label: Service directory (same name as the subdomain) is in namespace auth
+    select: {kind: Service, name: directory}
+    path: metadata.namespace
+    op: equals
+    value: auth
+  - id: headless
+    label: Service directory is headless (clusterIP None)
+    select: {kind: Service, name: directory}
+    path: spec.clusterIP
+    op: equals
+    value: None
+  - id: svc-selector
+    label: Service directory selects app=ldap
+    select: {kind: Service, name: directory}
+    path: spec.selector
+    op: subset
+    value: {app: ldap}
+  - id: svc-port
+    label: Service directory exposes port 389
+    select: {kind: Service, name: directory}
+    path: spec.ports[port=389]
+    op: exists
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: directory
+        namespace: auth
+      spec:
+        clusterIP: None
+        selector:
+          app: ldap
+        ports:
+        - name: ldap
+          port: 389
+      ---
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: ldap-primary
+        namespace: auth
+        labels:
+          app: ldap
+      spec:
+        hostname: primary
+        subdomain: directory
+        containers:
+        - name: ldap
+          image: registry.example.com/auth/ldap:1.5
+          ports:
+          - containerPort: 389
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: ldap-primary
+        namespace: auth
+        labels:
+          app: ldap
+      spec:
+        subdomain: directory
+        hostname: primary
+        containers:
+        - name: ldap
+          image: registry.example.com/auth/ldap:1.5
+          ports:
+          - name: ldap
+            containerPort: 389
+      ---
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: directory
+        namespace: auth
+      spec:
+        clusterIP: "None"
+        ports:
+        - port: 389
+          targetPort: 389
+          protocol: TCP
+        selector:
+          app: ldap
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: directory
+        namespace: auth
+      spec:
+        selector:
+          app: ldap
+        ports:
+        - port: 389
+      ---
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: ldap-primary
+        namespace: auth
+        labels:
+          app: ldap
+      spec:
+        hostname: primary
+        subdomain: directory
+        containers:
+        - name: ldap
+          image: registry.example.com/auth/ldap:1.5
+    why: Per-Pod records hostname.subdomain... are published only for a headless Service; this one gets a ClusterIP.
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: directory
+        namespace: auth
+      spec:
+        clusterIP: None
+        selector:
+          app: ldap
+        ports:
+        - port: 389
+      ---
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: ldap-primary
+        namespace: auth
+        labels:
+          app: ldap
+      spec:
+        hostname: primary
+        subdomain: directory.auth.svc.cluster.local
+        containers:
+        - name: ldap
+          image: registry.example.com/auth/ldap:1.5
+    why: subdomain is only the Service name (directory); the namespace and cluster domain are appended by DNS.
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: ldap
+        namespace: auth
+      spec:
+        clusterIP: None
+        selector:
+          app: ldap
+        ports:
+        - port: 389
+      ---
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: ldap-primary
+        namespace: auth
+        labels:
+          app: ldap
+      spec:
+        hostname: primary
+        subdomain: directory
+        containers:
+        - name: ldap
+          image: registry.example.com/auth/ldap:1.5
+    why: The headless Service must have the same name as the Pod's subdomain (directory) for the record to be created.
+  - manifest: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: directory
+        namespace: auth
+      spec:
+        clusterIP: None
+        selector:
+          app: ldap
+        ports:
+        - port: 389
+      ---
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: ldap-primary
+        namespace: auth
+        labels:
+          app: ldap
+      spec:
+        hostname: directory
+        subdomain: primary
+        containers:
+        - name: ldap
+          image: registry.example.com/auth/ldap:1.5
+    why: hostname and subdomain are swapped; this would give directory.primary.auth.svc.cluster.local.
+explanation:
+  correct:
+    en: 'A Pod with `hostname: primary` and `subdomain: directory` has the FQDN `primary.directory.auth.svc.cluster.local`, and the cluster DNS publishes an A record for it only if a headless Service named like the subdomain (`directory`) exists in the same namespace and selects the Pod. Without `hostname`, only the Service name `directory.auth.svc.cluster.local` resolves; the Pod must be ready unless the Service sets `publishNotReadyAddresses: true`.'
+references:
+- title: DNS for Services and Pods
+  url: https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/

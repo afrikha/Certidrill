@@ -1,0 +1,78 @@
+id: cka-3c-autoscale-average-values
+objective: "3.3.1"
+difficulty: 3
+status: draft
+type: command
+stem:
+  en: |-
+    In namespace `shop`, create a HorizontalPodAutoscaler named `cache-hpa` for the StatefulSet `cache`. It must keep between 3 and 6 replicas and target an average usage per Pod of 500 millicores of CPU and 200 MiB of memory (absolute values, not percentages of the requests).
+
+    Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Uses kubectl autoscale
+    path: verb
+    op: equals
+    value: autoscale
+  - id: target
+    label: Targets a StatefulSet
+    path: resource
+    op: equals
+    value: statefulset
+  - id: name
+    label: Names the StatefulSet cache
+    path: names
+    op: contains
+    value: cache
+  - id: hpa-name
+    label: The autoscaler is named cache-hpa
+    path: flags.name
+    op: equals
+    value: cache-hpa
+  - id: min
+    label: At least 3 replicas
+    path: flags.min
+    op: equals
+    value: "3"
+  - id: max
+    label: At most 6 replicas
+    path: flags.max
+    op: equals
+    value: "6"
+  - id: cpu
+    label: Targets an average of 500m CPU
+    path: flags.cpu
+    op: oneOf
+    value: ["500m", "500"]
+  - id: memory
+    label: Targets an average of 200Mi of memory
+    path: flags.memory
+    op: oneOf
+    value: ["200Mi", "200"]
+  - id: namespace
+    label: Runs in namespace shop
+    path: flags.namespace
+    op: equals
+    value: shop
+  solution:
+  - command: kubectl autoscale statefulset cache --name=cache-hpa --min=3 --max=6 --cpu=500m --memory=200Mi -n shop
+  - command: k -n shop autoscale sts/cache --min 3 --max 6 --cpu 500m --memory 200Mi --name cache-hpa
+  negatives:
+  - command: kubectl autoscale statefulset cache --min=3 --max=6 --cpu=500m --memory=200Mi -n shop
+    why: Without --name the autoscaler takes the name of the target, cache, not cache-hpa.
+  - command: kubectl autoscale statefulset cache --name=cache-hpa --min=3 --max=6 --cpu=50% --memory=200Mi -n shop
+    why: A percentage targets utilization of the CPU requests, not an absolute 500m per Pod.
+  - command: kubectl autoscale deployment cache --name=cache-hpa --min=3 --max=6 --cpu=500m --memory=200Mi -n shop
+    why: cache is a StatefulSet; kubectl finds no Deployment of that name.
+  - command: kubectl autoscale statefulset cache --name=cache-hpa --min=3 --max=6 --cpu=500m --memory=200M -n shop
+    why: 200M is 200 megabytes (10^6), not 200 mebibytes (2^20); the memory suffix for MiB is Mi.
+explanation:
+  correct:
+    en: '`kubectl autoscale` works on Deployments, ReplicaSets, StatefulSets and ReplicationControllers. A `--cpu` or `--memory` value without `%` is an average value per Pod (`AverageValue` target): `500m` CPU and `200Mi` memory; a bare number means millicores for CPU and MiB for memory. `--name` sets the autoscaler name, which otherwise defaults to the target name.'
+references:
+- title: kubectl autoscale
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_autoscale/

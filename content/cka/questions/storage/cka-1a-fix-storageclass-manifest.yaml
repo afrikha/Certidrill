@@ -1,0 +1,116 @@
+id: cka-1a-fix-storageclass-manifest
+objective: "1.1.1"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    `kubectl apply -f bulk-hdd.yaml` fails on a v1.37 cluster. The file is in the editor. Correct it so that it creates the StorageClass `bulk-hdd`:
+
+    - provisioner `csi.example.com` with the parameter `type: hdd`, claims expandable (keep these settings);
+    - the volumes it provisions keep their data when their claim is deleted;
+    - binding and provisioning wait until a Pod that uses the claim is scheduled.
+body:
+  starter: |
+    apiVersion: storage.k8s.io/v1beta1
+    kind: StorageClass
+    metadata:
+      name: bulk-hdd
+    provisioner: csi.example.com
+    parameters:
+      type: hdd
+    reclaimPolicy: Recycle
+    volumeBindingMode: OnFirstConsumer
+    allowVolumeExpansion: true
+answer:
+  checks:
+  - id: api
+    label: apiVersion is storage.k8s.io/v1
+    path: apiVersion
+    op: equals
+    value: storage.k8s.io/v1
+  - id: name
+    label: A StorageClass named bulk-hdd
+    path: metadata.name
+    op: equals
+    value: bulk-hdd
+  - id: provisioner
+    label: The provisioner is csi.example.com
+    path: provisioner
+    op: equals
+    value: csi.example.com
+  - id: parameters
+    label: The parameter type is hdd
+    path: parameters.type
+    op: equals
+    value: hdd
+  - id: reclaim
+    label: reclaimPolicy is Retain
+    path: reclaimPolicy
+    op: equals
+    value: Retain
+  - id: binding
+    label: volumeBindingMode is WaitForFirstConsumer
+    path: volumeBindingMode
+    op: equals
+    value: WaitForFirstConsumer
+  - id: expansion
+    label: allowVolumeExpansion is still true
+    path: allowVolumeExpansion
+    op: equals
+    value: true
+  solution:
+  - manifest: |
+      apiVersion: storage.k8s.io/v1
+      kind: StorageClass
+      metadata:
+        name: bulk-hdd
+      provisioner: csi.example.com
+      parameters:
+        type: hdd
+      reclaimPolicy: Retain
+      volumeBindingMode: WaitForFirstConsumer
+      allowVolumeExpansion: true
+  negatives:
+  - manifest: |
+      apiVersion: storage.k8s.io/v1
+      kind: StorageClass
+      metadata:
+        name: bulk-hdd
+      provisioner: csi.example.com
+      parameters:
+        type: hdd
+      volumeBindingMode: WaitForFirstConsumer
+      allowVolumeExpansion: true
+    why: Without reclaimPolicy the class uses Delete, so the volume and its data are deleted with the claim.
+  - manifest: |
+      apiVersion: storage.k8s.io/v1
+      kind: StorageClass
+      metadata:
+        name: bulk-hdd
+      provisioner: csi.example.com
+      parameters:
+        type: hdd
+      persistentVolumeReclaimPolicy: Retain
+      volumeBindingMode: WaitForFirstConsumer
+      allowVolumeExpansion: true
+    why: persistentVolumeReclaimPolicy is the PersistentVolume field; on a StorageClass the field is reclaimPolicy.
+  - manifest: |
+      apiVersion: storage.k8s.io/v1beta1
+      kind: StorageClass
+      metadata:
+        name: bulk-hdd
+      provisioner: csi.example.com
+      parameters:
+        type: hdd
+      reclaimPolicy: Retain
+      volumeBindingMode: WaitForFirstConsumer
+      allowVolumeExpansion: true
+    why: storage.k8s.io/v1beta1 no longer serves StorageClass; use storage.k8s.io/v1.
+explanation:
+  correct:
+    en: |-
+      Three fixes: StorageClass is served as `storage.k8s.io/v1`; a class accepts only `Delete` or `Retain` as `reclaimPolicy` (`Retain` keeps the volume, `Released`, with its data when the claim is deleted); and the binding modes are `Immediate` and `WaitForFirstConsumer`, there is no `OnFirstConsumer`. The provisioner, parameters and `allowVolumeExpansion` stay as they were.
+references:
+- title: Storage Classes
+  url: https://kubernetes.io/docs/concepts/storage/storage-classes/

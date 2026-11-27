@@ -1,0 +1,95 @@
+id: ckad-2d-generator-env-no-hash
+objective: "2.4.2"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    The directory `/opt/flags` contains an env file `flags.env`:
+
+    ```text
+    CHECKOUT_V2=true
+    DARK_MODE=false
+    ```
+
+    An external tool, not managed by Kustomize, reads a ConfigMap whose name must be exactly `feature-flags`. Write `/opt/flags/kustomization.yaml` that generates the ConfigMap `feature-flags` with one key per variable of `flags.env` (`CHECKOUT_V2`, `DARK_MODE`) and no hash suffix in its name.
+body:
+  starter: |
+    apiVersion: kustomize.config.k8s.io/v1beta1
+    kind: Kustomization
+answer:
+  checks:
+  - id: generator
+    label: Generates a ConfigMap named feature-flags
+    path: configMapGenerator[name=feature-flags]
+    op: exists
+  - id: envs
+    label: Reads flags.env as an env file (envs)
+    path: configMapGenerator[name=feature-flags].envs
+    op: contains
+    value: flags.env
+  - id: not-files
+    label: Does not load flags.env as a single file key
+    path: configMapGenerator[name=feature-flags].files
+    op: absent
+  - id: no-hash
+    label: Disables the name suffix hash
+    path: .
+    op: matches
+    value: '"disableNameSuffixHash":true'
+  solution:
+  - manifest: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      configMapGenerator:
+      - name: feature-flags
+        envs:
+        - flags.env
+        options:
+          disableNameSuffixHash: true
+  - manifest: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      generatorOptions:
+        disableNameSuffixHash: true
+      configMapGenerator:
+      - name: feature-flags
+        envs:
+        - flags.env
+  negatives:
+  - manifest: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      configMapGenerator:
+      - name: feature-flags
+        envs:
+        - flags.env
+    why: By default the generated name gets a content-hash suffix (feature-flags-<hash>), which the external tool cannot find.
+  - manifest: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      configMapGenerator:
+      - name: feature-flags
+        files:
+        - flags.env
+        options:
+          disableNameSuffixHash: true
+    why: files stores the whole file under one key, flags.env; envs creates one key per variable.
+  - manifest: |
+      apiVersion: kustomize.config.k8s.io/v1beta1
+      kind: Kustomization
+      configMapGenerator:
+      - name: feature-flags
+        envs:
+        - flags.env
+        options:
+          disableNameSuffixHash: false
+    why: disableNameSuffixHash false keeps the default hash suffix.
+explanation:
+  correct:
+    en: '`envs` turns each `KEY=value` line of an env file into its own key, whereas `files` stores the whole file under one key. Generated names get a content-hash suffix so that a change rolls out new Pods; `disableNameSuffixHash: true`, in the generator `options` or in the global `generatorOptions`, keeps the exact name for consumers outside Kustomize.'
+references:
+- title: configMapGenerator
+  url: https://kubectl.docs.kubernetes.io/references/kustomize/kustomization/configmapgenerator/
+- title: Declarative Management of Kubernetes Objects Using Kustomize
+  url: https://kubernetes.io/docs/tasks/manage-kubernetes-objects/kustomization/

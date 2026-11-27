@@ -1,0 +1,147 @@
+id: cka-4c-join-config-worker-taint
+objective: "4.3.2"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    Write `/root/join.yaml`, used on a new machine with `kubeadm join --config /root/join.yaml`, to join it as a **worker** node. Use the `kubeadm.k8s.io/v1beta4` API:
+
+    - API server endpoint `192.168.10.11:6443`, bootstrap token `r4t8w2.k9d3j6h1p5s7q0yb`;
+    - verify the cluster CA with `sha256:5c2e1f0a9b8d7c6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a1b0c9d8e7f6a5b4c3d2e`;
+    - the node registers as `gpu01` with the taint `dedicated=gpu:NoSchedule` from the start.
+body:
+  starter: |
+    apiVersion: kubeadm.k8s.io/v1beta4
+    kind: JoinConfiguration
+answer:
+  checks:
+  - id: kind
+    label: A JoinConfiguration of kubeadm.k8s.io/v1beta4
+    path: apiVersion
+    op: equals
+    value: kubeadm.k8s.io/v1beta4
+  - id: kind-name
+    label: The document kind is JoinConfiguration
+    path: kind
+    op: equals
+    value: JoinConfiguration
+  - id: endpoint
+    label: discovery.bootstrapToken.apiServerEndpoint is 192.168.10.11:6443
+    path: discovery.bootstrapToken.apiServerEndpoint
+    op: equals
+    value: 192.168.10.11:6443
+  - id: token
+    label: discovery.bootstrapToken.token is r4t8w2.k9d3j6h1p5s7q0yb
+    path: discovery.bootstrapToken.token
+    op: equals
+    value: r4t8w2.k9d3j6h1p5s7q0yb
+  - id: ca-hash
+    label: caCertHashes contains the CA hash
+    path: discovery.bootstrapToken.caCertHashes
+    op: contains
+    value: sha256:5c2e1f0a9b8d7c6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a1b0c9d8e7f6a5b4c3d2e
+  - id: name
+    label: nodeRegistration.name is gpu01
+    path: nodeRegistration.name
+    op: equals
+    value: gpu01
+  - id: taint
+    label: nodeRegistration.taints has dedicated=gpu:NoSchedule
+    path: nodeRegistration.taints
+    op: contains
+    value: {key: dedicated, value: gpu, effect: NoSchedule}
+  - id: worker
+    label: No controlPlane section (worker node)
+    path: controlPlane
+    op: absent
+  solution:
+  - manifest: |
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: JoinConfiguration
+      discovery:
+        bootstrapToken:
+          apiServerEndpoint: 192.168.10.11:6443
+          token: r4t8w2.k9d3j6h1p5s7q0yb
+          caCertHashes:
+          - sha256:5c2e1f0a9b8d7c6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a1b0c9d8e7f6a5b4c3d2e
+      nodeRegistration:
+        name: gpu01
+        taints:
+        - key: dedicated
+          value: gpu
+          effect: NoSchedule
+  - manifest: |
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: JoinConfiguration
+      nodeRegistration:
+        name: gpu01
+        criSocket: unix:///run/containerd/containerd.sock
+        taints:
+          - effect: NoSchedule
+            key: dedicated
+            value: gpu
+      discovery:
+        tlsBootstrapToken: r4t8w2.k9d3j6h1p5s7q0yb
+        bootstrapToken:
+          token: r4t8w2.k9d3j6h1p5s7q0yb
+          apiServerEndpoint: "192.168.10.11:6443"
+          caCertHashes: ["sha256:5c2e1f0a9b8d7c6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a1b0c9d8e7f6a5b4c3d2e"]
+          unsafeSkipCAVerification: false
+  negatives:
+  - manifest: |
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: JoinConfiguration
+      discovery:
+        bootstrapToken:
+          apiServerEndpoint: 192.168.10.11:6443
+          token: r4t8w2.k9d3j6h1p5s7q0yb
+          unsafeSkipCAVerification: true
+      nodeRegistration:
+        name: gpu01
+        taints:
+        - key: dedicated
+          value: gpu
+          effect: NoSchedule
+    why: With no caCertHashes and unsafeSkipCAVerification set to true, the CA is not verified, which the task forbids.
+  - manifest: |
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: JoinConfiguration
+      discovery:
+        bootstrapToken:
+          apiServerEndpoint: 192.168.10.11:6443
+          token: r4t8w2.k9d3j6h1p5s7q0yb
+          caCertHashes:
+          - sha256:5c2e1f0a9b8d7c6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a1b0c9d8e7f6a5b4c3d2e
+      nodeRegistration:
+        name: gpu01
+        taints:
+        - dedicated=gpu:NoSchedule
+    why: taints is a list of Taint objects (key, value, effect), not of key=value:effect strings.
+  - manifest: |
+      apiVersion: kubeadm.k8s.io/v1beta4
+      kind: JoinConfiguration
+      discovery:
+        bootstrapToken:
+          apiServerEndpoint: 192.168.10.11:6443
+          token: r4t8w2.k9d3j6h1p5s7q0yb
+          caCertHashes:
+          - sha256:5c2e1f0a9b8d7c6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a1b0c9d8e7f6a5b4c3d2e
+      nodeRegistration:
+        name: gpu01
+        taints:
+        - key: dedicated
+          value: gpu
+          effect: NoSchedule
+      controlPlane:
+        localAPIEndpoint:
+          advertiseAddress: 192.168.10.31
+    why: A controlPlane section makes kubeadm deploy a control plane instance on the node; a worker has none.
+explanation:
+  correct:
+    en: 'A `JoinConfiguration` carries the discovery settings under `discovery.bootstrapToken` (`apiServerEndpoint`, `token`, `caCertHashes` in `sha256:<hex>` form; an empty list disables CA pinning) and the node settings under `nodeRegistration` (`name`, `criSocket`, `taints` as a list of Taint objects, `kubeletExtraArgs`). The TLS bootstrap token defaults to the discovery token. Without a `controlPlane` section the node joins as a worker.'
+references:
+- title: kubeadm Configuration (v1beta4)
+  url: https://kubernetes.io/docs/reference/config-api/kubeadm-config.v1beta4/
+- title: kubeadm join
+  url: https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-join/

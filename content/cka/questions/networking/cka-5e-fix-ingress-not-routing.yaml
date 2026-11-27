@@ -1,0 +1,204 @@
+id: cka-5e-fix-ingress-not-routing
+objective: "5.5.2"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    The Ingress `orders` of namespace `shop` (manifest in the editor) should send `http://shop.example.com/orders` and every path below it, such as `/orders/1042`, to the Service `orders` (file `orders-svc.yaml`). The Ingress still has no ADDRESS, and the output of `kubectl get ingressclass` is in `ingressclass.txt`.
+
+    Correct the Ingress manifest so that it is served by the installed controller and routes these requests. Keep its name, namespace and host.
+body:
+  starter: |
+    apiVersion: networking.k8s.io/v1
+    kind: Ingress
+    metadata:
+      name: orders
+      namespace: shop
+    spec:
+      ingressClassName: example.com/edge-ingress
+      rules:
+      - host: shop.example.com
+        http:
+          paths:
+          - path: /orders
+            pathType: Exact
+            backend:
+              service:
+                name: orders
+                port:
+                  number: 8080
+  files:
+  - name: ingressclass.txt
+    content: |
+      NAME   CONTROLLER                 PARAMETERS   AGE
+      edge   example.com/edge-ingress   <none>       41d
+  - name: orders-svc.yaml
+    content: |
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: orders
+        namespace: shop
+      spec:
+        selector:
+          app: orders
+        ports:
+        - name: web
+          port: 80
+          targetPort: 8080
+answer:
+  checks:
+  - id: ingress
+    label: Still the Ingress orders in namespace shop
+    path: metadata
+    op: subset
+    value: {name: orders, namespace: shop}
+  - id: class
+    label: ingressClassName is the class name edge, not the controller string
+    path: spec.ingressClassName
+    op: equals
+    value: edge
+  - id: path
+    label: The shop.example.com rule matches /orders and the paths below it (Prefix)
+    path: spec.rules[host=shop.example.com].http.paths[path=/orders].pathType
+    op: equals
+    value: Prefix
+  - id: service
+    label: The backend is Service orders
+    path: spec.rules[host=shop.example.com].http.paths[path=/orders].backend.service.name
+    op: equals
+    value: orders
+  - id: port
+    label: The backend uses the Service port 80 (named web), not the targetPort
+    path: spec.rules[host=shop.example.com].http.paths[path=/orders].backend.service.port
+    op: oneOf
+    value: [{number: 80}, {name: web}]
+  solution:
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: orders
+        namespace: shop
+      spec:
+        ingressClassName: edge
+        rules:
+        - host: shop.example.com
+          http:
+            paths:
+            - path: /orders
+              pathType: Prefix
+              backend:
+                service:
+                  name: orders
+                  port:
+                    number: 80
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: orders
+        namespace: shop
+      spec:
+        ingressClassName: edge
+        rules:
+        - host: shop.example.com
+          http:
+            paths:
+            - backend:
+                service:
+                  name: orders
+                  port:
+                    name: web
+              path: /orders
+              pathType: Prefix
+  negatives:
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: orders
+        namespace: shop
+      spec:
+        ingressClassName: edge
+        rules:
+        - host: shop.example.com
+          http:
+            paths:
+            - path: /orders
+              pathType: Prefix
+              backend:
+                service:
+                  name: orders
+                  port:
+                    number: 8080
+    why: 8080 is the targetPort of the Pods; the Service listens on 80, so the backend port 8080 does not exist on the Service.
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: orders
+        namespace: shop
+      spec:
+        ingressClassName: edge
+        rules:
+        - host: shop.example.com
+          http:
+            paths:
+            - path: /orders
+              pathType: Exact
+              backend:
+                service:
+                  name: orders
+                  port:
+                    number: 80
+    why: Exact /orders matches only /orders itself; /orders/1042 matches no path.
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: orders
+        namespace: shop
+      spec:
+        ingressClassName: edge
+        rules:
+        - host: shop.example.com
+          http:
+            paths:
+            - path: /orders
+              pathType: Prefix
+              backend:
+                service:
+                  name: orders-svc
+                  port:
+                    number: 80
+    why: orders-svc.yaml is only the file name; the Service is named orders (metadata.name).
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: orders
+        namespace: shop
+      spec:
+        ingressClassName: example.com/edge-ingress
+        rules:
+        - host: shop.example.com
+          http:
+            paths:
+            - path: /orders
+              pathType: Prefix
+              backend:
+                service:
+                  name: orders
+                  port:
+                    number: 80
+    why: ingressClassName still holds the controller string; no IngressClass has that name, so no controller serves the Ingress.
+explanation:
+  correct:
+    en: 'Three faults: `spec.ingressClassName` must be the `metadata.name` of an IngressClass (`edge`), not its `spec.controller`, otherwise no controller takes the Ingress and it never gets an ADDRESS; `pathType: Exact` matches only `/orders`, while `Prefix` matches `/orders` and `/orders/...` element by element; and the backend port is a port of the Service (80, or its name `web`), not the `targetPort` 8080 of the Pods.'
+references:
+- title: Ingress
+  url: https://kubernetes.io/docs/concepts/services-networking/ingress/
+- title: Ingress Controllers
+  url: https://kubernetes.io/docs/concepts/services-networking/ingress-controllers/

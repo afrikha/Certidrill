@@ -1,0 +1,119 @@
+id: ckad-3b-readiness-liveness-pod
+objective: "3.2.1"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    Write the manifest of a Pod named `catalog` in namespace `shop` with one container named `app` running `registry.example.com/catalog:2.4`, listening on port 8080.
+
+    - The Pod must receive traffic only when `GET /ready` on port 8080 succeeds.
+    - The kubelet must restart the container when a TCP connection to port 8080 fails, checking every 5 seconds.
+body:
+  starter: |
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: catalog
+      namespace: shop
+    spec:
+      containers:
+      - name: app
+        image: registry.example.com/catalog:2.4
+answer:
+  checks:
+  - id: pod
+    label: A Pod named catalog in namespace shop
+    path: metadata
+    op: subset
+    value: {name: catalog, namespace: shop}
+  - id: image
+    label: Container app runs registry.example.com/catalog:2.4
+    path: spec.containers[name=app].image
+    op: equals
+    value: registry.example.com/catalog:2.4
+  - id: readiness-path
+    label: Readiness probe is an HTTP GET on /ready
+    path: spec.containers[name=app].readinessProbe.httpGet.path
+    op: equals
+    value: /ready
+  - id: readiness-port
+    label: Readiness probe uses port 8080
+    path: spec.containers[name=app].readinessProbe.httpGet.port
+    op: equals
+    value: 8080
+  - id: liveness-tcp
+    label: Liveness probe opens a TCP connection to 8080
+    path: spec.containers[name=app].livenessProbe.tcpSocket.port
+    op: equals
+    value: 8080
+  - id: liveness-period
+    label: Liveness probe runs every 5 seconds
+    path: spec.containers[name=app].livenessProbe.periodSeconds
+    op: equals
+    value: 5
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: catalog
+        namespace: shop
+      spec:
+        containers:
+        - name: app
+          image: registry.example.com/catalog:2.4
+          ports:
+          - containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8080
+          livenessProbe:
+            tcpSocket:
+              port: 8080
+            periodSeconds: 5
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: catalog
+        namespace: shop
+      spec:
+        containers:
+        - name: app
+          image: registry.example.com/catalog:2.4
+          livenessProbe:
+            httpGet:
+              path: /ready
+              port: 8080
+          readinessProbe:
+            tcpSocket:
+              port: 8080
+            periodSeconds: 5
+    why: The probes are swapped. A failing liveness probe restarts the container; a failing readiness probe removes the Pod from Service endpoints.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: catalog
+        namespace: shop
+      spec:
+        containers:
+        - name: app
+          image: registry.example.com/catalog:2.4
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8080
+          livenessProbe:
+            tcpSocket:
+              port: 8080
+    why: Without periodSeconds the liveness probe runs every 10 seconds (the default), not every 5.
+explanation:
+  correct:
+    en: 'Readiness decides whether the Pod receives Service traffic: `readinessProbe.httpGet` with `path: /ready` and `port: 8080`. Liveness decides whether the kubelet restarts the container: `livenessProbe.tcpSocket.port: 8080` with `periodSeconds: 5` (the default is 10).'
+references:
+- title: Configure Liveness, Readiness and Startup Probes
+  url: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/

@@ -1,0 +1,109 @@
+id: ckad-5a-default-deny-ingress
+objective: "5.1.2"
+difficulty: 1
+status: draft
+type: manifest
+stem:
+  en: |-
+    Write a NetworkPolicy named `default-deny-ingress` in namespace `billing` that blocks all ingress traffic to every Pod of the namespace, including Pods created later. Egress traffic of the Pods must not be affected.
+
+    Declare the policy type explicitly in `policyTypes`.
+body:
+  starter: |
+    apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
+    metadata:
+      name: default-deny-ingress
+      namespace: billing
+answer:
+  checks:
+  - id: kind
+    label: The object is a networking.k8s.io/v1 NetworkPolicy
+    path: apiVersion
+    op: equals
+    value: networking.k8s.io/v1
+  - id: meta
+    label: It is named default-deny-ingress in namespace billing
+    path: metadata
+    op: subset
+    value: {name: default-deny-ingress, namespace: billing}
+  - id: all-pods
+    label: An empty podSelector selects every Pod of the namespace
+    path: spec.podSelector
+    op: equals
+    value: {}
+  - id: types
+    label: policyTypes is Ingress only (egress untouched)
+    path: spec.policyTypes
+    op: equals
+    value: [Ingress]
+  - id: no-rule
+    label: No ingress rule allows any traffic
+    path: spec.ingress[0]
+    op: absent
+  solution:
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: default-deny-ingress
+        namespace: billing
+      spec:
+        podSelector: {}
+        policyTypes:
+        - Ingress
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: default-deny-ingress
+        namespace: billing
+      spec:
+        podSelector: {}
+        policyTypes: [Ingress]
+        ingress: []
+  negatives:
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: default-deny-ingress
+        namespace: billing
+      spec:
+        podSelector: {}
+        policyTypes:
+        - Ingress
+        - Egress
+    why: Listing Egress with no egress rule also blocks all outgoing traffic, DNS included.
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: default-deny-ingress
+        namespace: billing
+      spec:
+        podSelector: {}
+        policyTypes:
+        - Ingress
+        ingress:
+        - {}
+    why: An ingress rule that is an empty object matches all sources and ports; this is allow-all, not deny-all.
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: default-deny-ingress
+        namespace: billing
+      spec:
+        podSelector:
+          matchLabels:
+            app: billing
+        policyTypes:
+        - Ingress
+    why: The selector covers only Pods labeled app=billing; an empty podSelector is needed to cover every Pod.
+explanation:
+  correct:
+    en: '`podSelector: {}` selects every Pod of the namespace, present and future. With `policyTypes: [Ingress]` and no ingress rule, those Pods are isolated for ingress and nothing is allowed in. Egress stays as it was because `Egress` is not listed. An ingress rule `- {}` would do the opposite and allow all traffic.'
+references:
+- title: Network Policies
+  url: https://kubernetes.io/docs/concepts/services-networking/network-policies/

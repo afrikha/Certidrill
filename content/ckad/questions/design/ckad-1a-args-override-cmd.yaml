@@ -1,0 +1,105 @@
+id: ckad-1a-args-override-cmd
+objective: "1.1.3"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    The image `registry.example.com/shop/api:2.1` was built with:
+
+    ```text
+    ENTRYPOINT ["/app/server"]
+    CMD ["--port", "8080"]
+    ```
+
+    Write the manifest of a Pod named `api` in namespace `shop` with one container named `api` running this image. The container must keep the image entrypoint, without repeating it in the manifest, and start with these four arguments, in this order: `--port`, `9090`, `--log-level`, `debug`.
+body:
+  starter: |
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: api
+      namespace: shop
+    spec:
+      containers:
+      - name: api
+        image: registry.example.com/shop/api:2.1
+answer:
+  checks:
+  - id: pod
+    label: A Pod named api in namespace shop
+    path: metadata
+    op: subset
+    value: {name: api, namespace: shop}
+  - id: image
+    label: Container api runs registry.example.com/shop/api:2.1
+    path: spec.containers[name=api].image
+    op: equals
+    value: registry.example.com/shop/api:2.1
+  - id: no-command
+    label: command is not set, so the image ENTRYPOINT runs
+    path: spec.containers[name=api].command
+    op: absent
+  - id: args
+    label: args are --port 9090 --log-level debug, as four items
+    path: spec.containers[name=api].args
+    op: equals
+    value: ["--port", "9090", "--log-level", "debug"]
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: api
+        namespace: shop
+      spec:
+        containers:
+        - name: api
+          image: registry.example.com/shop/api:2.1
+          args: ["--port", "9090", "--log-level", "debug"]
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: api
+        namespace: shop
+      spec:
+        containers:
+        - name: api
+          image: registry.example.com/shop/api:2.1
+          args:
+          - --port
+          - "9090"
+          - --log-level
+          - debug
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: api
+        namespace: shop
+      spec:
+        containers:
+        - name: api
+          image: registry.example.com/shop/api:2.1
+          command: ["--port", "9090", "--log-level", "debug"]
+    why: command replaces the ENTRYPOINT, so the container would try to execute a program named --port.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: api
+        namespace: shop
+      spec:
+        containers:
+        - name: api
+          image: registry.example.com/shop/api:2.1
+          args: ["--port 9090 --log-level debug"]
+    why: This is a single argument containing spaces; no shell splits it, so the server receives one unknown option.
+explanation:
+  correct:
+    en: '`args` replaces the image CMD and is passed to the image ENTRYPOINT, which keeps running because `command` is not set. Each list item is one argument and no shell splits them, so `--port` and `9090` are separate items. Setting `command` would replace the ENTRYPOINT itself.'
+references:
+- title: Define a Command and Arguments for a Container
+  url: https://kubernetes.io/docs/tasks/configure-pod-container/define-command-argument-container/

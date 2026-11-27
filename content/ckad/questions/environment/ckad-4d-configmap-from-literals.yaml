@@ -1,0 +1,99 @@
+id: ckad-4d-configmap-from-literals
+objective: "4.4.1"
+difficulty: 1
+status: draft
+type: command
+stem:
+  en: |-
+    In namespace `shop`, create a ConfigMap named `web-config` with two keys: `APP_MODE` set to `production` and `CACHE_TTL` set to `300`.
+
+    Type the single command you would run.
+body:
+  mode: object
+  namespace: default
+answer:
+  checks:
+  - id: kind
+    label: The object is a ConfigMap
+    path: kind
+    op: equals
+    value: ConfigMap
+  - id: name
+    label: It is named web-config
+    path: metadata.name
+    op: equals
+    value: web-config
+  - id: namespace
+    label: It is created in namespace shop
+    path: metadata.namespace
+    op: equals
+    value: shop
+  - id: app-mode
+    label: Key APP_MODE holds production
+    path: data.APP_MODE
+    op: equals
+    value: production
+  - id: cache-ttl
+    label: Key CACHE_TTL holds 300
+    path: data.CACHE_TTL
+    op: equals
+    value: "300"
+  solution:
+  - command: kubectl create configmap web-config --from-literal=APP_MODE=production --from-literal=CACHE_TTL=300 -n shop
+    output: |
+      apiVersion: v1
+      data:
+        APP_MODE: production
+        CACHE_TTL: "300"
+      kind: ConfigMap
+      metadata:
+        name: web-config
+        namespace: shop
+  - command: k -n shop create cm web-config --from-literal APP_MODE=production --from-literal CACHE_TTL=300 --dry-run=client -o yaml
+    output: |
+      apiVersion: v1
+      data:
+        APP_MODE: production
+        CACHE_TTL: "300"
+      kind: ConfigMap
+      metadata:
+        name: web-config
+        namespace: shop
+  negatives:
+  - command: kubectl create configmap web-config --from-literal=APP_MODE=production --from-literal=CACHE_TTL=300
+    why: Without -n the ConfigMap is created in the context namespace, default.
+    output: |
+      apiVersion: v1
+      data:
+        APP_MODE: production
+        CACHE_TTL: "300"
+      kind: ConfigMap
+      metadata:
+        name: web-config
+  - command: kubectl create secret generic web-config --from-literal=APP_MODE=production --from-literal=CACHE_TTL=300 -n shop
+    why: This creates a Secret (values base64-encoded in data), not a ConfigMap.
+    output: |
+      apiVersion: v1
+      data:
+        APP_MODE: cHJvZHVjdGlvbg==
+        CACHE_TTL: MzAw
+      kind: Secret
+      metadata:
+        name: web-config
+        namespace: shop
+  - command: kubectl create configmap web-config --from-literal=APP_MODE=production -n shop
+    why: Each key needs its own --from-literal flag; CACHE_TTL is missing.
+    output: |
+      apiVersion: v1
+      data:
+        APP_MODE: production
+      kind: ConfigMap
+      metadata:
+        name: web-config
+        namespace: shop
+explanation:
+  correct:
+    en: '`kubectl create configmap NAME --from-literal=KEY=VALUE` adds one key per flag, so two keys need two `--from-literal` flags; `cm` is the short name of the resource. ConfigMap values are always strings, which is why kubectl prints `CACHE_TTL: "300"` with quotes. Without `-n shop` the object goes to the namespace of the current context.'
+references:
+- title: kubectl create configmap
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_create/kubectl_create_configmap/

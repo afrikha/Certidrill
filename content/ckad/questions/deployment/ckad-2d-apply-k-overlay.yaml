@@ -1,0 +1,51 @@
+id: ckad-2d-apply-k-overlay
+objective: "2.4.1"
+difficulty: 1
+status: draft
+type: command
+stem:
+  en: |-
+    The directory `/opt/shop/overlays/prod` contains a `kustomization.yaml` that builds on `../../base` and sets the namespace itself. Create or update in the cluster the objects that this kustomization produces.
+
+    Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: apply
+    label: Uses kubectl apply
+    path: verb
+    op: equals
+    value: apply
+  - id: kustomize
+    label: Builds the kustomization in /opt/shop/overlays/prod (-k)
+    path: flags.kustomize
+    op: oneOf
+    value: [/opt/shop/overlays/prod, /opt/shop/overlays/prod/]
+  - id: no-filename
+    label: Does not pass the directory as plain files (-f)
+    path: flags.filename
+    op: absent
+  - id: not-dry-run
+    label: Really applies the objects (no --dry-run)
+    path: flags.dry-run
+    op: absent
+  solution:
+  - command: kubectl apply -k /opt/shop/overlays/prod
+  - command: k apply --kustomize=/opt/shop/overlays/prod/
+  negatives:
+  - command: kubectl apply -f /opt/shop/overlays/prod
+    why: -f applies the YAML files of the directory as they are; the kustomization is not built and kustomization.yaml is not a cluster object.
+  - command: kubectl kustomize /opt/shop/overlays/prod
+    why: kubectl kustomize only prints the rendered objects; nothing is sent to the cluster.
+  - command: kubectl apply -k /opt/shop/overlays/prod --dry-run=client
+    why: A client dry run only prints what would be applied.
+explanation:
+  correct:
+    en: '`kubectl apply -k DIR` (long form `--kustomize`) builds the kustomization in DIR, base included, and applies the result. `kubectl kustomize DIR` renders the same objects to standard output without applying them, and `-f DIR` would apply the raw files without running Kustomize. The overlay already sets the namespace, so no `-n` is needed.'
+references:
+- title: Declarative Management of Kubernetes Objects Using Kustomize
+  url: https://kubernetes.io/docs/tasks/manage-kubernetes-objects/kustomization/
+- title: kubectl kustomize
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_kustomize/

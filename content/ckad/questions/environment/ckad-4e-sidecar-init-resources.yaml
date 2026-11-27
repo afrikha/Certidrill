@@ -1,0 +1,267 @@
+id: ckad-4e-sidecar-init-resources
+objective: "4.5.1"
+difficulty: 3
+status: draft
+type: manifest
+stem:
+  en: |-
+    Write the manifest of a Pod named `orders` in namespace `shop` with three containers:
+
+    - a native sidecar `proxy` running `registry.example.com/proxy:1.9`, which must already be running when `migrate` starts and keep running with the app; it requests 100m CPU and 64Mi of memory and is limited to 200m CPU and 128Mi;
+    - an init container `migrate` running `registry.example.com/orders-migrate:5.0`, which requests 500m CPU and 256Mi of memory and is limited to 256Mi of memory;
+    - an app container `app` running `registry.example.com/orders:5.0`, which requests 250m CPU and 512Mi of memory and is limited to 1 CPU and 1Gi of memory.
+body:
+  starter: ""
+answer:
+  checks:
+  - id: pod
+    label: A Pod named orders in namespace shop
+    path: metadata
+    op: subset
+    value: {name: orders, namespace: shop}
+  - id: proxy-first
+    label: proxy is the first init container, so it runs before migrate starts
+    path: spec.initContainers[0].name
+    op: equals
+    value: proxy
+  - id: proxy-sidecar
+    label: proxy is a native sidecar (restartPolicy Always)
+    path: spec.initContainers[name=proxy].restartPolicy
+    op: equals
+    value: Always
+  - id: proxy-req-cpu
+    label: proxy requests 100m CPU
+    path: spec.initContainers[name=proxy].resources.requests.cpu
+    op: quantity
+    value: 100m
+  - id: proxy-req-mem
+    label: proxy requests 64Mi of memory
+    path: spec.initContainers[name=proxy].resources.requests.memory
+    op: quantity
+    value: 64Mi
+  - id: proxy-lim-cpu
+    label: proxy is limited to 200m CPU
+    path: spec.initContainers[name=proxy].resources.limits.cpu
+    op: quantity
+    value: 200m
+  - id: proxy-lim-mem
+    label: proxy is limited to 128Mi of memory
+    path: spec.initContainers[name=proxy].resources.limits.memory
+    op: quantity
+    value: 128Mi
+  - id: migrate-image
+    label: migrate is an init container running registry.example.com/orders-migrate:5.0
+    path: spec.initContainers[name=migrate].image
+    op: equals
+    value: registry.example.com/orders-migrate:5.0
+  - id: migrate-req-cpu
+    label: migrate requests 500m CPU
+    path: spec.initContainers[name=migrate].resources.requests.cpu
+    op: quantity
+    value: 500m
+  - id: migrate-lim-mem
+    label: migrate is limited to 256Mi of memory
+    path: spec.initContainers[name=migrate].resources.limits.memory
+    op: quantity
+    value: 256Mi
+  - id: app-req-mem
+    label: app requests 512Mi of memory
+    path: spec.containers[name=app].resources.requests.memory
+    op: quantity
+    value: 512Mi
+  - id: app-req-cpu
+    label: app requests 250m CPU
+    path: spec.containers[name=app].resources.requests.cpu
+    op: quantity
+    value: 250m
+  - id: app-lim-cpu
+    label: app is limited to 1 CPU
+    path: spec.containers[name=app].resources.limits.cpu
+    op: quantity
+    value: "1"
+  - id: app-lim-mem
+    label: app is limited to 1Gi of memory
+    path: spec.containers[name=app].resources.limits.memory
+    op: quantity
+    value: 1Gi
+  solution:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: orders
+        namespace: shop
+      spec:
+        initContainers:
+        - name: proxy
+          image: registry.example.com/proxy:1.9
+          restartPolicy: Always
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+        - name: migrate
+          image: registry.example.com/orders-migrate:5.0
+          resources:
+            requests:
+              cpu: 500m
+              memory: 256Mi
+            limits:
+              memory: 256Mi
+        containers:
+        - name: app
+          image: registry.example.com/orders:5.0
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: orders
+        namespace: shop
+      spec:
+        containers:
+        - name: app
+          image: registry.example.com/orders:5.0
+          resources:
+            limits: {cpu: 1000m, memory: 1024Mi}
+            requests: {cpu: 0.25, memory: 512Mi}
+        initContainers:
+        - name: proxy
+          image: registry.example.com/proxy:1.9
+          restartPolicy: Always
+          resources:
+            limits: {cpu: 0.2, memory: 128Mi}
+            requests: {cpu: 0.1, memory: 64Mi}
+        - name: migrate
+          image: registry.example.com/orders-migrate:5.0
+          resources:
+            limits: {memory: 256Mi}
+            requests: {cpu: 0.5, memory: 256Mi}
+  negatives:
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: orders
+        namespace: shop
+      spec:
+        initContainers:
+        - name: migrate
+          image: registry.example.com/orders-migrate:5.0
+          resources:
+            requests:
+              cpu: 500m
+              memory: 256Mi
+            limits:
+              memory: 256Mi
+        - name: proxy
+          image: registry.example.com/proxy:1.9
+          restartPolicy: Always
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+        containers:
+        - name: app
+          image: registry.example.com/orders:5.0
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+    why: Init containers start in list order; with proxy second, it only starts after migrate has completed.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: orders
+        namespace: shop
+      spec:
+        initContainers:
+        - name: migrate
+          image: registry.example.com/orders-migrate:5.0
+          resources:
+            requests:
+              cpu: 500m
+              memory: 256Mi
+            limits:
+              memory: 256Mi
+        containers:
+        - name: proxy
+          image: registry.example.com/proxy:1.9
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+        - name: app
+          image: registry.example.com/orders:5.0
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+    why: As a regular container, proxy only starts after every init container has completed, so it is not running during migrate.
+  - manifest: |
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: orders
+        namespace: shop
+      spec:
+        initContainers:
+        - name: proxy
+          image: registry.example.com/proxy:1.9
+          restartPolicy: Always
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+        - name: migrate
+          image: registry.example.com/orders-migrate:5.0
+          resources:
+            requests:
+              cpu: 500m
+              memory: 256Mi
+            limits:
+              memory: 256Mi
+        containers:
+        - name: app
+          image: registry.example.com/orders:5.0
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1G
+    why: 1G is 10^9 bytes, smaller than the 1Gi (2^30 bytes) the task asks for.
+explanation:
+  correct:
+    en: 'Resources are set per container in `initContainers` and `containers` alike. A native sidecar is an init container with `restartPolicy: Always`; init containers start in order, so `proxy` must be listed before `migrate` to be running while `migrate` runs. For scheduling, the Pod request is the larger of each init container plus the sidecars listed before it (here 600m CPU, 320Mi) and all sidecars plus the app containers (350m CPU, 576Mi), per resource: 600m CPU and 576Mi.'
+references:
+- title: Sidecar Containers
+  url: https://kubernetes.io/docs/concepts/workloads/pods/sidecar-containers/
+- title: Resource Management for Pods and Containers
+  url: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/

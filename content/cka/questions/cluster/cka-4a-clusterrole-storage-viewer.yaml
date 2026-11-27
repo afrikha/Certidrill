@@ -1,0 +1,137 @@
+id: cka-4a-clusterrole-storage-viewer
+objective: "4.1.1"
+difficulty: 1
+status: draft
+type: command
+stem:
+  en: |-
+    The storage team needs read access to PersistentVolumes and StorageClasses. Create a ClusterRole named `storage-viewer` that allows the verbs `get`, `list` and `watch` on both resources.
+
+    Type the single command you would run.
+body:
+  mode: object
+  namespace: default
+answer:
+  checks:
+  - id: kind
+    label: The object is a ClusterRole
+    path: kind
+    op: equals
+    value: ClusterRole
+  - id: name
+    label: It is named storage-viewer
+    path: metadata.name
+    op: equals
+    value: storage-viewer
+  - id: pv
+    label: Allows get, list and watch on persistentvolumes in the core group
+    path: rules
+    op: contains
+    value: {apiGroups: [""], resources: [persistentvolumes], verbs: [get, list, watch]}
+  - id: sc
+    label: Allows get, list and watch on storageclasses in the storage.k8s.io group
+    path: rules
+    op: contains
+    value: {apiGroups: [storage.k8s.io], resources: [storageclasses], verbs: [get, list, watch]}
+  solution:
+  - command: kubectl create clusterrole storage-viewer --verb=get,list,watch --resource=persistentvolumes,storageclasses
+    output: |
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRole
+      metadata:
+        name: storage-viewer
+      rules:
+      - apiGroups:
+        - ""
+        resources:
+        - persistentvolumes
+        verbs:
+        - get
+        - list
+        - watch
+      - apiGroups:
+        - storage.k8s.io
+        resources:
+        - storageclasses
+        verbs:
+        - get
+        - list
+        - watch
+  - command: k create clusterrole storage-viewer --verb=get --verb=list --verb=watch --resource=pv,sc --dry-run=client -o yaml
+    output: |
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRole
+      metadata:
+        name: storage-viewer
+      rules:
+      - apiGroups:
+        - ""
+        resources:
+        - persistentvolumes
+        verbs:
+        - get
+        - list
+        - watch
+      - apiGroups:
+        - storage.k8s.io
+        resources:
+        - storageclasses
+        verbs:
+        - get
+        - list
+        - watch
+  negatives:
+  - command: kubectl create role storage-viewer --verb=get,list,watch --resource=persistentvolumes,storageclasses
+    why: A Role is namespaced and cannot grant access to cluster-scoped resources such as PersistentVolumes and StorageClasses.
+    output: |
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: Role
+      metadata:
+        name: storage-viewer
+      rules:
+      - apiGroups:
+        - ""
+        resources:
+        - persistentvolumes
+        verbs:
+        - get
+        - list
+        - watch
+      - apiGroups:
+        - storage.k8s.io
+        resources:
+        - storageclasses
+        verbs:
+        - get
+        - list
+        - watch
+  - command: kubectl create clusterrole storage-viewer --verb=get,list,watch --resource=persistentvolumeclaims,storageclasses
+    why: PersistentVolumeClaims are the namespaced claims, not the PersistentVolumes the task asks for.
+    output: |
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRole
+      metadata:
+        name: storage-viewer
+      rules:
+      - apiGroups:
+        - ""
+        resources:
+        - persistentvolumeclaims
+        verbs:
+        - get
+        - list
+        - watch
+      - apiGroups:
+        - storage.k8s.io
+        resources:
+        - storageclasses
+        verbs:
+        - get
+        - list
+        - watch
+explanation:
+  correct:
+    en: 'PersistentVolumes and StorageClasses are cluster-scoped, so the permission must live in a ClusterRole: `kubectl create clusterrole storage-viewer --verb=get,list,watch --resource=persistentvolumes,storageclasses`. kubectl resolves short names (`pv`, `sc`) and writes one rule per API group: the core group `""` for persistentvolumes and `storage.k8s.io` for storageclasses. The ClusterRole grants nothing until a ClusterRoleBinding references it.'
+references:
+- title: Using RBAC Authorization
+  url: https://kubernetes.io/docs/reference/access-authn-authz/rbac/

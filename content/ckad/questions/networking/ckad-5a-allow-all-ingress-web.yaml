@@ -1,0 +1,148 @@
+id: ckad-5a-allow-all-ingress-web
+objective: "5.1.2"
+difficulty: 2
+status: draft
+type: manifest
+stem:
+  en: |-
+    Namespace `storefront` contains the NetworkPolicy `default-deny-ingress` (file `default-deny-ingress.yaml`), which isolates every Pod of the namespace for ingress. The public Pods labeled `app: web` must again accept every incoming connection: from any source, inside or outside the cluster, on any port and protocol.
+
+    Do not change `default-deny-ingress`. Write a NetworkPolicy named `allow-all-web` in namespace `storefront`. The outgoing traffic of the `app: web` Pods must stay non-isolated.
+body:
+  starter: ""
+  files:
+  - name: default-deny-ingress.yaml
+    content: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: default-deny-ingress
+        namespace: storefront
+      spec:
+        podSelector: {}
+        policyTypes:
+        - Ingress
+answer:
+  checks:
+  - id: kind
+    label: The object is a networking.k8s.io/v1 NetworkPolicy
+    path: apiVersion
+    op: equals
+    value: networking.k8s.io/v1
+  - id: meta
+    label: It is named allow-all-web in namespace storefront
+    path: metadata
+    op: subset
+    value: {name: allow-all-web, namespace: storefront}
+  - id: target
+    label: The policy selects the app=web Pods
+    path: spec.podSelector.matchLabels
+    op: equals
+    value: {app: web}
+  - id: allow-all
+    label: The only ingress rule is an empty rule, which matches every source and port
+    path: spec.ingress
+    op: equals
+    value: [{}]
+  - id: no-egress
+    label: policyTypes does not include Egress
+    path: spec
+    op: matches
+    value: '^(?!.*"Egress")'
+  solution:
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: allow-all-web
+        namespace: storefront
+      spec:
+        podSelector:
+          matchLabels:
+            app: web
+        policyTypes:
+        - Ingress
+        ingress:
+        - {}
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: allow-all-web
+        namespace: storefront
+      spec:
+        podSelector:
+          matchLabels: {app: web}
+        ingress: [{}]
+  negatives:
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: allow-all-web
+        namespace: storefront
+      spec:
+        podSelector:
+          matchLabels:
+            app: web
+        policyTypes:
+        - Ingress
+        ingress: []
+    why: An empty ingress list allows nothing; this is a second deny policy for the web Pods.
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: allow-all-web
+        namespace: storefront
+      spec:
+        podSelector:
+          matchLabels:
+            app: web
+        policyTypes:
+        - Ingress
+        ingress:
+        - from:
+          - namespaceSelector: {}
+    why: An empty namespaceSelector admits every Pod of the cluster, but not the clients outside the cluster, which the public web Pods must accept.
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: allow-all-web
+        namespace: storefront
+      spec:
+        podSelector:
+          matchLabels:
+            app: web
+        policyTypes:
+        - Ingress
+        - Egress
+        ingress:
+        - {}
+    why: With Egress in policyTypes and no egress rule, the web Pods become isolated for egress and lose all outgoing traffic.
+  - manifest: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: allow-all-web
+        namespace: storefront
+      spec:
+        podSelector:
+          matchLabels:
+            app: web
+        policyTypes:
+        - Ingress
+        ingress:
+        - ports:
+          - protocol: TCP
+            port: 80
+          - protocol: TCP
+            port: 443
+    why: The rule admits any source, but only on TCP 80 and 443; the task asks for every port and protocol.
+explanation:
+  correct:
+    en: 'Policies only add allows, so `default-deny-ingress` stays in place and a second policy that selects `app: web` can open their ingress. The rule `- {}` has no `from` and no `ports`, so it matches every source and every port, while `ingress: []` would allow nothing. With an `ingress` section only, `policyTypes` is `[Ingress]` whether it is written or not, so egress stays non-isolated.'
+references:
+- title: Network Policies
+  url: https://kubernetes.io/docs/concepts/services-networking/network-policies/

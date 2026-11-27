@@ -1,0 +1,106 @@
+id: cka-5b-test-allowed-client-run
+objective: "5.2.1"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    The NetworkPolicy `api-ingress` (file `api-ingress.yaml`) protects the API Pods of namespace `payments`, reached through Service `api` on port 8080. No policy restricts egress in namespace `frontend`.
+
+    Check that an allowed client gets through: start a temporary Pod named `np-test` with image `busybox:1.36` that the policy admits, attached to your terminal, with restart policy `Never`, deleted when the command exits, running `wget -qO- http://api.payments:8080`. Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+  files:
+  - name: api-ingress.yaml
+    content: |
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: api-ingress
+        namespace: payments
+      spec:
+        podSelector:
+          matchLabels:
+            app: api
+        policyTypes:
+        - Ingress
+        ingress:
+        - from:
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: frontend
+            podSelector:
+              matchLabels:
+                role: web
+          ports:
+          - protocol: TCP
+            port: 8080
+answer:
+  checks:
+  - id: verb
+    label: Starts a Pod with kubectl run
+    path: verb
+    op: equals
+    value: run
+  - id: name
+    label: The Pod is named np-test
+    path: args[0]
+    op: equals
+    value: np-test
+  - id: namespace
+    label: The Pod runs in namespace frontend
+    path: flags.namespace
+    op: equals
+    value: frontend
+  - id: labels
+    label: The Pod carries the label role=web (-l or --labels)
+    path: flags.labels
+    op: equals
+    value: role=web
+  - id: image
+    label: The image is busybox:1.36
+    path: flags.image
+    op: equals
+    value: busybox:1.36
+  - id: rm
+    label: The Pod is deleted when the command exits (--rm)
+    path: flags.rm
+    op: equals
+    value: true
+  - id: stdin
+    label: The terminal is attached (-i)
+    path: flags.stdin
+    op: equals
+    value: true
+  - id: restart
+    label: Restart policy Never
+    path: flags.restart
+    op: equals
+    value: Never
+  - id: wget
+    label: Runs wget against api.payments on port 8080
+    path: rest
+    op: matches
+    value: '^\["wget",.*"(http://)?api\.payments(\.svc(\.cluster\.local)?)?:8080/?"'
+  solution:
+  - command: kubectl run np-test -n frontend --image=busybox:1.36 --labels=role=web --rm -it --restart=Never -- wget -qO- http://api.payments:8080
+  - command: k -n frontend run np-test --image busybox:1.36 -l role=web --restart Never -i --rm -- wget -qO- http://api.payments:8080
+  - command: kubectl run np-test --namespace=frontend --labels="role=web" --image=busybox:1.36 -i -t --rm --restart=Never -- wget -qO- http://api.payments.svc.cluster.local:8080
+  negatives:
+  - command: kubectl run np-test -n frontend --image=busybox:1.36 --rm -it --restart=Never -- wget -qO- http://api.payments:8080
+    why: Without the label role=web the test Pod is not an allowed client; the request is dropped and the test proves nothing about allowed traffic.
+  - command: kubectl run np-test -n payments --image=busybox:1.36 --labels=role=web --rm -it --restart=Never -- wget -qO- http://api.payments:8080
+    why: The from element ANDs the namespace frontend with role=web; a role=web Pod in payments is not admitted.
+  - command: kubectl run np-test -n frontend --image=busybox:1.36 --labels=app=api --rm -it --restart=Never -- wget -qO- http://api.payments:8080
+    why: app=api is the label of the protected Pods (spec.podSelector), not of the allowed clients.
+  - command: kubectl run np-test -n frontend --image=busybox:1.36 --labels=role=web --restart=Never -- wget -qO- http://api.payments:8080
+    why: Without --rm and -i the Pod is neither attached to the terminal nor deleted afterwards.
+explanation:
+  correct:
+    en: 'The policy admits Pods labeled `role: web` **and** running in namespace `frontend` (both selectors in one from element). `kubectl run np-test -n frontend --labels=role=web --image=busybox:1.36 -it --rm --restart=Never -- wget -qO- http://api.payments:8080` creates exactly such a client; `--rm` needs an attached session (`-i`) and deletes the Pod when wget exits. `api.payments` is the Service name qualified with its namespace, needed because the client runs in `frontend`.'
+references:
+- title: kubectl run
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_run/
+- title: Network Policies
+  url: https://kubernetes.io/docs/concepts/services-networking/network-policies/

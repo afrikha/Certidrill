@@ -1,0 +1,67 @@
+id: cka-2d-logs-follow-max-requests
+objective: "2.4.1"
+difficulty: 3
+status: draft
+type: command
+stem:
+  en: |-
+    Deployment `queue-worker` in namespace `jobs` runs 8 replicas of a single-container Pod, labelled `app=queue-worker`.
+
+    Using that label, stream (follow) the logs of all 8 Pods at the same time, each line prefixed with the Pod and container it comes from. Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Uses kubectl logs
+    path: verb
+    op: equals
+    value: logs
+  - id: selector
+    label: Selects the Pods with label app=queue-worker
+    path: flags.selector
+    op: matches
+    value: '^app==?queue-worker$'
+  - id: follow
+    label: Streams the logs
+    path: flags.follow
+    op: equals
+    value: true
+  - id: prefix
+    label: Prefixes each line with its source
+    path: flags.prefix
+    op: equals
+    value: true
+  - id: max-requests
+    label: Allows at least 8 concurrent log streams
+    path: flags.max-log-requests
+    op: matches
+    value: '^([89]|[1-9][0-9]+)$'
+  - id: namespace
+    label: Runs in namespace jobs
+    path: flags.namespace
+    op: equals
+    value: jobs
+  solution:
+  - command: kubectl logs -l app=queue-worker -f --prefix --max-log-requests=8 -n jobs
+  - command: k -n jobs logs --selector=app=queue-worker --follow --max-log-requests 10 --prefix
+  - command: kubectl logs -f -l app=queue-worker --prefix=true --max-log-requests=8 --namespace=jobs
+  negatives:
+  - command: kubectl logs -l app=queue-worker -f --prefix -n jobs
+    why: When following with a selector, kubectl allows 5 concurrent streams by default and refuses to follow 8.
+  - command: kubectl logs -l app=queue-worker --prefix --max-log-requests=8 -n jobs
+    why: Without -f the command prints a snapshot (10 lines per Pod with a selector) and exits.
+  - command: kubectl logs -l app=queue-worker -f --max-log-requests=5 --prefix -n jobs
+    why: 5 is the default limit, still below the 8 streams needed.
+  - command: kubectl logs -l app=queue-worker -f --max-log-requests=8 -n jobs
+    why: Without --prefix the lines do not say which Pod they come from.
+explanation:
+  correct:
+    en: >-
+      `kubectl logs -l app=queue-worker -f` follows every matching Pod, but `--max-log-requests` (default 5) caps the
+      number of concurrent streams, so following 8 Pods needs `--max-log-requests=8` or more. `--prefix` adds the Pod
+      and container name to each line. Without `-f`, a selector returns only the last 10 lines of each Pod.
+references:
+- title: kubectl logs
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_logs/

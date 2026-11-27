@@ -1,0 +1,60 @@
+id: cka-3b-rollout-restart-env
+objective: "3.2.2"
+difficulty: 1
+status: draft
+type: command
+stem:
+  en: |-
+    Deployment `web` in namespace `shop` loads ConfigMap `web-config` with `envFrom`. You changed `LOG_LEVEL` in the ConfigMap, but `kubectl exec deploy/web -n shop -- printenv LOG_LEVEL` still prints the old value.
+
+    Replace the Pods of Deployment `web` with a rolling update so that they read the new value, without editing the Deployment manifest. Name the Deployment in the command.
+
+    Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: rollout
+    label: It is a rollout command
+    path: verb
+    op: equals
+    value: rollout
+  - id: restart
+    label: Uses rollout restart
+    path: subverb
+    op: equals
+    value: restart
+  - id: target
+    label: Targets a Deployment
+    path: resource
+    op: equals
+    value: deployment
+  - id: name
+    label: Names the Deployment web
+    path: names
+    op: contains
+    value: web
+  - id: namespace
+    label: Runs in namespace shop
+    path: flags.namespace
+    op: equals
+    value: shop
+  solution:
+  - command: kubectl rollout restart deployment/web -n shop
+  - command: k -n shop rollout restart deploy web
+  negatives:
+  - command: kubectl rollout restart deployment/web
+    why: Without -n the command looks for web in the context namespace, default.
+  - command: kubectl rollout status deployment/web -n shop
+    why: status only watches a rollout; it does not start one.
+  - command: kubectl delete pods -l app=web -n shop
+    why: Deleting every Pod at once is not a rolling update; the application is unavailable until the replacements are ready.
+explanation:
+  correct:
+    en: 'Environment variables from a ConfigMap are resolved when the container starts and are not updated afterwards; the Pods must be replaced. `kubectl rollout restart deployment/web -n shop` adds a restart timestamp annotation to the Pod template, which starts a normal rolling update governed by the Deployment strategy. Volume-mounted keys, by contrast, are refreshed by the kubelet after a delay (except with `subPath`).'
+references:
+- title: kubectl rollout restart
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_rollout/kubectl_rollout_restart/
+- title: ConfigMaps
+  url: https://kubernetes.io/docs/concepts/configuration/configmap/

@@ -1,0 +1,59 @@
+id: ckad-5b-port-forward-service
+objective: "5.2.2"
+difficulty: 2
+status: draft
+type: command
+stem:
+  en: |-
+    Service `web` in namespace `shop` has a single port: it listens on port 80 and forwards to port 8080 of its Pods. No Pod is named `web`.
+
+    From your own terminal, check that the Service reaches a Pod: forward local port 9000 through Service `web`, so that `curl http://localhost:9000` reaches the application. Type the single command you would run.
+body:
+  mode: invocation
+  namespace: default
+answer:
+  checks:
+  - id: verb
+    label: Uses kubectl port-forward
+    path: verb
+    op: equals
+    value: port-forward
+  - id: resource
+    label: Forwards through a Service (svc/ or service/)
+    path: resource
+    op: equals
+    value: service
+  - id: name
+    label: Targets Service web
+    path: names
+    op: contains
+    value: web
+  - id: namespace
+    label: Runs in namespace shop
+    path: flags.namespace
+    op: equals
+    value: shop
+  - id: ports
+    label: Local port 9000 is mapped to the Service port 80
+    path: args
+    op: contains
+    value: "9000:80"
+  solution:
+  - command: kubectl port-forward svc/web 9000:80 -n shop
+  - command: k -n shop port-forward service/web 9000:80
+  - command: kubectl port-forward --namespace=shop svc/web 9000:80 --address=localhost
+  negatives:
+  - command: kubectl port-forward svc/web 9000:8080 -n shop
+    why: For a Service, the remote port is a Service port, which kubectl translates to the targetPort. Service web has no port 8080, so kubectl refuses the mapping.
+  - command: kubectl port-forward svc/web 80:9000 -n shop
+    why: The mapping reads LOCAL_PORT:REMOTE_PORT. This listens on local port 80 and asks for a Service port 9000 that does not exist.
+  - command: kubectl port-forward web 9000:80 -n shop
+    why: Without a type, port-forward looks for a Pod named web; the Service needs svc/web or service/web.
+  - command: kubectl port-forward svc/web 9000:80
+    why: Without -n, kubectl looks for Service web in the context namespace, default.
+explanation:
+  correct:
+    en: '`kubectl port-forward svc/web 9000:80 -n shop` listens on local port 9000 and forwards to the `targetPort` (8080) behind Service port 80, in a Pod that the Service selects. The arguments read `LOCAL_PORT:REMOTE_PORT`, and for a Service the remote port is the Service port, not the container port. Without a type, the name is taken as a Pod name.'
+references:
+- title: kubectl port-forward
+  url: https://kubernetes.io/docs/reference/kubectl/generated/kubectl_port-forward/
