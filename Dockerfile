@@ -22,9 +22,17 @@ FROM deps AS migrator
 COPY . .
 CMD ["sh", "-c", "npx prisma migrate deploy && npm run seed"]
 
+# ---- kubectl: the practical exercises (CKAD, CKA) are graded with it, offline
+# (lib/exercises/kubectl.ts). Pinned version, checksum verified by the script.
+FROM base AS kubectl
+ARG TARGETARCH
+COPY scripts/install-kubectl.sh /tmp/install-kubectl.sh
+RUN TARGETARCH=${TARGETARCH} sh /tmp/install-kubectl.sh /usr/local/bin/kubectl
+
 # ---- runtime
 FROM base AS runner
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0
+COPY --from=kubectl /usr/local/bin/kubectl /usr/local/bin/kubectl
 # The deployed version (lib/version.ts): `git describe --tags` on the server,
 # passed by docker compose (README, "Version"). In the last stage only: a new
 # version rebuilds nothing but this stage.

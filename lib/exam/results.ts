@@ -19,6 +19,8 @@ import { getAccess, type AccessLevel } from "@/lib/access";
 import { SessionError, finalizeIfExpired } from "./session";
 import { QUIZ_RULES } from "@/lib/course/quiz-rules";
 import { QUIZ_USAGE } from "@/lib/questions/usage";
+import { isExerciseType, readGrading, type Grading } from "@/lib/exercises/grade";
+import type { Check } from "@/lib/exercises/engine";
 
 type L = { en: string; fr: string };
 
@@ -37,6 +39,9 @@ export interface CorrectionItem {
   response: unknown;
   /** The expected answer, as readable lines. */
   correctAnswer: { label?: string; html: string }[];
+  /** Practical exercises: each check, passed or not, and why the answer could not be read. */
+  checks?: CheckLine[];
+  exerciseError?: string;
   explanationHtml: string;
   /** Why the wrong choices are wrong. */
   optionExplanations: { label: string; html: string }[];
@@ -119,7 +124,34 @@ const DESCRIBERS: Record<QuestionTypeCode, Describer> = {
     );
   },
   series_yesno: (_body, answer, _locale, yesNo) => Promise.resolve([{ html: (answer as QuestionAnswer<"series_yesno">).value ? yesNo[0] : yesNo[1] }]),
+  // A solution of the exercise (the first variant), as a code block.
+  command: async (_body, answer) => [{ html: await renderMarkdown(codeBlock("bash", `$ ${(answer as QuestionAnswer<"command">).solution[0]!.command}`)) }],
+  manifest: async (_body, answer) => [{ html: await renderMarkdown(codeBlock("yaml", (answer as QuestionAnswer<"manifest">).solution[0]!.manifest)) }],
 };
+
+/** A fenced code block whose fence is longer than any run of backticks in the code. */
+function codeBlock(language: string, code: string): string {
+  const longest = Math.max(2, ...[...code.matchAll(/`+/g)].map((m) => m[0].length));
+  const fence = "`".repeat(longest + 1);
+  return `${fence}${language}\n${code.replace(/\n$/, "")}\n${fence}`;
+}
+
+/** The result of each check of an exercise, after submission: its label, passed or not. */
+export interface CheckLine {
+  id: string;
+  labelHtml: string;
+  passed: boolean;
+}
+
+/** The checks of an exercise with their result (none passed without a grading), and the reason when the answer could not be checked. */
+async function checkLines(answer: unknown, grading: Grading | null, locale: Locale): Promise<{ checks: CheckLine[]; exerciseError?: string }> {
+  const checks = (answer as { checks: Check[] }).checks;
+  const passed = new Set(grading?.results.filter((r) => r.passed).map((r) => r.id) ?? []);
+  return {
+    checks: await Promise.all(checks.map(async (c) => ({ id: c.id, labelHtml: await renderInline(text(c.label as Parameters<typeof text>[0], locale)), passed: passed.has(c.id) }))),
+    ...(grading?.error && { exerciseError: grading.error }),
+  };
+}
 
 /** Readable expected answer of a question, per type. */
 export async function describeAnswer(type: QuestionTypeCode, rawBody: unknown, rawAnswer: unknown, locale: Locale, yesNo: [string, string]): Promise<AnswerLine[]> {
@@ -150,6 +182,9 @@ function explainedElements(type: QuestionTypeCode, body: unknown): Choice[] {
 /** What a correction shows under a question: the answer key, the explanation, why the wrong options are wrong (with `options`), the references. */
 export interface QuestionExplanation {
   correctAnswer: AnswerLine[];
+  /** Practical exercises: each check, passed or not (✓/✗), and why the answer could not be read. */
+  checks?: CheckLine[];
+  exerciseError?: string;
   explanationHtml: string;
   optionExplanations: { label: string; html: string }[];
   references: { title: string; url: string }[];
@@ -159,7 +194,7 @@ export interface QuestionExplanation {
 export async function explainQuestion(
   q: { type: QuestionTypeCode; body: unknown; answer: unknown; explanation: unknown; references: unknown },
   locale: Locale,
-  { options }: { options: boolean },
+  { options, grading }: { options: boolean; grading?: unknown },
 ): Promise<QuestionExplanation> {
   const yesNo: [string, string] = locale === "fr" ? ["Oui", "Non"] : ["Yes", "No"];
   const explanation = q.explanation as { correct: L; options?: Record<string, L> };
@@ -177,6 +212,7 @@ export async function explainQuestion(
     explanationHtml: await renderMarkdown(pick(explanation.correct, locale)),
     optionExplanations,
     references: q.references as { title: string; url: string }[],
+    ...(isExerciseType(q.type) && (await checkLines(q.answer, readGrading(grading), locale))),
   };
 }
 
@@ -221,7 +257,7 @@ export async function getAttemptResults(
       const q = it.question;
       const section = attempt.sections.find((s) => s.id === it.sectionId)!;
       // Why each wrong option is wrong: full access only.
-      const explained = await explainQuestion(q, locale, { options: full });
+      const explained = await explainQuestion(q, locale, { options: full, grading: it.grading });
       return {
         id: it.id,
         order: it.order,

@@ -36,8 +36,8 @@ export async function seedReferential(db: PrismaClient, content: CertificationCo
     const active = before?.fileActive === c.active ? before.active : c.active;
     const certification = await tx.certification.upsert({
       where: { code: c.code },
-      create: { code: c.code, title: c.title, vendor: c.vendor, languages: c.languages, active, fileActive: c.active },
-      update: { title: c.title, vendor: c.vendor, languages: c.languages, active, fileActive: c.active },
+      create: { code: c.code, title: c.title, vendor: c.vendor, languages: c.languages, format: c.format, active, fileActive: c.active },
+      update: { title: c.title, vendor: c.vendor, languages: c.languages, format: c.format, active, fileActive: c.active },
     });
 
     const data = {

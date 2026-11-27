@@ -18,6 +18,8 @@ export interface PresentableQuestion {
   stem: unknown;
   exhibits: unknown;
   body: unknown;
+  /** Only the number of checks of an exercise is used (its maximum points); never sent. */
+  answer?: unknown;
 }
 
 async function choices(list: Choice[], locale: Locale, order?: string[]): Promise<PublicChoice[]> {
@@ -43,7 +45,7 @@ export async function presentQuestion(q: PresentableQuestion, locale: Locale, or
       })),
     ),
     body: await presentBody(q.type, q.body, locale, order),
-    maxPoints: maxPoints(q.type, q.body, rules),
+    maxPoints: maxPoints(q.type, q.body, rules, q.answer),
   };
 }
 
@@ -88,6 +90,14 @@ async function presentBody(type: QuestionTypeCode, raw: unknown, locale: Locale,
     case "series_yesno": {
       const b = raw as QuestionBody<"series_yesno">;
       return { type, solutionHtml: await renderMarkdown(text(b.solution, locale)) };
+    }
+    case "command": {
+      const b = raw as QuestionBody<"command">;
+      return { type, mode: b.mode, tools: b.tools, namespace: b.namespace, files: b.files.map((f) => ({ name: f.name, content: f.content })) };
+    }
+    case "manifest": {
+      const b = raw as QuestionBody<"manifest">;
+      return { type, starter: b.starter, files: b.files.map((f) => ({ name: f.name, content: f.content })) };
     }
   }
 }

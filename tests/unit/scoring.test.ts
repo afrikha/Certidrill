@@ -68,12 +68,12 @@ describe("scoring rules (blueprint.scoring)", () => {
   const aws = scoringRulesSchema.parse({ multi: "all_or_nothing", dragdrop: "all_or_nothing" });
 
   it("defaults to the Microsoft rule: per option, per element", () => {
-    expect(DEFAULT_SCORING).toEqual({ multi: "per_option", dragdrop: "per_element" });
+    expect(DEFAULT_SCORING).toEqual({ multi: "per_option", dragdrop: "per_element", command: "per_check", manifest: "per_check" });
     const errors = vi.spyOn(console, "error").mockImplementation(() => undefined);
     expect(scoringRules(undefined)).toEqual(DEFAULT_SCORING);
     expect(scoringRules(null)).toEqual(DEFAULT_SCORING);
     expect(scoringRules({})).toEqual(DEFAULT_SCORING);
-    expect(scoringRules({ dragdrop: "all_or_nothing" })).toEqual({ multi: "per_option", dragdrop: "all_or_nothing" });
+    expect(scoringRules({ dragdrop: "all_or_nothing" })).toEqual({ multi: "per_option", dragdrop: "all_or_nothing", command: "per_check", manifest: "per_check" });
     // Absent is silent; unreadable falls back too, but is logged.
     expect(errors).not.toHaveBeenCalled();
     // The memo of logged values is module state: values unique to this run, whatever ran before.
@@ -151,10 +151,10 @@ describe("scoring rules (blueprint.scoring)", () => {
 
   it("AZ-104 keeps the Microsoft rule; a blueprint can ask for all or nothing", () => {
     const az104 = blueprintFileSchema.parse(parse(readFileSync("content/az-104/blueprint.yaml", "utf8")));
-    expect(az104.blueprint.scoring).toEqual({ multi: "per_option", dragdrop: "per_element" });
+    expect(az104.blueprint.scoring).toEqual({ multi: "per_option", dragdrop: "per_element", command: "per_check", manifest: "per_check" });
     const raw = parse(readFileSync("content/az-104/blueprint.yaml", "utf8"));
     raw.blueprint.scoring = { multi: "all_or_nothing" };
-    expect(blueprintFileSchema.parse(raw).blueprint.scoring).toEqual({ multi: "all_or_nothing", dragdrop: "per_element" });
+    expect(blueprintFileSchema.parse(raw).blueprint.scoring).toEqual({ multi: "all_or_nothing", dragdrop: "per_element", command: "per_check", manifest: "per_check" });
     raw.blueprint.scoring = { multi: "per_element" };
     expect(blueprintFileSchema.safeParse(raw).success).toBe(false);
   });

@@ -7,8 +7,9 @@ import { prisma } from "@/lib/db";
 import { defaultLocale, isLocale, type Locale } from "@/lib/i18n/config";
 import { answerQuizQuestion, QuizError, startQuiz, type QuizCorrection, type QuizErrorCode, type QuizResult, type QuizStep } from "@/lib/course/quiz";
 import { quizLimiter } from "@/lib/security/rate-limit";
+import { ExerciseBusyError } from "@/lib/exercises/grade";
 
-type Failure = { ok: false; error: QuizErrorCode | "rate_limited" };
+type Failure = { ok: false; error: QuizErrorCode | "rate_limited" | "busy" };
 
 async function viewerAndLocale() {
   const user = await requireUser();
@@ -23,6 +24,8 @@ async function guarded<T>(userId: string, run: () => Promise<T>): Promise<T | Fa
     return await run();
   } catch (err) {
     if (err instanceof QuizError) return { ok: false, error: err.code };
+    // kubectl busy checking other exercises: the answer is not recorded, the student sends it again.
+    if (err instanceof ExerciseBusyError) return { ok: false, error: "busy" };
     throw err;
   }
 }

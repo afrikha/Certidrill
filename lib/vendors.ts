@@ -50,7 +50,7 @@ export const VENDORS: Record<VendorKey, Vendor> = {
     // /en-us/ ↔ /fr-fr/: the same page in each language.
     localizeDocsUrl: (url, locale) => url.replace(LEARN_LOCALE, `https://learn.microsoft.com/${locale === "fr" ? "fr-fr" : "en-us"}/`),
     docsPage: (url) => url.replace(LEARN_LOCALE, "https://learn.microsoft.com/"),
-    scoring: { multi: "per_option", dragdrop: "per_element" },
+    scoring: { multi: "per_option", dragdrop: "per_element", command: "per_check", manifest: "per_check" },
     glossary: null,
   },
   aws: {
@@ -62,7 +62,7 @@ export const VENDORS: Record<VendorKey, Vendor> = {
     // The guides have a French version under /fr_fr/; aws.amazon.com (FAQ) stays as it is.
     localizeDocsUrl: (url, locale) => url.replace(AWS_DOCS, `https://docs.aws.amazon.com/${locale === "fr" ? "fr_fr/" : ""}`),
     docsPage: (url) => url.replace(AWS_DOCS, "https://docs.aws.amazon.com/"),
-    scoring: { multi: "all_or_nothing", dragdrop: "all_or_nothing" },
+    scoring: { multi: "all_or_nothing", dragdrop: "all_or_nothing", command: "per_check", manifest: "per_check" },
     glossary: "_shared/glossary-aws.yaml",
   },
   cncf: {
@@ -79,6 +79,8 @@ export const VENDORS: Record<VendorKey, Vendor> = {
       "coredns.io", "www.openpolicyagent.org", "openpolicyagent.org", "kyverno.io", "docs.sigstore.dev", "www.sigstore.dev",
       "in-toto.io", "spiffe.io", "cert-manager.io", "www.envoyproxy.io", "keda.sh", "knative.dev", "cri-o.io", "gateway-api.sigs.k8s.io",
       "goharbor.io", "gvisor.dev", "katacontainers.io", "kubescape.io", "trivy.dev", "kubewarden.io",
+      // Kustomize (kubectl.docs.kubernetes.io), container images (CKAD 1.1: Docker and Podman).
+      "kubectl.docs.kubernetes.io", "docs.docker.com", "docs.podman.io",
       "slsa.dev", "csrc.nist.gov", "nvlpubs.nist.gov", "attack.mitre.org", "owasp.org", "community.owasp.org",
     ],
     // github.com is shared: the organizations of the Kubernetes and CNCF projects, and the repositories of the other tools the curriculum names.
@@ -92,7 +94,7 @@ export const VENDORS: Record<VendorKey, Vendor> = {
     // English only: the Kubernetes certifications are not offered in French.
     localizeDocsUrl: (url) => url,
     docsPage: (url) => url,
-    scoring: { multi: "all_or_nothing", dragdrop: "all_or_nothing" },
+    scoring: { multi: "all_or_nothing", dragdrop: "all_or_nothing", command: "per_check", manifest: "per_check" },
     glossary: null,
   },
 };

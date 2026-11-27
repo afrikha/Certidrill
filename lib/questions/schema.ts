@@ -7,6 +7,7 @@
  */
 import { z } from "zod";
 import { DEFAULT_SCORING, localizedSchema, type QuestionTypeCode, type ScoringRules } from "@/lib/content/schema";
+import { commandAnswer, commandBody, commandResponse, manifestAnswer, manifestBody, manifestResponse } from "@/lib/exercises/engine";
 
 export { questionTypes, type QuestionTypeCode } from "@/lib/content/schema";
 
@@ -136,6 +137,8 @@ export const typeSchemas = {
   ordering: { body: orderingBody, answer: orderingAnswer, response: orderingResponse },
   hotarea: { body: hotareaBody, answer: hotareaAnswer, response: hotareaResponse },
   series_yesno: { body: seriesYesnoBody, answer: seriesYesnoAnswer, response: seriesYesnoResponse },
+  command: { body: commandBody, answer: commandAnswer, response: commandResponse },
+  manifest: { body: manifestBody, answer: manifestAnswer, response: manifestResponse },
 } as const;
 
 type Schemas = typeof typeSchemas;
@@ -185,6 +188,8 @@ export const questionFileSchema = z
     variant("ordering"),
     variant("hotarea"),
     variant("series_yesno"),
+    variant("command"),
+    variant("manifest"),
   ])
   .superRefine((q, ctx) => {
     for (const issue of answerIssues(q)) ctx.addIssue({ code: "custom", message: issue, path: ["answer"] });
@@ -252,7 +257,16 @@ const ANSWER_CHECKS: Record<QuestionTypeCode, ((body: unknown, answer: unknown, 
   },
   // Yes/No answer of a series: nothing to cross-check with the body.
   series_yesno: null,
+  // Practical exercises: check ids must be unique; the solutions and negatives are checked by
+  // tools/validate-questions.ts (they need the checking engine, and kubectl in mode object).
+  command: (_body, answer, c) => uniqueCheckIds((answer as QuestionAnswer<"command">).checks, c),
+  manifest: (_body, answer, c) => uniqueCheckIds((answer as QuestionAnswer<"manifest">).checks, c),
 };
+
+function uniqueCheckIds(checks: { id: string }[], c: AnswerCheck) {
+  const ids = checks.map((x) => x.id);
+  if (new Set(ids).size !== ids.length) c.report("check ids must be unique");
+}
 
 /** Checks that an answer key is consistent with its body (ids exist, counts match). */
 export function answerIssues(q: { type: string; body: unknown; answer: unknown }): string[] {
@@ -269,17 +283,22 @@ export function answerIssues(q: { type: string; body: unknown; answer: unknown }
 
 /** A type scored on its exact answer only by the blueprint's rules (blueprint.scoring). */
 export function allOrNothing(type: keyof Schemas, rules: ScoringRules = DEFAULT_SCORING): boolean {
-  return (type === "multi" || type === "dragdrop") && rules[type] === "all_or_nothing";
+  if (type === "multi" || type === "dragdrop" || type === "command" || type === "manifest") return rules[type] === "all_or_nothing";
+  return false;
 }
 
-/** Maximum points of a question (spec §5 "Notation"), under the blueprint's scoring rules. */
-export function maxPoints(type: keyof Schemas, body: unknown, rules: ScoringRules = DEFAULT_SCORING): number {
+/**
+ * Maximum points of a question (spec §5 "Notation"), under the blueprint's
+ * scoring rules. A practical exercise scored per check has one point per
+ * check of its answer key (only the count leaves the server).
+ */
+export function maxPoints(type: keyof Schemas, body: unknown, rules: ScoringRules = DEFAULT_SCORING, answer?: unknown): number {
   if (allOrNothing(type, rules)) return 1;
-  return elementCount(type, body);
+  return elementCount(type, body, answer);
 }
 
-/** Points of a question scored element by element (the Microsoft rule). */
-function elementCount(type: keyof Schemas, body: unknown): number {
+/** Points of a question scored element by element (the Microsoft rule; one per check for an exercise). */
+export function elementCount(type: keyof Schemas, body: unknown, answer?: unknown): number {
   switch (type) {
     case "multi":
       return (body as QuestionBody<"multi">).choose;
@@ -291,6 +310,9 @@ function elementCount(type: keyof Schemas, body: unknown): number {
       return (body as QuestionBody<"dragdrop">).targets.length;
     case "hotarea":
       return (body as QuestionBody<"hotarea">).prompts.length;
+    case "command":
+    case "manifest":
+      return Math.max(1, (answer as { checks?: unknown[] } | undefined)?.checks?.length ?? 1);
     default:
       return 1;
   }

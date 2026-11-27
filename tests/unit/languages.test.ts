@@ -127,7 +127,7 @@ describe("the CNCF vendor", () => {
     expect(localizeDocsUrl(url, "fr")).toBe(url);
     expect(referenceWarnings([{ url }, { url: "https://helm.sh/docs/" }], vendorOf("CNCF"))).toEqual([]);
     expect(referenceWarnings([{ url: "https://learn.microsoft.com/en-us/azure/" }], vendorOf("CNCF"))).toHaveLength(1);
-    expect(vendorWarnings({ certification: { code: "kcna", title: "KCNA", vendor: "CNCF", active: false, languages: ["en"] }, blueprint: { scoring: { multi: "all_or_nothing", dragdrop: "all_or_nothing" } } })).toEqual([]);
+    expect(vendorWarnings({ certification: { code: "kcna", title: "KCNA", vendor: "CNCF", active: false, languages: ["en"], format: "multiple-choice" }, blueprint: { scoring: { multi: "all_or_nothing", dragdrop: "all_or_nothing", command: "per_check", manifest: "per_check" } } })).toEqual([]);
   });
 });
 

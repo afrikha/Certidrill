@@ -162,8 +162,8 @@ describe("AWS glossary", () => {
 
 describe("compare-blind: blueprint.scoring", () => {
   it("reads the rules of the certification, Microsoft by default", async () => {
-    expect(await blueprintScoring(dir("scs-c03"))).toEqual({ multi: "all_or_nothing", dragdrop: "all_or_nothing" });
-    expect(await blueprintScoring(dir("az-104"))).toEqual({ multi: "per_option", dragdrop: "per_element" });
+    expect(await blueprintScoring(dir("scs-c03"))).toEqual({ multi: "all_or_nothing", dragdrop: "all_or_nothing", command: "per_check", manifest: "per_check" });
+    expect(await blueprintScoring(dir("az-104"))).toEqual({ multi: "per_option", dragdrop: "per_element", command: "per_check", manifest: "per_check" });
   });
 
   it("names the blueprint when it is missing, not YAML, or its scoring is invalid", async () => {

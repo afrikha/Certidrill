@@ -28,6 +28,8 @@ import { explainQuestion, type QuestionExplanation } from "@/lib/exam/results";
 import type { AccessLevel } from "@/lib/access";
 import { localizeDocsUrl } from "@/lib/vendors";
 import { courseLevel, offerUrl, visibleStatuses, type Viewer } from "./read";
+import { isExerciseType, MAX_MANIFEST_BYTES, type ExerciseQuestion, type Grading } from "@/lib/exercises/grade";
+import { gradeOnServer } from "@/lib/exercises/server";
 import { betterQuizResult, isHardPosition, quizScore, QUIZ_RULES, type QuizScore } from "./quiz-rules";
 
 export type QuizErrorCode = "not_found" | "locked" | "unavailable" | "finished" | "out_of_order" | "conflict";
@@ -128,7 +130,8 @@ const contentLocale = (languages: readonly string[], locale: Locale): Locale => 
 /** optionOrder of an attempt: by position, the question and its frozen option order. */
 type Frozen = Record<string, { question: string; order: OptionOrder }>;
 /** results of an attempt: by position. */
-type Results = Record<string, { questionId: string; earned: number; max: number; passed: boolean }>;
+/** By position; an exercise also keeps the result of each check (lib/exercises/grade.ts). */
+type Results = Record<string, { questionId: string; earned: number; max: number; passed: boolean; grading?: Grading }>;
 
 export interface QuizStep {
   position: number;
@@ -250,8 +253,9 @@ export async function startQuiz(
   return { id: attempt.id, step: await stepOf(ctx, frozen, 1, contentLocale(ctx.chapter.certification.languages, input.locale)) };
 }
 
-/** Largest response accepted (a hot area or a drag and drop is far below). */
+/** Largest response accepted (a hot area or a drag and drop is far below; a manifest up to 50 KB). */
 const MAX_RESPONSE_BYTES = 8_000;
+const maxResponseBytes = (type: string) => (type === "manifest" ? MAX_MANIFEST_BYTES + 10_000 : MAX_RESPONSE_BYTES);
 
 /**
  * Validates the answer to the next question of an attempt: scores it like
@@ -281,11 +285,13 @@ export async function answerQuizQuestion(
   if (!question) throw new QuizError("conflict");
 
   const raw = JSON.stringify(input.response ?? null);
-  const parsed = raw.length <= MAX_RESPONSE_BYTES ? parseResponse(question.type, input.response) : null;
+  const parsed = raw.length <= maxResponseBytes(question.type) ? parseResponse(question.type, input.response) : null;
   const response = parsed?.success ? (parsed.data as Prisma.InputJsonValue) : null;
-  const score = scoreItem(question, response, ctx.rules);
+  // A practical exercise is checked now (kubectl for the mode object); ExerciseBusyError asks to retry.
+  const grading = isExerciseType(question.type) && response !== null ? await gradeOnServer(question as unknown as ExerciseQuestion, response) : undefined;
+  const score = scoreItem(question, response, ctx.rules, grading);
   const passed = score.max > 0 && score.earned === score.max;
-  const nextResults: Results = { ...results, [position]: { questionId: question.id, earned: score.earned, max: score.max, passed } };
+  const nextResults: Results = { ...results, [position]: { questionId: question.id, earned: score.earned, max: score.max, passed, ...(grading && { grading }) } };
   const last = position === QUIZ_RULES.length;
   const final = last ? quizScore(Object.entries(nextResults).filter(([, r]) => r.passed).map(([p]) => Number(p))) : null;
   // Compare and set: of two answers to the same question at the same time, one is recorded.
@@ -300,7 +306,7 @@ export async function answerQuizQuestion(
   if (count === 0) throw new QuizError("conflict");
 
   const locale = contentLocale(ctx.chapter.certification.languages, input.locale);
-  const explained = await explainQuestion(question, locale, { options: true });
+  const explained = await explainQuestion(question, locale, { options: true, grading: grading ?? { results: [], error: "no answer" } });
   const correction: QuizCorrection = {
     position,
     passed,

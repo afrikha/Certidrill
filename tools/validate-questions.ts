@@ -23,6 +23,14 @@
  * schema, languages, chapter, ids, difficulty by position, objectives,
  * explanations, similarity with the exam questions) are checked with the
  * courses, or alone with --quizzes; `--chapters` applies to them too.
+ * Practical exercises (`command`, `manifest`; lib/exercises/validate.ts), in
+ * the bank and in the quizzes: every solution passes its checks, every
+ * negative fails one, served apiVersion/kind. Commands of mode object run with
+ * the real kubectl v1.37 when it is installed (KUBECTL_BIN or
+ * /usr/local/bin/kubectl; REQUIRE_KUBECTL=1 makes it mandatory, as in CI),
+ * else they are checked against their written `output`. Where that output
+ * differs from what kubectl prints, the difference is listed (≠), and written
+ * to a Markdown file with --mismatches <file>.
  */
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
@@ -38,6 +46,24 @@ import { referenceWarnings, vendorOf, vendorWarnings, type Vendor } from "../lib
 import type { ScoringRules } from "../lib/content/schema";
 import { frenchProblems } from "../lib/content/languages";
 import type { Locale } from "../lib/i18n/config";
+import { checkExercise, type Exercise } from "../lib/exercises/validate";
+import { kubectlBinary } from "../lib/exercises/kubectl";
+import { isExerciseType } from "../lib/exercises/grade";
+
+/** Run the commands of mode object with kubectl (set in main). */
+let withKubectl = false;
+/** Where the written outputs differ from kubectl: by file. */
+const mismatches: { file: string; id: string; message: string }[] = [];
+let exercisesChecked = 0;
+
+/** The exercise checks of one question (none for another type); records its mismatches. */
+async function exerciseProblems(file: string, q: { id: string; type: string }): Promise<string[]> {
+  if (!isExerciseType(q.type)) return [];
+  exercisesChecked++;
+  const report = await checkExercise(q as unknown as Exercise, { kubectl: withKubectl });
+  for (const m of report.mismatches) mismatches.push({ file, id: q.id, message: m });
+  return report.problems;
+}
 
 async function listYaml(dir: string): Promise<string[]> {
   try {
@@ -90,7 +116,7 @@ function termsOf(vendor: Vendor): Promise<readonly GlossaryTerm[]> {
 }
 
 /** Every problem of one file, its warnings, and its question type (questions only). */
-function validateFile(file: string, text: string, ctx: Context): { problems: string[]; warnings?: string[]; type?: string } {
+function validateFile(file: string, text: string, ctx: Context): { problems: string[]; warnings?: string[]; type?: string; data?: FileData } {
   let raw: unknown;
   try {
     raw = parse(text);
@@ -105,7 +131,7 @@ function validateFile(file: string, text: string, ctx: Context): { problems: str
   problems.push(...frenchProblems(raw, ctx.languages));
   if (rel[0] !== "questions") return { problems };
   const warnings = [...referenceWarnings(data.references ?? [], ctx.vendor), ...terminologyWarnings(frenchTexts(raw).join("\n"), ctx.terms)];
-  return { problems: [...problems, ...questionProblems(data, rel[1], ctx)], warnings, type: data.type };
+  return { problems: [...problems, ...questionProblems(data, rel[1], ctx)], warnings, type: data.type, data };
 }
 
 interface Options {
@@ -184,8 +210,12 @@ async function validateQuestions(root: string, opts: Options, wholeBank: boolean
   let errors = 0;
   let warned = blueprintWarnings.length;
   const byType = new Map<string, number>();
+  const results = files.map((file, n) => validateFile(file, texts[n]!, ctx));
+  // Exercises (kubectl runs in parallel, at most 4 at a time), then report in order.
+  const extra = await Promise.all(files.map((file, n) => (results[n]!.data && results[n]!.type ? exerciseProblems(file, results[n]!.data as { id: string; type: string }) : Promise.resolve([]))));
   files.forEach((file, n) => {
-    const { problems, warnings = [], type } = validateFile(file, texts[n]!, ctx);
+    const { problems: own, warnings = [], type } = results[n]!;
+    const problems = [...own, ...extra[n]!];
     for (const msg of problems) console.log(`✘ ${path.relative(process.cwd(), file)}: ${msg}`);
     for (const msg of warnings) console.log(`⚠ ${path.relative(process.cwd(), file)}: ${msg}`);
     errors += problems.length;
@@ -279,6 +309,13 @@ async function validateQuizzes(dirs: string[], chapters: string[]): Promise<numb
       terms: await termsOf(vendor),
     });
     if (check.files === 0) continue;
+    // Exercises of the quizzes (positions 6–10 of CKAD and CKA).
+    for (const quiz of check.quizzes) {
+      const found = await Promise.all(quiz.questions.map((q) => exerciseProblems(quiz.file, q))); // NOSONAR: sequential by quiz (readable output)
+      quiz.questions.forEach((q, i) => {
+        for (const message of found[i]!) check.problems.push({ file: quiz.file, message: `${q.id}: ${message}` });
+      });
+    }
     const shown = check.problems.filter((p) => mine(p.file));
     for (const p of shown) console.log(`✘ ${path.relative(process.cwd(), p.file)}: ${p.message}`);
     const warned = check.warnings.filter((w) => mine(w.file));
@@ -289,8 +326,31 @@ async function validateQuizzes(dirs: string[], chapters: string[]): Promise<numb
   return problems;
 }
 
+/** Prints (and with --mismatches, writes) where the written outputs differ from kubectl v1.37. */
+async function reportMismatches(out: string | null) {
+  if (!withKubectl || exercisesChecked === 0) return;
+  for (const m of mismatches) console.log(`≠ ${path.relative(process.cwd(), m.file)} (${m.id}): ${m.message}`);
+  console.log(`Exercises: ${exercisesChecked} checked with kubectl v1.37, ${mismatches.length} written output(s) differ from what kubectl prints.`);
+  if (!out) return;
+  const { writeFile } = await import("node:fs/promises");
+  const lines = [
+    "# Written outputs that differ from kubectl v1.37",
+    "",
+    `${mismatches.length} difference(s) in ${new Set(mismatches.map((m) => m.id)).size} exercise(s). The checks ran on what kubectl prints; the \`output\` fields were written by hand.`,
+    "",
+    ...mismatches.map((m) => `- \`${path.relative(process.cwd(), m.file)}\` (${m.id}): ${m.message}`),
+    "",
+  ];
+  await writeFile(out, lines.join("\n"));
+}
+
 async function main() {
-  const argv = process.argv.slice(2);
+  let argv = process.argv.slice(2);
+  const at = argv.indexOf("--mismatches");
+  const mismatchFile = at >= 0 ? (argv[at + 1] ?? null) : null;
+  if (at >= 0) argv = [...argv.slice(0, at), ...argv.slice(at + 2)];
+  withKubectl = kubectlBinary() !== null;
+  if (!withKubectl && process.env.REQUIRE_KUBECTL === "1") throw new Error("kubectl v1.37 is required (REQUIRE_KUBECTL=1): install it or set KUBECTL_BIN");
   const opts = await parseOptions(argv);
   // --cert alone: the whole bank of each certification asked for.
   const wholeBank = argv.some((a) => a === "--cert" || a.startsWith("--cert=")) && !opts.files && opts.prefix === null;
@@ -305,6 +365,7 @@ async function main() {
   if (selected === 0 && (opts.files || opts.prefix !== null)) throw new Error("no file to validate");
   const courseErrors = opts.checkCourses ? await validateCourses(opts.dirs, opts.chapters) : 0;
   const quizErrors = opts.checkQuizzes ? await validateQuizzes(opts.dirs, opts.chapters) : 0;
+  await reportMismatches(mismatchFile);
   process.exit(errors + courseErrors + quizErrors ? 1 : 0);
 }
 

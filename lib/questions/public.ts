@@ -28,7 +28,24 @@ export type PublicBody =
       header?: string[];
       rows: { html?: string; area?: string }[][];
     }
-  | { type: "series_yesno"; solutionHtml: string };
+  | { type: "series_yesno"; solutionHtml: string }
+  | {
+      type: "command";
+      /** object: the command creates or changes objects; invocation: it reads or operates. */
+      mode: "object" | "invocation";
+      /** Tools the command may start with (kubectl, helm, kubeadm…). */
+      tools: string[];
+      /** Namespace of the current context, shown in the prompt. */
+      namespace: string;
+      files: PublicFile[];
+    }
+  | { type: "manifest"; starter: string; files: PublicFile[] };
+
+/** A file of the working directory of an exercise, shown read-only. */
+export interface PublicFile {
+  name: string;
+  content: string;
+}
 
 export interface PublicExhibit {
   id: string;
@@ -53,7 +70,9 @@ export type AnyResponse =
   | { values: Record<string, string> }
   | { mapping: Record<string, string> }
   | { sequence: string[] }
-  | { value: boolean };
+  | { value: boolean }
+  | { command: string }
+  | { manifest: string };
 
 /** Whether a response is complete (used for the "incomplete" state of the review grid). */
 export function isComplete(body: PublicBody, response: unknown): boolean {
@@ -76,6 +95,10 @@ export function isComplete(body: PublicBody, response: unknown): boolean {
       return body.prompts.every((p) => typeof (r.values as Record<string, unknown> | undefined)?.[p.id] === "string");
     case "series_yesno":
       return typeof r.value === "boolean";
+    case "command":
+      return typeof r.command === "string" && r.command.trim() !== "";
+    case "manifest":
+      return typeof r.manifest === "string" && r.manifest.trim() !== "";
   }
 }
 
@@ -86,6 +109,7 @@ export function isAnswered(response: unknown): boolean {
 }
 
 function isGiven(v: unknown): boolean {
+  if (typeof v === "string") return v.trim() !== "";
   if (Array.isArray(v)) return v.length > 0;
   if (v && typeof v === "object") return Object.keys(v).length > 0;
   return v !== undefined && v !== null;
