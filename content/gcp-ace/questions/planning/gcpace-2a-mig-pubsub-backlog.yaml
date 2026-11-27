@@ -1,0 +1,39 @@
+id: gcpace-2a-mig-pubsub-backlog
+objective: "2.1.4"
+type: single
+difficulty: 3
+status: draft
+stem:
+  en: |
+    A retail company runs order-processing workers on a zonal managed instance group named orders-mig in us-east4-a. The workers pull messages from the Pub/Sub subscription orders-sub; the project also has many other subscriptions. Each VM can handle about 100 outstanding messages, and CPU utilization does not reflect the backlog. You need the group to scale on the number of undelivered messages in orders-sub.
+
+    Which command should you run?
+body:
+  options:
+    - id: a
+      text:
+        en: |-
+          `gcloud compute instance-groups managed set-autoscaling orders-mig --zone=us-east4-a --max-num-replicas=30 --target-cpu-utilization=0.8`
+    - id: b
+      text:
+        en: |-
+          `gcloud compute instance-groups managed set-autoscaling orders-mig --zone=us-east4-a --max-num-replicas=30 --update-stackdriver-metric=pubsub.googleapis.com/subscription/num_undelivered_messages --stackdriver-metric-filter='resource.type = pubsub_subscription AND resource.labels.subscription_id = "orders-sub"' --stackdriver-metric-utilization-target=100 --stackdriver-metric-utilization-target-type=delta-per-second`
+    - id: c
+      text:
+        en: |-
+          `gcloud compute instance-groups managed set-autoscaling orders-mig --zone=us-east4-a --max-num-replicas=30 --update-stackdriver-metric=pubsub.googleapis.com/subscription/num_undelivered_messages --stackdriver-metric-single-instance-assignment=100`
+    - id: d
+      text:
+        en: |-
+          `gcloud compute instance-groups managed set-autoscaling orders-mig --zone=us-east4-a --max-num-replicas=30 --update-stackdriver-metric=pubsub.googleapis.com/subscription/num_undelivered_messages --stackdriver-metric-filter='resource.type = pubsub_subscription AND resource.labels.subscription_id = "orders-sub"' --stackdriver-metric-single-instance-assignment=100`
+answer: { optionId: d }
+explanation:
+  correct:
+    en: The backlog metric num_undelivered_messages describes the subscription, not each VM, so it is a per-group metric. With single instance assignment, the autoscaler divides the metric value by 100 to get the number of VMs, and the filter selects the time series of orders-sub among all the subscriptions of the project.
+  options:
+    a: { en: "CPU utilization does not follow the backlog, as the stem says, so the group would not scale with the queue." }
+    b: { en: "With a utilization target, the autoscaler compares the group-wide backlog with 100 instead of giving each VM 100 messages, and delta-per-second treats the metric as a rate of growth rather than the size of the backlog." }
+    c: { en: "Without a filter, the metric returns a value for every subscription in the project, and the autoscaler adds these values together, so it doesn't scale on orders-sub alone." }
+references:
+  - title: "Scale based on Monitoring metrics | Compute Engine | Google Cloud Documentation"
+    url: https://docs.cloud.google.com/compute/docs/autoscaler/scaling-cloud-monitoring-metrics

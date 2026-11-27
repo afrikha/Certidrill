@@ -1,0 +1,63 @@
+id: gcppca-cs7a-sablepoint-payments
+status: draft
+title:
+  en: Sablepoint Payments
+tabs:
+  - key: overview
+    title: { en: "Company overview" }
+    body:
+      en: |
+        Sablepoint Payments is a fintech startup headquartered in Dublin, with 210 employees. It is licensed as an electronic money institution and lets 38,000 small merchants in Ireland, Spain and Portugal accept online card payments and account-to-account payments. About 300 larger merchants connect their own servers to Sablepoint's payment API; the others use Sablepoint's hosted checkout page.
+
+        Sablepoint has run on Google Cloud since it was founded in 2021. Its transaction volume grows by about 12 % every month, and it plans to open eight more European Union countries in the next 18 months.
+  - key: solution
+    title: { en: "Solution concept" }
+    body:
+      en: |
+        Sablepoint will prepare its platform for growth and for its first PCI DSS Level 1 assessment:
+
+        - A new tokenization service will store primary account numbers (PANs) in a token vault and return tokens. Every other service will handle tokens only.
+        - The token vault and the tokenization service will form the cardholder data environment (CDE).
+        - Merchant reporting will move to BigQuery, where the finance and marketing teams already keep their data.
+        - Every change to production will go through a governed release process.
+  - key: existing
+    title: { en: "Existing technical environment" }
+    body:
+      en: |
+        **Platform**
+
+        The 14 microservices of the platform (payment API, hosted checkout, merchant portal, webhooks, fraud rules) run on one GKE Standard regional cluster in `europe-west1`, in the project `sp-prod`. The platform team has three engineers; one of them has Kubernetes administration experience. The team creates and upgrades node pools by hand, and the cluster is three minor versions behind the current GKE version. Developers deploy with Kubernetes manifests and Helm charts that they maintain themselves.
+
+        **Payment API**
+
+        The payment API is exposed through a global external Application Load Balancer with a Cloud Armor security policy. Server-to-server merchants authenticate with an API key sent in a header.
+
+        **Ledger**
+
+        The ledger is a 3-TB Cloud SQL for PostgreSQL instance with high availability. Its tables store the PANs, encrypted by the application, next to the transactions. The merchant portal runs its reports, which cover up to 13 months of transactions, directly on the primary instance. During the last days of each month, these reports raise the p99 latency of payment authorizations from 180 ms to 1.4 s.
+
+        **Releases**
+
+        GitHub Actions builds the container images and pushes them to an Artifact Registry Docker repository with the tag `release`. Engineers then run `kubectl apply` from their laptops; all of them have cluster administrator access to `sp-prod`. Last month, a faulty release broke payment authorizations for 40 minutes: the `release` tag had moved to the faulty image, and the team needed 35 minutes to find the digest of the previous image and redeploy it.
+  - key: business
+    title: { en: "Business requirements" }
+    body:
+      en: |
+        - Pass the PCI DSS Level 1 assessment within nine months, with the smallest possible CDE.
+        - Merchant reports must never slow down payment authorizations. Finance wants to join transaction data with the marketing data in BigQuery, and reports can be up to a few minutes behind the ledger.
+        - Roll back any production release to the previous release in less than five minutes.
+        - No engineer can change production directly; a release manager approves every production release.
+        - The platform team must spend its time on the PCI DSS program, not on maintaining Kubernetes nodes. Sablepoint will not hire this year.
+  - key: technical
+    title: { en: "Technical requirements" }
+    body:
+      en: |
+        - The token vault runs in its own project and its own VPC network. The payment services must be able to reach the tokenization API and nothing else in the CDE, and the CDE network must have no route to any other network.
+        - Server-to-server merchants must authenticate with client certificates issued by Sablepoint's own private certificate authority. Requests without a valid certificate must be rejected before they reach the payment API. Sablepoint does not want to install or operate certificate authority software.
+        - Developers keep their Kubernetes manifests and Helm charts.
+        - Reporting data must come from the ledger without any change to the ledger application and with minimal load on the primary instance.
+  - key: executive
+    title: { en: "Executive statement" }
+    body:
+      en: |
+        "We grew fast by shipping fast, and it showed last month. Our merchants trust us with their revenue, so a bad release must be undone in minutes, card numbers must live in one small, locked room, and my engineers must stop babysitting servers. We have nine months to prove that we are a serious payments company." — Chief Technology Officer, Sablepoint Payments

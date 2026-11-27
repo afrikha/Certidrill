@@ -1,0 +1,22 @@
+# C-gcp-ace-4 — course chapters 34 to 37 (GCP-ACE, English only)
+
+Files written:
+- `content/gcp-ace/course/chapters/34-manage-storage-data.en.md` (3.2.1–3.2.8, 8 sections + key points, about 2,000 prose words)
+- `content/gcp-ace/course/chapters/35-manage-networking.en.md` (3.3.1–3.3.5, 7 sections + key points, about 1,650)
+- `content/gcp-ace/course/chapters/36-logging.en.md` (3.4.3–3.4.7, 6 sections + key points, about 1,650)
+- `content/gcp-ace/course/chapters/37-monitoring.en.md` (3.4.1, 3.4.2, 3.4.8–3.4.14, 9 sections + key points, about 2,180)
+
+Checks: `npx tsx factory/check-cert.ts gcp-ace 34-manage-storage-data 35-manage-networking 36-logging 37-monitoring` → 0 problems (all chapters: 0). `npm run content:validate -- --cert gcp-ace --course --chapters ...` → 0 problem(s), 94/94 objectives covered.
+
+## Verification
+- Every `gcloud`, `bq` and `kubectl`-adjacent command group and flag was checked against the local Google Cloud SDK 570.0.0 `--help` (GA track only): storage (sign-url, restore, buckets update, objects update), sql (connect, backups create/restore, instances patch/clone, CMEK flags), spanner, alloydb, bigtable, firestore (backups schedules, databases restore/update --enable-pitr, export), dataflow jobs, bq (query --dry_run/--maximum_bytes_billed, ls -j --filter, show -j, wait, cancel, mk --default_kms_key, show --encryption_service_account), kms, compute (subnets expand-ip-range, addresses, routes, access configs, firewall-rules, firewall-policies, network-firewall-policies, networks update enforcement order), dns (managed-zones, record-sets, policies), routers nats (log filter values), network-management vpc-flow-logs-configs, logging (sinks, buckets, links, copy, read, metrics), monitoring (policies create flags, uptime, snoozes), ops-agents policies, recommender, container clusters --enable-managed-prometheus.
+- Facts fetched on docs.cloud.google.com / cloud.google.com on 2026-11-27: lifecycle actions/conditions/transitions/24 h, storage classes, soft delete (default 7 days, range 3–90), signed URL 7 days, Storage IAM roles, uniform bucket-level access, Bucket Lock, Cloud SQL backups/PITR/CMEK, Firestore backups (14 weeks)/PITR, Spanner backups/PITR, AlloyDB backup (14 days, 1–35), Bigtable backups, BigQuery pricing ($6.25/TiB, 1 TiB free, 90-day long-term) and jobs, Dataflow drain/cancel, Database Center (GA 2025-04-09, roles, health issues), CMEK for Storage/BigQuery, subnet expansion and range rules, static IPs, routes order, Cloud DNS zones, Cloud NAT (ports, logging, router role), VPC firewall rules, firewall policy actions/priorities, secure tags, Cloud NGFW tiers and pricing, audit logs, Data Access configuration, VPC Flow Logs, firewall and NAT log names, log buckets/retention/Observability Analytics, sinks and writer identity roles, query language, Logs Explorer UI, LogEntry, Observability pricing, alerting concepts, notification channels, log-based alerts and metrics, custom metrics, Trace, Profiler (active, role), Query Insights and index advisor (Cloud SQL PostgreSQL Enterprise Plus, AlloyDB), Personalized Service Health (GA 2024-01-24, API, roles, alert templates), Ops Agent install/config/agent policies, Managed Service for Prometheus, Gemini Cloud Assist (Preview; investigations need Premium Support since 2026-04-10), Active Assist recommender IDs, Cloud Hub (GA 2025-12-16, pages, roles).
+
+## Doubts / left generic
+- Firewall rule evaluation order page (`firewall-policies-rule-evaluation-order`) could not be fetched (client error); the order was taken from known docs and is consistent with the gcloud help (`--network-firewall-policy-enforcement-order`, default `AFTER_CLASSIC_FIREWALL`).
+- Cloud SQL "7 automated backups retained by default" is not stated explicitly on the backups page fetched (the page only gives 1–365); kept as the long-standing default.
+- `roles/cloudtrace.agent` was not re-fetched (Profiler agent role was).
+- Cloud Hub Optimization was announced in Preview (2025-07-24) with no later stage in the release notes; not labeled in the chapter. Maintenance page is labeled Preview.
+- Forecast alert condition labeled Preview, following the FIX-gcp-pca-course report; Gemini Cloud Assist (3.4.12) is Preview and stated as such: question writers should not make it a correct answer.
+- Spanner Studio, Bigtable Studio and Cloud SQL Studio names were not fetched page by page.
+- Snapshot CMEK: `gcloud compute snapshots create` in SDK 570 shows no `--kms-key` flag, so the chapter mentions `--kms-key` for disks and images only.

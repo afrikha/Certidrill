@@ -1,0 +1,317 @@
+chapter: 52-programmatic-access
+questions:
+  # ------------------------------------------------------------------ 1
+  - id: gcppca-qz-52-01
+    objective: "5.2.2"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        A developer installed the Google Cloud CLI on a laptop and signed in with `gcloud auth login`. Commands such as `gcloud storage ls` work. A local Python script that uses the Cloud Storage Cloud Client Library fails at the first API call because the library cannot find any credentials.
+
+        What should the developer run so that the script uses the developer's own Google account?
+    body:
+      options:
+        - { id: a, text: "`gcloud init` to re-create the default gcloud configuration" }
+        - { id: b, text: "`gcloud config set account` with the developer's email address" }
+        - { id: c, text: "`gcloud auth application-default login`" }
+        - { id: d, text: "`gcloud auth activate-service-account` with the developer's email" }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          The gcloud CLI and Application Default Credentials (ADC) use separate credentials: the CLI does not use ADC, and client libraries do not use the CLI's own sign-in. `gcloud auth application-default login` creates the local ADC credential file that the Cloud Client Libraries and Google API Client Libraries search for.
+      options:
+        a: { en: "`gcloud init` sets up a gcloud configuration (account, project, defaults) for the CLI; it does not create the ADC file that the client libraries read." }
+        b: { en: "The `account` property only selects which credentialed account the gcloud CLI uses; it creates no ADC file for application code." }
+        d: { en: "This command authorizes the CLI with a service account key file; it does not apply to a user account and does not set up ADC for the developer." }
+    references:
+      - title: Set up ADC for a local development environment
+        url: https://docs.cloud.google.com/docs/authentication/set-up-adc-local-dev-environment
+      - title: Set up Application Default Credentials
+        url: https://docs.cloud.google.com/docs/authentication/provide-credentials-adc
+
+  # ------------------------------------------------------------------ 2
+  - id: gcppca-qz-52-02
+    objective: "5.2.1"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        A software company wants every developer to work in a preconfigured, centrally managed development environment that runs on Google Cloud and is attached to the company's VPC network, so that it can reach private test databases. Administrators must define the environment once and let developers use a browser IDE or their local VS Code.
+
+        Which product should you recommend?
+    body:
+      options:
+        - { id: a, text: "Cloud Shell Editor opened from the console, with a shared `.customize_environment` script" }
+        - { id: b, text: "Cloud Workstations, with one workstation configuration that all developers use" }
+        - { id: c, text: "Cloud Code installed in VS Code on each laptop, with a shared settings file" }
+        - { id: d, text: "Cloud Shell in ephemeral mode, started from an Open in Cloud Shell link" }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          Cloud Workstations provides managed development environments on Google Cloud: administrators create reusable workstation configurations, developers create workstations from them, and workstation clusters are attached to a VPC network. Developers can use a browser-based IDE or a local IDE such as VS Code.
+      options:
+        a: { en: "Cloud Shell runs on a Google-managed VM that is not attached to the company's VPC network, and a per-user startup script is not a centrally managed environment." }
+        c: { en: "Cloud Code is an IDE extension: the environment stays on each laptop, outside the VPC network, and is not centrally managed." }
+        d: { en: "Ephemeral Cloud Shell only removes the persistent home directory; it still runs outside the company's VPC network." }
+    references:
+      - title: Cloud Workstations overview
+        url: https://docs.cloud.google.com/workstations/docs/overview
+
+  # ------------------------------------------------------------------ 3
+  - id: gcppca-qz-52-03
+    objective: "5.2.3"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        A recruiting platform runs its integration tests against the Firestore emulator. All tests pass. After deployment, a new search page fails in production on a query that filters on two fields and sorts on a third. The same query never failed in the emulator.
+
+        What is the most likely cause?
+    body:
+      options:
+        - { id: a, text: "The emulator keeps its data in memory, so the query found no documents and returned an empty result." }
+        - { id: b, text: "The emulator does not track composite indexes, so it ran a query that needs an index missing in production." }
+        - { id: c, text: "The emulator does not evaluate IAM permissions, so the production service account lacks read access." }
+        - { id: d, text: "The emulator does not apply production transaction semantics, so the query read uncommitted writes." }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          The Firestore emulator does not track composite indexes and executes any valid query. A query that combines filters and a sort order on different fields can require a composite index in production, so it succeeds locally and fails in production until the index is created. Index needs must be checked against a real Firestore database.
+      options:
+        a: { en: "Data being in memory explains lost data after a restart, not a query that succeeds locally and fails in production." }
+        c: { en: "A missing IAM role would make every read of the service fail, not only one new query with a specific filter and sort combination." }
+        d: { en: "Transaction behavior does not apply to a single read query, and it does not make a query fail in production." }
+    references:
+      - title: Use Firestore emulator locally
+        url: https://docs.cloud.google.com/firestore/native/docs/emulator
+
+  # ------------------------------------------------------------------ 4
+  - id: gcppca-qz-52-04
+    objective: "5.2.4"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        A platform team manages a production Cloud SQL instance with Terraform. During a review, a reviewer noticed that a renamed resource in a pull request made the plan propose destroying and re-creating the instance. The team wants Terraform itself to reject any future plan that would destroy this resource, while Terraform keeps managing it.
+
+        What should the team do?
+    body:
+      options:
+        - { id: a, text: "Add `create_before_destroy = true` in a `lifecycle` block of the instance resource." }
+        - { id: b, text: "Run `terraform state rm` on the instance so that Terraform can no longer delete it." }
+        - { id: c, text: "Add `ignore_changes = all` in a `lifecycle` block of the instance resource." }
+        - { id: d, text: "Add `prevent_destroy = true` in a `lifecycle` block of the instance resource." }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          Google's Terraform best practices ask for deletion protection on stateful resources such as databases and show `prevent_destroy = true` in a `lifecycle` block. With it, Terraform stops with an error when a plan would destroy the resource, including a replacement caused by a rename, while it keeps managing every other change.
+      options:
+        a: { en: "`create_before_destroy` only changes the order of a replacement: the old instance and its data are still destroyed." }
+        b: { en: "Removing the instance from the state stops Terraform from managing it, which the team wants to keep." }
+        c: { en: "`ignore_changes` ignores attribute updates, but it does not stop a destroy caused by a changed resource address, and it stops all managed updates." }
+    references:
+      - title: Best practices for general style and structure
+        url: https://docs.cloud.google.com/docs/terraform/best-practices/general-style-structure
+
+  # ------------------------------------------------------------------ 5
+  - id: gcppca-qz-52-05
+    objective: "5.2.6"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        A team writes a Python service that must call a Google API for which no Cloud Client Library exists in Python. The team wants a library provided by Google that handles authentication with Application Default Credentials, instead of writing its own HTTP and token code.
+
+        What should the team use?
+    body:
+      options:
+        - { id: a, text: "The Google API Client Library for Python, which calls the API's REST interface." }
+        - { id: b, text: "The Firebase Admin SDK for Python, which calls the API's REST interface." }
+        - { id: c, text: "gRPC stubs generated by the team from the API's protocol buffer definitions." }
+        - { id: d, text: "The gcloud CLI called from the service with a subprocess for each API request." }
+    answer: { optionId: a }
+    explanation:
+      correct:
+        en: |
+          When no Cloud Client Library is available for a specific API in the chosen language, Google points to the Google API Client Libraries. They are generated automatically, access only the API's REST interface (no gRPC), may be less idiomatic, and use ADC for authentication.
+      options:
+        b: { en: "Firebase SDKs serve Firebase app development; they are not a generic library for any Google API." }
+        c: { en: "Generated stubs are the team's own lower-level code: authentication and retries must be written by hand, and not every API offers an RPC interface." }
+        d: { en: "Calling the CLI for each request is not a client library, adds latency, and the CLI does not use the service's ADC credentials." }
+    references:
+      - title: Client libraries and Cloud APIs explained
+        url: https://docs.cloud.google.com/apis/docs/client-libraries-explained
+
+  # ------------------------------------------------------------------ 6
+  - id: gcppca-qz-52-06
+    objective: "5.2.6"
+    difficulty: 3
+    status: draft
+    type: single
+    stem:
+      en: |
+        A ticketing company runs a Java API on Cloud Run that reads seat maps from Cloud Storage with the Cloud Storage Cloud Client Library and its default retry settings. The API has a latency objective of 3 seconds, and when a read fails it can answer from a local cache. During a recent service disruption, requests stayed blocked for close to a minute before failing, because the library kept retrying.
+
+        Transient read errors must still be retried with backoff, but every read must give up within 2 seconds so that the API can answer from the cache. You want the least custom code. What should you do?
+    body:
+      options:
+        - { id: a, text: "Set the maximum number of attempts to 1 in the client's RetrySettings so that a failed read returns at once and the API uses the cache." }
+        - { id: b, text: "Build the client once with RetrySettings whose total timeout is 2 seconds, keeping the retries with exponential backoff, and reuse it." }
+        - { id: c, text: "Set the Cloud Run request timeout of the service to 2 seconds so that blocked requests are stopped before the latency objective is missed." }
+        - { id: d, text: "Disable the library's retries and wrap each read in a loop that retries every 100 milliseconds until 2 seconds have passed." }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          The Java client's default retry settings allow several attempts within a total timeout of 50 seconds, which explains the long blocking. Building the client with custom RetrySettings, with a total timeout that fits the 2-second budget, keeps the library's exponential backoff for transient errors and bounds the whole read, including retries, so the code can fall back to the cache.
+      options:
+        a: { en: "One attempt means no retry at all: transient errors, which the requirement says must still be retried, would go straight to the cache." }
+        c: { en: "Cloud Run would end the request with an error instead of letting the code answer from the cache, so the fallback never runs." }
+        d: { en: "A hand-written loop is more custom code, and a fixed 100 ms interval without backoff or jitter goes against Google's retry guidance." }
+    references:
+      - title: Retry strategy
+        url: https://docs.cloud.google.com/storage/docs/retry-strategy
+
+  # ------------------------------------------------------------------ 7
+  - id: gcppca-qz-52-07
+    objective: "5.2.4"
+    difficulty: 3
+    status: draft
+    type: multi
+    stem:
+      en: |
+        An insurance company has two Terraform root configurations, `environments/dev` and `environments/prod`, applied by a pipeline. Last month, a prod run downloaded a newer Google provider release than the one tested in dev and produced unexpected changes. In another incident, a new prod root configuration was applied to the dev project because the `project_id` variable had a default value copied from dev.
+
+        You must make sure that prod always uses exactly the provider selection tested and reviewed in Git, and that every environment-specific value is versioned with the code. Which two actions should you take? Choose two.
+    body:
+      choose: 2
+      options:
+        - { id: a, text: "Pin the Google provider to a minor version in each root module's versions.tf file, and check in the .terraform.lock.hcl file." }
+        - { id: b, text: "Merge both environments into one root configuration with a dev and a prod CLI workspace, and pick the project from the workspace name." }
+        - { id: c, text: "Remove the default value of project_id, and set the value in a terraform.tfvars file in each environment directory." }
+        - { id: d, text: "Add the .terraform.lock.hcl file to .gitignore so that each pipeline run selects the newest provider allowed by the constraint." }
+        - { id: e, text: "Keep the default of project_id, and have the pipeline override it with a -var option on the terraform apply command line." }
+    answer: { optionIds: [a, c] }
+    explanation:
+      correct:
+        en: |
+          Google recommends pinning each provider to a minor version in the root module's versions.tf and checking in the .terraform.lock.hcl dependency lock file, so that provider selections are tracked and reviewed like code. For variables with environment-specific values such as project_id, Google says not to provide a default, and root modules should read their values from a terraform.tfvars file in the environment's directory.
+      options:
+        b: { en: "Google recommends using only the default workspace; CLI workspaces per environment are harder to inspect and share a single backend." }
+        d: { en: "Ignoring the lock file lets each run pick a different provider release, which is exactly the problem to remove." }
+        e: { en: "Command-line -var values are ephemeral and not versioned with the code, and the risky default stays in place for any run that omits it." }
+    references:
+      - title: Best practices for root modules
+        url: https://docs.cloud.google.com/docs/terraform/best-practices/root-modules
+      - title: Best practices for general style and structure
+        url: https://docs.cloud.google.com/docs/terraform/best-practices/general-style-structure
+
+  # ------------------------------------------------------------------ 8
+  - id: gcppca-qz-52-08
+    objective: "5.2.5"
+    difficulty: 3
+    status: draft
+    type: single
+    stem:
+      en: |
+        A media company runs a nightly batch job on GKE. Forty worker Pods call a Google Cloud API that has a per-project rate quota on requests per minute, using one service account. The workers already retry 429 responses with exponential backoff and jitter. The company's catalog has permanently tripled, and the job now misses its 6-hour window because workers spend much of the night waiting in backoff.
+
+        You need the job to finish within its window again, following Google's guidance on quotas. What should you do?
+    body:
+      options:
+        - { id: a, text: "Give each worker Pod its own service account so that every Pod is counted against a separate rate quota." }
+        - { id: b, text: "Stop backing off on 429 responses and resend each rejected request at once so that no time is spent waiting." }
+        - { id: c, text: "Create one API key per worker Pod and send it with the requests so that each key has a separate rate quota." }
+        - { id: d, text: "Request a quota adjustment for that rate quota on the project, sized for the job's new sustained request rate." }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          Exceeding a rate quota returns HTTP 429 or the gRPC RESOURCE_EXHAUSTED error. Backoff with jitter is the right client behavior, but when the quota value is too low for a lasting workload, Google's guidance is to request a quota adjustment for the project. That raises the sustained rate the job can use.
+      options:
+        a: { en: "Google states that separate service accounts still share project-level rate quotas, and that you must not create several service accounts for one workload to get around quotas." }
+        b: { en: "Immediate retries add load and keep hitting the same quota; Google requires exponential backoff for quota errors." }
+        c: { en: "Within a project, quotas are shared across all applications and IP addresses; extra API keys do not create extra quota." }
+    references:
+      - title: Troubleshoot quota errors
+        url: https://docs.cloud.google.com/docs/quotas/troubleshoot
+      - title: Cloud Quotas overview
+        url: https://docs.cloud.google.com/docs/quotas/overview
+
+  # ------------------------------------------------------------------ 9
+  - id: gcppca-qz-52-09
+    objective: "5.2.5"
+    difficulty: 3
+    status: draft
+    type: multi
+    stem:
+      en: |
+        A health-tech company has a Python service that uses Cloud Client Libraries. Developers run it on their laptops, a GitHub Actions workflow runs its integration tests against a test project, and production runs on Cloud Run. Security policy forbids service account keys and user credentials outside laptops. The code must not contain any environment-specific authentication logic, and production must have only the permissions it needs.
+
+        Which three actions should you take? Choose three.
+    body:
+      choose: 3
+      options:
+        - { id: a, text: "Have each developer run gcloud auth application-default login so that the libraries find the developer's own credentials on the laptop." }
+        - { id: b, text: "Store a key of a test service account as a GitHub secret, and point GOOGLE_APPLICATION_CREDENTIALS at it in the workflow." }
+        - { id: c, text: "Set up Workload Identity Federation with a GitHub OIDC provider restricted to the repository, and let the auth action write a credential configuration file." }
+        - { id: d, text: "Add code that detects the environment at startup and loads a different credentials file for laptops, the workflow and Cloud Run." }
+        - { id: e, text: "Deploy the Cloud Run service with a user-managed service account that has only the roles the service needs, and set no credential variable." }
+        - { id: f, text: "Store the ADC file of a release engineer as a secret, mount it in the Cloud Run container, and point GOOGLE_APPLICATION_CREDENTIALS at it." }
+    answer: { optionIds: [a, c, e] }
+    explanation:
+      correct:
+        en: |
+          Application Default Credentials let the same code run in every environment without changing how it authenticates. On laptops, ADC uses the local file created by gcloud auth application-default login. In GitHub Actions, Workload Identity Federation exchanges the workflow's OIDC token for short-lived credentials through a credential configuration file, with an attribute condition that limits which repository is accepted. On Cloud Run, the libraries get tokens for the attached user-managed service account from the metadata server.
+      options:
+        b: { en: "A service account key is a long-lived credential that the security policy forbids; Workload Identity Federation removes the need for it." }
+        d: { en: "Environment-specific credential loading is the authentication logic the requirement rules out; ADC already selects the right credential." }
+        f: { en: "This puts a user credential with a refresh token in production, and Cloud Run guidance says never to set GOOGLE_APPLICATION_CREDENTIALS on a service." }
+    references:
+      - title: Configure Workload Identity Federation with deployment pipelines
+        url: https://docs.cloud.google.com/iam/docs/workload-identity-federation-with-deployment-pipelines
+      - title: Introduction to service identity
+        url: https://docs.cloud.google.com/run/docs/securing/service-identity
+
+  # ------------------------------------------------------------------ 10
+  - id: gcppca-qz-52-10
+    objective: "5.2.5"
+    difficulty: 3
+    status: draft
+    type: multi
+    stem:
+      en: |
+        A bank connects its data center to a VPC network with Dedicated Interconnect and a Cloud Router. A VPC Service Controls perimeter protects the projects that hold its Cloud Storage buckets and BigQuery datasets; the project of the VPC network and its VLAN attachments is inside the perimeter. The security team deleted the VPC network's default route.
+
+        On-premises batch servers must reach Cloud Storage and BigQuery only through the Interconnect, and they must not be able to reach any Google API that VPC Service Controls does not support. Which three actions should you take? Choose three.
+    body:
+      choose: 3
+      options:
+        - { id: a, text: "Configure a custom route advertisement on the Cloud Router that announces 199.36.153.4/30 to the on-premises network." }
+        - { id: b, text: "In the on-premises DNS, create a googleapis.com zone with A records for restricted.googleapis.com and a CNAME record for *.googleapis.com to it." }
+        - { id: c, text: "Create a static route in the VPC network for 199.36.153.4/30 with the default internet gateway as its next hop." }
+        - { id: d, text: "Point the on-premises DNS at private.googleapis.com, and announce 199.36.153.8/30 from the Cloud Router to the data center." }
+        - { id: e, text: "Create a Cloud NAT gateway in the region of the VLAN attachments for the traffic from on-premises servers to Google APIs." }
+        - { id: f, text: "Announce both 199.36.153.4/30 and 199.36.153.8/30 from the Cloud Router so that every Google API stays reachable." }
+    answer: { optionIds: [a, b, c] }
+    explanation:
+      correct:
+        en: |
+          On-premises hosts reach Google APIs privately by sending the traffic to the restricted.googleapis.com range 199.36.153.4/30, which only serves APIs that VPC Service Controls supports. The Cloud Router announces that range over the Interconnect, on-premises DNS maps *.googleapis.com to restricted.googleapis.com with a CNAME record, and the VPC network needs a route to the range whose next hop is the default internet gateway: with the default route deleted, a dedicated static route provides it. Google does not announce these ranges on the internet, so the traffic stays on Google's network.
+      options:
+        d: { en: "private.googleapis.com also serves APIs that VPC Service Controls does not support, which the requirement forbids." }
+        e: { en: "Cloud NAT gives Compute Engine resources outbound access; it plays no part in on-premises access to the Google API ranges." }
+        f: { en: "Google says not to mix private.googleapis.com and restricted.googleapis.com addresses, and the private range would allow unsupported APIs." }
+    references:
+      - title: Configure Private Google Access for on-premises hosts
+        url: https://docs.cloud.google.com/vpc/docs/configure-private-google-access-hybrid

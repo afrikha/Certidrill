@@ -1,0 +1,73 @@
+id: gcppca-cs6a-brindlewood-hr
+status: draft
+title:
+  en: Brindlewood HR
+tabs:
+  - key: overview
+    title: { en: "Company overview" }
+    body:
+      en: |
+        Brindlewood HR is a software vendor headquartered in Dublin, with 900 employees. It sells a software as a service (SaaS) suite for core HR, payroll, time off and performance reviews to 2,300 business customers in the European Union and North America, from 50 to 60,000 employees each. Its platform holds 7 million employee records, including salaries, bank details and national identification numbers.
+
+        Brindlewood sells two plans: Business, and Enterprise for its 180 largest customers. Enterprise customers build their own integrations on Brindlewood's public REST API, and many of them run reporting workloads on the platform.
+  - key: solution
+    title: { en: "Solution concept" }
+    body:
+      en: |
+        Brindlewood will replace its single-tenant deployments with one multi-tenant platform on Google Cloud, running one version of the product for all customers:
+
+        - Application services run on GKE Standard regional clusters. Customers in the European Union are served from `europe-west3`, and customers in North America from `us-east4`.
+        - Each Enterprise customer gets a dedicated Kubernetes namespace, in the cluster of its jurisdiction, for its custom integration and reporting workloads. Business customers share pooled namespaces.
+        - Operational data moves to AlloyDB for PostgreSQL, with one primary cluster per jurisdiction. Every table has a `tenant_id` column.
+        - HR analytics data is loaded every 30 minutes into one shared BigQuery table per jurisdiction, with a `tenant_id` column. Enterprise customers can buy an analytics add-on to query their own data.
+  - key: existing
+    title: { en: "Existing technical environment" }
+    body:
+      en: |
+        **Single-tenant deployments**
+
+        Each customer has its own stack of virtual machines and its own PostgreSQL database, in one of two colocation datacenters, in Frankfurt and in Ashburn. Customers choose when their stack is upgraded, so 14 product versions are in production today, and the operations team spends most of its time on upgrades.
+
+        **Releases**
+
+        Brindlewood releases a new version every month. Last year, two releases changed the responses of the public API without notice. They broke the integrations of 30 Enterprise customers, and two of these customers did not renew their contracts.
+
+        **Costs**
+
+        Infrastructure costs are known only per datacenter. Finance cannot calculate the cost or the gross margin of an individual Enterprise customer.
+
+        **Reporting**
+
+        Every night, a script exports a CSV file per customer and places it on an SFTP server. Enterprise customers complain that the data is a day old and that they must build their own pipeline to load it.
+
+        **Google Cloud organization**
+
+        Brindlewood has already created its Google Cloud organization. The security team enforces the domain restricted sharing constraint on the organization, with Brindlewood's own customer ID as the only allowed value.
+
+        **Backups**
+
+        Each night, database backups of the Frankfurt datacenter are copied to Ashburn, and backups of Ashburn to Frankfurt. The data protection officer reported that copying the backups of EU customers to Ashburn breaks Brindlewood's customer contracts.
+  - key: business
+    title: { en: "Business requirements" }
+    body:
+      en: |
+        - Keep the data of EU customers, including replicas and backups, in the European Union, and the data of North American customers in the United States.
+        - Deploy to production several times a week, with a single product version for all customers.
+        - Give Enterprise customers 60 days' notice before any change that breaks the public API or changes a workflow they use, and let them try such changes before they reach their production tenant.
+        - Report every month the infrastructure cost and the gross margin of each Enterprise customer, including the GKE costs of its dedicated namespace.
+        - Let analytics add-on customers query their own data with their own tools, with data no more than one hour old, and pay for their own queries. A customer must never see another customer's rows.
+        - After the loss of a Google Cloud region, restore service within 2 hours and lose at most 15 minutes of data.
+  - key: technical
+    title: { en: "Technical requirements" }
+    body:
+      en: |
+        - Use AlloyDB for PostgreSQL for the operational data and GKE Standard for the application services.
+        - Do not keep a copy of the analytics data per customer.
+        - Analytics add-on customers already use Google Cloud; their analysts belong to Google groups of their own organizations.
+        - The shared analytics tables are in dedicated analytics projects. Principals of other organizations may be granted roles in these projects only; everywhere else in the organization, only Brindlewood principals can be granted roles.
+        - Prefer managed features to custom tooling, and keep the operational overhead low.
+  - key: executive
+    title: { en: "Executive statement" }
+    body:
+      en: |
+        "We spend more effort upgrading 2,300 copies of our product than improving it. Moving to one platform lets us ship every week, but our largest customers run their payroll on us: they must never be surprised by a change again, and we need to know what each of them really costs us." — Chief Executive Officer, Brindlewood HR

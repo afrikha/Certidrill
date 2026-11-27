@@ -1,0 +1,318 @@
+chapter: 22-storage-systems
+questions:
+  # ------------------------------------------------------------------ 1
+  - id: gcppca-qz-22-01
+    objective: "2.2.1"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        A compliance team plans to keep audit exports in the Archive storage class of Cloud Storage. An engineer worries that, as with tape archives, a regulator's request for one file would first require a restore job that takes hours.
+
+        How is an object stored in the Archive class read?
+    body:
+      options:
+        - { id: a, text: { en: "Within hours, after a restore request copies the object to the Standard class" } }
+        - { id: b, text: { en: "Within milliseconds, like a Standard object, with a retrieval fee per GB read" } }
+        - { id: c, text: { en: "Within milliseconds, but only after the 365-day minimum duration has passed" } }
+        - { id: d, text: { en: "Within minutes, after Autoclass moves the object back to the Nearline class" } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          Every Cloud Storage class, Archive included, offers low-latency access with no offline retrieval step: Archive data is available within milliseconds. What makes Archive different is its cost model: the lowest storage price, higher access and operation costs, a retrieval fee and a 365-day minimum storage duration.
+      options:
+        a: { en: "No Cloud Storage class has a restore step; reading an Archive object returns it directly." }
+        c: { en: "The 365-day minimum storage duration is a billing rule for early deletion or replacement; it does not block reads." }
+        d: { en: "Archive objects are read directly; Autoclass is a bucket setting that changes classes for billing, not a precondition for reading." }
+    references:
+      - title: Storage classes
+        url: https://docs.cloud.google.com/storage/docs/storage-classes
+
+  # ------------------------------------------------------------------ 2
+  - id: gcppca-qz-22-02
+    objective: "2.2.2"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        A development team needs a small regional Spanner instance for integration tests that run against a few gigabytes of data. The team wants the lowest compute cost that Spanner allows.
+
+        What compute capacity should the team provision?
+    body:
+      options:
+        - { id: a, text: { en: "1 node, because a node is the smallest unit of Spanner compute capacity" } }
+        - { id: b, text: { en: "3 nodes, because a regional configuration needs one node in each zone" } }
+        - { id: c, text: { en: "100 processing units, which is one tenth of the capacity of one node" } }
+        - { id: d, text: { en: "500 processing units, because Spanner sets capacity in steps of half a node" } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          Spanner compute capacity is measured in processing units (PUs), where 1,000 PUs equal one node. Below 1,000, capacity is set in multiples of 100 PUs, so 100 PUs is the smallest instance and the cheapest option for a small test database.
+      options:
+        a: { en: "Capacity below one node is available: an instance can run with 100 to 900 processing units." }
+        b: { en: "A regional instance replicates data across zones whatever its size; one node, or less, does not mean a single zone." }
+        d: { en: "Below 1,000 processing units the increment is 100, not 500, so 500 PUs costs five times more than needed." }
+    references:
+      - title: Compute capacity, nodes and processing units
+        url: https://docs.cloud.google.com/spanner/docs/compute-capacity
+
+  # ------------------------------------------------------------------ 3
+  - id: gcppca-qz-22-03
+    objective: "2.2.3"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        A traffic agency's roadside cameras upload images to a Cloud Storage bucket that uses uniform bucket-level access. Each camera authenticates as the same service account. A security review requires that a stolen camera credential cannot be used to list, download, delete or replace images that are already in the bucket.
+
+        Which role should you grant the service account on the bucket?
+    body:
+      options:
+        - { id: a, text: { en: "Storage Object User (`roles/storage.objectUser`)" } }
+        - { id: b, text: { en: "Storage Legacy Bucket Writer (`roles/storage.legacyBucketWriter`)" } }
+        - { id: c, text: { en: "Storage Object Viewer (`roles/storage.objectViewer`)" } }
+        - { id: d, text: { en: "Storage Object Creator (`roles/storage.objectCreator`)" } }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          Storage Object Creator contains `storage.objects.create` but not `storage.objects.get`, `list` or `delete`. Its holder can upload new objects but cannot view, delete or overwrite existing ones, since overwriting an object requires the delete permission. It is the least-privilege role for upload-only clients.
+      options:
+        a: { en: "Storage Object User also grants get, list, update and delete on objects, so a stolen credential could read and remove images." }
+        b: { en: "The legacy bucket writer role lets its holder list, create, overwrite and delete objects in the bucket." }
+        c: { en: "Storage Object Viewer grants get and list but no create permission, so the cameras could not upload at all." }
+    references:
+      - title: IAM roles for Cloud Storage
+        url: https://docs.cloud.google.com/storage/docs/access-control/iam-roles
+
+  # ------------------------------------------------------------------ 4
+  - id: gcppca-qz-22-04
+    objective: "2.2.4"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        A retailer's order database runs on a Cloud SQL for PostgreSQL instance with high availability in us-central1. A reporting application deployed in europe-west1 runs only read queries against it and suffers from high latency. All writes must stay on the primary instance, and the retailer wants the fewest changes to the application.
+
+        What should you do?
+    body:
+      options:
+        - { id: a, text: { en: "Point the reporting application at the high-availability standby instance of the primary" } }
+        - { id: b, text: { en: "Create a cross-region read replica in europe-west1 and point the reporting application at it" } }
+        - { id: c, text: { en: "Migrate the database to a Spanner multi-region configuration that serves reads in Europe" } }
+        - { id: d, text: { en: "Upgrade the primary to Enterprise Plus edition and enable its data cache for read queries" } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          A Cloud SQL read replica receives the primary's changes asynchronously and serves read-only traffic. Creating it in europe-west1 puts the data close to the reporting application, which only needs a new connection target, while all writes keep going to the primary in us-central1.
+      options:
+        a: { en: "The HA standby is not a replica: it only takes over as primary after a failure, and it sits in another zone of us-central1, not in Europe." }
+        c: { en: "Spanner could serve reads near Europe, but migrating the database means a new engine and application changes, which fails the fewest-changes requirement." }
+        d: { en: "The data cache speeds up reads on the primary itself; queries from Europe still cross the Atlantic to us-central1." }
+    references:
+      - title: About replication in Cloud SQL
+        url: https://docs.cloud.google.com/sql/docs/postgres/replication
+      - title: About high availability
+        url: https://docs.cloud.google.com/sql/docs/postgres/high-availability
+
+  # ------------------------------------------------------------------ 5
+  - id: gcppca-qz-22-05
+    objective: "2.2.6"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        An energy company stores smart-meter readings in Bigtable with the row key `timestamp#meter_id`. As more meters come online, write latency grows, and monitoring shows one node receiving most writes while the other nodes stay idle. Most queries read the latest readings of a single meter.
+
+        Which row key design should the company use?
+    body:
+      options:
+        - { id: a, text: "`reversed_timestamp#meter_id`" }
+        - { id: b, text: "`region#timestamp#meter_id`" }
+        - { id: c, text: "`meter_id#reversed_timestamp`" }
+        - { id: d, text: "`timestamp`, with meter_id in a column" }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          Starting the row key with a high-cardinality value such as the meter ID spreads writes across the whole key space, so all nodes share the load. Following it with a reversed timestamp keeps each meter's rows together and puts its newest readings first, which matches the main query.
+      options:
+        a: { en: "A reversed timestamp is still sequential: all new writes still land on the same contiguous key range and the same node." }
+        b: { en: "A low-cardinality prefix such as a region only splits the hotspot into a few hotspots, one per region, still led by a timestamp." }
+        d: { en: "A timestamp alone is the worst case for hotspots and also prevents reading one meter's data with a row range scan." }
+    references:
+      - title: Schema design best practices
+        url: https://docs.cloud.google.com/bigtable/docs/schema-design
+
+  # ------------------------------------------------------------------ 6
+  - id: gcppca-qz-22-06
+    objective: "2.2.2"
+    difficulty: 3
+    status: draft
+    type: single
+    stem:
+      en: |
+        A healthcare analytics company runs BigQuery with on-demand pricing. Its datasets are encrypted with CMEK keys, sit inside a VPC Service Controls perimeter, and use policy tags so that only one group can read patient identifiers. Finance wants to move to capacity-based pricing with a one-year commitment, to get a discount and a predictable bill. Every current security control must keep working, and disaster recovery stays with the dataset copies that the company already maintains in a second region.
+
+        Which pricing option should you recommend to minimize cost?
+    body:
+      options:
+        - { id: a, text: { en: "Standard edition reservations, with autoscaling up to 1,600 slots and a one-year commitment" } }
+        - { id: b, text: { en: "Enterprise Plus edition reservations, with baseline slots covered by a one-year commitment" } }
+        - { id: c, text: { en: "On-demand pricing kept as is, with custom daily query quotas set on each of the projects" } }
+        - { id: d, text: { en: "Enterprise edition reservations, with baseline slots covered by a one-year commitment" } }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          Enterprise edition supports customer-managed encryption keys, VPC Service Controls and column-level access control with policy tags, and it offers baseline slots with one-year or three-year capacity commitments at a discount. It is the cheapest edition that keeps every control while giving the committed, predictable cost that finance asks for.
+      options:
+        a: { en: "Standard edition has no capacity commitments, and it supports neither CMEK, nor VPC Service Controls, nor fine-grained security such as policy tags." }
+        b: { en: "Enterprise Plus meets every control but costs more per slot; its extra value, such as managed disaster recovery, is not required here." }
+        c: { en: "Query quotas cap usage, but on-demand pricing offers no one-year commitment or capacity discount, which finance requires." }
+    references:
+      - title: Understand BigQuery editions
+        url: https://docs.cloud.google.com/bigquery/docs/editions-intro
+
+  # ------------------------------------------------------------------ 7
+  - id: gcppca-qz-22-07
+    objective: "2.2.7"
+    difficulty: 3
+    status: draft
+    type: single
+    stem:
+      en: |
+        A media company is creating a Cloud Storage bucket for user uploads, written by application servers in europe-west1 and europe-west4. The data must stay in the EU. If either region becomes unavailable, the application must keep working against the same bucket name from the other region, and no more than 15 minutes of newly written objects may be lost.
+
+        Which bucket configuration should you choose?
+    body:
+      options:
+        - { id: a, text: { en: "A multi-region bucket in the EU location, with turbo replication enabled" } }
+        - { id: b, text: { en: "A dual-region bucket in europe-west1 and europe-west4, with default replication" } }
+        - { id: c, text: { en: "A dual-region bucket in europe-west1 and europe-west4, with turbo replication enabled" } }
+        - { id: d, text: { en: "A regional bucket in each region, kept in sync by an event-driven Storage Transfer Service job" } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          A dual-region bucket is a single bucket name served from two regions, and turbo replication is designed to copy 100% of newly written objects to both regions within 15 minutes, which gives the required RPO. A configurable dual-region made of europe-west1 and europe-west4 keeps the data in the EU.
+      options:
+        a: { en: "Turbo replication is only available for dual-region buckets; a multi-region bucket uses default replication." }
+        b: { en: "Default replication targets 100% of new objects within 12 hours, so its RPO is 12 hours, not 15 minutes." }
+        d: { en: "Two regional buckets have two names, so the application would have to switch buckets after an outage, and the transfer job gives no 15-minute RPO target." }
+    references:
+      - title: Data availability and durability
+        url: https://docs.cloud.google.com/storage/docs/availability-durability
+      - title: Bucket locations
+        url: https://docs.cloud.google.com/storage/docs/locations
+
+  # ------------------------------------------------------------------ 8
+  - id: gcppca-qz-22-08
+    objective: "2.2.5"
+    difficulty: 3
+    status: draft
+    type: single
+    stem:
+      en: |
+        A law firm stores signed contracts in a Cloud Storage bucket. Each contract must be kept until a date that depends on its type, from 3 to 25 years after signature, and the contract management system knows that date when it uploads the file. Once a date is set, no one, including project owners, may shorten or remove it. To limit storage cost, each contract must become deletable as soon as its own date passes.
+
+        What should you do?
+    body:
+      options:
+        - { id: a, text: { en: "Enable Object Retention Lock on the bucket, and have the system set a retain-until time in Unlocked mode on each object" } }
+        - { id: b, text: { en: "Set a 25-year retention policy on the bucket, and lock it with Bucket Lock so that it can never be reduced" } }
+        - { id: c, text: { en: "Place an event-based hold on each object, and have the system release the hold when the object's date passes" } }
+        - { id: d, text: { en: "Enable Object Retention Lock on the bucket, and have the system set a retain-until time in Locked mode on each object" } }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          Object Retention Lock sets a retention configuration on each object, with its own retain-until time, which fits contracts with different durations. In Locked mode, the retain-until time can only be extended: nobody can reduce or remove it, and the object becomes deletable once that time passes.
+      options:
+        a: { en: "In Unlocked mode, authorized users can modify or remove the retention configuration, which breaks the rule that no one may shorten it." }
+        b: { en: "A bucket retention policy applies the same period to every object, so 3-year contracts would stay 25 years and keep generating cost." }
+        c: { en: "A user with permission to update objects can release an event-based hold early, so the hold does not stop owners from shortening retention." }
+    references:
+      - title: Object Retention Lock
+        url: https://docs.cloud.google.com/storage/docs/object-lock
+
+  # ------------------------------------------------------------------ 9
+  - id: gcppca-qz-22-09
+    objective: "2.2.3"
+    difficulty: 3
+    status: draft
+    type: multi
+    stem:
+      en: |
+        A logistics company publishes daily shipment exports to a dedicated Cloud Storage bucket that uses uniform bucket-level access. A partner's nightly job runs on Amazon EC2 instances under an AWS IAM role, and each night it must list the bucket and download the new files. The company's security policy forbids any long-lived Google Cloud credential outside Google Cloud, and the partner must get read-only access to this bucket and nothing else.
+
+        Which two actions should you take? Choose two.
+    body:
+      choose: 2
+      options:
+        - { id: a, text: { en: "Create a workload identity pool with an AWS provider that trusts the partner's AWS account" } }
+        - { id: b, text: { en: "Create an HMAC key for a service account that has Storage Object Viewer on the bucket" } }
+        - { id: c, text: { en: "Grant Storage Object Viewer on the project to the principal set of the partner's AWS role" } }
+        - { id: d, text: { en: "Grant Storage Object Viewer on the bucket to the principal set of the partner's AWS role" } }
+        - { id: e, text: { en: "Create a service account key, and have the partner keep it in AWS Secrets Manager" } }
+    answer: { optionIds: [a, d] }
+    explanation:
+      correct:
+        en: |
+          Workload Identity Federation lets the EC2 job exchange its AWS credentials for a short-lived Google Cloud token through a workload identity pool and an AWS provider, so no Google credential is stored at the partner. Google recommends granting roles directly to the federated principal set, and Cloud Storage supports this on buckets with uniform bucket-level access; Storage Object Viewer on the bucket allows listing and reading only.
+      options:
+        b: { en: "An HMAC key is a long-lived secret that stays valid until it is deactivated, which the security policy forbids outside Google Cloud." }
+        c: { en: "A grant on the project gives read access to every bucket of the project, not only the export bucket." }
+        e: { en: "A service account key is a long-lived credential; storing it in AWS Secrets Manager still leaves it outside Google Cloud." }
+    references:
+      - title: Configure Workload Identity Federation with AWS or Azure VMs
+        url: https://docs.cloud.google.com/iam/docs/workload-identity-federation-with-other-clouds
+      - title: "Identity federation: products and limitations"
+        url: https://docs.cloud.google.com/iam/docs/federated-identity-supported-services
+
+  # ------------------------------------------------------------------ 10
+  - id: gcppca-qz-22-10
+    objective: "2.2.7"
+    difficulty: 3
+    status: draft
+    type: multi
+    stem:
+      en: |
+        A payments company runs its ledger on a zonal Cloud SQL for PostgreSQL Enterprise edition instance in europe-west1, with automated backups and point-in-time recovery that keeps 7 days of transaction logs. A new resilience policy requires the following:
+
+        - After a zone failure, service resumes automatically with no committed transaction lost.
+        - After a faulty batch job, the database can be restored to any point within the last 14 days.
+        - After a regional outage, the database can be brought up in europe-west4 with at most a few minutes of data loss.
+
+        Which three actions should you take? Choose three.
+    body:
+      choose: 3
+      options:
+        - { id: a, text: { en: "Enable high availability on the instance, with a standby in another zone of europe-west1" } }
+        - { id: b, text: { en: "Raise the transaction log retention to 14 days on the current Enterprise edition instance" } }
+        - { id: c, text: { en: "Create a read replica in another zone of europe-west1, and promote it after a zone failure" } }
+        - { id: d, text: { en: "Upgrade the instance in place to Enterprise Plus edition, with 14 days of transaction logs" } }
+        - { id: e, text: { en: "Create a cross-region read replica in europe-west4, and promote it after a regional outage" } }
+        - { id: f, text: { en: "Raise the number of retained automated backups to 14, one for each day of the window" } }
+    answer: { optionIds: [a, d, e] }
+    explanation:
+      correct:
+        en: |
+          High availability writes every transaction synchronously to disks in two zones before the commit is reported, and fails over automatically. Point-in-time recovery keeps 1 to 7 days of transaction logs in Enterprise edition but 1 to 35 days in Enterprise Plus, so a 14-day window requires the in-place upgrade. A cross-region read replica, replicated asynchronously, can be promoted to a standalone writable instance in europe-west4 if europe-west1 fails.
+      options:
+        b: { en: "Enterprise edition accepts at most 7 days of transaction log retention, so 14 days is not a valid setting." }
+        c: { en: "A read replica is asynchronous and must be promoted by hand: failover is neither automatic nor free of data loss, and it stays in the same region." }
+        f: { en: "Automated backups are taken once a day; they restore to the backup times only, not to any point in the window." }
+    references:
+      - title: Configure point-in-time recovery (PITR)
+        url: https://docs.cloud.google.com/sql/docs/postgres/backup-recovery/configure-pitr
+      - title: About high availability
+        url: https://docs.cloud.google.com/sql/docs/postgres/high-availability

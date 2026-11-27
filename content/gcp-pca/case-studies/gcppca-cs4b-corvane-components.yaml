@@ -1,0 +1,61 @@
+id: gcppca-cs4b-corvane-components
+status: draft
+title:
+  en: Corvane Components
+tabs:
+  - key: overview
+    title: { en: "Company overview" }
+    body:
+      en: |
+        Corvane Components manufactures brake calipers, steering knuckles and suspension arms for car and truck makers. It is headquartered in Kalamazoo, Michigan, has 7,200 employees, and runs 9 plants in the United States, Mexico and Canada. Its customers order parts just in time and expect Corvane to trace every part back to the line, the shift and the machine settings that produced it.
+
+        Corvane wants to use machine data to reduce scrap and unplanned downtime, and to close its headquarters datacenter, whose lease ends in 18 months.
+  - key: solution
+    title: { en: "Solution concept" }
+    body:
+      en: |
+        Corvane will build **LinePulse**, a factory data platform on Google Cloud:
+
+        - Edge gateways on the production lines will publish machine readings to a Pub/Sub topic.
+        - Quality and maintenance engineers will analyze the readings in BigQuery.
+        - LineCheck, the quality service that the lines call for every part, will keep running on GKE.
+
+        At the same time, Corvane will decide what happens to each application of the headquarters datacenter.
+  - key: existing
+    title: { en: "Existing technical environment" }
+    body:
+      en: |
+        **Plants and gateways**
+
+        Each production line has an edge gateway, an industrial Linux PC that reads the programmable logic controllers (PLCs) of the line over OPC UA. The 1,100 gateways together produce 120,000 readings per second, each encoded as a Protocol Buffers message with a fixed schema; the volume varies by a factor of 10 between shifts. Each gateway holds an X.509 client certificate issued by Corvane's private certificate authority (one root CA and one intermediate CA); the plant PKI renews the certificates every 90 days. The gateways have no other identity. Today they write CSV files to plant file servers, which are copied every night to a SQL Server database at headquarters.
+
+        **Google Cloud**
+
+        The organization enforces the `iam.disableServiceAccountKeyCreation` and `iam.disableServiceAccountKeyUpload` organization policy constraints. LineCheck runs on a GKE Standard regional cluster in `us-central1`, enrolled in the Regular release channel. Last year, during the model-year launch, an automatic node upgrade restarted LineCheck's Pods and stopped two lines for 40 minutes.
+
+        **Applications**
+
+        - **ShopTrack**, the manufacturing execution system (MES), runs on servers in each plant. It must answer the PLCs within 20 ms and keep running when a plant loses its internet links.
+        - **PartVault**, a product lifecycle management (PLM) product, runs at headquarters. Its vendor ends support for the self-hosted edition next year and sells the same product as a SaaS service, with a migration tool for existing data.
+        - **ScrapStat**, an in-house Visual Basic 6 application on Windows Server 2012 R2 at headquarters, produces scrap reports from the nightly CSV files for five users. LinePulse dashboards in BigQuery will produce the same reports.
+  - key: business
+    title: { en: "Business requirements" }
+    body:
+      en: |
+        - Engineers must be able to query machine readings in BigQuery within 10 minutes of their measurement.
+        - Close the headquarters datacenter within 18 months. For each application, choose the disposition that minimizes cost and effort without putting production at risk, and do not spend effort moving applications that other systems will replace.
+        - During the eight-week model-year launch, no automatic change may restart LineCheck's Pods. Outside the launch, automatic upgrades of LineCheck's cluster may run only on Sundays between 06:00 and 12:00 UTC.
+        - The on-call engineer must be notified when readings are at risk of reaching BigQuery late, whatever the volume of readings at that time.
+  - key: technical
+    title: { en: "Technical requirements" }
+    body:
+      en: |
+        - Gateways must authenticate to Google Cloud with the identities they already have, without service account keys.
+        - Readings are stored in BigQuery as they are published, without transformation; occasional duplicate readings are acceptable. Minimize the cost and the operational overhead of loading the readings.
+        - The control plane of LineCheck's cluster must keep receiving patch versions at all times, including during the launch.
+        - The platform team does not want to plan or start cluster upgrades manually.
+  - key: executive
+    title: { en: "Executive statement" }
+    body:
+      en: |
+        "Our plants run on thin margins and tight delivery windows. If we can see what our machines are doing, while they are doing it, we can stop a bad batch before it ships. But nothing we change in IT may stop a line, especially during a launch." — Chief Operating Officer, Corvane Components

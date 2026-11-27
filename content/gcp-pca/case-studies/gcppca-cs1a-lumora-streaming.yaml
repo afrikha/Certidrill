@@ -1,0 +1,73 @@
+id: gcppca-cs1a-lumora-streaming
+status: draft
+title:
+  en: Lumora Streaming
+tabs:
+  - key: overview
+    title: { en: "Company overview" }
+    body:
+      en: |
+        Lumora Streaming is a subscription video-on-demand service headquartered in Lisbon. It has 9 million subscribers in Europe and Latin America, a catalog of 40,000 films and series licensed from studios, and a growing slate of original productions. At peak hours, 2 million subscribers watch at the same time.
+
+        Lumora plans to launch in two new Latin American countries next year and expects 15 million subscribers within two years.
+  - key: solution
+    title: { en: "Solution concept" }
+    body:
+      en: |
+        Lumora will leave its two colocation facilities and move its platform to Google Cloud:
+
+        - Transcoding moves to Compute Engine.
+        - The catalog is stored in Cloud Storage and delivered to the players by Media CDN.
+        - The player API, which the apps call to browse the catalog and start a session, runs on Cloud Run.
+        - Playback telemetry is processed in near real time and analyzed in BigQuery.
+  - key: existing
+    title: { en: "Existing technical environment" }
+    body:
+      en: |
+        **Colocation facilities**
+
+        Lumora rents two colocation facilities, in Lisbon and in Frankfurt. Both leases end in 18 months.
+
+        **Transcoding**
+
+        A farm of 300 physical servers runs Lumora's proprietary per-title encoder, packaged as a Linux container image. Each new title is split into 10-second chunks; each chunk is an independent job taken from a queue, and a failed job is retried without affecting the others. Studios deliver titles in large, irregular batches, so the farm is idle about 70 % of the time.
+
+        **Mezzanine masters**
+
+        The high-quality master file of every title (4 PB in total, files of 50 GB to 400 GB) is stored on a NAS. A master is read when Lumora re-encodes the title for a new device or codec. Most masters are not read for years, but when a studio re-releases a title, its master can be read hundreds of times over a few weeks. Nobody can predict which titles will be re-released.
+
+        **Delivery**
+
+        NGINX origin servers in the colocation facilities feed a commercial CDN whose contract ends in 12 months. The manifests and video segments of a title are identical for every subscriber and are cached once.
+
+        **Player API**
+
+        The player API is a set of stateless Java containers running on virtual machines. Releases are deployed by shell scripts to all servers at once. Last quarter, a faulty release made playback fail for every subscriber for 40 minutes.
+
+        **Telemetry**
+
+        During playback, every player sends a heartbeat every 10 seconds. Each heartbeat carries a unique event ID, the title, the country and the client timestamp. Mobile players buffer heartbeats when they lose connectivity and resend them up to 5 minutes later; they also resend a heartbeat whose acknowledgment was lost. Heartbeats are collected by a Kafka cluster and processed by a nightly batch job.
+  - key: business
+    title: { en: "Business requirements" }
+    body:
+      en: |
+        - Make the transcoding cost follow the volume of titles delivered by the studios, and reduce it as much as possible.
+        - Meet the studio contracts: licensed content must be playable only by subscribers who have an active subscription, a playback link shared on the internet must stop working within a few hours, and the stored content must never be publicly readable.
+        - Keep every master for the duration of its licence at the lowest storage cost, without asking the operations team to track the titles or maintain rules per title.
+        - Give the content team the number of concurrent viewers per title and per country, for each minute, at most 2 minutes after the end of that minute.
+        - Reduce the number of subscribers affected by a faulty release of the player API.
+  - key: technical
+    title: { en: "Technical requirements" }
+    body:
+      en: |
+        - Keep the proprietary encoder and process each studio batch within 12 hours of its delivery.
+        - Serve the catalog from a private Cloud Storage bucket through Media CDN. The manifests and segments must stay cacheable once for all subscribers: their URLs must not contain values that are specific to a subscriber.
+        - An entitlement service checks the subscription when a playback session starts.
+        - Count every heartbeat that arrives up to 5 minutes late, and count every heartbeat only once.
+        - Every production release of the player API must be approved by the release manager. It must then serve 10 % and then 50 % of the requests before it serves all of them, without custom traffic-management scripts.
+        - The player API has an availability SLO of 99.9 % over a rolling 30-day period. The on-call engineer must be paged within minutes when an outage would exhaust the error budget quickly, and notified by a ticket when a slow degradation would exhaust it before the end of the period. Short error spikes that do not threaten the SLO must not page anyone.
+  - key: executive
+    title: { en: "Executive statement" }
+    body:
+      en: |
+        "Our transcoding farm and our CDN contract are fixed costs in a business whose volumes swing every month. I want our infrastructure costs to follow our catalog and our audience. Our studio partners also need proof that their content is protected, and our subscribers must never again lose playback because of one bad release." — Chief Technology Officer, Lumora Streaming

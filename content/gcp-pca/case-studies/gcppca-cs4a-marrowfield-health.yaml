@@ -1,0 +1,67 @@
+id: gcppca-cs4a-marrowfield-health
+status: draft
+title:
+  en: Marrowfield Health
+tabs:
+  - key: overview
+    title: { en: "Company overview" }
+    body:
+      en: |
+        Marrowfield Health is a nonprofit hospital network in Ohio and western Pennsylvania, with 11 hospitals, 70 outpatient clinics and 21,000 employees. Its radiology departments perform 1.4 million imaging studies per year. Marrowfield is a covered entity under HIPAA and has signed a business associate agreement with Google Cloud.
+
+        Marrowfield wants to stop buying storage for each hospital, give its clinicians faster access to patient information wherever they work, and answer patient privacy requests without manual investigations.
+  - key: solution
+    title: { en: "Solution concept" }
+    body:
+      en: |
+        Marrowfield will build three services on Google Cloud:
+
+        - An enterprise imaging archive that replaces the local archives of the 11 hospitals. The picture archiving and communication systems (PACS) of the hospitals will keep their radiologist workstations and will send their studies to the new archive. A new zero-footprint web viewer will display current and prior studies to every clinician.
+        - A clinical event hub that distributes admission, discharge and transfer (ADT) events from the electronic health record (EHR) system to the applications that need them.
+        - A new home for BedView, the in-house bed management application.
+  - key: existing
+    title: { en: "Existing technical environment" }
+    body:
+      en: |
+        **Datacenter and network**
+
+        The hospitals are connected to Marrowfield's datacenter by a private WAN. The datacenter is connected to a VPC network in `us-east5` by HA VPN. A GKE Autopilot cluster already runs in that network.
+
+        **Imaging**
+
+        Each hospital runs a PACS from one of three vendors, with its own storage array. The archives hold 2.1 PB and grow by 300 TB per year; the storage arrays reach their end of support in 14 months. The PACS send and retrieve studies with the DICOM DIMSE protocol and cannot be changed to use another protocol. The new web viewer reads and searches studies only through DICOMweb. Studies older than two years make up 70 % of the data, and fewer than 1 % of them are opened in a year, but when a patient returns, radiologists must be able to open the prior studies for comparison.
+
+        **EHR and BedView**
+
+        The EHR is a commercial product that runs in the datacenter. Its interface engine sends HL7v2 ADT messages over MLLP connections, and the vendor does not allow any change to it other than adding an MLLP destination. BedView, a Java web application on four virtual machines, reads a copy of the EHR database every 5 minutes, so bed boards are often out of date. BedView will be moved without code changes to a managed instance group behind a global external Application Load Balancer. Patient transport and housekeeping teams plan applications that also need ADT events.
+
+        **Identity and devices**
+
+        Employees sign in with Cloud Identity accounts. Clinicians use hospital-issued laptops, which are company-owned devices that report their status through Endpoint Verification. Marrowfield has Chrome Enterprise Premium licenses for all clinicians. House supervisors who work from home reach BedView through a VPN concentrator that reaches end of life this year.
+
+        **Privacy requests**
+
+        When a patient asks who viewed their images, the compliance office collects and compares access logs from the 11 PACS by hand, which takes up to three weeks.
+  - key: business
+    title: { en: "Business requirements" }
+    body:
+      en: |
+        - Replace the 11 hospital archives before the storage arrays reach their end of support, without changing how radiologists work at their PACS workstations.
+        - Reduce the cost of storing the archive as it grows, without removing older studies from the viewer.
+        - Show every admission, transfer and discharge on the bed boards within 30 seconds. New applications must be able to receive the same events without any change to the EHR or to the existing consumers.
+        - Clinicians must reach BedView from anywhere, but only from hospital-issued laptops, without a VPN.
+        - The compliance office must be able to list, with SQL queries, every user and service that read a patient's studies during the last six years, in every project of the organization, including projects created later.
+        - The chief medical officer requires the support of the radiology department chiefs before any hospital archive is decommissioned.
+  - key: technical
+    title: { en: "Technical requirements" }
+    body:
+      en: |
+        - The archive must be a managed service. Marrowfield will not operate its own DICOM archive or DICOMweb server, but it accepts running stateless open source adapters on the existing GKE Autopilot cluster.
+        - No ADT message may be lost, and the consumers of ADT events must be decoupled from each other.
+        - BedView's code cannot change, and its users must sign in with their Cloud Identity accounts.
+        - Prefer Google-managed services and features to custom code.
+  - key: executive
+    title: { en: "Executive statement" }
+    body:
+      en: |
+        "Our clinicians should never wait for an image or wonder whether a bed is free, and our patients deserve a quick, honest answer when they ask who looked at their records. Three of our radiology chiefs fear that a cloud archive will slow down their readings. I want their concerns answered with evidence, not with slides." — Chief Medical Officer, Marrowfield Health

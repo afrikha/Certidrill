@@ -1,0 +1,73 @@
+id: gcppca-cs3a-tidemark-logistics
+status: draft
+title:
+  en: Tidemark Logistics
+tabs:
+  - key: overview
+    title: { en: "Company overview" }
+    body:
+      en: |
+        Tidemark Logistics is a container shipping and freight forwarding group headquartered in Rotterdam, with 3,800 employees. It operates 70 vessels, tracks 1.6 million owned and leased containers, and runs offices in 38 port terminals in Europe and Asia. Its customers are shippers, freight forwarders and customs brokers.
+
+        Tidemark wants to sell real-time tracking and booking services to its partners and to stop running its own datacenter within two years.
+  - key: solution
+    title: { en: "Solution concept" }
+    body:
+      en: |
+        Tidemark will move its applications from its Rotterdam datacenter to Google Cloud, in the `europe-west4` and `asia-southeast1` regions:
+
+        - A new tracking platform will process the events sent by the container trackers.
+        - The warehouse management system (WMS) will move to GKE, and its database to a managed database service.
+        - The booking and tracking functions will be offered to partners as public APIs.
+        - The port terminal offices will connect to each other and to Google Cloud without the current MPLS network.
+  - key: existing
+    title: { en: "Existing technical environment" }
+    body:
+      en: |
+        **Datacenter**
+
+        The Rotterdam datacenter is connected to a VPC network in `europe-west4` by HA VPN. Its lease ends in 20 months.
+
+        **Container tracking**
+
+        Every container carries a tracker that sends an event every 60 seconds: position, door opened or closed, and, for refrigerated containers, temperature. Events reach an MQTT broker in Rotterdam. Because the alarm logic of a container depends on the order of its events (for example, a door-open event followed by a temperature rise), a single consumer process handles all events one at a time. During peak hours its backlog reaches three hours.
+
+        **Warehouse management system**
+
+        The WMS runs on Linux virtual machines with a 2-TB MySQL 8.0 database. A test showed that exporting the database with `mysqldump` and importing it into a new server takes 9 hours.
+
+        **Partner integration**
+
+        About 450 freight forwarders and customs brokers exchange EDI files with Tidemark over SFTP. A few large partners call a SOAP service with a shared password. Tidemark has no record of which partner calls what, or how often.
+
+        **Port terminal offices**
+
+        The 38 port terminal offices are connected to each other and to Rotterdam by an MPLS network whose contract ends in 8 months. Each office has two internet links and a firewall that supports IPsec and BGP. Offices exchange stowage plans and yard data with each other, often between Europe and Asia.
+
+        **Shipment documents**
+
+        Port teams create their own Google Cloud projects and store bills of lading and customs declarations in Cloud Storage buckets. Some buckets use object ACLs. Last month, a port team granted the `allUsers` principal access to a bucket to share documents with a trucking company.
+  - key: business
+    title: { en: "Business requirements" }
+    body:
+      en: |
+        - Raise alarms on refrigerated containers within one minute of the event, even during peak hours.
+        - Launch a partner API program: partners register and get their keys without contacting Tidemark, a Basic tier and a Premium tier have different call quotas, Premium partners are billed per call, and Tidemark sees the usage of each partner.
+        - Stop the MPLS contract when it ends, without degrading the communication between port offices in Europe and Asia.
+        - Never expose a shipment document publicly.
+        - Limit the downtime of the WMS migration to the 30-minute maintenance window on a Sunday night.
+  - key: technical
+    title: { en: "Technical requirements" }
+    body:
+      en: |
+        - Process the events of each container in the order in which they were published, while the events of different containers are processed in parallel by many workers. The platform must scale to 30,000 events per second.
+        - The tracker gateway publishes events from `europe-west4`.
+        - Expose the booking and tracking APIs to partners through a managed API platform.
+        - Port offices must reach each other and the VPC networks over encrypted, highly available connections, and traffic between offices must cross Google's network rather than the public internet between continents. Tidemark does not want to deploy or operate network virtual appliances in Google Cloud.
+        - No Cloud Storage data in any project of the organization, including future projects, can be made public. Every bucket created from now on must control access with IAM only; the platform team will convert the existing buckets.
+        - The WMS database must run on Cloud SQL for MySQL.
+  - key: executive
+    title: { en: "Executive statement" }
+    body:
+      en: |
+        "Our customers want to know where their cargo is, right now, and our partners want to plug into our systems without phone calls and spreadsheets. We will turn our tracking data into a product, retire infrastructure that slows us down, and make sure that no customs document of ours ever ends up on the internet again." — Chief Operating Officer, Tidemark Logistics

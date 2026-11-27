@@ -1,0 +1,314 @@
+chapter: 22-gke-serverless
+questions:
+  # ------------------------------------------------------------------ 1
+  - id: gcpace-qz-22-01
+    objective: "2.1.8"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        An administrator has installed kubectl and the gke-gcloud-auth-plugin on a workstation. The administrator then runs `gcloud container clusters get-credentials shop-prod --location=europe-west1`.
+
+        What does this command do?
+    body:
+      options:
+        - { id: a, text: { en: "It downloads a key for the cluster's service account and saves it as the default gcloud credential." } }
+        - { id: b, text: { en: "It sets the cluster's project as the default gcloud project, so kubectl targets that project's clusters." } }
+        - { id: c, text: { en: "It adds an entry for the cluster to the kubeconfig file and makes the cluster the current kubectl context." } }
+        - { id: d, text: { en: "It installs the kubectl version that matches the cluster and registers the cluster in the gcloud configuration." } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          `get-credentials` writes the cluster's endpoint and authentication details to the kubeconfig file, `$HOME/.kube/config` by default, and switches the current kubectl context to that cluster. The caller needs the `container.clusters.get` permission; what kubectl can then do inside the cluster depends on IAM and Kubernetes RBAC.
+      options:
+        a: { en: "The command creates no service account key: kubectl authenticates through the gke-gcloud-auth-plugin with the user's own gcloud credentials." }
+        b: { en: "The command doesn't change the gcloud default project, and the kubectl context is independent of the gcloud project setting." }
+        d: { en: "kubectl must already be installed, with `gcloud components install kubectl` or a package; get-credentials only writes the kubeconfig entry." }
+    references:
+      - title: Install kubectl and configure cluster access
+        url: https://docs.cloud.google.com/kubernetes-engine/docs/how-to/cluster-access-for-kubectl
+
+  # ------------------------------------------------------------------ 2
+  - id: gcpace-qz-22-02
+    objective: "2.1.9"
+    difficulty: 1
+    status: draft
+    type: single
+    stem:
+      en: |
+        A GKE Standard cluster was created with `--zone=europe-west1-b` and `--node-locations=europe-west1-b,europe-west1-c`. An outage now affects the zone europe-west1-b, where the cluster's control plane runs.
+
+        What is the effect on the workloads that run on the nodes in europe-west1-c?
+    body:
+      options:
+        - { id: a, text: { en: "They keep running, but the cluster, its nodes and its workloads can't be changed until the control plane is back." } }
+        - { id: b, text: { en: "They keep running, and GKE starts a new control plane replica in europe-west1-c within a few minutes." } }
+        - { id: c, text: { en: "They stop, because the nodes in europe-west1-c can't run Pods without a reachable control plane." } }
+        - { id: d, text: { en: "They keep running, and kubectl changes are queued and applied when the control plane zone recovers." } }
+    answer: { optionId: a }
+    explanation:
+      correct:
+        en: |
+          A zonal cluster, even with nodes in several zones, has a single control plane in one zone. Workloads keep running during an outage of that zone, but the cluster, its nodes and its workloads can't be configured until the control plane is available again. Only a regional cluster replicates the control plane across zones.
+      options:
+        b: { en: "A zonal control plane is not replicated and doesn't fail over to another zone; that behavior needs a regional cluster." }
+        c: { en: "Running Pods on healthy nodes don't depend on the control plane being reachable; only changes and scheduling decisions do." }
+        d: { en: "kubectl talks to the control plane API directly: when the API is unavailable, requests fail and nothing is queued for later." }
+    references:
+      - title: About cluster configuration choices
+        url: https://docs.cloud.google.com/kubernetes-engine/docs/concepts/configuration-overview
+
+  # ------------------------------------------------------------------ 3
+  - id: gcpace-qz-22-03
+    objective: "2.1.10"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        A game studio runs its multiplayer game servers as a Deployment in GKE. The servers listen on UDP port 7777, and players connect from the internet. The studio needs one stable external IP address in front of the game server Pods.
+
+        Which Kubernetes object should you create?
+    body:
+      options:
+        - { id: a, text: { en: "An Ingress whose backend is a NodePort Service that exposes UDP port 7777 of the Pods" } }
+        - { id: b, text: { en: "A Service of type LoadBalancer that selects the game server Pods on UDP port 7777" } }
+        - { id: c, text: { en: "A Service of type ClusterIP that selects the game server Pods on UDP port 7777" } }
+        - { id: d, text: { en: "A headless Service that publishes the IP addresses of the Pods on UDP port 7777" } }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          A Service of type LoadBalancer makes GKE create a regional external passthrough Network Load Balancer with a stable external IP address. A passthrough load balancer forwards the packets of the Service's protocol and ports, UDP included, to the selected Pods.
+      options:
+        a: { en: "GKE Ingress creates an Application Load Balancer that only exposes HTTP ports 80 and 443; it can't carry UDP game traffic." }
+        c: { en: "A ClusterIP Service gets an internal cluster IP that is reachable only from inside the cluster, not from the internet." }
+        d: { en: "A headless Service has no virtual IP at all: it only returns Pod IP addresses through cluster DNS, which players on the internet can't use." }
+    references:
+      - title: About LoadBalancer Services
+        url: https://docs.cloud.google.com/kubernetes-engine/docs/concepts/service-load-balancer
+      - title: GKE Ingress for Application Load Balancers
+        url: https://docs.cloud.google.com/kubernetes-engine/docs/concepts/ingress
+
+  # ------------------------------------------------------------------ 4
+  - id: gcpace-qz-22-04
+    objective: "2.1.11"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        A developer wrote a Node.js function in the current directory. The source exports a single handler named resizeImage and contains no Dockerfile and no web server code. It must be deployed as a new Cloud Run function named resize in europe-west1 with the Node.js 24 runtime.
+
+        Which command should the developer run?
+    body:
+      options:
+        - { id: a, text: "`gcloud run deploy resize --source=. --command=resizeImage --base-image=nodejs24 --region=europe-west1`" }
+        - { id: b, text: "`gcloud run deploy resize --image=resizeImage --base-image=nodejs24 --region=europe-west1`" }
+        - { id: c, text: "`gcloud run deploy resize --source=. --base-image=nodejs24 --region=europe-west1`" }
+        - { id: d, text: "`gcloud run deploy resize --source=. --function=resizeImage --base-image=nodejs24 --region=europe-west1`" }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          Cloud Run functions are deployed with `gcloud run deploy` from source: `--function` marks the deployment as a function and names its entry point, and `--base-image` selects the language runtime, here `nodejs24`. Cloud Build builds the container, so no Dockerfile is needed.
+      options:
+        a: { en: "`--command` overrides the container's entrypoint executable; it doesn't name a function handler, so the container wouldn't start the function." }
+        b: { en: "`--image` expects the path of an existing container image, such as an Artifact Registry path, not the name of a function in the source code." }
+        c: { en: "Without `--function`, the source is deployed as a regular service that must start its own web server on `$PORT`, which this code doesn't do." }
+    references:
+      - title: Deploy a Cloud Run function
+        url: https://docs.cloud.google.com/run/docs/deploy-functions
+
+  # ------------------------------------------------------------------ 5
+  - id: gcpace-qz-22-05
+    objective: "2.1.12"
+    difficulty: 2
+    status: draft
+    type: single
+    stem:
+      en: |
+        A design agency serves an image-generation model that needs a GPU to answer requests. Requests arrive a few times a day, often with several hours without any traffic. The agency wants the least operational effort and doesn't want to pay for GPUs while no request is being served.
+
+        What should you do?
+    body:
+      options:
+        - { id: a, text: { en: "Run the model on a Compute Engine g2-standard-8 VM with one L4 GPU, and stop the VM during weekends." } }
+        - { id: b, text: { en: "Create a GKE Standard node pool with one g2-standard-8 node, and deploy the model on it as a Deployment." } }
+        - { id: c, text: { en: "Deploy the model as a Cloud Run service with one NVIDIA L4 GPU per instance and no minimum instances." } }
+        - { id: d, text: { en: "Create a TPU VM with a v5e slice, and serve the model from it with a startup script that loads the model." } }
+    answer: { optionId: c }
+    explanation:
+      correct:
+        en: |
+          Cloud Run services can use a GPU per instance, such as an NVIDIA L4, with no infrastructure to manage. GPU services can scale down to zero when they receive no requests, so with no minimum instances the agency pays for GPU time only while instances are running.
+      options:
+        a: { en: "The VM and its GPU are billed for every hour it runs on weekdays, including the idle hours, and the agency must operate the VM itself." }
+        b: { en: "The GPU node is billed while it runs, even without requests, and the agency must manage the node pool and its drivers." }
+        d: { en: "A TPU VM is billed for as long as it exists, whether or not it serves requests, and the agency must manage the VM and its software." }
+    references:
+      - title: Configure GPU for Cloud Run services
+        url: https://docs.cloud.google.com/run/docs/configuring/services/gpu
+
+  # ------------------------------------------------------------------ 6
+  - id: gcpace-qz-22-06
+    objective: "2.1.11"
+    difficulty: 3
+    status: draft
+    type: single
+    stem:
+      en: |
+        The Eventarc trigger invoices-uploaded in europe-west1 routes `google.cloud.storage.object.v1.finalized` events from the bucket example-invoices to the Cloud Run service indexer. The bucket is in europe-west1, and Object Versioning is disabled on it. The indexer must now also run each time an invoice is deleted from the bucket, and every upload must keep invoking it.
+
+        What should you do?
+    body:
+      options:
+        - { id: a, text: { en: "Update invoices-uploaded with `gcloud eventarc triggers update` and set its type filter to `google.cloud.storage.object.v1.deleted`." } }
+        - { id: b, text: { en: "Create a second trigger for the same bucket and service that filters on the type `google.cloud.storage.object.v1.archived`." } }
+        - { id: c, text: { en: "Delete invoices-uploaded, then create a trigger for the same bucket and service with the type `google.cloud.storage.object.v1.deleted`." } }
+        - { id: d, text: { en: "Create a second trigger for the same bucket and service that filters on the type `google.cloud.storage.object.v1.deleted`." } }
+    answer: { optionId: d }
+    explanation:
+      correct:
+        en: |
+          A trigger routes one event type, and that type can't be changed after the trigger is created. Adding a second trigger for the deleted event type, with the same bucket and destination, makes deletions invoke the indexer while the existing trigger keeps delivering upload events.
+      options:
+        a: { en: "The event type filter of an existing trigger can't be changed, and even if it could, uploads would stop invoking the indexer." }
+        b: { en: "The archived event is sent only when a live object becomes noncurrent in a bucket with Object Versioning enabled, which isn't the case here." }
+        c: { en: "Replacing the trigger makes deletions invoke the indexer, but uploads would no longer reach it, which breaks the second requirement." }
+    references:
+      - title: Route Cloud Storage events to Cloud Run
+        url: https://docs.cloud.google.com/eventarc/standard/docs/run/route-trigger-cloud-storage
+
+  # ------------------------------------------------------------------ 7
+  - id: gcpace-qz-22-07
+    objective: "2.1.9"
+    difficulty: 3
+    status: draft
+    type: single
+    stem:
+      en: |
+        A logistics company is creating the GKE Standard cluster routes in europe-west1. The control plane must stay available if one zone of the region fails. Because of the company's capacity reservations, nodes may run only in europe-west1-b and europe-west1-c, and the cluster must start with exactly four nodes in total.
+
+        Which command should you run?
+    body:
+      options:
+        - { id: a, text: "`gcloud container clusters create routes --location=europe-west1 --node-locations=europe-west1-b,europe-west1-c --num-nodes=4`" }
+        - { id: b, text: "`gcloud container clusters create routes --location=europe-west1 --node-locations=europe-west1-b,europe-west1-c --num-nodes=2`" }
+        - { id: c, text: "`gcloud container clusters create routes --location=europe-west1-b --node-locations=europe-west1-b,europe-west1-c --num-nodes=2`" }
+        - { id: d, text: "`gcloud container clusters create routes --location=europe-west1 --num-nodes=2`" }
+    answer: { optionId: b }
+    explanation:
+      correct:
+        en: |
+          A region as `--location` creates a regional cluster, whose control plane is replicated across zones. `--node-locations` limits the nodes to the two listed zones, and `--num-nodes` counts nodes per zone, so 2 nodes in each of the 2 zones gives the required 4 nodes.
+      options:
+        a: { en: "`--num-nodes` is per zone: 4 nodes in each of the two zones would start the cluster with 8 nodes, not 4." }
+        c: { en: "A zone as `--location` creates a zonal cluster with a single control plane in europe-west1-b, even though the nodes span two zones." }
+        d: { en: "Without `--node-locations`, a regional cluster spreads its nodes across three zones of the region: 6 nodes, some outside the allowed zones." }
+    references:
+      - title: gcloud container clusters create
+        url: https://docs.cloud.google.com/sdk/gcloud/reference/container/clusters/create
+      - title: About cluster configuration choices
+        url: https://docs.cloud.google.com/kubernetes-engine/docs/concepts/configuration-overview
+
+  # ------------------------------------------------------------------ 8
+  - id: gcpace-qz-22-08
+    objective: "2.1.10"
+    difficulty: 3
+    status: draft
+    type: single
+    stem:
+      en: |
+        A team built version 1.0 of its image with `gcloud builds submit --tag=europe-west1-docker.pkg.dev/example-prod/apps/shop:1.0`. It then created a Deployment in a GKE cluster of the same project with `kubectl create deployment shop --image=europe-west1-docker.pkg.dev/example-prod/shop:1.0 --replicas=3`. The Pods stay in ImagePullBackOff, and their events report that the image was not found. The node service account already has the Artifact Registry Reader role on the repository apps.
+
+        What should you do?
+    body:
+      options:
+        - { id: a, text: "`kubectl set image deployment/shop shop=europe-west1-docker.pkg.dev/example-prod/apps/shop:1.0`" }
+        - { id: b, text: "`kubectl set image deployment/shop shop=gcr.io/example-prod/shop:1.0`" }
+        - { id: c, text: "`gcloud artifacts repositories add-iam-policy-binding apps --location=europe-west1 --member=serviceAccount:NODE_SA --role=roles/artifactregistry.reader`" }
+        - { id: d, text: "`kubectl rollout restart deployment/shop`" }
+    answer: { optionId: a }
+    explanation:
+      correct:
+        en: |
+          An Artifact Registry Docker image path has the form `LOCATION-docker.pkg.dev/PROJECT-ID/REPOSITORY/IMAGE:TAG`. The Deployment's path lacks the repository segment `apps`, so the image is not found. Setting the container image to the path that Cloud Build pushed lets the Pods pull it.
+      options:
+        b: { en: "Container Registry (gcr.io) is shut down, and the image was pushed to Artifact Registry, not to a gcr.io path." }
+        c: { en: "A missing role produces a 403 Forbidden error; the error here is not found, and the node service account already has the role." }
+        d: { en: "A restart recreates the Pods from the same Pod template, so they try the same wrong image path again." }
+    references:
+      - title: Push and pull images
+        url: https://docs.cloud.google.com/artifact-registry/docs/docker/pushing-and-pulling
+      - title: Troubleshoot image pulls
+        url: https://docs.cloud.google.com/kubernetes-engine/docs/troubleshooting/image-pulls
+
+  # ------------------------------------------------------------------ 9
+  - id: gcpace-qz-22-09
+    objective: "2.1.11"
+    difficulty: 3
+    status: draft
+    type: multi
+    stem:
+      en: |
+        A media company stores uploads in the bucket example-uploads, located in the EU multi-region. The Cloud Run service transcode runs in europe-west1 and was deployed with `--no-allow-unauthenticated`. The Cloud Storage service agent already has the Pub/Sub Publisher role, and the trigger service account trigger-sa has the Eventarc Event Receiver role. Creating a trigger with `--location=europe-west1`, `--destination-run-region=europe-west1`, the finalized event type, the bucket filter and `--service-account` set to trigger-sa fails with an error about the bucket's location.
+
+        Which two actions should you take so that each upload invokes transcode? Choose two.
+    body:
+      choose: 2
+      options:
+        - { id: a, text: { en: "Create the trigger with `--location=eu`, and keep `--destination-run-region=europe-west1`." } }
+        - { id: b, text: { en: "Create the trigger with `--location=europe-west1`, and set `--destination-run-region=eu`." } }
+        - { id: c, text: { en: "Redeploy the transcode service to the eu location so that it matches the bucket location." } }
+        - { id: d, text: { en: "Grant trigger-sa the Pub/Sub Publisher role on the project in addition to its current role." } }
+        - { id: e, text: { en: "Grant trigger-sa the Cloud Run Invoker role on the transcode service in europe-west1." } }
+    answer: { optionIds: [a, e] }
+    explanation:
+      correct:
+        en: |
+          A Cloud Storage trigger must be in the same project and the same region or multi-region as the bucket, so a bucket in the EU multi-region needs a trigger in the `eu` location. The Cloud Run destination doesn't have to be in the trigger's location. Because the service requires authentication, the trigger's service account also needs the Cloud Run Invoker role on it.
+      options:
+        b: { en: "The trigger location, not the destination region, must match the bucket; the trigger would still be in europe-west1 and fail the same way." }
+        c: { en: "Cloud Run services are deployed to regions, and the destination service doesn't need to share the trigger's location." }
+        d: { en: "Pub/Sub Publisher is needed by the Cloud Storage service agent, which already has it; it doesn't let trigger-sa invoke the service." }
+    references:
+      - title: Route Cloud Storage events to Cloud Run
+        url: https://docs.cloud.google.com/eventarc/standard/docs/run/route-trigger-cloud-storage
+      - title: Eventarc locations
+        url: https://docs.cloud.google.com/eventarc/docs/locations
+
+  # ------------------------------------------------------------------ 10
+  - id: gcpace-qz-22-10
+    objective: "2.1.9"
+    difficulty: 3
+    status: draft
+    type: multi
+    stem:
+      en: |
+        The VPC-native GKE Standard cluster catalog in europe-west1 has two node pools, default-pool and batch-pool, whose nodes have external IP addresses. A new security rule requires that no node of the cluster has an external IP address, including nodes of node pools created later, without recreating the cluster. Workloads must keep pulling public images from Docker Hub, and administrators keep using the external control plane endpoint.
+
+        Which three actions should you take? Choose three.
+    body:
+      choose: 3
+      options:
+        - { id: a, text: { en: "Run `gcloud container clusters update catalog --location=europe-west1 --enable-private-nodes`." } }
+        - { id: b, text: { en: "Run `gcloud container clusters update catalog --location=europe-west1 --enable-private-endpoint`." } }
+        - { id: c, text: { en: "Run `gcloud compute instances delete-access-config` on each node VM of the two node pools." } }
+        - { id: d, text: { en: "Run `gcloud container node-pools update` with `--enable-private-nodes` for each of the two node pools." } }
+        - { id: e, text: { en: "Enable Private Google Access on the cluster's subnet so that the nodes can reach Docker Hub." } }
+        - { id: f, text: { en: "Create a Cloud Router and a Cloud NAT gateway for the cluster's subnet in europe-west1." } }
+    answer: { optionIds: [a, d, f] }
+    explanation:
+      correct:
+        en: |
+          On a Standard cluster, `clusters update --enable-private-nodes` makes private nodes the default for node pools created later, but GKE doesn't apply it to existing node pools: each one must be updated with `node-pools update --enable-private-nodes`. Nodes without external IP addresses then need Cloud NAT for outbound connections to the internet, such as image pulls from Docker Hub.
+      options:
+        b: { en: "A private endpoint disables the external IP-based control plane endpoint that the administrators use, and it doesn't change the nodes' IP addresses." }
+        c: { en: "GKE manages the node VMs from the node pool configuration, which still requests external IPs, so recreated, repaired or added nodes get them again." }
+        e: { en: "Private Google Access only lets nodes without external IPs reach Google APIs and services; it gives no path to Docker Hub on the internet." }
+    references:
+      - title: Customize your network isolation in GKE
+        url: https://docs.cloud.google.com/kubernetes-engine/docs/how-to/change-cluster-isolation

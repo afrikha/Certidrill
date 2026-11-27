@@ -1,0 +1,17 @@
+# K-gcp-pca-cs7 — report
+
+1. 3 original case studies: gcppca-cs7a-sablepoint-payments (fintech payments startup), gcppca-cs7b-veldhaven-genomics (genomics research institute), gcppca-cs7c-corrin-bay-transit (municipal smart-city transit authority).
+2. 16 questions (5 + 5 + 6): single=13, multi=3; difficulty 3 easy / 8 medium / 5 hard.
+3. Domains: design 5, provisioning 3, security 2, processes 5 (4.1.2, 4.1.3, 4.2.2, 4.2.3, 4.2.6), operations 1; each case covers 3 or 4 domains.
+4. Facts checked on docs.cloud.google.com (2026-11-27); every reference is a page that was fetched. No Preview feature is a correct answer.
+5. `CERT=gcp-pca npx tsx factory/validate.ts --prefix gcppca-cs7` → 19 files, 0 problem(s); `npm run content:validate -- --cert gcp-pca --prefix gcppca-cs7` → 0 problem(s), 0 warning(s).
+
+## Notes and doubts
+
+- Overlap avoided with existing case questions (cs1–cs3): no Spanner, Pub/Sub ordering, Apigee, VPC Service Controls, Workload Identity Federation, Spot-only or storage-class decision. New decisions tested: frontend mTLS on the global external Application Load Balancer (REJECT_INVALID vs ALLOW_INVALID_OR_MISSING_CLIENT_CERT) with Certificate Authority Service, Private Service Connect for CDE segmentation, Artifact Registry immutable tags + Cloud Deploy approval and rollback, GKE Autopilot for a small team, Datastream to BigQuery, Batch with the Nextflow google-batch executor, BigQuery sharing with data egress restrictions, budgets with Pub/Sub control vs spend caps vs disabling billing, EUR4 + turbo replication + 30-day soft delete, digest-pinned pipeline validation, ARIMA_PLUS, partition expiration on a column-partitioned table, a project-level public access prevention exception, Cloud Storage built-in cache staleness, IAP with device access levels. Some exist as standalone questions in other prefixes, in other scenarios.
+- gcppca-cs7c-fare-retention reuses the "late-arriving rows vs ingestion-time partitioning" idea of gcppca-cs1c-readings-table-cost, but for a different decision (retention by partition expiration, not query pruning).
+- Cloud Life Sciences end date (after July 8, 2025, replaced by Batch) was read on a Google-hosted copy of the Life Sciences docs (cloud-dot-devsite-v2-prod.appspot.com); docs.cloud.google.com returned an error for the deprecation and migration pages. It is used only in a distractor explanation and is not cited as a reference.
+- Spend cap budgets (Manage spend cap budgets page) currently cover Gemini API, Gemini Enterprise Agent Platform, Cloud Run and Cloud Run functions, one project and one service per budget; the page states no launch stage. Used as a distractor only (Batch runs on Compute Engine).
+- Frontend mTLS: the Mutual TLS overview page states no launch stage and says the load balancer does not check certificate revocation, so the case does not require revocation. Certificate Authority Service and the mTLS page do not link each other; the private CA + trust config combination follows the mTLS page's private-CA guidance.
+- Public access prevention: the docs describe the lookup order (bucket inherited → project → folder → organization, first explicit value wins); the case makes the feed bucket the only resource of its project so that "smallest scope" is unambiguous (tag-based conditional org policies not considered).
+- Partition expiration: BigQuery marks expired partitions for deletion and deletes them asynchronously (can take several days); the case asks for automatic deletion 90 days after the trip, without a stricter deadline.

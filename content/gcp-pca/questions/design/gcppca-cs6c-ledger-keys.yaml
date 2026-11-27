@@ -1,0 +1,32 @@
+id: gcppca-cs6c-ledger-keys
+objective: "1.2.4"
+type: single
+caseStudy: gcppca-cs6c-aldermoor-horizon
+difficulty: 3
+status: draft
+stem:
+  en: |
+    You are designing the `Transactions` table of the new ledger in Spanner. The design must meet the technical requirements for the ledger and for the member app.
+
+    Which primary key should you recommend?
+body:
+  options:
+    - { id: a, text: { en: "(`TransactionId`), with the values of the Db2 sequence, and a secondary index on (`MemberKey`, `PostedAt` DESC) for the member app." } }
+    - { id: b, text: { en: "(`PostedAt` DESC, `MemberKey`), so that the most recent transactions of all members are stored first and read without an index." } }
+    - { id: c, text: { en: "(`MemberKey`, `PostedAt` DESC, `TransactionId`), with the `Transactions` table interleaved in the `Members` table." } }
+    - { id: d, text: { en: "(`TransactionUuid`), a random version 4 UUID, and a non-interleaved secondary index on `PostedAt` for the member app." } }
+answer: { optionId: c }
+explanation:
+  correct:
+    en: |
+      The member key is a random UUID, so a primary key that starts with it spreads the writes of partner batches across the key space instead of sending them to one split. Interleaving stores each member's transactions next to the member's row, sorted latest first, so the app reads a member's history with one range scan and the balance update and the new transaction stay together in the same database transaction.
+  options:
+    a:
+      en: A key that increases with every transaction sends all inserts to the end of the table, on one server, which creates a hotspot during the 6,000-per-second peaks.
+    b:
+      en: A timestamp as the first key part concentrates the inserts in one place; reversing the sort order does not remove the hotspot.
+    d:
+      en: The UUID spreads the table's writes, but a non-interleaved index on a timestamp has the same hotspot as a timestamp key, and it does not give the per-member history the app needs.
+references:
+  - title: Schema design best practices
+    url: https://docs.cloud.google.com/spanner/docs/schema-design

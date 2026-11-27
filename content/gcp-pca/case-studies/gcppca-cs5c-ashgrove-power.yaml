@@ -1,0 +1,66 @@
+id: gcppca-cs5c-ashgrove-power
+status: draft
+title:
+  en: Ashgrove Power & Light
+tabs:
+  - key: overview
+    title: { en: "Company overview" }
+    body:
+      en: |
+        Ashgrove Power & Light is a regulated electric utility that serves 4.5 million homes and businesses in three US states. It has 9,500 employees and operates 62,000 miles of distribution lines. Every customer has a smart meter that records consumption in 15-minute intervals.
+
+        State regulators review Ashgrove's spending and its service quality every year, including how it informs customers during power outages.
+  - key: solution
+    title: { en: "Solution concept" }
+    body:
+      en: |
+        Ashgrove runs its meter data platform and its customer-facing services on Google Cloud in `us-central1`:
+
+        - Meter readings flow from the on-premises head-end system to BigQuery through a streaming pipeline.
+        - The meter data team will move its validation, estimation and editing (VEE) rules from an on-premises server to BigQuery.
+        - A public outage map shows customers the areas without power and the estimated restoration times.
+        - GridShift, a demand-response partner, runs its software in an Ashgrove project to compute how much consumption customers can shift.
+  - key: existing
+    title: { en: "Existing technical environment" }
+    body:
+      en: |
+        **Meter readings**
+
+        The head-end system publishes the readings to a Pub/Sub topic. Meters report every 30 minutes, at the top and the bottom of each hour, so each half hour starts with a burst of about 4.5 million messages that the subscription backlog absorbs within 10 minutes. A Dataflow streaming job reads the subscription and writes the readings to the `readings` dataset in BigQuery. The job autoscales during each burst.
+
+        **Readings dataset**
+
+        The `readings` dataset uses the logical storage billing model. Its tables are partitioned by reading date and are append-only, and most partitions are already billed at the long-term storage rate. INFORMATION_SCHEMA shows 1.4 PB of logical bytes and 160 TB of physical bytes, and the dataset grows by 25 TB of logical bytes per month. Ashgrove uses BigQuery Enterprise edition reservations for its queries.
+
+        **VEE rules**
+
+        About 180 SQL scripts check, estimate and correct the readings before billing. Many scripts use the output of other scripts. Today a cron job on an on-premises server runs them in a fixed order every 30 minutes; when one script fails, the following ones run on incomplete data. The scripts are not under version control.
+
+        **Outage map**
+
+        The outage map is a web page served by a Cloud Run service behind a global external Application Load Balancer. Each page view calls the outage management system (OMS) API. During last winter's ice storm, traffic grew 80 times, the OMS API became overloaded, and the map returned errors for 40 minutes.
+
+        **GridShift**
+
+        GridShift's proprietary software runs on Compute Engine VMs in a dedicated project and reads 15-minute consumption data. GridShift cannot change its software.
+  - key: business
+    title: { en: "Business requirements" }
+    body:
+      en: |
+        - Keep the outage map available during storms, even when the OMS API fails for up to 30 minutes. In normal operation, the map must not show data older than one minute.
+        - Reduce the storage cost of the readings dataset. The regulator requires seven years of readings to stay queryable by analysts and auditors with their current queries.
+        - Bill customers from validated readings only.
+        - Under the state's privacy rules, customer consumption data processed by third-party software must be protected while in use, including in memory.
+  - key: technical
+    title: { en: "Technical requirements" }
+    body:
+      en: |
+        - Do not change the OMS API.
+        - The VEE rules must stay in SQL, run every 30 minutes in dependency order, stop downstream steps when a data quality check fails, and be version-controlled in Ashgrove's GitHub organization. The meter data team knows SQL only and wants no servers or clusters to manage.
+        - Alert the on-call team when readings wait more than 20 minutes in the streaming pipeline, without alerting on the normal half-hourly bursts.
+        - Apply the in-use protection to GridShift's VMs without changes to GridShift's software.
+  - key: executive
+    title: { en: "Executive statement" }
+    body:
+      en: |
+        "When the lights go out, our customers judge us by what they see on their phones, and our regulator judges us by every dollar we spend. I want an outage map that stays up in the worst storm, a meter data platform that costs less each year as it grows, and bills built only on readings we have checked." — President and Chief Executive Officer, Ashgrove Power & Light
