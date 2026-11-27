@@ -190,13 +190,23 @@ export function checkQuizFile(raw: unknown, file: string, ctx: QuizContext, bank
     questions.push({ ...q, position });
   });
   for (const o of objectives) if (!tested.has(o)) problems.push(`objective ${o} of the chapter is not tested`);
-  const hard = `positions ${QUIZ_RULES.easy + 1}-${QUIZ_RULES.length}`;
-  const only = ctx.examFormats?.length === 1 ? ctx.examFormats[0] : undefined;
-  if (list.length > QUIZ_RULES.easy && only !== undefined) {
-    if (hardOthers < 2) problems.push(`${hard} need at least two ${only} questions (the only exam format other than single; have ${hardOthers})`);
-  } else if (list.length > QUIZ_RULES.easy && hardFormats.size < 2)
-    problems.push(`${hard} need at least two formats other than single (have: ${[...hardFormats].join(", ") || "none"})`);
+  if (list.length > QUIZ_RULES.easy) {
+    const problem = hardFormatProblem(hardFormats, hardOthers, ctx.examFormats);
+    if (problem) problems.push(problem);
+  }
   return { quiz: problems.length === 0 ? { chapter: name, file, questions } : null, problems, warnings };
+}
+
+/**
+ * Positions 6-10: two formats other than single, or, when the exam offers only
+ * one such format, two questions of it (docs/SPECS-QUIZ-CHAPITRE.md §4.3).
+ */
+function hardFormatProblem(formats: ReadonlySet<string>, others: number, examFormats?: readonly string[]): string | undefined {
+  const hard = `positions ${QUIZ_RULES.easy + 1}-${QUIZ_RULES.length}`;
+  if (examFormats?.length === 1) {
+    return others < 2 ? `${hard} need at least two ${examFormats[0]} questions (the only exam format other than single; have ${others})` : undefined;
+  }
+  return formats.size < 2 ? `${hard} need at least two formats other than single (have: ${[...formats].join(", ") || "none"})` : undefined;
 }
 
 /** The chapters of a loaded course, as the quizzes see them. */

@@ -201,7 +201,8 @@ export function ExamClient({ initial, resumed }: Readonly<{ initial: AttemptView
   const unansweredIn = (items: Item[]) => items.filter((i) => !isAnswered(responses[i.id])).length;
   const showReview = mode === "review" && section.kind === "main";
   // The case study beside its questions: the section's, or that of an interleaved question (Google Cloud).
-  const caseStudy = section.kind === "case_study" ? section.caseStudy : current?.caseStudyId ? view.caseStudies[current.caseStudyId] : undefined;
+  const interleavedCase = current?.caseStudyId ? view.caseStudies[current.caseStudyId] : undefined;
+  const caseStudy = section.kind === "case_study" ? section.caseStudy : interleavedCase;
 
   return (
     <div className="flex min-h-screen flex-col">

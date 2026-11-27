@@ -64,7 +64,7 @@ describe("a gcp-pca mock exam: interleaved case studies", () => {
       const row = await db.caseStudy.findUniqueOrThrow({ where: { id } });
       // English only: the French reader gets the English case study.
       expect(cs.titleHtml).toContain((row.title as { en: string }).en.slice(0, 10));
-      expect(cs.tabs.length).toBe((row.tabs as unknown[]).length);
+      expect(cs.tabs).toHaveLength((row.tabs as unknown[]).length);
       expect(cs.tabs.every((t) => t.html.length > 0)).toBe(true);
     }
     // Interleaved: an independent question between the first and the last case-study question.
