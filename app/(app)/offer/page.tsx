@@ -10,6 +10,7 @@ import { taxLabelKey } from "@/lib/billing/terms";
 import { Card } from "@/components/ui/card";
 import { buttonClasses } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { formatArg } from "@/components/performance";
 import { hasVisibleCourse } from "@/lib/course/read";
 
 export const metadata = { title: "Full access" };
@@ -36,7 +37,7 @@ export default async function OfferPage({ searchParams }: Readonly<{ searchParam
   const format = await getFormatter();
   const [offers, certification, course] = await Promise.all([
     getOffers(prisma),
-    code ? prisma.certification.findFirst({ where: { code, active: true }, select: { code: true, title: true } }) : null,
+    code ? prisma.certification.findFirst({ where: { code, active: true }, select: { code: true, title: true, format: true } }) : null,
     // The course is a benefit once readers have a chapter to open.
     hasVisibleCourse(prisma, { userId: user.id, isAdmin: false }),
   ]);
@@ -64,9 +65,9 @@ export default async function OfferPage({ searchParams }: Readonly<{ searchParam
   return (
     <div className="mx-auto max-w-3xl space-y-6" data-testid="offer" data-reason={reason}>
       <div>
-        <h1 className="text-2xl font-bold">{t(`title_${reason}`)}</h1>
+        <h1 className="text-2xl font-bold">{t(`title_${reason}`, { format: formatArg(certification?.format) })}</h1>
         <p className="mt-2 text-muted-foreground">
-          {t(`reason_${reason}`)}
+          {t(`reason_${reason}`, { format: formatArg(certification?.format) })}
           {certification && <> — <span className="font-mono uppercase">{certification.code}</span> {certification.title}</>}
         </p>
       </div>
@@ -75,7 +76,7 @@ export default async function OfferPage({ searchParams }: Readonly<{ searchParam
         <h2 className="mb-3 font-semibold">{t("fullTitle")}</h2>
         <ul className="grid gap-2 text-sm sm:grid-cols-2">
           {benefits.map((k) => (
-            <li key={k} className="flex gap-2"><span aria-hidden className="font-bold text-success">✓</span>{t(k)}</li>
+            <li key={k} className="flex gap-2"><span aria-hidden className="font-bold text-success">✓</span>{t(k, { format: formatArg(certification?.format) })}</li>
           ))}
         </ul>
       </Card>

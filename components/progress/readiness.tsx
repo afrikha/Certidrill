@@ -74,11 +74,13 @@ function CheckList({ checks, domainTitle, t }: Readonly<{ checks: readonly Readi
  * The central indicator of the dashboard: index, verdict, the rules for
  * "ready" and what the index is made of.
  */
-export function ReadinessCard({ readiness: r, bands, weights, domainTitles }: Readonly<{
+export function ReadinessCard({ readiness: r, bands, weights, domainTitles, format }: Readonly<{
   readiness: Readiness;
   bands: readonly number[];
   weights: Record<keyof Readiness["criteria"], number>;
   domainTitles: Readonly<Record<string, string>>;
+  /** certification.format: a performance-based exam is "readiness for commands and manifests" (docs/SPECS-KUBERNETES-PRATIQUE.md §5). */
+  format?: string;
 }>) {
   const t = useTranslations("readiness");
   const domainTitle = (code: string) => domainTitles[code] ?? code;
@@ -88,7 +90,7 @@ export function ReadinessCard({ readiness: r, bands, weights, domainTitles }: Re
   const criteria = Object.keys(r.criteria) as (keyof Readiness["criteria"])[];
   return (
     <section aria-labelledby="readiness-title" className={cn("rounded-lg border-2 bg-background p-6 shadow-sm", tone.border)} data-testid="readiness" data-verdict={r.verdict}>
-      <h2 id="readiness-title" className="font-semibold">{t("title")}</h2>
+      <h2 id="readiness-title" className="font-semibold">{t("title", { format: format === "performance" ? "performance" : "other" })}</h2>
       <div className="mt-4 grid items-center gap-6 md:grid-cols-[auto_1fr]">
         <div className="flex flex-col items-center">
           <ReadinessGauge index={r.index} verdict={r.verdict} marks={bands} />
@@ -132,7 +134,7 @@ export function ReadinessCard({ readiness: r, bands, weights, domainTitles }: Re
           </tbody>
         </table>
       </details>
-      <p className="mt-4 text-xs text-muted-foreground">{t("disclaimer")}</p>
+      <p className="mt-4 text-xs text-muted-foreground">{t("disclaimer", { format: format === "performance" ? "performance" : "other" })}</p>
     </section>
   );
 }

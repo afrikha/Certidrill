@@ -186,7 +186,7 @@ export interface AttemptView {
   status: "not_started" | "in_progress" | "submitted" | "expired";
   locale: Locale;
   /** languages: those of the official exam; without the attempt's locale, its content is in English (docs/SPECS-AWS.md §3.7). */
-  certification: { code: string; title: string; languages: string[] };
+  certification: { code: string; title: string; languages: string[]; format: string };
   durationMin: number;
   totalQuestions: number;
   /** Blueprint range, to tell the candidate when the bank is still too small. */
@@ -228,7 +228,7 @@ export async function getAttemptView(db: PrismaClient, { attemptId, userId, now 
     id: attempt.id,
     status,
     locale,
-    certification: { code: attempt.certification.code, title: attempt.certification.title, languages: attempt.certification.languages },
+    certification: { code: attempt.certification.code, title: attempt.certification.title, languages: attempt.certification.languages, format: attempt.certification.format },
     durationMin: attempt.blueprint.durationMin,
     totalQuestions: attempt.items.length,
     questionRange: { min: attempt.blueprint.minQuestions, max: attempt.blueprint.maxQuestions },

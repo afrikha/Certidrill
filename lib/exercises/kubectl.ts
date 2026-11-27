@@ -88,7 +88,8 @@ export class KubectlUnavailableError extends Error {
 /** The kubectl binary: KUBECTL_BIN, else /usr/local/bin/kubectl; null when absent. */
 export function kubectlBinary(): string | null {
   const bin = process.env.KUBECTL_BIN || "/usr/local/bin/kubectl";
-  return path.isAbsolute(bin) && existsSync(bin) ? bin : null;
+  // turbopackIgnore: a binary of the image, not a file of the project to trace into the build.
+  return path.isAbsolute(bin) && existsSync(/*turbopackIgnore: true*/ bin) ? bin : null;
 }
 
 export interface CommandFiles {
@@ -341,7 +342,7 @@ export async function runObjectCommand(
 
     const result = await new Promise<{ code: number | null; stdout: string; stderr: string; error?: string }>((resolve) => {
       const child = execFile(
-        bin,
+        /*turbopackIgnore: true*/ bin,
         argv,
         {
           cwd: work,

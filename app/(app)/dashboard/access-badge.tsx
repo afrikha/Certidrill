@@ -6,16 +6,19 @@ import { cn } from "@/lib/utils";
 const DAY_MS = 86_400_000;
 
 /** The access level on a certification: full (and until when), or free with the mock exams left. */
-export function AccessBadge({ access, certification, now = new Date() }: Readonly<{
+export function AccessBadge({ access, certification, now = new Date(), certificationFormat }: Readonly<{
   access: { level: AccessLevel; source: AccessSource; expiresAt: string | null; examsLeft: number | null };
   certification: string;
   now?: Date;
+  /** certification.format: practice series rather than mock exams (docs/SPECS-KUBERNETES-PRATIQUE.md §5). */
+  certificationFormat?: string;
 }>) {
   const t = useTranslations("access");
   const format = useFormatter();
   const full = access.level === "full";
+  const formatArg = certificationFormat === "performance" ? "performance" : "other";
   let text: string;
-  if (!full) text = access.examsLeft === null ? t("freeUnlimited") : t("free", { n: access.examsLeft });
+  if (!full) text = access.examsLeft === null ? t("freeUnlimited", { format: formatArg }) : t("free", { n: access.examsLeft, format: formatArg });
   else if (access.source === "pass" && access.expiresAt) {
     const end = new Date(access.expiresAt);
     text = t("pass", { days: Math.max(1, Math.ceil((end.getTime() - now.getTime()) / DAY_MS)), date: format.dateTime(end, { dateStyle: "long" }) });

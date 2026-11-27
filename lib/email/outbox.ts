@@ -150,7 +150,7 @@ async function compose(db: PrismaClient, row: EmailOutbox & { user: { email: str
 
   const certificationId = String(payload.certificationId);
   const expiresAt = new Date(String(payload.expiresAt));
-  const certification = await db.certification.findUnique({ where: { id: certificationId }, select: { code: true } });
+  const certification = await db.certification.findUnique({ where: { id: certificationId }, select: { code: true, format: true } });
   if (!certification || Number.isNaN(expiresAt.getTime())) return null;
   const access = await getAccess(db, row.userId, certificationId, now);
   const url = link("/pricing");
@@ -158,7 +158,7 @@ async function compose(db: PrismaClient, row: EmailOutbox & { user: { email: str
     // Still the Pass that ends on that date: not extended, revoked or ended.
     if (access.source !== "pass" || access.expiresAt?.getTime() !== expiresAt.getTime() || now >= expiresAt) return null;
     const days = Math.max(1, Math.ceil((expiresAt.getTime() - now.getTime()) / DAY_MS));
-    return { to, kind: row.kind, message: reminderMessage({ locale, certification: certification.code, expiresAt, days, url }), link: url };
+    return { to, kind: row.kind, message: reminderMessage({ locale, certification: certification.code, format: certification.format, expiresAt, days, url }), link: url };
   }
   // Expired: no access since (no new Pass), and the Pass ended on its own (not revoked).
   if (access.level === "full") return null;
@@ -180,7 +180,7 @@ async function composePurchase(db: PrismaClient, { to, locale, paymentId }: { to
       waiverAcceptedAt: true,
       waiverText: true,
       termsVersion: true,
-      certification: { select: { code: true } },
+      certification: { select: { code: true, format: true } },
       entitlement: { select: { expiresAt: true, revokedAt: true } },
     },
   });
@@ -194,7 +194,7 @@ async function composePurchase(db: PrismaClient, { to, locale, paymentId }: { to
     payment.waiverAcceptedAt && payment.waiverText && payment.termsVersion
       ? { acceptedAt: payment.waiverAcceptedAt, text: payment.waiverText, termsVersion: payment.termsVersion, termsUrl: link("/terms") }
       : null;
-  const message = purchaseMessage({ locale, certification: payment.certification.code, expiresAt: payment.entitlement.expiresAt, ...charged, url, waiver });
+  const message = purchaseMessage({ locale, certification: payment.certification.code, format: payment.certification.format, expiresAt: payment.entitlement.expiresAt, ...charged, url, waiver });
   return { to, kind: "purchase", message, link: url };
 }
 

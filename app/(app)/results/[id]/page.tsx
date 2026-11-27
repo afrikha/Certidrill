@@ -14,6 +14,7 @@ import { XpGainCard } from "@/components/progress/xp-gain";
 import { xpStart } from "@/lib/progress/celebration";
 import { chaptersForDomains } from "@/lib/course/read";
 import { vendorOf } from "@/lib/vendors";
+import { PerformanceNotice } from "@/components/performance";
 import { EnglishOnlyNotice } from "@/components/english-only";
 
 export const metadata = { title: "Results" };
@@ -50,6 +51,7 @@ export default async function ResultsPage({ params }: Readonly<{ params: Promise
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">{t("title")} — <span className="font-mono uppercase">{r.certification.code}</span></h1>
       <EnglishOnlyNotice languages={r.certification.languages} />
+      <PerformanceNotice format={r.certification.format} locale={r.locale} />
       <Card className="flex flex-wrap items-center gap-8">
         <div>
           <p className="text-sm text-muted-foreground">{t("score")}</p>
@@ -72,7 +74,7 @@ export default async function ResultsPage({ params }: Readonly<{ params: Promise
 
       {(change || progression) && (
         <Celebration id={r.id}>
-          {change && <ReadinessChange {...change} domainTitles={Object.fromEntries(r.domains.map((d) => [d.key, d.title]))} />}
+          {change && <ReadinessChange {...change} format={r.certification.format} domainTitles={Object.fromEntries(r.domains.map((d) => [d.key, d.title]))} />}
           {progression && <XpGainCard {...progression} delay={xpStart(change)} />}
         </Celebration>
       )}

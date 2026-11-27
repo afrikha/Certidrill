@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Label, Select } from "@/components/ui/input";
 import { Alert } from "@/components/ui/card";
 
-export function NewExamForm({ code, defaultLocale }: Readonly<{ code: string; defaultLocale: string }>) {
+/** `format`: certification.format, a performance-based exam starts a practice series (docs/SPECS-KUBERNETES-PRATIQUE.md §5). */
+export function NewExamForm({ code, defaultLocale, format = "multiple-choice" }: Readonly<{ code: string; defaultLocale: string; format?: string }>) {
   const t = useTranslations("dashboard");
   const [state, action, pending] = useActionState(startNewExam, undefined);
   return (
@@ -20,8 +21,8 @@ export function NewExamForm({ code, defaultLocale }: Readonly<{ code: string; de
           <option value="en">English</option>
         </Select>
       </div>
-      <Button type="submit" disabled={pending}>{t("newExam")}</Button>
-      {state?.error && <Alert tone="error" className="w-full" data-testid="new-exam-error">{t(state.error)}</Alert>}
+      <Button type="submit" disabled={pending}>{t("newExam", { format: format === "performance" ? "performance" : "other" })}</Button>
+      {state?.error && <Alert tone="error" className="w-full" data-testid="new-exam-error">{t(state.error, { format: format === "performance" ? "performance" : "other" })}</Alert>}
     </form>
   );
 }

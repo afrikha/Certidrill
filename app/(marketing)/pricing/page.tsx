@@ -82,7 +82,7 @@ export default async function PricingPage({ searchParams }: Readonly<{ searchPar
             <p className="mt-1 text-sm text-muted-foreground">{tOffer("termsPass", { tax: tax(pass), days: pass.durationDays ?? 0 })}</p>
             <ul className="mt-6 space-y-3 text-sm">
               {(["benefitExams", "benefitCorrection", "benefitCourse", "benefitProgress", "benefitTime"] as const).map((k) => (
-                <li key={k} className="flex gap-3"><Icon name="check" className="size-5 shrink-0 text-primary" />{tOffer(k)}</li>
+                <li key={k} className="flex gap-3"><Icon name="check" className="size-5 shrink-0 text-primary" />{tOffer(k, { format: "other" })}</li>
               ))}
             </ul>
             <div className="mt-auto pt-8">

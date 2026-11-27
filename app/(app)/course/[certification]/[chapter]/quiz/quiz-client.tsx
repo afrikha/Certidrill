@@ -5,6 +5,7 @@ import { useState, useTransition } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 import { QuestionView } from "@/components/questions/question-view";
 import { Html } from "@/components/questions/html";
+import { ExerciseChecks } from "@/components/questions/exercise-checks";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { withKeys } from "@/components/with-keys";
@@ -27,6 +28,7 @@ function Correction({ c }: Readonly<{ c: QuizCorrection }>) {
       <p className={cn("font-semibold", c.passed ? "text-success" : "text-danger")} data-testid="quiz-verdict" data-passed={c.passed}>
         {c.passed ? "✓" : "✗"} {c.passed ? t("correct") : t("incorrect")} · {t("points", { earned: c.earned, max: c.max })}
       </p>
+      <ExerciseChecks checks={c.checks} error={c.exerciseError} />
       <div className="rounded-md bg-green-50 p-4 text-sm">
         <h2 className="mb-2 font-semibold text-green-900">{t("answerKey")}</h2>
         <ul className="space-y-1">

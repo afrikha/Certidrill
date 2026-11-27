@@ -38,6 +38,7 @@ Ajouter une certification = ajouter un dossier `content/<code>/` puis `npm run s
 | `ordering` | boutons « Ajouter », ↑ ↓ ✕, glisser pour réordonner |
 | `hotarea` | tableau dont certaines cellules sont cliquables ; plusieurs consignes possibles |
 | `series_yesno` | Oui/Non, énoncé commun à la série |
+| `command`, `manifest` | exercices pratiques CKAD et CKA, voir « Préparation pratique CKAD et CKA » |
 
 Les énoncés sont en Markdown (tableaux, blocs de code PowerShell / Azure CLI / JSON / Bicep / KQL colorés par Shiki), assainis côté serveur. Le navigateur ne reçoit qu'une projection sans réponse ni explication (`lib/questions/present.ts`). Aperçu interactif : **Administration → Questions**.
 
@@ -110,15 +111,32 @@ Les quiz (`docs/SPECS-QUIZ-CHAPITRE.md`) sont dans `content/<code>/quizzes/<chap
 
 ### Autres certifications
 
-`content/` contient 35 certifications : AZ-104 (en ligne), 21 autres certifications Microsoft, dont l'état est décrit dans `docs/ETAT-CONTENU-MULTI-CERTIFICATIONS.md`, 10 certifications AWS (SAA-C03, CLF-C02, AIF-C01, DVA-C03, SOA-C03, SAP-C03, SCS-C03, DEA-C01, DOP-C02, AIP-C01) et 2 certifications CNCF (KCNA, KCSA), voir « Plusieurs éditeurs », toutes livrées en brouillon (`active: false`, tout en `status: draft`). Une certification inactive est invisible partout : accueil, tarifs, offre, tableau de bord, cours, plan du site, démarrage d'un examen, achat et déclaration d'un résultat réel. Seul le back-office (cours, prix) la montre.
+`content/` contient 37 certifications : AZ-104 (en ligne), 21 autres certifications Microsoft, dont l'état est décrit dans `docs/ETAT-CONTENU-MULTI-CERTIFICATIONS.md`, 10 certifications AWS (SAA-C03, CLF-C02, AIF-C01, DVA-C03, SOA-C03, SAP-C03, SCS-C03, DEA-C01, DOP-C02, AIP-C01) et 4 certifications CNCF (KCNA, KCSA, CKAD, CKA), voir « Plusieurs éditeurs », toutes livrées en brouillon (`active: false`, tout en `status: draft`). Une certification inactive est invisible partout : accueil, tarifs, offre, tableau de bord, cours, plan du site, démarrage d'un examen, achat et déclaration d'un résultat réel. Seul le back-office (cours, prix) la montre.
 
-- **Outils par certification** : `--cert <code>` (ou une liste, ou `all`) pour `content:validate`, `content:simulate`, `content:status`, `content:blind:export` et `content:blind:compare`. La CI valide et simule 10 examens sur toutes les certifications.
+- **Outils par certification** : `--cert <code>` (ou une liste, ou `all`) pour `content:validate`, `content:simulate`, `content:status`, `content:blind:export` et `content:blind:compare`. La CI valide toutes les certifications et simule 10 examens sur chacune (9 pour CKAD et CKA, voir « Préparation pratique »).
 - **Fondamentaux** (AZ-900, AI-901, DP-900, SC-900) : le blueprint n'a ni `caseStudies` ni `series` ; l'examen n'a alors qu'une section, et `content:check` refuse un fichier d'étude de cas ou de série pour un tel blueprint.
 - **Glossaire partagé** : `content/glossary.yaml` (typographie, termes en-us → fr-fr, termes à trancher sous `undecided`), complété par `content/<code>/glossary.yaml` (intitulés du guide d'étude, termes propres). `content:check` refuse un terme anglais avec deux traductions.
 - **Vérification à l'aveugle** : `npm run content:blind:export -- --cert az-900 all out.md --split 4` découpe la banque en 4 fichiers sans corrigé (une étude de cas ou une série reste dans un seul fichier), chacun avec son `.map.json` ; un relecteur répond dans `out.1.answers.json`, puis `npm run content:blind:compare -- out.1.answers.json --map out.1.md.map.json --out ecarts.json`. Sans `--apply`, rien ne change de statut.
 - **`factory/`** : traces de production des certifications (consignes, dont `BRIEF-AWS.md` pour AWS, profils d'examen, lots, rapports) et, dans `factory/blind/` et `factory/reports/blind-*.md`, la vérification à l'aveugle des fondamentaux et de SAA-C03.
 
 **Progression par certification** : chaque certification garde son échelle, son indice de préparation, son XP, ses badges et sa maîtrise par domaine. Le tableau de bord montre d'abord l'indicateur global « Toutes mes certifications » (certifications travaillées, examens blancs passés et réussis, certifications prêtes, XP et badges cumulés, examens réels réussis, puis une ligne par certification), et ensuite la progression d'une seule certification : celle de `?certification=`, à défaut la dernière travaillée. Un sélecteur permet de passer de l'une à l'autre.
+
+### Préparation pratique CKAD et CKA
+
+Spécification : `docs/SPECS-KUBERNETES-PRATIQUE.md`. L'examen réel se passe sur des clusters ; Certidrill entraîne les commandes et les manifestes **sans cluster**, avec deux types d'exercice :
+
+| Type | Saisie | Correction |
+| --- | --- | --- |
+| `command` | invite `<namespace> $`, une commande sur une ligne, fichiers du répertoire de travail en onglets (lecture seule) | mode `invocation` : vérifications sur la commande analysée ; mode `object` : la commande est exécutée par **kubectl v1.37** hors ligne, vérifications sur les objets qu'il imprime |
+| `manifest` | éditeur YAML (chasse fixe, numéros de ligne ; Tab insère deux espaces, Échap puis Tab sort de l'éditeur), prérempli avec `starter` | vérifications sur les documents YAML (erreur YAML affichée) |
+
+- **Correction** : à la soumission de la série ou à la validation d'une question de quiz, jamais à l'enregistrement automatique ; le résultat de chaque vérification est gardé (`attempt_item.grading`, `quiz_attempt.results`) et affiché ✓/✗ dans la correction. Le corrigé n'est jamais envoyé avant (`lib/questions/present.ts`).
+- **Notation** : `blueprint.scoring.command` et `.manifest` : `per_check` (un point par vérification réussie, par défaut, décision du §9 proposée) ou `all_or_nothing` (1 point si toutes passent). Pour changer : la ligne `scoring` des deux `blueprint.yaml`, puis le seed.
+- **Format** : `certification.format: performance` (CKAD, CKA ; `multiple-choice` par défaut) remplace « Examen blanc » par « Série d'entraînement pratique » (tableau de bord, accueil de la série, accès, offre, cours, e-mails du Pass), titre l'indice « Préparation aux commandes et manifestes », et affiche le bandeau du §5 sur le cours, la carte du tableau de bord, la série et son rapport. Accès et prix : mêmes règles que les autres certifications.
+- **kubectl** (`lib/exercises/kubectl.ts`) : `execFile` sans shell, liste blanche de sous-commandes (`OBJECT_COMMANDS`), kubeconfig factice vers `https://127.0.0.1:9`, cache de découverte écrit d'avance (aucun appel au serveur), `--dry-run=client -o yaml`, `--local` pour `set`/`label`/`annotate`, objets de `body.files` lus avec `-f`, chemins limités au répertoire temporaire, variables d'environnement vidées, 5 s et 1 Mo par commande, 4 exécutions simultanées (au-delà de 10 s d'attente : « réessayez », HTTP 503). Binaire : `KUBECTL_BIN`, sinon `/usr/local/bin/kubectl`. Sans kubectl, le mode `object` n'est pas noté (journal `exercise.kubectl_unavailable`).
+- **Image et CI** : `scripts/install-kubectl.sh` installe kubectl v1.37.3 après vérification de sa somme SHA-256 (écrite dans le script, amd64 et arm64) ; le Dockerfile l'embarque dans l'image de l'application, rien d'autre ne tourne sur le serveur. En CI, `content:validate` tourne avec `REQUIRE_KUBECTL=1` : chaque solution doit passer et chaque négative échouer avec le vrai kubectl ; les sorties écrites à la main qui diffèrent de ce qu'imprime kubectl sont listées (`--mismatches <fichier>`, résumé du job), sans échec. `npx tsx factory/check-exercise.ts <cert> [filtre]` refait ces contrôles sur quelques exercices.
+- **Séries** : 17 exercices, 120 minutes, réussite à 66 %. Les banques tiennent aujourd'hui 9 séries sans répétition (CKAD : 36 exercices de networking pour 4 par série ; CKA : 48 de troubleshooting pour 5) : la CI en simule 9 pour elles, 10 pour les autres (`--cert 'all,!ckad,!cka'`).
+- **Quiz** : les positions 6 à 10 des quiz de chapitre CKAD et CKA sont des exercices, corrigés de la même façon.
 
 ### Plusieurs éditeurs (Microsoft, AWS, CNCF)
 
@@ -129,7 +147,7 @@ Spécifications : `docs/SPECS-AWS.md` (§3) et `docs/SPECS-KUBERNETES.md` (CNCF)
 | `docsName` (libellé des liens de correction) | Microsoft Learn | AWS Documentation | Kubernetes Documentation |
 | `docsHosts` (références autorisées) | `learn.microsoft.com` | `docs.aws.amazon.com`, `aws.amazon.com`, `repost.aws` (Knowledge Center), `kiro.dev`, `strandsagents.com` (documentation officielle de Kiro et de Strands Agents) | `kubernetes.io`, pages CNCF et Linux Foundation des examens, documentation des projets CNCF (Helm, Prometheus, Falco, Istio, Cilium…), et cadres de sécurité cités par le programme KCSA (NIST, MITRE ATT&CK, SLSA, OWASP) |
 | `localizeDocsUrl` (lecteur francophone) | `/en-us/` ↔ `/fr-fr/` | `docs.aws.amazon.com/…` → `docs.aws.amazon.com/fr_fr/…` ; `aws.amazon.com` inchangé | inchangé (examens en anglais seulement) |
-| `scoring` (règle de l'examen réel) | `per_option`, `per_element` | `all_or_nothing` | `all_or_nothing` (KCNA et KCSA : `single` seulement, score en pourcentage, `maxScore: 100`, réussite à 75) |
+| `scoring` (règle de l'examen réel) | `per_option`, `per_element` | `all_or_nothing` | `all_or_nothing` (KCNA et KCSA : `single` seulement, score en pourcentage, `maxScore: 100`, réussite à 75) ; CKAD et CKA : `command` et `manifest` en `per_check`, réussite à 66 |
 
 Les textes propres à chaque éditeur sont dans `messages/*.json`, sous `vendors.<clé>` : mention de marque (`trademark`) et note sous le score (`scoreNote`). Ajouter un éditeur, c'est une entrée dans `lib/vendors.ts` et ces deux textes.
 

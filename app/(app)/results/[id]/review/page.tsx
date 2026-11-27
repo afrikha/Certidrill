@@ -11,6 +11,7 @@ import { EnglishOnlyNotice } from "@/components/english-only";
 import { Card } from "@/components/ui/card";
 import { buttonClasses } from "@/components/ui/button";
 import { Html } from "@/components/questions/html";
+import { ExerciseChecks } from "@/components/questions/exercise-checks";
 import { AnsweredQuestion } from "./answered-question";
 import { ReportForm } from "./report-form";
 import { withKeys } from "@/components/with-keys";
@@ -138,6 +139,7 @@ export default async function CorrectionPage({ params, searchParams }: Readonly<
             </header>
             <AnsweredQuestion question={i.question} response={i.response} seriesStemHtml={i.seriesStemHtml} />
             {i.response == null && <p className="text-sm font-medium text-danger">{t("noAnswer")}</p>}
+            <ExerciseChecks checks={i.checks} error={i.exerciseError} />
             <section className="rounded-md bg-green-50 p-4 text-sm">
               <h2 className="mb-2 font-semibold text-green-900">{t("correctAnswer")}</h2>
               <ul className="space-y-1">

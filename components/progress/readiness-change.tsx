@@ -32,11 +32,13 @@ function UnlockedRule({ check, ticked, flash, domainTitle, t }: Readonly<{ check
  * index, the verdict follows the bands it crosses, and the rules this exam met
  * tick one by one.
  */
-export function ReadinessChange({ before, after, bands, domainTitles = {} }: Readonly<{
+export function ReadinessChange({ before, after, bands, domainTitles = {}, format }: Readonly<{
   before: Readiness | null;
   after: Readiness;
   bands: ReadinessConfig["bands"];
   domainTitles?: Readonly<Record<string, string>>;
+  /** certification.format (the title of the index, docs/SPECS-KUBERNETES-PRATIQUE.md §5). */
+  format?: string;
 }>) {
   const t = useTranslations("readiness");
   const playing = useCelebrating();
@@ -56,7 +58,7 @@ export function ReadinessChange({ before, after, bands, domainTitles = {} }: Rea
 
   return (
     <section aria-labelledby="readiness-change-title" className={cn("rounded-lg border-2 bg-background p-6 shadow-sm transition-colors duration-500", tone.border)} data-testid="readiness-change" data-verdict={verdict}>
-      <h2 id="readiness-change-title" className="text-sm text-muted-foreground">{t("title")}</h2>
+      <h2 id="readiness-change-title" className="text-sm text-muted-foreground">{t("title", { format: format === "performance" ? "performance" : "other" })}</h2>
       <div className="mt-2 flex flex-wrap items-center gap-6">
         <div className="flex w-56 flex-col items-center">
           <ReadinessGauge index={value} verdict={verdict} marks={[bands.progressing, bands.almost, bands.ready]} previous={before?.index ?? null} />

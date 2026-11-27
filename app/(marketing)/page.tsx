@@ -18,6 +18,8 @@ import { SITE_NAME, activeCodes, jsonLd, publicPageMetadata, siteUrl } from "@/l
 import { activeCatalog, joinNames } from "@/lib/catalog";
 import { groupByVendor } from "@/lib/vendors";
 import { VendorGroups } from "@/components/vendor-groups";
+import { isPerformance, PerformanceBadge } from "@/components/performance";
+import { isExerciseType } from "@/lib/exercises/grade";
 import { EnglishOnlyBadge } from "@/components/english-only";
 import { CorrectionPreview, CoursePreview, ExamPreview, Icon, MasteryPreview, OverviewPreview, QuizPreview, XpPreview, type IconName } from "./landing-visuals";
 
@@ -100,7 +102,7 @@ export default async function HomePage() {
       where: { active: true },
       orderBy: { code: "asc" },
       select: {
-        id: true, code: true, title: true, vendor: true, languages: true, freeAccess: true,
+        id: true, code: true, title: true, vendor: true, languages: true, format: true, freeAccess: true,
         blueprints: { where: { current: true }, take: 1, select: { durationMin: true, minQuestions: true, maxQuestions: true, passScore: true, maxScore: true, _count: { select: { domains: true } } } },
       },
     }),
@@ -127,6 +129,8 @@ export default async function HomePage() {
   const vendorNames = vendors.length ? joinNames(locale, vendors.map((v) => v.name)) : t("vendorFallback");
   // Some certifications are prepared in English only (no French exam): said once, under the catalogue.
   const englishOnly = certifications.some((c) => !c.languages.includes("fr"));
+  // The practical exercises (kubectl commands, YAML manifests) only once a performance-based certification is on offer.
+  const formats = FORMATS.filter((f) => !isExerciseType(f) || certifications.some((c) => isPerformance(c.format)));
   // One certification per vendor in the overview picture, then the others.
   const sampleCodes = [...new Set([...groups.map((g) => g.certifications[0]!.code), ...certifications.map((c) => c.code)])];
 
@@ -138,7 +142,7 @@ export default async function HomePage() {
   const stats = [
     [String(certifications.length), t("stats.certifications")],
     [String(vendors.length), t("stats.vendors", { count: vendors.length, names: vendorNames })],
-    [String(FORMATS.length), t("stats.formats")],
+    [String(formats.length), t("stats.formats")],
     ["FR · EN", t("stats.languages")],
   ] as const;
 
@@ -206,7 +210,7 @@ export default async function HomePage() {
             <div>
               <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t("formatsTitle")}</h4>
               <ul className="mt-3 flex flex-wrap gap-2">
-                {FORMATS.map((f) => (
+                {formats.map((f) => (
                   <li key={f} className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-sm text-blue-900">{t(`formats.${f}`)}</li>
                 ))}
               </ul>
@@ -273,6 +277,7 @@ export default async function HomePage() {
                           {c.title}
                           {c.freeAccess && <span className="ml-2 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">{t("freeCertification")}</span>}
                           <EnglishOnlyBadge languages={c.languages} />
+                          <PerformanceBadge format={c.format} />
                         </span>
                       </li>
                     ))}
@@ -315,7 +320,7 @@ export default async function HomePage() {
                 </p>
                 <ul className="mt-8 space-y-3 text-sm">
                   {(["benefitExams", "benefitCorrection", "benefitCourse", "benefitProgress"] as const).map((k) => (
-                    <li key={k} className="flex gap-3"><Icon name="check" className="size-5 shrink-0 text-primary" />{tOffer(k)}</li>
+                    <li key={k} className="flex gap-3"><Icon name="check" className="size-5 shrink-0 text-primary" />{tOffer(k, { format: "other" })}</li>
                   ))}
                 </ul>
                 <div className="mt-auto pt-8">

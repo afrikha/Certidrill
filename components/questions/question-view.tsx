@@ -11,6 +11,8 @@ import { DragDropInput } from "./dragdrop";
 import { OrderingInput } from "./ordering";
 import { HotAreaInput } from "./hotarea";
 import { SeriesYesNoInput } from "./series-yesno";
+import { CommandInput } from "./command";
+import { ManifestInput } from "./manifest";
 
 export interface QuestionViewProps {
   question: PublicQuestion;
@@ -73,5 +75,9 @@ function Input({ body, response, onChange, disabled, uid }: Readonly<{ body: Pub
       return <HotAreaInput body={body} response={response as { values: Record<string, string> } | null} {...common} />;
     case "series_yesno":
       return <SeriesYesNoInput body={body} response={response as { value: boolean } | null} {...common} />;
+    case "command":
+      return <CommandInput body={body} response={response as { command: string } | null} {...common} />;
+    case "manifest":
+      return <ManifestInput body={body} response={response as { manifest: string } | null} {...common} />;
   }
 }

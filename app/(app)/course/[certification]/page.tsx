@@ -10,6 +10,7 @@ import { defaultLocale, isLocale } from "@/lib/i18n/config";
 import { buttonClasses } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ProgressBar } from "@/components/course/progress-bar";
+import { formatArg, PerformanceNotice } from "@/components/performance";
 import { EnglishOnlyNotice } from "@/components/english-only";
 import { cn } from "@/lib/utils";
 
@@ -38,6 +39,7 @@ export default async function CourseOutlinePage({ params }: Readonly<{ params: P
         <h1 className="text-2xl font-bold">{t("title", { code: code.toUpperCase() })}</h1>
         <p className="text-muted-foreground">{outline.certification.title}</p>
         <EnglishOnlyNotice languages={outline.certification.languages} />
+        <PerformanceNotice format={outline.certification.format} />
         <Card className="space-y-4">
           <ProgressBar read={outline.read} total={outline.sections} label={t("progressLabel")} text={t("progress", { read: outline.read, total: outline.sections })} />
           {outline.resume && (
@@ -60,8 +62,8 @@ export default async function CourseOutlinePage({ params }: Readonly<{ params: P
 
       {weak.length > 0 && (
         <section aria-labelledby="weak-title" className="rounded-lg border border-warning/40 bg-amber-50 p-4" data-testid="course-weak">
-          <h2 id="weak-title" className="font-semibold">{t("weakTitle")}</h2>
-          <p className="mt-1 text-sm">{t("weakText")}</p>
+          <h2 id="weak-title" className="font-semibold">{t("weakTitle", { format: formatArg(outline.certification.format) })}</h2>
+          <p className="mt-1 text-sm">{t("weakText", { format: formatArg(outline.certification.format) })}</p>
           <ul className="mt-2 list-disc space-y-1 pl-5 text-sm">
             {weak.map((c) => (
               <li key={c.code}><Link href={`/course/${code}/${c.code}`} className="text-primary underline">{c.title}</Link></li>

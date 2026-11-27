@@ -16,7 +16,7 @@ export function Welcome({ view, onStart, busy, error, blueprintRange }: Readonly
   const kinds = new Set(view.sectionKinds);
   return (
     <main id="main" className="mx-auto max-w-2xl px-4 py-12">
-      <h1 className="text-2xl font-bold">{t("welcomeTitle", { code: view.certification.code.toUpperCase() })}</h1>
+      <h1 className="text-2xl font-bold">{t("welcomeTitle", { code: view.certification.code.toUpperCase(), format: view.certification.format === "performance" ? "performance" : "other" })}</h1>
       <p className="mt-1 text-muted-foreground">{view.certification.title}</p>
       <Card className="mt-6">
         <h2 className="mb-3 font-semibold">{t("rules")}</h2>

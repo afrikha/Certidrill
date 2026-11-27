@@ -28,7 +28,7 @@ export function view(extra: Partial<AttemptView> = {}): AttemptView {
     id: "att1",
     status: "in_progress",
     locale: "en",
-    certification: { code: "az-104", title: "Azure Administrator", languages: ["en", "fr"] },
+    certification: { code: "az-104", title: "Azure Administrator", languages: ["en", "fr"], format: "multiple-choice" },
     durationMin: 100,
     totalQuestions: items.length,
     questionRange: { min: 40, max: 60 },
