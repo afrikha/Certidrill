@@ -7,7 +7,7 @@ import { readFile } from "node:fs/promises";
 import { parse } from "yaml";
 import { beforeAll, describe, expect, it } from "vitest";
 import { betterQuizResult, isHardPosition, quizScore, QUIZ_RULES } from "@/lib/course/quiz-rules";
-import { checkQuizFile, jaccard, quizQuestionId, shingles, words, type QuizContext } from "@/lib/content/quiz";
+import { checkQuizFile, examFormats, jaccard, quizQuestionId, shingles, words, type QuizContext } from "@/lib/content/quiz";
 
 describe("quiz rules (§3.3, §8)", () => {
   it("masters a chapter with 8/10 of which 4/5 at exam level", () => {
@@ -94,6 +94,40 @@ describe("checkQuizFile (§4.3)", () => {
     const single = formats.questions.find((q) => q.type === "single")!;
     for (let i = 5; i < 10; i++) formats.questions[i] = { ...structuredClone(single), id: `az104-qz-12-${String(i + 1).padStart(2, "0")}`, difficulty: 3 };
     expect(problems(formats).some((p) => p.startsWith("positions 6-10 need at least two formats other than single"))).toBe(true);
+  });
+
+  it("with a single exam format other than single (Google Cloud: multi), needs two questions of it at positions 6-10", () => {
+    // Positions 6-10: three single, then `multi` `times` times (the rest single).
+    const withMulti = (times: number) => {
+      const doc = copy();
+      const single = doc.questions.find((q) => q.type === "single")!;
+      const multi = doc.questions.find((q) => q.type === "multi")!;
+      for (let i = 5; i < 10; i++) {
+        const from = i >= 10 - times ? multi : single;
+        doc.questions[i] = { ...structuredClone(from), id: `az104-qz-12-${String(i + 1).padStart(2, "0")}`, difficulty: 3 };
+      }
+      return doc;
+    };
+    const twoFormats = "positions 6-10 need at least two formats other than single";
+    const twoMulti = "positions 6-10 need at least two multi questions";
+    // Two multi: enough when multi is the only other format, not when the exam offers two.
+    expect(problems(withMulti(2), { examFormats: ["multi"] })).toEqual([]);
+    expect(problems(withMulti(2), { examFormats: ["multi", "dragdrop"] }).some((p) => p.startsWith(twoFormats))).toBe(true);
+    expect(problems(withMulti(2)).some((p) => p.startsWith(twoFormats))).toBe(true);
+    // One multi: too few.
+    expect(problems(withMulti(1), { examFormats: ["multi"] })).toContain(
+      "positions 6-10 need at least two multi questions (the only exam format other than single; have 1)",
+    );
+    // The delivered quiz (four formats) passes either way.
+    expect(problems(copy(), { examFormats: ["multi"] }).some((p) => p.startsWith(twoMulti))).toBe(false);
+    expect(problems(copy(), { examFormats: ["multi", "dragdrop"] })).toEqual([]);
+  });
+
+  it("examFormats: the formats other than single with a share above 0", () => {
+    expect(examFormats({ single: { max: 0.8 }, multi: { max: 0.3 } })).toEqual(["multi"]);
+    expect(examFormats({ single: { max: 1 }, multi: { max: 0.2 }, dragdrop: { max: 0 }, hotspot: undefined })).toEqual(["multi"]);
+    expect(examFormats({ single: { max: 0.6 }, multi: { max: 0.2 }, dragdrop: { max: 0.1 } })).toEqual(["multi", "dragdrop"]);
+    expect(examFormats({ single: { max: 1 } })).toEqual([]);
   });
 
   it("refuses an objective outside the chapter, an objective not tested, and a wrong option without explanation", () => {
