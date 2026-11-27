@@ -192,6 +192,37 @@ describe("assembleExam", () => {
     }
   });
 
+  it("draws exactly two different case studies and interleaves their questions (Google Cloud)", () => {
+    const caseStudies = { count: { min: 2, max: 2 }, questionsEach: { min: 5, max: 8 }, placement: "interleaved" as const };
+    const bp = { ...az104Blueprint, structure: { ...az104Blueprint.structure, caseStudies, series: { count: { min: 0, max: 0 }, questionsEach: { min: 0, max: 0 } } } };
+    const caseOf = new Map(bank.caseStudies.flatMap((c) => c.questions.map((q) => [q.id, c.id] as const)));
+    let mixed = 0;
+    for (let i = 0; i < 20; i++) {
+      const exam = assembleExam({ blueprint: bp, bank, history: emptyHistory(), seed: `gcp-${i}` });
+      // One main section: no section of its own, nothing locked when a case study is left.
+      expect(exam.sections.map((s) => s.kind)).toEqual(["main"]);
+      const list = ids(exam);
+      expect(new Set(list).size).toBe(list.length);
+      const drawn = list.flatMap((id) => caseOf.get(id) ?? []);
+      const counts = new Map<string, number>();
+      for (const c of drawn) counts.set(c, (counts.get(c) ?? 0) + 1);
+      expect(counts.size).toBe(2);
+      for (const n of counts.values()) expect(n >= 5 && n <= 8).toBe(true);
+      // Interleaved: some independent question between the first and the last case-study question.
+      const positions = list.map((id, p) => (caseOf.has(id) ? p : -1)).filter((p) => p >= 0);
+      if (positions.at(-1)! - positions[0]! + 1 > positions.length) mixed += 1;
+    }
+    expect(mixed).toBeGreaterThan(15);
+  });
+
+  it("keeps case studies in sections of their own with placement random (Microsoft)", () => {
+    for (let i = 0; i < 10; i++) {
+      const exam = assembleExam({ blueprint: az104Blueprint, bank, history: emptyHistory(), seed: `ms-${i}` });
+      const kinds = exam.sections.map((s) => s.kind);
+      expect(kinds[0] === "case_study" || kinds.at(-1) === "case_study").toBe(true);
+    }
+  });
+
   it("assembles an exam in well under 2 seconds", () => {
     const t0 = performance.now();
     for (let i = 0; i < 10; i++) assembleExam({ blueprint: az104Blueprint, bank, history: emptyHistory(), seed: `perf-${i}` });

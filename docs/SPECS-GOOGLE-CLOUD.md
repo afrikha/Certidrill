@@ -46,7 +46,7 @@ Résultats : `content:validate`, `check-cert` et `check-quiz` donnent 0 problèm
   - Les seuils de préparation et de progression sont alignés sur ce seuil (`minScore` 76, échelle 55–82, maîtrise 62/70/82).
 - **Études de cas (PCA seulement)** : Google publie quatre études de cas, qui sont lues par les candidats avant l'examen. Certidrill ne les reproduit pas.
   - Les études de cas de Certidrill sont des entreprises fictives originales, au même format que celles de Google : Company overview, Solution concept, Existing technical environment, Business requirements, Technical requirements, Executive statement.
-  - Le blueprint en tire 2 par examen (`caseStudies.count` 2, 5 à 8 questions chacune, `placement: random`).
+  - Le blueprint en tire 2 par examen (`caseStudies.count` 2, 5 à 8 questions chacune, `placement: interleaved`).
 - **Résultats PCA** : `content:validate` (avec le correctif local) donne 0 problème et 0 avertissement ; `check-cert` et `check-quiz` aussi. Sur 10 examens simulés, de 50 à 59 questions, aucune question n'a été répétée, chaque examen avait 2 études de cas et les poids des domaines étaient respectés à ±1 point.
 - **Passe de correction PCA** : tout a été relu contre la documentation, avec 27 corrections dans 12 chapitres et une vingtaine de questions modifiées. Les points restés non vérifiés sont dans `factory/reports/*gcp-pca*.md`.
 - **Noms de produits** : ceux de l'exam guide et de la documentation de novembre 2026 (Gemini Enterprise Agent Platform, Agent Platform Pipelines, Cloud Run functions, Chrome Enterprise Premium…).
@@ -81,7 +81,7 @@ Sous `vendors.google`, avec la traduction française pour chaque texte :
 
 - **Deux études de cas par examen** : vérifier que le moteur d'examen sait en tirer plus d'une (`structure.caseStudies.count.min = max = 2`).
   - Les deux doivent être différentes.
-  - Leurs questions sont intercalées au hasard (`placement: random`).
+  - Leurs questions sont intercalées au hasard parmi les autres (`placement: interleaved` ; `random` place les études de cas en sections verrouillées au début ou à la fin, comme chez Microsoft).
 - **Affichage côte à côte** : comme à l'examen réel, l'étude de cas reste visible pendant qu'on répond à ses questions.
   - Desktop : écran partagé ; mobile : onglet ou panneau repliable.
   - Le composant des études de cas de l'AZ-305 peut servir s'il le permet.

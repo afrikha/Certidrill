@@ -52,6 +52,12 @@ export interface QuizContext {
   /** Warnings: references off the vendor's documentation, terminology. */
   vendor?: Vendor;
   terms?: readonly GlossaryTerm[];
+  /**
+   * The exam formats other than `single` that the blueprint's typeMix offers.
+   * With only one (Google Cloud: `multi`), positions 6-10 need two questions
+   * of it instead of two formats (docs/SPECS-QUIZ-CHAPITRE.md §4.3).
+   */
+  examFormats?: readonly string[];
 }
 
 // --- Similarity of stems (word 4-grams, Jaccard) ---------------------------
@@ -141,6 +147,7 @@ export function checkQuizFile(raw: unknown, file: string, ctx: QuizContext, bank
   const questions: QuizQuestion[] = [];
   const tested = new Set<string>();
   const hardFormats = new Set<string>();
+  let hardOthers = 0;
   let lastEasy = 0;
   list.forEach((item, i) => {
     const position = i + 1;
@@ -167,7 +174,10 @@ export function checkQuizFile(raw: unknown, file: string, ctx: QuizContext, bank
       lastEasy = q.difficulty;
     } else {
       if (q.difficulty !== 3) problems.push(`${where}: positions ${QUIZ_RULES.easy + 1}-${QUIZ_RULES.length} are exam level (difficulty 3)`);
-      if (q.type !== "single") hardFormats.add(q.type);
+      if (q.type !== "single") {
+        hardFormats.add(q.type);
+        hardOthers += 1;
+      }
     }
     const unexplained = unexplainedOptions(q);
     if (unexplained === undefined) problems.push(`${where}: explanation.options is required`);
@@ -180,8 +190,12 @@ export function checkQuizFile(raw: unknown, file: string, ctx: QuizContext, bank
     questions.push({ ...q, position });
   });
   for (const o of objectives) if (!tested.has(o)) problems.push(`objective ${o} of the chapter is not tested`);
-  if (list.length > QUIZ_RULES.easy && hardFormats.size < 2)
-    problems.push(`positions ${QUIZ_RULES.easy + 1}-${QUIZ_RULES.length} need at least two formats other than single (have: ${[...hardFormats].join(", ") || "none"})`);
+  const hard = `positions ${QUIZ_RULES.easy + 1}-${QUIZ_RULES.length}`;
+  const only = ctx.examFormats?.length === 1 ? ctx.examFormats[0] : undefined;
+  if (list.length > QUIZ_RULES.easy && only !== undefined) {
+    if (hardOthers < 2) problems.push(`${hard} need at least two ${only} questions (the only exam format other than single; have ${hardOthers})`);
+  } else if (list.length > QUIZ_RULES.easy && hardFormats.size < 2)
+    problems.push(`${hard} need at least two formats other than single (have: ${[...hardFormats].join(", ") || "none"})`);
   return { quiz: problems.length === 0 ? { chapter: name, file, questions } : null, problems, warnings };
 }
 
@@ -247,6 +261,13 @@ export async function checkQuizzes(dir: string, ctx: QuizContext): Promise<Quizz
   return result;
 }
 
+/** The formats other than `single` that a typeMix offers (a share above 0). */
+export function examFormats(typeMix: Readonly<Record<string, { max: number } | undefined>>): string[] {
+  return Object.entries(typeMix)
+    .filter(([type, share]) => type !== "single" && (share?.max ?? 0) > 0)
+    .map(([type]) => type);
+}
+
 /** The context of the checks from the loaded content, course and bank. */
 export function quizContext(content: CertificationContent, course: Course | null, bank: QuestionBank): QuizContext {
   return {
@@ -255,6 +276,7 @@ export function quizContext(content: CertificationContent, course: Course | null
     chapters: quizChapters(course),
     bank: bank.questions.map((q) => ({ id: q.id, stem: q.stem.en })),
     takenIds: new Map([...bank.questions, ...bank.caseStudies, ...bank.series].map((x) => [x.id, path.relative(process.cwd(), x.file)])),
+    examFormats: examFormats(content.blueprint.blueprint.typeMix),
   };
 }
 

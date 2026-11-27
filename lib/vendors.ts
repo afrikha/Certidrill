@@ -6,7 +6,7 @@
  */
 import type { BlueprintFile, ScoringRules } from "@/lib/content/schema";
 
-export type VendorKey = "microsoft" | "aws" | "cncf";
+export type VendorKey = "microsoft" | "aws" | "cncf" | "google";
 type DocsLocale = "en" | "fr";
 
 export interface Vendor {
@@ -97,9 +97,30 @@ export const VENDORS: Record<VendorKey, Vendor> = {
     scoring: { multi: "all_or_nothing", dragdrop: "all_or_nothing", command: "per_check", manifest: "per_check" },
     glossary: null,
   },
+  google: {
+    key: "google",
+    name: "Google Cloud",
+    docsName: "Google Cloud Documentation",
+    // The Google Cloud docs, the exam guides (services.google.com), Google's developer sites, Terraform,
+    // and the tools the Associate Cloud Engineer exam guide names (Gemini CLI, Google Antigravity).
+    docsHosts: [
+      "cloud.google.com", "docs.cloud.google.com", "services.google.com", "support.google.com",
+      "ai.google.dev", "developers.google.com", "firebase.google.com",
+      "registry.terraform.io", "developer.hashicorp.com",
+      "github.com", "geminicli.com", "antigravity.google",
+    ],
+    // github.com is shared: only Google Cloud's own repositories (Cloud Foundation Fabric, FAST).
+    docsPaths: { "github.com": ["/GoogleCloudPlatform/"] },
+    // English only: the Google Cloud certifications are not offered in French.
+    localizeDocsUrl: (url) => url,
+    docsPage: (url) => url,
+    // Google publishes no partial credit.
+    scoring: { multi: "all_or_nothing", dragdrop: "all_or_nothing", command: "per_check", manifest: "per_check" },
+    glossary: null,
+  },
 };
 
-const ALIASES: Record<string, VendorKey> = { microsoft: "microsoft", aws: "aws", "amazon web services": "aws", cncf: "cncf", "linux foundation": "cncf" };
+const ALIASES: Record<string, VendorKey> = { microsoft: "microsoft", aws: "aws", "amazon web services": "aws", cncf: "cncf", "linux foundation": "cncf", "google cloud": "google", google: "google", gcp: "google" };
 
 /** The vendor named in blueprint.yaml (any case), or null when it has no entry here. */
 export function knownVendor(vendor: string): Vendor | null {

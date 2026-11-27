@@ -161,12 +161,17 @@ export async function startAttempt(db: PrismaClient, { attemptId, userId, now = 
 
 // ------------------------------------------------------------------ read
 
+export interface CaseStudyView {
+  titleHtml: string;
+  tabs: { key: string; titleHtml: string; html: string }[];
+}
+
 export interface AttemptSectionView {
   id: string;
   order: number;
   kind: "case_study" | "series" | "main";
   locked: boolean;
-  caseStudy?: { titleHtml: string; tabs: { key: string; titleHtml: string; html: string }[] };
+  caseStudy?: CaseStudyView;
   seriesStemHtml?: string;
   itemIds: string[];
 }
@@ -176,6 +181,8 @@ export interface AttemptItemView {
   order: number;
   sectionId: string;
   question: PublicQuestion;
+  /** A case-study question of the main section (placement interleaved): its case study, in AttemptView.caseStudies. */
+  caseStudyId?: string;
   response: unknown;
   flagged: boolean;
   answered: boolean;
@@ -192,6 +199,8 @@ export interface AttemptView {
   /** Blueprint range, to tell the candidate when the bank is still too small. */
   questionRange: { min: number; max: number };
   sectionKinds: ("case_study" | "series" | "main")[];
+  /** Case studies whose questions are mixed with the others (placement interleaved). */
+  interleavedCaseStudies: number;
   startedAt: string | null;
   deadlineAt: string | null;
   serverNow: string;
@@ -201,6 +210,23 @@ export interface AttemptView {
   /** Empty until the exam has started: questions are not revealed before the clock runs. */
   sections: AttemptSectionView[];
   items: AttemptItemView[];
+  /** The case studies of the interleaved questions, by id. */
+  caseStudies: Record<string, CaseStudyView>;
+}
+
+type CaseStudyRow = { title: unknown; tabs: unknown };
+
+async function caseStudyView(cs: CaseStudyRow, locale: Locale): Promise<CaseStudyView> {
+  return {
+    titleHtml: await renderInline(pick(cs.title as { en: string; fr: string }, locale)),
+    tabs: await Promise.all(
+      (cs.tabs as { key: string; title: { en: string; fr: string }; body: { en: string; fr: string } }[]).map(async (t) => ({
+        key: t.key,
+        titleHtml: await renderInline(pick(t.title, locale)),
+        html: await renderMarkdown(pick(t.body, locale)),
+      })),
+    ),
+  };
 }
 
 /**
@@ -215,7 +241,7 @@ export async function getAttemptView(db: PrismaClient, { attemptId, userId, now 
       certification: true,
       blueprint: true,
       sections: { orderBy: { order: "asc" }, include: { caseStudy: true, series: true } },
-      items: { orderBy: { order: "asc" }, include: { question: true } },
+      items: { orderBy: { order: "asc" }, include: { question: { include: { caseStudy: true } }, section: { select: { kind: true } } } },
     },
   });
   if (!attempt) throw new SessionError("not_found");
@@ -233,6 +259,7 @@ export async function getAttemptView(db: PrismaClient, { attemptId, userId, now 
     totalQuestions: attempt.items.length,
     questionRange: { min: attempt.blueprint.minQuestions, max: attempt.blueprint.maxQuestions },
     sectionKinds: attempt.sections.map((s) => s.kind),
+    interleavedCaseStudies: 0,
     startedAt: attempt.startedAt?.toISOString() ?? null,
     deadlineAt: attempt.deadlineAt?.toISOString() ?? null,
     serverNow: now.toISOString(),
@@ -241,7 +268,10 @@ export async function getAttemptView(db: PrismaClient, { attemptId, userId, now 
     currentSectionId: attempt.status === "in_progress" ? (attempt.sections.find((s) => !s.lockedAt)?.id ?? null) : null,
     sections: [],
     items: [],
+    caseStudies: {},
   };
+  const interleaved = new Map(attempt.items.flatMap((i) => (i.section.kind === "main" && i.question.caseStudy ? [[i.question.caseStudy.id, i.question.caseStudy] as const] : [])));
+  view.interleavedCaseStudies = interleaved.size;
   if (status !== "in_progress") return view; // before start: no questions; after: see the results page
   const rules = scoringRules(attempt.blueprint.scoring);
 
@@ -252,18 +282,7 @@ export async function getAttemptView(db: PrismaClient, { attemptId, userId, now 
       kind: s.kind,
       locked: s.lockedAt !== null,
       itemIds: attempt.items.filter((i) => i.sectionId === s.id).map((i) => i.id),
-      caseStudy: s.caseStudy
-        ? {
-            titleHtml: await renderInline(pick(s.caseStudy.title as { en: string; fr: string }, locale)),
-            tabs: await Promise.all(
-              (s.caseStudy.tabs as { key: string; title: { en: string; fr: string }; body: { en: string; fr: string } }[]).map(async (t) => ({
-                key: t.key,
-                titleHtml: await renderInline(pick(t.title, locale)),
-                html: await renderMarkdown(pick(t.body, locale)),
-              })),
-            ),
-          }
-        : undefined,
+      caseStudy: s.caseStudy ? await caseStudyView(s.caseStudy, locale) : undefined,
       seriesStemHtml: s.series ? await renderMarkdown(pick(s.series.stem as { en: string; fr: string }, locale)) : undefined,
     })),
   );
@@ -273,11 +292,13 @@ export async function getAttemptView(db: PrismaClient, { attemptId, userId, now 
       order: i.order,
       sectionId: i.sectionId,
       question: await presentQuestion(i.question, locale, i.optionOrder as OptionOrder, rules),
+      ...(i.section.kind === "main" && i.question.caseStudyId ? { caseStudyId: i.question.caseStudyId } : {}),
       response: i.response,
       flagged: i.flagged,
       answered: i.answeredAt !== null,
     })),
   );
+  for (const [id, cs] of interleaved) view.caseStudies[id] = await caseStudyView(cs, locale); // NOSONAR: two case studies at most
   return view;
 }
 

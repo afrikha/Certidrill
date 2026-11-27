@@ -37,7 +37,7 @@ import path from "node:path";
 import { parse } from "yaml";
 import { listCertificationDirs, loadCertification, readYamlFiles } from "../lib/content/loader";
 import { formatProblem, parseChapter, validateCourse } from "../lib/content/course";
-import { checkQuizzes, QUIZ_FOLDER, type QuizChapter } from "../lib/content/quiz";
+import { checkQuizzes, examFormats, QUIZ_FOLDER, type QuizChapter } from "../lib/content/quiz";
 import { loadVendorGlossary, terminologyWarnings, type GlossaryTerm } from "../lib/content/glossary";
 import { allOrNothing, caseStudyFileSchema, questionFileSchema, seriesFileSchema } from "../lib/questions/schema";
 import { compareCodeUnits } from "../lib/sort";
@@ -307,6 +307,7 @@ async function validateQuizzes(dirs: string[], chapters: string[]): Promise<numb
       takenIds: new Map([...ids].filter(([, f]) => !f.startsWith(quizzes))),
       vendor,
       terms: await termsOf(vendor),
+      examFormats: examFormats(content.blueprint.blueprint.typeMix),
     });
     if (check.files === 0) continue;
     // Exercises of the quizzes (positions 6–10 of CKAD and CKA).

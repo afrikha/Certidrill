@@ -85,7 +85,7 @@ describe("fundamentals blueprints", () => {
     const s = await simulate(content, 3);
     expect(s).toMatchObject({ code: "az-900", exams: 3, reused: 0, shortfall: 0, outOfRange: [] });
     // One section per exam: the main one.
-    for (const line of s.lines.slice(0, 3)) expect(line).toMatch(/sections m \|/);
+    for (const line of s.lines.slice(0, 3)) expect(line).toMatch(/sections m, case studies 0 \|/);
   });
 });
 

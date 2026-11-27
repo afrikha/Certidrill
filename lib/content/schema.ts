@@ -135,7 +135,13 @@ export const structureSchema = z.object({
     .object({
       count: range,
       questionsEach: range,
-      placement: z.enum(["start", "end", "random"]),
+      /**
+       * start, end, random (one or the other): the case studies are sections
+       * of their own, locked once left (Microsoft). interleaved: their questions
+       * are mixed with the others in the main section, the case study shown
+       * beside each of them (Google Cloud).
+       */
+      placement: z.enum(["start", "end", "random", "interleaved"]),
     })
     .default({ count: none, questionsEach: none, placement: "end" }),
   /** Absent: no Yes/No series. */

@@ -58,7 +58,9 @@ export async function simulate(content: CertificationContent, n: number): Promis
       }
       return `${d.code.slice(0, 4)} ${Math.round(100 * share)}%`;
     });
-    summary.lines.push(`exam ${i + 1}: ${ids.length} q, reused ${exam.reused}, shortfall ${exam.shortfall}, sections ${exam.sections.map((s) => s.kind[0]).join("")} | ${shares.join(" ")}`);
+    // Case studies drawn, whether in sections of their own or interleaved in the main section.
+    const cases = new Set(ids.flatMap((id) => byId.get(id)!.caseStudy ?? [])).size;
+    summary.lines.push(`exam ${i + 1}: ${ids.length} q, reused ${exam.reused}, shortfall ${exam.shortfall}, sections ${exam.sections.map((s) => s.kind[0]).join("")}, case studies ${cases} | ${shares.join(" ")}`);
     summary.questions += ids.length;
     summary.reused += exam.reused;
     summary.shortfall += exam.shortfall;

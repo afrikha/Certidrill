@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import type { AttemptView } from "@/lib/exam/session";
+import type { AttemptView, CaseStudyView } from "@/lib/exam/session";
 import { isAnswered, isComplete } from "@/lib/questions/public";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -200,6 +200,8 @@ export function ExamClient({ initial, resumed }: Readonly<{ initial: AttemptView
 
   const unansweredIn = (items: Item[]) => items.filter((i) => !isAnswered(responses[i.id])).length;
   const showReview = mode === "review" && section.kind === "main";
+  // The case study beside its questions: the section's, or that of an interleaved question (Google Cloud).
+  const caseStudy = section.kind === "case_study" ? section.caseStudy : current?.caseStudyId ? view.caseStudies[current.caseStudyId] : undefined;
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -229,8 +231,15 @@ export function ExamClient({ initial, resumed }: Readonly<{ initial: AttemptView
           />
         )}
         {!showReview && current && (
-          <div className={cn(section.kind === "case_study" && "grid gap-6 lg:grid-cols-2")}>
-            {section.kind === "case_study" && section.caseStudy && <CaseStudyPanel caseStudy={section.caseStudy} />}
+          <div className={cn(caseStudy && "grid gap-6 lg:grid-cols-2")}>
+            {caseStudy && (
+              <CaseStudyPanel
+                key={section.kind === "main" ? current.caseStudyId : section.id}
+                caseStudy={caseStudy}
+                id={section.kind === "main" ? current.caseStudyId : undefined}
+                collapsible={section.kind === "main"}
+              />
+            )}
             <div>
               <div id="question-top" tabIndex={-1} className="outline-none" />
               <QuestionView
@@ -329,9 +338,15 @@ function TopBar({ view, sectionKind, number, remaining, saveStatus }: Readonly<{
 
 const TAB_STEP: Record<string, number> = { ArrowRight: 1, ArrowLeft: -1 };
 
-function CaseStudyPanel({ caseStudy }: Readonly<{ caseStudy: NonNullable<AttemptView["sections"][number]["caseStudy"]> }>) {
+/**
+ * The case study, beside its questions on a wide screen. Collapsible (the
+ * interleaved questions of Google Cloud): on a narrow screen, folded above
+ * the question until opened.
+ */
+function CaseStudyPanel({ caseStudy, id, collapsible = false }: Readonly<{ caseStudy: CaseStudyView; id?: string; collapsible?: boolean }>) {
   const t = useTranslations("exam");
   const [tab, setTab] = useState(caseStudy.tabs[0]?.key);
+  const [open, setOpen] = useState(false);
   const onKey = (e: React.KeyboardEvent, i: number) => {
     const step = TAB_STEP[e.key];
     if (step === undefined) return;
@@ -342,8 +357,20 @@ function CaseStudyPanel({ caseStudy }: Readonly<{ caseStudy: NonNullable<Attempt
     document.getElementById(`cs-tab-${caseStudy.tabs[next]!.key}`)?.focus();
   };
   return (
-    <section aria-label={t("scenario")} className="rounded-md border border-border lg:sticky lg:top-16 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto">
+    <section aria-label={t("scenario")} data-testid="case-study-panel" data-case-study={id} className="rounded-md border border-border lg:sticky lg:top-16 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto">
       <h2 className="border-b border-border bg-muted px-4 py-2 font-semibold"><Html html={caseStudy.titleHtml} inline /></h2>
+      {collapsible && (
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls="case-study-body"
+          onClick={() => setOpen((o) => !o)}
+          className="w-full border-b border-border px-4 py-2 text-left text-sm font-medium text-primary lg:hidden"
+        >
+          {open ? t("hideCaseStudy") : t("showCaseStudy")}
+        </button>
+      )}
+      <div id="case-study-body" className={cn(collapsible && !open && "hidden", "lg:block")}>
       <div role="tablist" aria-label={t("scenario")} className="flex flex-wrap border-b border-border">
         {caseStudy.tabs.map((tb, i) => (
           <button
@@ -367,6 +394,7 @@ function CaseStudyPanel({ caseStudy }: Readonly<{ caseStudy: NonNullable<Attempt
           <Html html={tb.html} />
         </div>
       ))}
+      </div>
     </section>
   );
 }

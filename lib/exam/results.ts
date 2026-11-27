@@ -227,7 +227,7 @@ export async function getAttemptResults(
       certification: true,
       blueprint: { include: { domains: true } },
       sections: { include: { caseStudy: true, series: true } },
-      items: { orderBy: { order: "asc" }, include: { question: { include: { objective: { include: { domain: true } } } } } },
+      items: { orderBy: { order: "asc" }, include: { question: { include: { objective: { include: { domain: true } }, caseStudy: { select: { title: true } } } } } },
     },
   });
   if (!attempt) throw new SessionError("not_found");
@@ -269,7 +269,8 @@ export async function getAttemptResults(
         max: it.pointsMax ?? 0,
         question: await presentQuestion(q, locale, it.optionOrder as OptionOrder, rules),
         seriesStemHtml: section.series ? await renderMarkdown(pick(section.series.stem as L, locale)) : undefined,
-        caseStudyTitle: section.caseStudy ? pick(section.caseStudy.title as L, locale) : undefined,
+        // The section's case study, or that of an interleaved question (Google Cloud).
+        caseStudyTitle: (section.caseStudy ?? q.caseStudy) ? pick((section.caseStudy ?? q.caseStudy)!.title as L, locale) : undefined,
         response: it.response,
         ...explained,
       };

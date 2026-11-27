@@ -24,6 +24,7 @@ export function Welcome({ view, onStart, busy, error, blueprintRange }: Readonly
           <li>{t("duration", { n: view.durationMin })}</li>
           <li>{t("questions", { n: view.totalQuestions })}</li>
           {kinds.has("case_study") && <li>{t("sectionsCase")}</li>}
+          {view.interleavedCaseStudies > 0 && <li>{t("sectionsCaseInterleaved", { n: view.interleavedCaseStudies })}</li>}
           {kinds.has("series") && <li>{t("sectionsSeries")}</li>}
           <li>{t("sectionsMain")}</li>
           <li>{t("noHints")}</li>

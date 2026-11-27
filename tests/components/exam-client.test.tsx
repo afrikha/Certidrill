@@ -382,6 +382,48 @@ describe("ExamClient — case study", () => {
   });
 });
 
+/** Main section with the questions of two case studies mixed in (Google Cloud: placement interleaved). */
+function interleaved() {
+  const items = [item("q1", 1, "m", undefined, { caseStudyId: "cs-a" }), item("q2", 2, "m"), item("q3", 3, "m", undefined, { caseStudyId: "cs-b" })];
+  const cs = (name: string) => ({ titleHtml: name, tabs: [{ key: "overview", titleHtml: "Company overview", html: `<p>${name} overview</p>` }] });
+  return view({ items, interleavedCaseStudies: 2, sections: [section("m", 1, "main", items.map((i) => i.id))], caseStudies: { "cs-a": cs("Altostrat"), "cs-b": cs("Cymbal") } });
+}
+
+describe("ExamClient — interleaved case studies", () => {
+  it("shows its case study beside each case-study question, none beside the others, and keeps flags and review", async () => {
+    renderIntl(<ExamClient initial={interleaved()} resumed={false} />, "fr");
+    const panel = () => screen.queryByTestId("case-study-panel");
+    expect(panel()).toHaveAttribute("data-case-study", "cs-a");
+    expect(panel()).toHaveTextContent("Altostrat overview");
+    // The question and the case study side by side on a wide screen.
+    expect(panel()!.parentElement).toHaveClass("lg:grid-cols-2");
+    expect(screen.getByRole("checkbox", { name: "Marquer pour révision" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /Suivant/ }));
+    expect(panel()).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: /Suivant/ }));
+    expect(panel()).toHaveAttribute("data-case-study", "cs-b");
+    expect(panel()).toHaveTextContent("Cymbal");
+  });
+
+  it("folds the case study on a narrow screen until opened", async () => {
+    renderIntl(<ExamClient initial={interleaved()} resumed={false} />, "fr");
+    const toggle = screen.getByRole("button", { name: "Afficher l'étude de cas" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(toggle).toHaveClass("lg:hidden");
+    const body = document.getElementById("case-study-body")!;
+    expect(body).toHaveClass("hidden", "lg:block");
+    await userEvent.click(toggle);
+    expect(screen.getByRole("button", { name: "Masquer l'étude de cas" })).toHaveAttribute("aria-expanded", "true");
+    expect(body).not.toHaveClass("hidden");
+  });
+
+  it("tells on the welcome screen that the case studies are mixed with the other questions", () => {
+    renderIntl(<ExamClient initial={{ ...interleaved(), status: "not_started", sections: [], items: [], startedAt: null, deadlineAt: null }} resumed={false} />, "fr");
+    expect(screen.getByText(/2 études de cas : leurs questions sont mêlées aux autres/)).toBeInTheDocument();
+    expect(screen.queryByText(/une fois une étude de cas quittée/)).toBeNull();
+  });
+});
+
 describe("ExamClient — main section followed by another", () => {
   it("finishes the section (lock) instead of the exam", async () => {
     mockApi({ [`GET ${A}`]: () => res(200, mainThenSeries("se")) });
