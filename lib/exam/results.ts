@@ -256,6 +256,8 @@ export async function getAttemptResults(
     shown.map(async (it) => {
       const q = it.question;
       const section = attempt.sections.find((s) => s.id === it.sectionId)!;
+      // The section's case study, or that of an interleaved question (Google Cloud).
+      const caseStudy = section.caseStudy ?? q.caseStudy;
       // Why each wrong option is wrong: full access only.
       const explained = await explainQuestion(q, locale, { options: full, grading: it.grading });
       return {
@@ -269,8 +271,7 @@ export async function getAttemptResults(
         max: it.pointsMax ?? 0,
         question: await presentQuestion(q, locale, it.optionOrder as OptionOrder, rules),
         seriesStemHtml: section.series ? await renderMarkdown(pick(section.series.stem as L, locale)) : undefined,
-        // The section's case study, or that of an interleaved question (Google Cloud).
-        caseStudyTitle: (section.caseStudy ?? q.caseStudy) ? pick((section.caseStudy ?? q.caseStudy)!.title as L, locale) : undefined,
+        caseStudyTitle: caseStudy ? pick(caseStudy.title as L, locale) : undefined,
         response: it.response,
         ...explained,
       };

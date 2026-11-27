@@ -298,7 +298,7 @@ export async function getAttemptView(db: PrismaClient, { attemptId, userId, now 
       answered: i.answeredAt !== null,
     })),
   );
-  for (const [id, cs] of interleaved) view.caseStudies[id] = await caseStudyView(cs, locale); // NOSONAR: two case studies at most
+  view.caseStudies = Object.fromEntries(await Promise.all([...interleaved].map(async ([id, cs]) => [id, await caseStudyView(cs, locale)] as const)));
   return view;
 }
 
